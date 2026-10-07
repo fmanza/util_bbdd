@@ -66,14 +66,23 @@ class MariaDBConnectionConfig:
     connect_timeout: int = 10
     read_timeout: int = 30
     write_timeout: int = 60
-    charset: str | None = None
+    charset: str = "utf8mb4"
+    encoding_errors: str = "replace"
+    init_command: str = "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
 
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> MariaDBConnectionConfig:
         db_type: str = "mariadb"
-        # Use utf8mb4 as default charset to handle UnicodeDecodeError from mariadb driver
-        # when reading information_schema with non-ASCII characters (H-32, P2 hotfix 2026-10-05)
         charset = _opt_str(params, "charset") or "utf8mb4"
+        encoding_errors = _opt_str(params, "encoding_errors") or "replace"
+        init_command = _opt_str(params, "init_command") or "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
+
+        # Validar encoding_errors: solo valores permitidos
+        if encoding_errors not in {"replace", "strict", "ignore"}:
+            raise ValueError(
+                f"Parametro invalido para {db_type}: encoding_errors debe ser 'replace', 'strict' o 'ignore'; "
+                f"recibido '{encoding_errors}'"
+            )
         return cls(
             host=_require_str(params, "host", db_type),
             user=_require_str(params, "user", db_type),
@@ -86,6 +95,8 @@ class MariaDBConnectionConfig:
             read_timeout=_to_int(params.get("read_timeout", 30), "read_timeout", db_type, min_value=0),
             write_timeout=_to_int(params.get("write_timeout", 60), "write_timeout", db_type, min_value=0),
             charset=charset,
+            encoding_errors=encoding_errors,
+            init_command=init_command,
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:
@@ -99,7 +110,9 @@ class MariaDBConnectionConfig:
             "connect_timeout": self.connect_timeout,
             "read_timeout": self.read_timeout,
             "write_timeout": self.write_timeout,
-            "charset": self.charset,  # Always include charset (default: utf8mb4)
+            "charset": self.charset,  # v0.35.0: defaults to utf8mb4 to avoid UnicodeDecodeError
+            "encoding_errors": self.encoding_errors,  # v0.35.0: mariadb >= 1.1.4; safety net for corrupt metadata
+            "init_command": self.init_command,  # v0.35.0: forces SET NAMES = same behavior as PyMySQL (requires trust from internal config only)
         }
         if self.unix_socket:
             payload["unix_socket"] = self.unix_socket

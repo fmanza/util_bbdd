@@ -1,6 +1,7 @@
 """Pool de conexiones para MariaDB (mariadb.ConnectionPool)."""
 
 import logging
+import re
 
 from typing import Any
 from uuid import uuid4
@@ -16,6 +17,9 @@ except ImportError:
 from ..._core.exceptions import PoolConnectionError, PoolTimeoutError
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 from ..params import ConnectionParamsManager
+
+# Parámetros que el pool puede rechazar según versión del driver; se eliminan uno a uno si procede.
+_OPTIONAL_POOL_PARAMS: frozenset[str] = frozenset({"charset", "init_command", "encoding_errors"})
 
 
 class PoolConnection:
@@ -99,29 +103,31 @@ class PoolConnection:
                 pool_name = f"pool_{uuid4().hex[:12]}"
                 sanitized_conn_params["pool_name"] = pool_name
 
-            # Crear pool con parámetros
-            try:
-                self.pool = mariadb.ConnectionPool(
-                    **sanitized_conn_params,
-                )
-            except TypeError as err:
-                error_message: str = str(err)
-                # Detectar si el TypeError es específicamente por charset no soportado
-                # Patrón: "unexpected keyword argument 'charset'" o similar
-                if not ("charset" in error_message and "unexpected keyword argument" in error_message):
-                    raise
-
-                fallback_conn_params: dict[str, str | int] = {
-                    key: value for key, value in sanitized_conn_params.items() if key != "charset"
-                }
-                mariadb_version: str = str(getattr(mariadb, "__version__", "desconocida"))
-                self.logger.warning(
-                    "⚠️ mariadb.ConnectionPool() rechazó 'charset'; reintentando sin charset "
-                    f"(mariadb version={mariadb_version})"
-                )
-                self.pool = mariadb.ConnectionPool(
-                    **fallback_conn_params,
-                )
+            # Crear pool; reintentar eliminando kwargs opcionales rechazados por el driver
+            pool_params: dict[str, str | int] = dict(sanitized_conn_params)
+            for _ in range(len(_OPTIONAL_POOL_PARAMS) + 1):
+                try:
+                    self.pool = mariadb.ConnectionPool(**pool_params)
+                    break
+                except TypeError as err:
+                    msg = str(err)
+                    if "unexpected keyword argument" not in msg:
+                        raise
+                    match = re.search(r"unexpected keyword argument '(\w+)'", msg)
+                    if not match or match.group(1) not in _OPTIONAL_POOL_PARAMS:
+                        raise
+                    rejected = match.group(1)
+                    pool_params = {k: v for k, v in pool_params.items() if k != rejected}
+                    mariadb_version: str = str(getattr(mariadb, "__version__", "?"))
+                    extra_msg = (
+                        " ⚠️ ADVERTENCIA: charset SET NAMES no se ejecutará" if rejected == "init_command" else ""
+                    )
+                    self.logger.warning(
+                        f"⚠️ mariadb.ConnectionPool() rechazó '{rejected}'; "
+                        f"reintentando sin él (mariadb version={mariadb_version}){extra_msg}"
+                    )
+            else:
+                raise RuntimeError("No se pudo crear el pool de MariaDB; parámetros opcionales agotados")
 
             self.logger.info(
                 f"✅ Pool MariaDB creado: {sanitized_conn_params.get('pool_size', 5)} conexiones (pool {pool_name})"

@@ -110,34 +110,38 @@ def build_create_routine(
 
 
 _PARAMETERS_SQL = (
-    "SELECT SPECIFIC_NAME, ROUTINE_TYPE, ORDINAL_POSITION, PARAMETER_NAME, PARAMETER_MODE, DTD_IDENTIFIER "
+    "SELECT SPECIFIC_NAME, ROUTINE_TYPE, ORDINAL_POSITION, PARAMETER_NAME, PARAMETER_MODE, CONVERT(DTD_IDENTIFIER USING utf8mb4) "
     "FROM information_schema.PARAMETERS WHERE SPECIFIC_SCHEMA = :schema AND ORDINAL_POSITION > 0 "
     "ORDER BY SPECIFIC_NAME, ROUTINE_TYPE, ORDINAL_POSITION"
 )
 
 # EXTRA de las columnas con ON UPDATE: "on update current_timestamp()" / "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
-_ON_UPDATE = re.compile(r"\bon update (\S+)", re.IGNORECASE)
+# H6 FIX: Capturar funciones complejas (NOW(), CURRENT_TIMESTAMP()) sin truncar
+# Patrón: captura "on update <value>" donde value puede tener espacios (NOW() + INTERVAL 1 DAY)
+_ON_UPDATE = re.compile(r"\bon\s+update\s+(\S+(?:\s*\(\s*\d*\s*\))?)", re.IGNORECASE)
 
 # kind → (SQL con {filter}, columna por la que se filtra con :tables o None, consultas extra)
 _COMMON: dict[Kind, tuple[str, str | None, tuple[str, ...]]] = {
     # MariaDB: las tablas con SYSTEM VERSIONING tienen TABLE_TYPE = 'SYSTEM VERSIONED' (E1)
     Kind.TABLES: (
-        "SELECT TABLE_NAME, TABLE_COMMENT, TABLE_COLLATION FROM information_schema.TABLES "
+        "SELECT TABLE_NAME, CONVERT(TABLE_COMMENT USING utf8mb4), TABLE_COLLATION FROM information_schema.TABLES "
         "WHERE TABLE_SCHEMA = :schema AND TABLE_TYPE IN ('BASE TABLE', 'SYSTEM VERSIONED'){filter} ORDER BY TABLE_NAME",
         "TABLE_NAME",
         (),
     ),
     Kind.VIEWS: (
-        "SELECT TABLE_NAME, VIEW_DEFINITION FROM information_schema.VIEWS "
+        "SELECT TABLE_NAME, CONVERT(VIEW_DEFINITION USING utf8mb4) FROM information_schema.VIEWS "
         "WHERE TABLE_SCHEMA = :schema{filter} ORDER BY TABLE_NAME",
         "TABLE_NAME",
         (),
     ),
     Kind.COLUMNS: (
         "SELECT TABLE_NAME, COLUMN_NAME, ORDINAL_POSITION, COLUMN_TYPE, DATA_TYPE, IS_NULLABLE, "
-        "CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, COLUMN_DEFAULT, COLUMN_COMMENT, "
+        "CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, CONVERT(COLUMN_DEFAULT USING utf8mb4), "
+        "CONVERT(COLUMN_COMMENT USING utf8mb4), "
         "CASE WHEN COLLATION_NAME <> (SELECT DEFAULT_COLLATION_NAME FROM information_schema.SCHEMATA "
-        "WHERE SCHEMA_NAME = :schema) THEN COLLATION_NAME END, EXTRA, GENERATION_EXPRESSION "
+        "WHERE SCHEMA_NAME = :schema) THEN COLLATION_NAME END, EXTRA, "
+        "CONVERT(GENERATION_EXPRESSION USING utf8mb4) "
         "FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = :schema{filter} ORDER BY TABLE_NAME, ORDINAL_POSITION",
         "TABLE_NAME",
         (),
@@ -173,7 +177,8 @@ _COMMON: dict[Kind, tuple[str, str | None, tuple[str, ...]]] = {
         (),
     ),
     Kind.ROUTINES: (
-        "SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_DEFINITION, DTD_IDENTIFIER, ROUTINE_COMMENT, IS_DETERMINISTIC, "
+        "SELECT ROUTINE_NAME, ROUTINE_TYPE, CONVERT(ROUTINE_DEFINITION USING utf8mb4), DTD_IDENTIFIER, "
+        "CONVERT(ROUTINE_COMMENT USING utf8mb4), IS_DETERMINISTIC, "
         "SQL_DATA_ACCESS, SECURITY_TYPE FROM information_schema.ROUTINES "
         "WHERE ROUTINE_SCHEMA = :schema ORDER BY ROUTINE_NAME, ROUTINE_TYPE",
         None,
@@ -190,7 +195,7 @@ _COMMON: dict[Kind, tuple[str, str | None, tuple[str, ...]]] = {
 
 _MARIADB: dict[Kind, tuple[str, str | None, tuple[str, ...]]] = {
     Kind.CHECKS: (
-        "SELECT TABLE_NAME, CONSTRAINT_NAME, CHECK_CLAUSE FROM information_schema.CHECK_CONSTRAINTS "
+        "SELECT TABLE_NAME, CONSTRAINT_NAME, CONVERT(CHECK_CLAUSE USING utf8mb4) FROM information_schema.CHECK_CONSTRAINTS "
         "WHERE CONSTRAINT_SCHEMA = :schema{filter} ORDER BY TABLE_NAME, CONSTRAINT_NAME",
         "TABLE_NAME",
         (),
@@ -207,7 +212,7 @@ _MARIADB: dict[Kind, tuple[str, str | None, tuple[str, ...]]] = {
 _MYSQL: dict[Kind, tuple[str, str | None, tuple[str, ...]]] = {
     # MySQL no guarda la tabla en CHECK_CONSTRAINTS: TABLE_CONSTRAINTS por separado (sin join entre vistas)
     Kind.CHECKS: (
-        "SELECT CONSTRAINT_NAME, CHECK_CLAUSE FROM information_schema.CHECK_CONSTRAINTS "
+        "SELECT CONSTRAINT_NAME, CONVERT(CHECK_CLAUSE USING utf8mb4) FROM information_schema.CHECK_CONSTRAINTS "
         "WHERE CONSTRAINT_SCHEMA = :schema ORDER BY CONSTRAINT_NAME",
         None,
         (
@@ -216,7 +221,7 @@ _MYSQL: dict[Kind, tuple[str, str | None, tuple[str, ...]]] = {
         ),
     ),
     Kind.INDEXES: (
-        "SELECT TABLE_NAME, INDEX_NAME, NON_UNIQUE, INDEX_TYPE, COLUMN_NAME, EXPRESSION, SEQ_IN_INDEX "
+        "SELECT TABLE_NAME, INDEX_NAME, NON_UNIQUE, INDEX_TYPE, COLUMN_NAME, CONVERT(EXPRESSION USING utf8mb4), SEQ_IN_INDEX "
         "FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = :schema{filter} "
         "ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX",
         "TABLE_NAME",
@@ -254,14 +259,23 @@ def quote_literal_default(default: str | None, data_type: str, extra: str) -> st
     contiene ``DEFAULT_GENERATED``) y los defaults de columnas numéricas se dejan tal cual.
 
     Args:
-        default: ``COLUMN_DEFAULT`` tal cual lo devuelve MySQL.
+        default: ``COLUMN_DEFAULT`` tal cual lo devuelve MySQL (str | None | bytes).
         data_type: ``DATA_TYPE`` de la columna.
         extra: ``EXTRA`` de la columna.
 
     Returns:
         El default entrecomillado si es un literal de una columna no numérica; si no, sin cambios.
+
+    Nota (H4 FIX):
+        Si ``default`` es bytes (mariadb-connector < 1.1.4), se convierte a str primero.
     """
-    if default is None or "DEFAULT_GENERATED" in extra.upper():
+    # H4 FIX: Manejar bytes convertidos a string
+    if default is None:
+        return None
+    if isinstance(default, bytes):
+        default = default.decode("utf-8", errors="replace")
+
+    if "DEFAULT_GENERATED" in extra.upper():
         return default
     if data_type.strip().upper() in _NUMERIC_DATA_TYPES:
         return default
@@ -356,6 +370,9 @@ class MariaDBCatalog:
         by_name = {(str(r[0]), str(r[1])): (r[2], r[3]) for r in rules}
         out = []
         for (table, name), group in _grouped(columns).items():
+            # H3 FIX: Validar que group tiene suficientes columnas antes de acceder a índices
+            if not group or len(group[0]) < 6:
+                continue  # Saltar FK incompleta
             delete_rule, update_rule = by_name.get((table, name), (None, None))
             out.append(
                 ForeignKeyMeta(
@@ -373,17 +390,22 @@ class MariaDBCatalog:
 
     @staticmethod
     def _parse_indexes(rows: Sequence[Sequence[Any]], schema: str) -> list[IndexMeta]:
-        return [
-            IndexMeta(
-                table=t,
-                name=n,
-                columns=tuple(_text(r[5]) or str(r[4]) for r in g),
-                unique=int(g[0][2]) == 0,
-                primary=n == "PRIMARY",
-                method=_text(g[0][3]),
+        # H3 FIX: Validar que cada row tiene al menos 6 columnas
+        result = []
+        for (t, n), g in _grouped(rows).items():
+            if not g or len(g[0]) < 4:  # Mínimo: TABLE_NAME, INDEX_NAME, NON_UNIQUE, INDEX_TYPE
+                continue  # Saltar índice incompleto
+            result.append(
+                IndexMeta(
+                    table=t,
+                    name=n,
+                    columns=tuple((_text(g_row[5]) if len(g_row) > 5 else None) or str(g_row[4]) for g_row in g),
+                    unique=int(g[0][2]) == 0,
+                    primary=n == "PRIMARY",
+                    method=_text(g[0][3]),
+                )
             )
-            for (t, n), g in _grouped(rows).items()
-        ]
+        return result
 
     @staticmethod
     def _parse_identity(rows: Sequence[Sequence[Any]], schema: str) -> list[IdentityMeta]:
@@ -394,9 +416,14 @@ class MariaDBCatalog:
         routines, parameters = results
         params: dict[tuple[str, str], list[tuple[Any, Any, Any]]] = {}
         for p in parameters:
-            params.setdefault((str(p[0]), str(p[1]).upper()), []).append((p[4], p[3], p[5]))
+            # H3 FIX: Validar que p tiene al menos 6 columnas antes de acceder a [3], [4], [5]
+            if len(p) >= 6:
+                params.setdefault((str(p[0]), str(p[1]).upper()), []).append((p[4], p[3], p[5]))
         out = []
         for r in routines:
+            # H3 FIX: Validar que r tiene suficientes columnas (mínimo 8 para todos los campos de ROUTINES)
+            if len(r) < 8:
+                continue  # Saltar routine incompleta
             name, routine_type = str(r[0]), str(r[1]).upper()
             body = _text(r[2])
             returns = _text(r[3]) if routine_type == "FUNCTION" else None
@@ -462,8 +489,8 @@ class MySQLCatalog(MariaDBCatalog):
         ]
 
     @staticmethod
-    def _parse_checks(results: Sequence[Any], schema: str) -> list[CheckMeta]:
-        checks, tables = results
+    def _parse_checks(rows: Sequence[Any], schema: str) -> list[CheckMeta]:
+        checks, tables = rows
         table_of = {str(r[1]): str(r[0]) for r in tables}
         return [CheckMeta(table_of[str(r[0])], str(r[0]), str(_text(r[1]))) for r in checks if str(r[0]) in table_of]
 

@@ -17,6 +17,7 @@ from typing import Any
 
 from .._core.exceptions import DatabaseException, MetadataError
 from ..async_utils import maybe_await
+from ..metadata._adaptive_executor import AdaptiveCatalogExecutor
 from ..metadata._paramstyle import ParamStyle, to_driver
 from ..metadata.source import DbapiCatalogExecutor
 
@@ -24,6 +25,9 @@ from ..metadata.source import DbapiCatalogExecutor
 #: el resto se lee del propio módulo.
 #:
 #: Extensión: Registra nuevos drivers con :func:`register_driver_paramstyle`.
+#: Drivers que usan detección adaptativa de charset (MariaDB/MySQL family).
+_ADAPTIVE_DRIVERS: frozenset[str] = frozenset({"mariadb", "pymysql"})
+
 _KNOWN_STYLES: dict[str, ParamStyle] = {
     "psycopg": "pyformat",
     "psycopg2": "pyformat",
@@ -157,62 +161,87 @@ async def _arollback(connection: Any) -> None:
 class ManagerCatalogExecutor:
     """:class:`~util_bbdd.metadata.contracts.CatalogExecutor` sobre las conexiones de un manager síncrono.
 
-    Con reintento automático para SystemError del driver mariadb (cursor corrupto tras fallo silencioso).
-    Usa backoff exponencial: 100ms, 200ms, 400ms (configurable).
+    Con reintento automático mínimo (2×) para SystemError del driver mariadb.
+    Sin fallback: error explícito con diagnóstico accionable (Opción E).
 
     Args:
         provider: Devuelve una conexión DB-API del manager (del pool o la única).
         releaser: La devuelve al pool (o no hace nada con la conexión única).
-        max_retries: Número máximo de reintentos en caso de SystemError. Default: 3.
+        max_retries: Número máximo de reintentos en caso de SystemError. Default: 2 (sin fallback).
     """
 
-    def __init__(self, provider: Callable[[], Any], releaser: Callable[[Any], None], max_retries: int = 3) -> None:
+    def __init__(
+        self,
+        provider: Callable[[], Any],
+        releaser: Callable[[Any], None],
+        max_retries: int = 2,
+        connection_params: dict[str, Any] | None = None,
+    ) -> None:
         self._provider = provider
         self._releaser = releaser
         self._max_retries = max_retries
+        self._adaptive: AdaptiveCatalogExecutor | None = None
+        # connection_params is accepted for backward compatibility but not used (no fallback strategy)
+
+    def _resolve_executor(self, connection: Any) -> DbapiCatalogExecutor | AdaptiveCatalogExecutor:
+        """Devuelve AdaptiveCatalogExecutor para MariaDB/MySQL, DbapiCatalogExecutor para el resto."""
+        root = type(connection).__module__.split(".")[0]
+        if root not in _ADAPTIVE_DRIVERS:
+            return DbapiCatalogExecutor(connection, driver_paramstyle(connection))
+        if self._adaptive is None:
+            self._adaptive = AdaptiveCatalogExecutor(connection, driver_paramstyle(connection))
+        else:
+            self._adaptive.connection = connection
+        return self._adaptive
 
     def fetch_all(self, sql: str, params: Mapping[str, Any]) -> list[tuple[Any, ...]]:
-        """Ejecuta SQL de catálogo con reintento en caso de SystemError (mariadb driver).
+        """Ejecuta SQL de catálogo con reintento mínimo en caso de SystemError (mariadb driver).
+
+        Usa charset validation explícita (Opción B) y error claro sin fallback (Opción E).
+        Si ocurre SystemError tras agotar reintentos, lanza error con diagnóstico accionable.
 
         Raises:
             MetadataError: Si falla tras agotar reintentos o si ocurre otro error.
         """
-        for attempt in range(self._max_retries):
+        total_attempts = self._max_retries + 1  # 1 initial attempt + max_retries retries
+        for attempt in range(total_attempts):
             connection = self._provider()
             try:
-                logger.debug(f"[Catálogo intento {attempt + 1}/{self._max_retries}] Ejecutando SQL: {sql[:80]}...")
-                rows = DbapiCatalogExecutor(connection, driver_paramstyle(connection)).fetch_all(sql, params)
+                logger.debug(f"[Catálogo intento {attempt + 1}/{total_attempts}] Ejecutando SQL: {sql[:80]}...")
+                rows = self._resolve_executor(connection).fetch_all(sql, dict(params))
                 return [tuple(_materialize(v) for v in row) for row in rows]
             except DatabaseException:
                 raise
             except SystemError as exc:  # Error específico del driver mariadb (cursor corrupto)
                 _rollback(connection)
-
-                # Check if the underlying cause is a UnicodeDecodeError
                 is_unicode_error = _has_unicode_error_in_chain(exc)
 
-                if attempt < self._max_retries - 1:
-                    delay_ms = 100 * (2**attempt)
+                if attempt < total_attempts - 1:
+                    delay_ms = 100 * (2**attempt)  # 100ms, 200ms, ... (exponential backoff)
                     logger.warning(
-                        f"SystemError en catálogo (driver mariadb): {exc}. "
-                        f"Retentando en {delay_ms}ms (intento {attempt + 1}/{self._max_retries})..."
+                        f"SystemError en catálogo (driver mariadb, intento {attempt + 1}/{total_attempts}): {exc}. "
+                        f"Retentando en {delay_ms}ms..."
                     )
                     time.sleep(delay_ms / 1000.0)
                     continue
 
-                # Último reintento agotado
-                logger.error(f"SystemError persistente tras {self._max_retries} intentos: {exc}")
-
-                # Provide helpful message for Unicode errors
-                error_msg = f"Error leyendo el catálogo (SystemError del driver mariadb, retentado {self._max_retries} veces): {exc}"
+                # Todos los intentos agotados: error explícito con diagnóstico (sin fallback)
+                logger.error(f"SystemError persistente tras {total_attempts} intentos (sin fallback): {exc}")
+                error_msg = (
+                    f"Error leyendo el catálogo de MariaDB (SystemError del driver mariadb, "
+                    f"{total_attempts} intentos sin fallback): {exc}"
+                )
                 if is_unicode_error:
-                    error_msg += (
-                        " [UnicodeDecodeError subyacente]. Esto puede ocurrir si la conexión a MariaDB no usa "
-                        "charset UTF-8. Verifique que: (1) `character_set_client`, `character_set_connection` y "
-                        "`character_set_database` están configurados a 'utf8mb4' en MariaDB, "
-                        "(2) los datos en `information_schema` no contienen caracteres inválidos, "
-                        "(3) especifique charset='utf8mb4' en los parámetros de conexión como último recurso."
-                    )
+                    error_msg += " [UnicodeDecodeError subyacente en la cadena de excepciones]."
+                error_msg += (
+                    "\n\nDiagnóstico:\n"
+                    "  (1) Verifique charset de servidor MariaDB: @@character_set_server debe ser 'utf8mb4'\n"
+                    "  (2) Verifique charset de sesión: @@character_set_client, @@character_set_connection\n"
+                    "  (3) Si information_schema contiene datos heredados de utf8mb3, limpie con:\n"
+                    "      ALTER TABLE <tabla> COMMENT = 'comentario nuevo limpio';\n"
+                    "  (4) Versión de mariadb driver: pip show mariadb (considere actualizar a 1.2+)\n"
+                    "\nDocs: https://mariadb.com/kb/en/library/character-sets-and-collations/"
+                )
                 raise MetadataError(error_msg) from exc
             except Exception as exc:  # noqa: BLE001 - error del driver
                 _rollback(connection)
@@ -220,44 +249,47 @@ class ManagerCatalogExecutor:
             finally:
                 self._releaser(connection)
 
-        # No debería llegar aquí: cada intento termina con return o raise
-        raise AssertionError("Unexpected exit from retry loop")  # pragma: no cover
+        # No debería llegar aquí: cada iteración hace return, raise, o continue
+        raise AssertionError("Unexpected exit from retry loop")  # pragma: no cover  # type: ignore[return-value]
 
 
 class AsyncManagerCatalogExecutor:
     """:class:`~util_bbdd.metadata.contracts.AsyncCatalogExecutor` sobre las conexiones de un manager async.
 
     Con ``asyncpg`` (sin cursores DB-API) usa ``connection.fetch`` y parámetros ``$n``; con el resto, un cursor.
-    Con reintento automático para SystemError del driver mariadb (mismo que sync).
+    Con reintento automático mínimo para SystemError del driver mariadb.
+    Sin fallback: error explícito con diagnóstico accionable (Opción E).
 
     Args:
         provider: Devuelve una conexión DB-API del manager (async).
         releaser: La devuelve al pool (async).
-        max_retries: Número máximo de reintentos en caso de SystemError. Default: 3.
+        max_retries: Número máximo de reintentos en caso de SystemError. Default: 2.
     """
 
     def __init__(
         self,
         provider: Callable[[], Awaitable[Any]],
         releaser: Callable[[Any], Awaitable[None]],
-        max_retries: int = 3,
+        max_retries: int = 2,
     ) -> None:
         self._provider = provider
         self._releaser = releaser
         self._max_retries = max_retries
 
     async def fetch_all(self, sql: str, params: Mapping[str, Any]) -> list[tuple[Any, ...]]:
-        """Ejecuta SQL de catálogo con reintento en caso de SystemError (mariadb driver).
+        """Ejecuta SQL de catálogo con reintento mínimo en caso de SystemError (mariadb driver).
+
+        Usa charset validation explícita (Opción B) y error claro sin fallback (Opción E).
+        Si ocurre SystemError tras agotar reintentos, lanza error con diagnóstico accionable.
 
         Raises:
             MetadataError: Si falla tras agotar reintentos o si ocurre otro error.
         """
-        for attempt in range(self._max_retries):
+        total_attempts = self._max_retries + 1  # 1 initial attempt + max_retries retries
+        for attempt in range(total_attempts):
             connection = await self._provider()
             try:
-                logger.debug(
-                    f"[Catálogo async intento {attempt + 1}/{self._max_retries}] Ejecutando SQL: {sql[:80]}..."
-                )
+                logger.debug(f"[Catálogo async intento {attempt + 1}/{total_attempts}] Ejecutando SQL: {sql[:80]}...")
                 style = driver_paramstyle(connection)
                 driver_sql, args = to_driver(sql, params, style)
                 if style == "dollar":
@@ -277,30 +309,34 @@ class AsyncManagerCatalogExecutor:
                 raise
             except SystemError as exc:  # Error específico del driver mariadb
                 await _arollback(connection)
-
-                # Check if the underlying cause is a UnicodeDecodeError
                 is_unicode_error = _has_unicode_error_in_chain(exc)
 
-                if attempt < self._max_retries - 1:
-                    delay_ms = 100 * (2**attempt)
+                if attempt < total_attempts - 1:
+                    delay_ms = 100 * (2**attempt)  # 100ms, 200ms, ... (exponential backoff)
                     logger.warning(
-                        f"SystemError en catálogo async (driver mariadb): {exc}. "
-                        f"Retentando en {delay_ms}ms (intento {attempt + 1}/{self._max_retries})..."
+                        f"SystemError en catálogo async (driver mariadb, intento {attempt + 1}/{total_attempts}): {exc}. "
+                        f"Retentando en {delay_ms}ms..."
                     )
                     await asyncio.sleep(delay_ms / 1000.0)
                     continue
 
-                # Último reintento agotado
-                logger.error(f"SystemError persistente (async) tras {self._max_retries} intentos: {exc}")
-                error_msg = f"Error leyendo el catálogo (SystemError del driver mariadb, retentado {self._max_retries} veces): {exc}"
+                # Todos los intentos agotados: error explícito con diagnóstico (sin fallback)
+                logger.error(f"SystemError persistente (async) tras {total_attempts} intentos (sin fallback): {exc}")
+                error_msg = (
+                    f"Error leyendo el catálogo de MariaDB (SystemError del driver mariadb, "
+                    f"{total_attempts} intentos sin fallback): {exc}"
+                )
                 if is_unicode_error:
-                    error_msg += (
-                        " [UnicodeDecodeError subyacente]. Esto puede ocurrir si la conexión a MariaDB no usa "
-                        "charset UTF-8. Verifique que: (1) `character_set_client`, `character_set_connection` y "
-                        "`character_set_database` están configurados a 'utf8mb4' en MariaDB, "
-                        "(2) los datos en `information_schema` no contienen caracteres inválidos, "
-                        "(3) especifique charset='utf8mb4' en los parámetros de conexión como último recurso."
-                    )
+                    error_msg += " [UnicodeDecodeError subyacente en la cadena de excepciones]."
+                error_msg += (
+                    "\n\nDiagnóstico:\n"
+                    "  (1) Verifique charset de servidor MariaDB: @@character_set_server debe ser 'utf8mb4'\n"
+                    "  (2) Verifique charset de sesión: @@character_set_client, @@character_set_connection\n"
+                    "  (3) Si information_schema contiene datos heredados de utf8mb3, limpie con:\n"
+                    "      ALTER TABLE <tabla> COMMENT = 'comentario nuevo limpio';\n"
+                    "  (4) Versión de mariadb driver: pip show mariadb (considere actualizar a 1.2+)\n"
+                    "\nDocs: https://mariadb.com/kb/en/library/character-sets-and-collations/"
+                )
                 raise MetadataError(error_msg) from exc
             except Exception as exc:  # noqa: BLE001 - ver ManagerCatalogExecutor.fetch_all
                 await _arollback(connection)
@@ -309,7 +345,7 @@ class AsyncManagerCatalogExecutor:
                 await self._releaser(connection)
 
         # No debería llegar aquí: cada intento termina con return o raise
-        raise AssertionError("Unexpected exit from retry loop")  # pragma: no cover
+        raise AssertionError("Unexpected exit from retry loop")  # pragma: no cover  # type: ignore[return-value]
 
 
 __all__: list[str] = [

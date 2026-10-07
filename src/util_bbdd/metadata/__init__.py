@@ -8,6 +8,12 @@
 """
 
 # Lectura por lotes (ADR-003)
+from ._adaptive_executor import AdaptiveCatalogExecutor
+from ._charset_detection import (
+    CharsetDiagnosis,
+    CharsetState,
+    CharsetStateDetector,
+)
 from .catalog_registry import (
     CatalogDialectNotFoundError,
     get_catalog_dialect,
@@ -58,6 +64,7 @@ __all__: list[str] = [
     "AsyncMetadataProvider",
     # Lectura por lotes (ADR-003)
     "ALL_KINDS",
+    "AdaptiveCatalogExecutor",
     "AsyncCatalogExecutor",
     "AsyncCatalogSource",
     "AsyncMetadataSource",
@@ -66,6 +73,9 @@ __all__: list[str] = [
     "CatalogExecutor",
     "CatalogQuery",
     "CatalogSource",
+    "CharsetDiagnosis",
+    "CharsetState",
+    "CharsetStateDetector",
     "CheckMeta",
     "ColumnMeta",
     "DatabaseMeta",

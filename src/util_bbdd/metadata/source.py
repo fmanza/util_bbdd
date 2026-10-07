@@ -13,6 +13,8 @@ Example:
 
 from __future__ import annotations
 
+import logging
+
 from collections.abc import Collection, Mapping
 from functools import partial
 from typing import Any
@@ -25,6 +27,8 @@ from .catalog_registry import get_catalog_dialect
 from .contracts import AsyncCatalogExecutor, CatalogDialect, CatalogExecutor
 from .model import ALL_KINDS, TABLE_SCOPED_KINDS, Kind, SchemaSnapshot
 from .snapshot_cache import CacheKey, SnapshotCache
+
+logger = logging.getLogger(__name__)
 
 #: Por encima de este nº de tablas pedidas, se lee el schema completo (una consulta) en vez de filtrar con ``IN``.
 FILTER_MAX_TABLES = 50
@@ -61,7 +65,7 @@ class DbapiCatalogExecutor:
 
     def __init__(self, connection: Any, paramstyle: ParamStyle) -> None:
         self.connection = connection
-        self.paramstyle = paramstyle
+        self.paramstyle: ParamStyle = paramstyle
 
     def fetch_all(self, sql: str, params: Mapping[str, Any]) -> list[tuple[Any, ...]]:
         driver_sql, args = to_driver(sql, params, self.paramstyle)
@@ -72,6 +76,16 @@ class DbapiCatalogExecutor:
             else:
                 cursor.execute(driver_sql, args)
             return [tuple(row) for row in cursor.fetchall()]
+        except SystemError as exc:
+            # mariadb C extension raises SystemError when bytes can't be decoded as UTF-8.
+            # No silent fallback: fail fast with diagnostic (Strategy E).
+            logger.exception(
+                f"SystemError en fetchall() (driver mariadb): {exc}. "
+                f"Esto indica problemas de charset en el servidor MariaDB. "
+                f"Verifique @@character_set_server='utf8mb4' y CONVERT(... USING utf8mb4) "
+                f"en las consultas de information_schema."
+            )
+            raise
         finally:
             cursor.close()
 
@@ -141,7 +155,7 @@ class _SourceBase:
 
     def _finish(
         self, kind: Kind, results: list[list[tuple[Any, ...]]], schema: str, tables: frozenset[str] | None
-    ) -> tuple:
+    ) -> tuple[object, ...]:
         rows: Any = results[0] if len(results) == 1 else results  # con ``extra``, parse recibe todas las listas
         items = self.dialect.parse(kind, rows, schema)
         query = self.dialect.query(kind, filtered=tables is not None)
@@ -181,9 +195,19 @@ class CatalogSource(_SourceBase):
 
     @classmethod
     def from_engine(
-        cls, engine: Engine, *, cache: SnapshotCache | None = None, default_schema: str | None = None
+        cls,
+        engine: Engine,
+        *,
+        cache: SnapshotCache | None = None,
+        default_schema: str | None = None,
     ) -> CatalogSource:
-        """Fuente sobre un ``Engine`` de SQLAlchemy (dialecto resuelto por ``engine.dialect.name``)."""
+        """Fuente sobre un ``Engine`` de SQLAlchemy (dialecto resuelto por ``engine.dialect.name``).
+
+        Args:
+            engine: SQLAlchemy Engine.
+            cache: Caché compartible entre fuentes; por defecto una propia.
+            default_schema: Schema por defecto; si es None se pregunta al motor.
+        """
         return cls(
             get_catalog_dialect(engine.dialect.name),
             SqlAlchemyCatalogExecutor(engine),
@@ -263,7 +287,15 @@ class CatalogSource(_SourceBase):
 
 
 class AsyncCatalogSource(_SourceBase):
-    """:class:`~util_bbdd.metadata.contracts.AsyncMetadataSource`: igual que :class:`CatalogSource` con E/S async."""
+    """:class:`~util_bbdd.metadata.contracts.AsyncMetadataSource`: igual que :class:`CatalogSource` con E/S async.
+
+    Args:
+        dialect: Qué leer del motor.
+        executor: Cómo ejecutarlo (async).
+        source_id: Identifica la base de datos en la caché.
+        cache: Caché compartible entre fuentes; por defecto una propia.
+        default_schema: Schema cuando ``snapshot()`` no recibe uno; si es ``None`` se pregunta al motor.
+    """
 
     def __init__(
         self,

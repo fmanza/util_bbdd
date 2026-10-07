@@ -645,6 +645,7 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
                 ManagerCatalogExecutor(
                     lambda: self._get_sync_query_executor().connection_provider(),
                     lambda conn: self._get_sync_query_executor().connection_releaser(conn),
+                    connection_params=self.conn_params,
                 ),
                 source_id=self._catalog_source_id(),
                 cache=self._catalog_cache(),

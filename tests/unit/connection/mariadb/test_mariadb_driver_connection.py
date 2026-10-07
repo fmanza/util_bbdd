@@ -18,7 +18,7 @@ BASE: dict[str, Any] = {"host": "db", "user": "app", "password": "pw", "database
 
 
 class TestMariaDBConnectionConfig:
-    """Validar que MariaDBConnectionConfig incluye charset por defecto."""
+    """Validar que MariaDBConnectionConfig incluye charset, init_command y encoding_errors por defecto."""
 
     def test_defaults_include_charset_utf8mb4(self) -> None:
         """Charset debe ser utf8mb4 por defecto para evitar UnicodeDecodeError (H-32 hotfix)."""
@@ -30,6 +30,22 @@ class TestMariaDBConnectionConfig:
         params = {**BASE, "charset": "latin1"}
         kwargs = MariaDBConnectionConfig.from_params(params).to_driver_kwargs()
         assert kwargs["charset"] == "latin1"
+
+    def test_defaults_include_init_command(self) -> None:
+        """init_command debe incluir SET NAMES por defecto (equivale al comportamiento de PyMySQL)."""
+        kwargs = MariaDBConnectionConfig.from_params(BASE).to_driver_kwargs()
+        assert kwargs["init_command"] == "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
+
+    def test_explicit_init_command_is_preserved(self) -> None:
+        """Si el usuario especifica init_command, debe respetarse."""
+        params = {**BASE, "init_command": "SET NAMES latin1"}
+        kwargs = MariaDBConnectionConfig.from_params(params).to_driver_kwargs()
+        assert kwargs["init_command"] == "SET NAMES latin1"
+
+    def test_defaults_include_encoding_errors_replace(self) -> None:
+        """encoding_errors='replace' debe estar presente como safety net para metadatos corruptos."""
+        kwargs = MariaDBConnectionConfig.from_params(BASE).to_driver_kwargs()
+        assert kwargs["encoding_errors"] == "replace"
 
     def test_to_driver_kwargs_includes_connection_params(self) -> None:
         """to_driver_kwargs() debe incluir todos los parámetros de conexión."""
@@ -114,7 +130,7 @@ class TestMariaDBPoolConfig:
 
 
 class TestMariaDBNativePoolFallback:
-    """Validar fallback defensivo cuando una versión de mariadb no acepta charset en ConnectionPool."""
+    """Validar fallback defensivo cuando el driver rechaza kwargs opcionales en ConnectionPool."""
 
     def test_pool_retries_without_charset_if_driver_rejects_it(
         self,
@@ -146,6 +162,33 @@ class TestMariaDBNativePoolFallback:
                 continue
             assert second_call[key] == value
         assert "mariadb version=1.1.14" in caplog.text
+
+    def test_pool_retries_without_encoding_errors_if_driver_rejects_it(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        calls: list[dict[str, Any]] = []
+
+        def fake_connection_pool(**kwargs: Any) -> Any:
+            calls.append(dict(kwargs))
+            if len(calls) == 1:
+                raise TypeError("connect() got an unexpected keyword argument 'encoding_errors'")
+            return MagicMock()
+
+        fake_mariadb = SimpleNamespace(ConnectionPool=fake_connection_pool, __version__="1.0.0")
+        monkeypatch.setattr(pool_connection_mariadb, "HAS_MARIADB", True)
+        monkeypatch.setattr(pool_connection_mariadb, "mariadb", fake_mariadb)
+
+        with caplog.at_level("WARNING", logger=pool_connection_mariadb.__name__):
+            pool = pool_connection_mariadb.PoolConnection({**BASE, "pool_name": "my_pool"})
+        pool.close()
+
+        assert len(calls) == 2
+        first_call = calls[0]
+        assert "encoding_errors" in first_call
+        assert "encoding_errors" not in calls[1]
+        assert "mariadb version=1.0.0" in caplog.text
 
     def test_pool_reraises_type_error_when_not_related_to_charset(self, monkeypatch: pytest.MonkeyPatch) -> None:
         def fake_connection_pool(**kwargs: Any) -> Any:

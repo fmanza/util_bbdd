@@ -103,7 +103,7 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 | Motor | Claves requeridas | Opcionales habituales |
 |---|---|---|
 | `postgresql` | `host`, `user`, `password`, `database` | `port`=5432, `schema` (→ `search_path`), `sslmode`, `connect_timeout`, `application_name`, `pool_size` |
-| `mariadb` | `host`, `user`, `password`, `database` | `port`=3306, `charset`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size` |
+| `mariadb` | `host`, `user`, `password`, `database` | `port`=3306, `charset`=utf8mb4, `init_command`=`"SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"`, `encoding_errors`=`"replace"`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size` |
 | `mysql` | `host`, `user`, `password`, `database` | `port`=3306, `charset`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size`, `max_overflow`, `pool_timeout`, `pool_recycle`, `ssl_ca`/`ssl_cert`/`ssl_key`, `ssl_verify_cert`, `ssl_verify_identity` |
 | `oracle` | `user`, `password` + **uno de** `service_name` / `sid` / `dsn` / `database` | `host`=localhost, `port`=1521, `oracle_client_path`, `pool_size` |
 | `sqlserver` | `host`, `user`, `password`, `database` | `port`=1433, `sql_server_driver` (`pymssql`/`pyodbc`), `driver_name` (pyodbc), `encryption` (`mandatory`/`optional`/`off`), `trust_cert`, `use_mars` |
@@ -123,6 +123,72 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 | Error async con HSQLDB | HSQLDB no soporta async | Usar `SyncDatabaseManager` (HSQLDB es solo síncrono) |
 | `Server has gone away` (MariaDB/MySQL) | Conexión caducada en cargas largas | Obtener el engine con `get_sqlalchemy_engine()` (incluye `pool_pre_ping`) |
 | El `schema` PostgreSQL parece ignorado | `schema` no es un parámetro libpq | La librería lo traduce a `options=-c search_path=<schema>` automáticamente |
+| `UnicodeDecodeError` en MariaDB al generar documentación | Encoding mismatch: servidor `latin1` vs. cliente `utf8mb4` | Usar `init_command` y `encoding_errors` (ver §6) |
+
+### 6. Parámetros especiales de MariaDB: `init_command` y `encoding_errors`
+
+A partir de **v0.35.0**, `MariaDBConnectionConfig` incluye dos parámetros que mitigan conflictos de charset
+común cuando el servidor está configurado en `latin1` pero queremos usar `utf8mb4`:
+
+#### **`init_command`** (string, default `"SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"`)
+
+SQL ejecutado en cada conexión (sync y pool). Replica el comportamiento de PyMySQL/SQLAlchemy:
+
+- **Sin `init_command`**: El handshake fija `charset='utf8mb4'`, pero solo en `character_set_client` y
+  `character_set_connection`. El servidor no sabe que debe convertir los datos a utf8mb4 **antes** de
+  enviarlos; devuelve bytes en su charset nativo (p. ej. `latin1`).
+- **Con `init_command`**: Ejecuta `SET NAMES utf8mb4`, que fija simultáneamente:
+  - `character_set_client = utf8mb4`
+  - `character_set_connection = utf8mb4`
+  - **`character_set_results = utf8mb4`** ← esto es lo importante: le dice al servidor que convierta
+    los datos antes de enviarlos.
+
+**Cambio visible**: Elimina `UnicodeDecodeError: 'latin1' codec can't decode...` al leer `information_schema`
+con caracteres no-ASCII (comentarios en tablas, etc.).
+
+**Personalización:**
+
+```python
+conn_params = {
+    "host": "localhost",
+    "user": "app",
+    "password": "secret",
+    "database": "mydb",
+    "charset": "utf8mb4",                    # default
+    "init_command": "SET NAMES utf8mb4",     # personalizar si es necesario
+}
+
+from util_bbdd.managers import SyncDatabaseManager
+with SyncDatabaseManager(db_type="mariadb", conn_params=conn_params) as db:
+    docs = db.get_database_documentation()  # Sin errores de encoding
+```
+
+#### **`encoding_errors`** (string, default `"replace"`, valido desde mariadb-connector-python ≥ 1.1.4)
+
+Comportamiento del decodificador Python si un byte de `information_schema` no puede convertirse a utf8mb4:
+
+- `"replace"` (default): Bytes inválidos se substituyen por `?`. Safe para herencia de schemas con
+  datos heredados corruptos.
+- `"strict"`: Lanza `UnicodeDecodeError` si hay bytes inválidos (comportamiento pre-v0.35.0).
+- `"ignore"`: Bytes inválidos se descartan silenciosamente.
+
+**Cambio visible**: Si el servidor tiene datos heredados en `latin1` genuinamente irrecuperables, este
+parámetro permite una lectura parcial legible en lugar de un crash. Se usa como **safety net**, no como
+solución: la raíz es el mismatch de charset del servidor.
+
+**Personalización:**
+
+```python
+conn_params = {
+    ...
+    "encoding_errors": "replace",  # default (recomendado)
+    # "encoding_errors": "strict"  # si quieres errores explícitos
+}
+```
+
+**Nota de versión**: Drivers `mariadb-connector-python` < 1.1.4 no aceptan este parámetro; la librería
+lo ignora automáticamente (retry defensivo del pool). Actualizar el driver es recomendable para acceso
+completo a charset detection y error handling.
 
 Para el detalle de drivers PostgreSQL (psycopg2 vs asyncpg, pooling), ver la
 [guía de drivers PostgreSQL](postgresql_driver_guide.md). Para el contrato completo de los managers,

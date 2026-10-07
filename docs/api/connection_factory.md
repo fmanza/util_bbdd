@@ -69,6 +69,24 @@ flowchart TD
 |---|---|---|---|
 | Driver Python del motor | Conexión nativa con la BD | Sí (motor-específico) | `ImportError` en lazy loading al primer uso |
 
+### Parámetros driver-específicos
+
+Ciertos parámetros en `conn_params` son consumidos por drivers específicos y pasan transparentemente
+a través de la factoría:
+
+| Motor | Parámetro | Valor por defecto | Propósito | Mínima versión |
+|---|---|---|---|---|
+| `mariadb` | `charset` | `utf8mb4` | Charset de conexión | cualquiera |
+| `mariadb` | `init_command` | `"SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"` | SQL ejecutado en cada conexión (repl. PyMySQL) | v0.35.0+ |
+| `mariadb` | `encoding_errors` | `"replace"` | Manejo de bytes no-decodificables en metadata | mariadb-connector >= 1.1.4 |
+
+Para MariaDB: Si el driver < 1.1.4 rechaza `encoding_errors` o un driver antiguo rechaza `init_command`,
+la librería ejecuta retry automático descartando el parámetro (ver `pool_connection_mariadb.py` §3.1).
+Esto permite compatibilidad con drivers antiguos sin sacrificar seguridad en versiones nuevas.
+
+Ver [Guía: Conexión § 6 — Parámetros especiales de MariaDB](../guides/connection_guide.md#6-parámetros-especiales-de-mariadb-init_command-y-encoding_errors)
+para más detalles.
+
 ## 5. Ejemplos Relacionados
 
 !!! info "Ejemplo en preparación"

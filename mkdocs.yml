@@ -102,6 +102,7 @@ nav:
       - Incorporación para Desarrolladores: guides/onboarding_dev.md
       - Conexión y Drivers:
           - Conexión y Drivers por Motor: guides/connection_guide.md
+          - MariaDB v0.35.0 (Charset Handling): guides/mariadb_v0.35.0_charset_handling.md
           - Programación Asíncrona: guides/async_guide.md
           - Drivers PostgreSQL: guides/postgresql_driver_guide.md
       - Errores y Diagnóstico:

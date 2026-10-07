@@ -72,6 +72,18 @@
             "type": "integer",
             "default": 5,
             "description": "Número de conexiones en el pool de conexiones"
+          },
+          {
+            "name": "init_command",
+            "type": "string",
+            "default": "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
+            "description": "Comando SQL ejecutado al establecer cada conexión (v0.35.0+; requiere mariadb >= 1.1.4)"
+          },
+          {
+            "name": "encoding_errors",
+            "type": "string",
+            "default": "replace",
+            "description": "Estrategia para manejar errores de decodificación: 'replace', 'strict', 'ignore' (v0.35.0+; requiere mariadb >= 1.1.4)"
           }
         ]
       },
