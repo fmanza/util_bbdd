@@ -100,18 +100,21 @@ class TestCharsetStateDetector:
         assert "ALTER DATABASE" in diagnosis.recommendation()
 
     def test_diagnose_latin1_mismatch_inverse(self) -> None:
-        """🔴 Server latin1 pero BD utf8mb4 (inverse critical mismatch)."""
+        """✅ Server latin1 pero sesión y BD en utf8mb4 → UTF8MB4_CLEAN (escenario de producción válido)."""
         conn = mock.MagicMock()
         cursor_mock = mock.MagicMock()
         conn.cursor.return_value = cursor_mock
 
-        # Mock de resultados: latin1_mismatch inverso (usuario reportó en GitHub)
+        # server global=latin1 pero SET NAMES utf8mb4 ejecutado → sesión y BD son utf8mb4
         fetch_results = [
-            ("latin1",),  # @@character_set_server ← MISMATCH INVERSO
+            ("latin1",),  # @@character_set_server ← global del servidor, no indica problema
             ("utf8mb4",),  # @@character_set_database
-            ("utf8mb4",),  # @@character_set_client
-            ("utf8mb4",),  # @@character_set_connection
+            ("utf8mb4",),  # @@character_set_client ← SET NAMES ejecutado
+            ("utf8mb4",),  # @@character_set_connection ← lo que importa para leer datos
             ("utf8mb4_unicode_ci",),  # @@collation_connection
+            ("Table comment",),  # _test_read_comments ← non-None → can_read_comments=True
+            ("test",),  # _test_convert_utf8mb4 ← non-None → True
+            (None,),  # _test_info_schema_charset ← None es aceptable
         ]
         cursor_mock.fetchone.side_effect = fetch_results + [(None,)] * 10
         cursor_mock.execute.return_value = None
@@ -119,11 +122,11 @@ class TestCharsetStateDetector:
         detector = CharsetStateDetector(conn, "named")
         diagnosis = detector.diagnose()
 
-        assert diagnosis.state == CharsetState.LATIN1_MISMATCH
+        assert diagnosis.state == CharsetState.UTF8MB4_CLEAN
         assert diagnosis.server_charset == "latin1"
         assert diagnosis.database_charset == "utf8mb4"
-        assert diagnosis.requires_remediation() is True
-        assert "ALTER DATABASE" in diagnosis.recommendation()
+        assert diagnosis.is_healthy() is True
+        assert diagnosis.requires_remediation() is False
 
     def test_diagnose_utf8mb4_mixed(self) -> None:
         """⚠️ Server utf8mb4 pero información_schema tiene utf8mb3 (post-upgrade)."""
@@ -248,13 +251,13 @@ class TestAdaptiveCatalogExecutor:
         assert executor.diagnosis.state == CharsetState.UTF8MB3_LEGACY
         assert executor.strategy == "convert"
 
-    def test_adaptive_mode_failfast_on_mismatch(self) -> None:
-        """🔴 Modo 'auto' con latin1_mismatch → failfast."""
+    def test_adaptive_mode_convert_on_mismatch(self) -> None:
+        """🔴 Modo 'auto' con latin1_mismatch → convert (graceful degradation, no failfast)."""
         conn = mock.MagicMock()
         cursor_mock = mock.MagicMock()
         conn.cursor.return_value = cursor_mock
 
-        # Mock detección de charset: latin1_mismatch
+        # latin1_mismatch: server utf8mb4 pero DB latin1
         fetch_results = [
             ("utf8mb4",),  # @@character_set_server
             ("latin1",),  # @@character_set_database ← MISMATCH
@@ -274,7 +277,7 @@ class TestAdaptiveCatalogExecutor:
 
         assert executor.diagnosis is not None
         assert executor.diagnosis.state == CharsetState.LATIN1_MISMATCH
-        assert executor.strategy == "failfast"
+        assert executor.strategy == "convert"
 
     def test_mode_native_explicit(self) -> None:
         """Modo 'native' fuerza estrategia nativa sin detección."""
@@ -331,6 +334,158 @@ class TestAdaptiveCatalogExecutor:
 
         # No debe duplicar CONVERT si ya existe
         assert converted.count("CONVERT") == 1
+
+
+class TestCharsetDetectionFixes:
+    """Tests para los fixes B, C, D aplicados en v0.35.3."""
+
+    # --- Fix B: qmark paramstyle ---
+
+    def test_translate_sql_qmark_single_placeholder(self) -> None:
+        """Fix B: qmark traduce :nombre → ? con valor en posición correcta."""
+        conn = mock.MagicMock()
+        detector = CharsetStateDetector(conn, "qmark")
+
+        result = detector._translate_sql(
+            "SELECT TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = :schema LIMIT 1",
+            {"schema": "mydb"},
+        )
+
+        assert isinstance(result, tuple)
+        sql, args = result
+        assert "?" in sql
+        assert ":schema" not in sql
+        assert args == ("mydb",)
+
+    def test_translate_sql_qmark_no_placeholders_returns_string(self) -> None:
+        """Fix B: qmark sin placeholders retorna SQL sin modificar (no tuple)."""
+        conn = mock.MagicMock()
+        detector = CharsetStateDetector(conn, "qmark")
+
+        result = detector._translate_sql("SELECT @@character_set_server", {})
+
+        assert isinstance(result, str)
+        assert result == "SELECT @@character_set_server"
+
+    # --- Fix C: SCHEMATA query ---
+
+    def test_info_schema_charset_query_uses_schemata(self) -> None:
+        """Fix C: _test_info_schema_charset() consulta SCHEMATA no TABLES."""
+        conn = mock.MagicMock()
+        cursor_mock = mock.MagicMock()
+        conn.cursor.return_value = cursor_mock
+        cursor_mock.fetchone.return_value = ("utf8mb4",)
+
+        detector = CharsetStateDetector(conn, "named")
+        result = detector._test_info_schema_charset()
+
+        assert result == "utf8mb4"
+        executed_sql = cursor_mock.execute.call_args[0][0]
+        assert "SCHEMATA" in executed_sql
+        assert "DEFAULT_CHARACTER_SET_NAME" in executed_sql
+        assert "CHARACTER_SET_NAME" not in executed_sql.replace("DEFAULT_CHARACTER_SET_NAME", "")
+
+    def test_info_schema_charset_returns_none_on_error(self) -> None:
+        """Fix C: retorna None si la query falla (sin propagar excepción)."""
+        conn = mock.MagicMock()
+        conn.cursor.side_effect = Exception("DB error")
+
+        detector = CharsetStateDetector(conn, "named")
+        result = detector._test_info_schema_charset()
+
+        assert result is None
+
+    # --- Fix D: connection_charset en _determine_state ---
+
+    def test_diagnose_production_latin1_server_utf8mb4_connection_is_clean(self) -> None:
+        """Fix D: server=latin1 global pero connection=utf8mb4 y db=utf8mb4 → UTF8MB4_CLEAN.
+
+        Escenario de producción: servidor con character_set_server=latin1 heredado,
+        pero SET NAMES utf8mb4 ejecutado vía init_command → sesión y BD alineadas.
+        """
+        conn = mock.MagicMock()
+        cursor_mock = mock.MagicMock()
+        conn.cursor.return_value = cursor_mock
+
+        fetch_results = [
+            ("latin1",),  # @@character_set_server ← global del servidor (irrelevante)
+            ("utf8mb4",),  # @@character_set_database
+            ("utf8mb4",),  # @@character_set_client ← SET NAMES ejecutado
+            ("utf8mb4",),  # @@character_set_connection ← lo que importa
+            ("utf8mb4_unicode_ci",),
+            (True,),  # can_read_comments
+            (True,),  # can_convert_utf8mb4
+            (None,),  # info_schema_charset
+        ]
+        cursor_mock.fetchone.side_effect = fetch_results + [(None,)] * 10
+        cursor_mock.execute.return_value = None
+
+        detector = CharsetStateDetector(conn, "named")
+        diagnosis = detector.diagnose()
+
+        assert diagnosis.state == CharsetState.UTF8MB4_CLEAN
+        assert diagnosis.is_healthy() is True
+        assert diagnosis.requires_remediation() is False
+
+    def test_diagnose_real_latin1_connection_mismatch(self) -> None:
+        """Fix D: connection=latin1, db=utf8mb4 → LATIN1_MISMATCH real (sin SET NAMES)."""
+        conn = mock.MagicMock()
+        cursor_mock = mock.MagicMock()
+        conn.cursor.return_value = cursor_mock
+
+        fetch_results = [
+            ("latin1",),  # @@character_set_server
+            ("utf8mb4",),  # @@character_set_database
+            ("latin1",),  # @@character_set_client ← sin SET NAMES
+            ("latin1",),  # @@character_set_connection ← mismatch real
+            ("latin1_swedish_ci",),
+            (False,),  # can_read_comments (falla sin utf8mb4)
+            (True,),
+            (None,),
+        ]
+        cursor_mock.fetchone.side_effect = fetch_results + [(None,)] * 10
+        cursor_mock.execute.return_value = None
+
+        detector = CharsetStateDetector(conn, "named")
+        diagnosis = detector.diagnose()
+
+        assert diagnosis.state == CharsetState.LATIN1_MISMATCH
+        assert diagnosis.requires_remediation() is True
+        assert "ALTER DATABASE" in diagnosis.recommendation()
+
+    def test_determine_state_connection_charset_takes_priority_over_server(self) -> None:
+        """Fix D: connection_charset=utf8mb4 + db=utf8mb4 → CLEAN aunque server=latin1."""
+        state = CharsetStateDetector._determine_state(
+            server_charset="latin1",
+            database_charset="utf8mb4",
+            info_schema_charset=None,
+            can_read_comments=True,
+            connection_charset="utf8mb4",
+        )
+        assert state == CharsetState.UTF8MB4_CLEAN
+
+    def test_determine_state_connection_none_all_unknown(self) -> None:
+        """H14: si todas las queries de detección fallan (None), retorna UNKNOWN."""
+        state = CharsetStateDetector._determine_state(
+            server_charset=None,
+            database_charset=None,
+            info_schema_charset=None,
+            can_read_comments=False,
+            connection_charset=None,
+        )
+        assert state == CharsetState.UNKNOWN
+
+    def test_determine_state_connection_none_server_utf8mb4_db_utf8mb4(self) -> None:
+        """H14: connection=None con server y DB utf8mb4 → MIXED (can_read_comments no verificable)."""
+        state = CharsetStateDetector._determine_state(
+            server_charset="utf8mb4",
+            database_charset="utf8mb4",
+            info_schema_charset=None,
+            can_read_comments=False,  # no verificable sin conexión
+            connection_charset=None,
+        )
+        # Sin connection_charset confirmado, la rama de CLEAN no se activa
+        assert state == CharsetState.UTF8MB4_MIXED
 
 
 if __name__ == "__main__":

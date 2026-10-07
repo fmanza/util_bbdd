@@ -242,3 +242,64 @@ class TestMariaDBNativePoolFallback:
         assert "host" in captured_params
         assert "database" in captured_params
         assert "mariadb version=1.1.14" in caplog.text
+
+    def test_pool_executes_init_command_manually_when_pool_rejects_it(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Fix A: init_command rechazado por el pool se ejecuta manualmente en get_connection()."""
+        executed_commands: list[str] = []
+
+        class FakeCursor:
+            def execute(self, sql: str) -> None:
+                executed_commands.append(sql)
+
+            def close(self) -> None:
+                pass
+
+        class FakeConn:
+            def cursor(self) -> FakeCursor:
+                return FakeCursor()
+
+            def close(self) -> None:
+                pass
+
+        fake_conn = FakeConn()
+
+        def fake_connection_pool(**kwargs: Any) -> Any:
+            if "init_command" in kwargs:
+                raise TypeError("connect() got an unexpected keyword argument 'init_command'")
+            pool = MagicMock()
+            pool.get_connection.return_value = fake_conn
+            return pool
+
+        fake_mariadb = SimpleNamespace(ConnectionPool=fake_connection_pool, __version__="1.1.12")
+        monkeypatch.setattr(pool_connection_mariadb, "HAS_MARIADB", True)
+        monkeypatch.setattr(pool_connection_mariadb, "mariadb", fake_mariadb)
+
+        pool = pool_connection_mariadb.PoolConnection({**BASE, "pool_name": "test_pool"})
+        conn = pool.get_connection()
+        pool.close()
+
+        assert conn is fake_conn
+        assert len(executed_commands) == 1
+        assert "SET NAMES" in executed_commands[0]
+
+    def test_pool_no_pending_init_command_when_pool_accepts_it(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Fix A: si el pool acepta init_command, _pending_init_command es None."""
+
+        def fake_connection_pool(**kwargs: Any) -> Any:
+            pool = MagicMock()
+            pool.get_connection.return_value = MagicMock()
+            return pool
+
+        fake_mariadb = SimpleNamespace(ConnectionPool=fake_connection_pool, __version__="1.1.14")
+        monkeypatch.setattr(pool_connection_mariadb, "HAS_MARIADB", True)
+        monkeypatch.setattr(pool_connection_mariadb, "mariadb", fake_mariadb)
+
+        pool = pool_connection_mariadb.PoolConnection({**BASE, "pool_name": "test_pool"})
+        assert pool._pending_init_command is None
+        pool.close()

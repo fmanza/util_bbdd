@@ -66,6 +66,7 @@ class PoolConnection:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.pool: Any | None = None
         self._closed: bool = False
+        self._pending_init_command: str | None = None
         self._close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
 
         self.__create_pool(conn_params)
@@ -117,11 +118,12 @@ class PoolConnection:
                     if not match or match.group(1) not in _OPTIONAL_POOL_PARAMS:
                         raise
                     rejected = match.group(1)
+                    if rejected == "init_command":
+                        # Guardar para ejecutar manualmente en cada get_connection()
+                        self._pending_init_command = str(pool_params.get("init_command", "")) or None
                     pool_params = {k: v for k, v in pool_params.items() if k != rejected}
                     mariadb_version: str = str(getattr(mariadb, "__version__", "?"))
-                    extra_msg = (
-                        " ⚠️ ADVERTENCIA: charset SET NAMES no se ejecutará" if rejected == "init_command" else ""
-                    )
+                    extra_msg = " — se ejecutará manualmente en cada conexión" if rejected == "init_command" else ""
                     self.logger.warning(
                         f"⚠️ mariadb.ConnectionPool() rechazó '{rejected}'; "
                         f"reintentando sin él (mariadb version={mariadb_version}){extra_msg}"
@@ -149,7 +151,17 @@ class PoolConnection:
             raise RuntimeError("Pool MariaDB cerrado")
         if not self.pool:
             raise RuntimeError("Pool MariaDB no inicializado")
-        return self.pool.get_connection()
+        conn = self.pool.get_connection()
+        if self._pending_init_command:
+            try:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(self._pending_init_command)
+                finally:
+                    cursor.close()
+            except Exception as exc:
+                self.logger.warning(f"⚠️ init_command manual falló: {exc}")
+        return conn
 
     def close_connection(self, connection: Any) -> None:
         """Devuelve conexión al pool.

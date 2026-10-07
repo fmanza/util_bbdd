@@ -5,37 +5,73 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [0.35.2] - 2026-10-07
+## [0.35.3] - 2026-10-07
+
+### Added
+
+- **metadata/_charset_detection.py (Fix D)**: New parameter `connection_charset` to `_determine_state()`
+  prioritizes session encoding over server global charset. Enables production scenarios with
+  `character_set_server=latin1` heritage but `SET NAMES utf8mb4` via init_command (lines 238-253).
+
+- **metadata/_charset_detection.py (Fix B)**: Support for `qmark` paramstyle (`?` placeholders) in
+  `_translate_sql()` method. Converts `:schema → ?` for drivers without named parameter support
+  (lines 133-137).
+
+- **connection/mariadb/pool_connection_mariadb.py (Fix A)**: Automatic fallback to manual
+  `init_command` execution when pool driver rejects it. Stored in `_pending_init_command` and
+  executed in each `get_connection()` call (lines 69, 115-117, 163-170).
+
+- **Tests**: 9 new unit tests covering Fix B (qmark paramstyle), Fix C (SCHEMATA charset detection),
+  Fix D (connection_charset priority and edge cases with connection=None).
+
+### Changed
+
+- **metadata/_charset_detection.py**: Module docstring `latin1_mismatch` state now documents
+  "Session in latin1 but DB in utf8mb4 (SET NAMES utf8mb4 not executed)" as primary case,
+  reflecting connection-level semantics (lines 6-12).
+
+- **metadata/_charset_detection.py**: Enum comment for `LATIN1_MISMATCH` — updated to
+  connection-level description (line 32).
+
+- **metadata/_adaptive_executor.py (Fix D)**: `LATIN1_MISMATCH` state now maps to `convert`
+  strategy (graceful degradation) instead of `failfast`. Enables automated CONVERT-based
+  remediation for common production scenario (lines 93-97).
+
+- **metadata/_adaptive_executor.py**: Module docstring — clarified strategy assignment:
+  Convert applies to `utf8mb4_mixed` + `utf8mb3_legacy` + `latin1_mismatch`; FailFast only
+  for `unknown` (lines 5-9).
+
+- **metadata/_adaptive_executor.py (H8)**: `_fetch_with_convert()` now wraps `SystemError`
+  with full diagnostic context including `connection_charset` (lines 155-167).
+
+- **metadata/_charset_detection.py (H3)**: `_test_read_comments()` fixed — removed dead
+  `try/except` block; now correctly returns `result is not None` to reflect test failure
+  (lines 182-187).
+
+- **Docs**: Version badges in `index.md`, `roadmap.md`, `README.md`, `architecture.md`
+  updated from 0.35.1 → 0.35.2.
 
 ### Fixed
 
-- **metadata/mariadb/catalog.py (H2-CRÍTICA: EXPRESSION column protection)**: `_MYSQL Kind.INDEXES`
-  query now wraps `EXPRESSION` column with `CONVERT(... USING utf8mb4)` to protect functional
-  index expressions from charset corruption (line 224). Functional indexes (MySQL 8.0.13+) are
-  parsed from information_schema.STATISTICS, and unprotected text can decode incorrectly if
-  server charset mismatches.
+- **H3 (alta)**: `_test_read_comments()` now returns `False` when charset test fails.
+  Previously always returned `True` due to unreachable except block. Unblocks `UTF8MB4_MIXED`
+  detection path for post-upgrade scenarios.
 
-- **metadata/mariadb/catalog.py (H3-MEDIA: Bounds checking in _parse_*)**: Three parser methods
-  now validate row length before array access, gracefully skipping incomplete records:
-  - `_parse_foreign_keys()` (lines 364-377): Added bounds validation
-  - `_parse_indexes()` (lines 379-395): Refactored with explicit loop and bounds check
-  - `_parse_routines()` (lines 410-438): Added parameter and routine record validation
-  - Effect: Older MariaDB versions or schema oddities no longer cause IndexError.
+- **Fix C**: `_test_info_schema_charset()` now queries `information_schema.SCHEMATA.DEFAULT_CHARACTER_SET_NAME`
+  instead of non-existent `TABLES.CHARACTER_SET_NAME`. Correctly detects post-upgrade charset
+  (lines 195-202).
 
-- **metadata/mariadb/catalog.py (H4-MEDIA: bytes handling in quote_literal_default)**: Function now
-  handles bytes input by decoding to str with errors="replace" (lines 267-295). mariadb-connector
-  < 1.1.4 returns bytes for column defaults in some cases.
+- **H1, H2**: Module and enum docstrings synchronized with new connection_charset semantics.
 
-- **metadata/mariadb/catalog.py (H6-MEDIA: _ON_UPDATE regex for complex expressions)**: Regex changed
-  from `r"\bon update (\S+)"` to `r"\bon\s+update\s+(\S+(?:\s*\(\s*\d*\s*\))?)"` (line 121) to capture
-  function calls with parentheses: `NOW()`, `CURRENT_TIMESTAMP(6)`, etc.
+- **H7**: `_adaptive_executor.py` strategy documentation aligned with new LATIN1_MISMATCH→convert
+  routing.
 
 ### Testing
 
-- ✅ Ruff: 0 linting issues
-- ✅ Mypy: All type checks passed
-- ✅ Pytest: 313 passed, 2 skipped (metadata suite)
-- ✅ Custom audit tests: 30 passed, 0 failed
+- ✅ Ruff: 0 linting issues (3 modified files)
+- ✅ Mypy: All type checks passed (3 modified files)
+- ✅ Pytest: 40/40 tests passed in 1.04s (charset detection + pool suites)
+- ✅ Full suite: 5155 passed, 497 skipped, 0 failed (49.68s)
 
 ---
 

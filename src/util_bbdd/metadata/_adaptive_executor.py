@@ -5,8 +5,8 @@ de fallback automáticas (CONVERT, fail-fast) sin intervención manual.
 
 Strategies progresivas:
 1. Native: Lectura directa (sin CONVERT) — 100% perf, solo utf8mb4 limpio
-2. Convert: CONVERT(field USING utf8mb4) para campos especiales — 98% perf
-3. FailFast: Error explícito con diagnóstico — diagnóstico del usuario
+2. Convert: CONVERT(field USING utf8mb4) para campos especiales — 98% perf (utf8mb4_mixed, latin1_mismatch)
+3. FailFast: Error explícito con diagnóstico — solo para charset desconocido (unknown)
 
 ADR-003 §5 — Progressive Remediation Layers.
 """
@@ -94,8 +94,10 @@ class AdaptiveCatalogExecutor:
                 self.strategy = "convert"
                 logger.warning("❌ Legacy utf8mb3: using CONVERT() for safe reading")
             elif self.diagnosis.state == CharsetState.LATIN1_MISMATCH:
-                self.strategy = "failfast"
-                logger.error(f"🔴 CRITICAL: {self.diagnosis.recommendation()}")
+                self.strategy = "convert"
+                logger.warning(
+                    f"⚠️ latin1_mismatch: usando CONVERT() para lectura de metadatos. {self.diagnosis.recommendation()}"
+                )
             else:  # UNKNOWN
                 self.strategy = "failfast"
                 logger.warning("❓ Charset unknown: falling back to fail-fast")
@@ -134,13 +136,15 @@ class AdaptiveCatalogExecutor:
         except SystemError as exc:
             # Si falla CONVERT, reportar diagnóstico detallado y fallar
             assert self.diagnosis is not None, "diagnosis should be set by _detect_charset_state"
-            logger.error(
-                f"CONVERT strategy failed ({exc}). "
-                f"Charset state: {self.diagnosis.state.value}. "
-                f"Server: {self.diagnosis.server_charset}, DB: {self.diagnosis.database_charset}. "
+            diagnosis_msg = (
+                f"CONVERT strategy failed: {exc}\n"
+                f"Diagnosis: {self.diagnosis.state.value}\n"
+                f"Server: {self.diagnosis.server_charset}, DB: {self.diagnosis.database_charset}, "
+                f"Connection: {self.diagnosis.connection_charset}\n"
                 f"Recommendation: {self.diagnosis.recommendation()}"
             )
-            raise
+            logger.error(diagnosis_msg)
+            raise SystemError(diagnosis_msg) from exc
         finally:
             cursor.close()
 

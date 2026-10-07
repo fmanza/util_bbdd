@@ -4,10 +4,10 @@ Implementa CharsetStateDetector para diagnosticar problemas de charset sin inter
 habilitando la estrategia adaptativa de fallback (v0.33.0+).
 
 Estados posibles:
-- `utf8mb4_clean`: ✅ Server y DB en utf8mb4, sin corrupción
-- `utf8mb4_mixed`: ⚠️ Server en utf8mb4 pero metadatos en utf8mb3 (post-upgrade)
-- `utf8mb3_legacy`: ❌ Server y DB en utf8mb3 (ancient, necesita fallback latin1)
-- `latin1_mismatch`: 🔴 Server utf8mb4 pero DB en latin1 (requiere ALTER DATABASE o downgrade)
+- `utf8mb4_clean`: ✅ Sesión y BD en utf8mb4, sin corrupción
+- `utf8mb4_mixed`: ⚠️ Sesión en utf8mb4 pero metadatos en utf8mb3 (post-upgrade)
+- `utf8mb3_legacy`: ❌ Sesión y BD en utf8mb3 (ancient, necesita fallback latin1)
+- `latin1_mismatch`: 🔴 Sesión en latin1 pero BD en utf8mb4 (SET NAMES utf8mb4 no ejecutado)
 - `unknown`: ❓ No se pudo determinar (fallback a fail-fast)
 
 ADR-003 §5 — Charset detection y adaptive remediation.
@@ -30,7 +30,7 @@ class CharsetState(Enum):
     UTF8MB4_CLEAN = "utf8mb4_clean"  # ✅ Server y DB coherentes en utf8mb4
     UTF8MB4_MIXED = "utf8mb4_mixed"  # ⚠️ Server utf8mb4 con metadatos utf8mb3
     UTF8MB3_LEGACY = "utf8mb3_legacy"  # ❌ Server y DB en utf8mb3
-    LATIN1_MISMATCH = "latin1_mismatch"  # 🔴 Server utf8mb4 pero DB latin1
+    LATIN1_MISMATCH = "latin1_mismatch"  # 🔴 Sesión latin1 pero BD utf8mb4 (sin SET NAMES)
     UNKNOWN = "unknown"  # ❓ No determinable
 
 
@@ -128,8 +128,16 @@ class CharsetStateDetector:
                 translated_sql = translated_sql.replace(f":{name}", "%s", 1)
             args = [params.get(name) for name in sorted(params.keys())]
             return translated_sql, tuple(args)
+        elif self.paramstyle == "qmark":
+            import re
+
+            names_ordered = re.findall(r":(\w+)", sql)
+            if not names_ordered:
+                return sql
+            translated_sql = re.sub(r":\w+", "?", sql)
+            args = [params.get(n) for n in names_ordered]
+            return translated_sql, tuple(args)
         else:
-            # Fallback: asumir named
             return sql
 
     def diagnose(self) -> CharsetDiagnosis:
@@ -151,8 +159,10 @@ class CharsetStateDetector:
         can_convert_utf8mb4 = self._test_convert_utf8mb4()
         info_schema_charset = self._test_info_schema_charset()
 
-        # Determinar estado
-        state = self._determine_state(server_charset, database_charset, info_schema_charset, can_read_comments)
+        # connection_charset es el encoding real de la sesión activa (lo que importa para leer datos)
+        state = self._determine_state(
+            server_charset, database_charset, info_schema_charset, can_read_comments, connection_charset
+        )
 
         return CharsetDiagnosis(
             state=state,
@@ -168,15 +178,12 @@ class CharsetStateDetector:
 
     def _test_read_comments(self) -> bool:
         """¿Se pueden leer comentarios de tabla sin error?"""
-        try:
-            _ = self._fetch_one(
-                "SELECT TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = :schema LIMIT 1",
-                {"schema": "information_schema"},
-            )
-            return True  # Si no lanzó excepción, es OK
-        except Exception as exc:
-            logger.debug(f"_test_read_comments failed: {exc}")
-            return False
+        # _fetch_one() captura excepciones internamente; retorna None si falla
+        result = self._fetch_one(
+            "SELECT TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = :schema LIMIT 1",
+            {"schema": "information_schema"},
+        )
+        return result is not None
 
     def _test_convert_utf8mb4(self) -> bool:
         """¿La función CONVERT() está disponible y funciona?"""
@@ -188,13 +195,11 @@ class CharsetStateDetector:
             return False
 
     def _test_info_schema_charset(self) -> str | None:
-        """¿En qué charset están las tablas de información_schema? (detección post-upgrade)."""
+        """¿En qué charset tiene configurado la BD actual? (detección post-upgrade)."""
         try:
-            # Query robusta: obtener charset real de una tabla del catálogo (TABLES table)
-            # en lugar de consultar CHARACTER_SETS que solo lista los charsets disponibles
+            # SCHEMATA.DEFAULT_CHARACTER_SET_NAME es compatible con MariaDB y MySQL
             charset: str | None = self._fetch_one(
-                "SELECT CHARACTER_SET_NAME FROM information_schema.TABLES "
-                "WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_NAME = 'TABLES' LIMIT 1"
+                "SELECT DEFAULT_CHARACTER_SET_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = DATABASE()"
             )
             return charset
         except Exception as exc:
@@ -207,15 +212,24 @@ class CharsetStateDetector:
         database_charset: str | None,
         info_schema_charset: str | None,
         can_read_comments: bool,
+        connection_charset: str | None = None,
     ) -> CharsetState:
         """Lógica de diagnóstico para determinar estado."""
 
-        # Caso 1a: Server utf8mb4 pero DB latin1 (MISMATCH CRÍTICO)
-        if server_charset == "utf8mb4" and database_charset == "latin1":
+        # Prioritario: la sesión activa usa utf8mb4 y la BD también → el global del servidor no importa
+        if connection_charset == "utf8mb4" and database_charset == "utf8mb4":
+            if info_schema_charset is not None and info_schema_charset not in ("utf8mb4",):
+                return CharsetState.UTF8MB4_MIXED
+            if can_read_comments:
+                return CharsetState.UTF8MB4_CLEAN
+            return CharsetState.UTF8MB4_MIXED
+
+        # MISMATCH real: la sesión usa latin1 pero la BD es utf8mb4 (sin SET NAMES utf8mb4)
+        if database_charset == "utf8mb4" and (connection_charset or "").startswith("latin"):
             return CharsetState.LATIN1_MISMATCH
 
-        # Caso 1b: Server latin1 pero DB utf8mb4 (MISMATCH INVERSO - también crítico)
-        if server_charset == "latin1" and database_charset == "utf8mb4":
+        # Caso 1a: Server utf8mb4 pero DB latin1 (fallback sin connection_charset)
+        if server_charset == "utf8mb4" and database_charset == "latin1":
             return CharsetState.LATIN1_MISMATCH
 
         # Caso 2: Server utf8mb4 pero información_schema tiene utf8mb3 (MIXED POST-UPGRADE)
