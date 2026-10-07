@@ -1647,7 +1647,7 @@ pandas (Q8, ganancia máxima ≈ 2 s por 3,5M filas) y el hint `APPEND_VALUES` d
   Con las dos mejoras, el volcado de 200 tablas pequeñas en SQL Server pasa de 33,9 a ≈ 14,3 s (−58 %).
 - **docs**: el diagrama de capas registra el nuevo import `dump → metadata`.
 - **docs/prompts**: sistema de auditoría de rendimiento de la desactivación de constraints
-  (`.github/prompts/performance_audit_constraints*.prompt.md`, `CONSTRAINTS_AUDIT_START_HERE.md` y
+  (`.github/prompts/performance_audit_constraints*.prompt.md`, `.ai/sessions/2026-09-26-performance-audit-constraints/START_HERE.md` y
   `docs/CONSTRAINTS_*.md`, `docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md`).
 - **scripts**: `scripts/bench_dump.py` añade las variantes `append*` y `commit1*` (hipótesis 3.3, Oracle).
 
