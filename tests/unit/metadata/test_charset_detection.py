@@ -335,6 +335,33 @@ class TestAdaptiveCatalogExecutor:
         # No debe duplicar CONVERT si ya existe
         assert converted.count("CONVERT") == 1
 
+    def test_inject_convert_comment_not_matched_inside_column_comment(self) -> None:
+        """Regresión: COMMENT no debe matchear dentro del alias COLUMN_COMMENT."""
+        conn = mock.MagicMock()
+        executor = AdaptiveCatalogExecutor(conn, "named", mode="convert")
+
+        sql = "SELECT COLUMN_COMMENT FROM information_schema.COLUMNS"
+        converted = executor._inject_convert(sql)
+
+        # El alias AS COLUMN_COMMENT no debe contener una conversión parcial de COMMENT
+        assert "AS COLUMN_CONVERT" not in converted
+        assert "CONVERT(CAST(COLUMN_COMMENT AS BINARY) USING utf8mb4) AS COLUMN_COMMENT" in converted
+
+    def test_inject_convert_upgrades_existing_convert_wrapper(self) -> None:
+        """Regresión: CONVERT(field USING utf8mb4) debe ser actualizado a CAST+BINARY."""
+        conn = mock.MagicMock()
+        executor = AdaptiveCatalogExecutor(conn, "named", mode="convert")
+
+        sql = "SELECT TABLE_NAME, CONVERT(COLUMN_COMMENT USING utf8mb4), CASE WHEN COLLATION_NAME <> x THEN 1 END"
+        converted = executor._inject_convert(sql)
+
+        # Debe actualizar la forma simple a CAST+BINARY sin anidar CONVERT dentro de CONVERT
+        assert "CONVERT(CAST(COLUMN_COMMENT AS BINARY) USING utf8mb4) AS COLUMN_COMMENT" in converted
+        # No debe producir la forma doble que genera SQL inválido
+        assert "AS COLUMN_COMMENT USING utf8mb4)" not in converted
+        # No debe quedar la forma simple
+        assert "CONVERT(COLUMN_COMMENT USING utf8mb4)" not in converted
+
 
 class TestCharsetDetectionFixes:
     """Tests para los fixes B, C, D aplicados en v0.35.3."""

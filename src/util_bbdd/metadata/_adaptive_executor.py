@@ -47,7 +47,7 @@ class AdaptiveCatalogExecutor:
 
     def __init__(self, connection: Any, paramstyle: ParamStyle, mode: str = "auto") -> None:
         self.connection = connection
-        self.paramstyle = paramstyle
+        self.paramstyle: ParamStyle = paramstyle
         self.mode = mode
         self.diagnosis: CharsetDiagnosis | None = None
         self.strategy: str = "unknown"
@@ -149,10 +149,14 @@ class AdaptiveCatalogExecutor:
             cursor.close()
 
     def _inject_convert(self, sql: str) -> str:
-        """Inyecta CONVERT(field USING utf8mb4) en campos de metadatos especiales."""
+        """Inyecta CONVERT(CAST(field AS BINARY) USING utf8mb4) en campos de metadatos especiales.
+
+        Dos fases por campo:
+        1. Actualiza la forma simple CONVERT(field USING charset) al equivalente CAST+BINARY.
+        2. Envuelve referencias sueltas al campo que no estén ya en ningún CONVERT.
+        """
         import re
 
-        # Lista de campos que típicamente contienen utf8mb3 corrupto
         fields_to_convert = [
             "TABLE_COMMENT",
             "COLUMN_COMMENT",
@@ -160,18 +164,21 @@ class AdaptiveCatalogExecutor:
             "ROUTINE_DEFINITION",
             "COMMENT",
         ]
+        replacement = r"CONVERT(CAST(\1 AS BINARY) USING utf8mb4) AS \1"
         result = sql
 
         for field in fields_to_convert:
-            # Usar regex para evitar conversiones parciales y duplicadas
-            # Pattern: palabra completa (\\b), no precedida de CONVERT(
-            # Esto previene: (a) matching parciales, (b) re-conversión
+            # Fase 1: actualiza CONVERT(field USING charset) → CONVERT(CAST(field AS BINARY)...)
+            # Requiere que 'field' sea el argumento directo de CONVERT, sin CAST intermedio.
+            pattern_wrapped = rf"CONVERT\(\s*\b({field})\b\s+USING\s+\w+\)"
+            result = re.sub(pattern_wrapped, replacement, result)
 
-            # Patrón: buscar field que NO esté ya dentro de CONVERT()
-            pattern = rf"(?<!CONVERT\(CAST\()({field})(?!\s+AS BINARY)"
-            replacement = r"CONVERT(CAST(\1 AS BINARY) USING utf8mb4) AS \1"
-
-            result = re.sub(pattern, replacement, result)
+            # Fase 2: envuelve 'field' standalone (no en alias ni ya dentro de CAST/CONVERT).
+            # (?<! AS ) evita re-procesar alias "AS field" generados en fase 1 u otras fases.
+            # (?!\s+AS\s+BINARY) evita re-convertir el inner field dentro de CAST(field AS BINARY).
+            # (?!\s+USING) evita re-procesar formas CONVERT(field USING ...) residuales.
+            pattern_standalone = rf"(?<! AS )\b({field})\b(?!\s+AS\s+BINARY)(?!\s+USING)"
+            result = re.sub(pattern_standalone, replacement, result)
 
         return result
 
