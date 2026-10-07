@@ -5,6 +5,162 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.35.2] - 2026-10-07
+
+### Fixed
+
+- **metadata/mariadb/catalog.py (H2-CRÍTICA: EXPRESSION column protection)**: `_MYSQL Kind.INDEXES`
+  query now wraps `EXPRESSION` column with `CONVERT(... USING utf8mb4)` to protect functional
+  index expressions from charset corruption (line 224). Functional indexes (MySQL 8.0.13+) are
+  parsed from information_schema.STATISTICS, and unprotected text can decode incorrectly if
+  server charset mismatches.
+
+- **metadata/mariadb/catalog.py (H3-MEDIA: Bounds checking in _parse_*)**: Three parser methods
+  now validate row length before array access, gracefully skipping incomplete records:
+  - `_parse_foreign_keys()` (lines 364-377): Added bounds validation
+  - `_parse_indexes()` (lines 379-395): Refactored with explicit loop and bounds check
+  - `_parse_routines()` (lines 410-438): Added parameter and routine record validation
+  - Effect: Older MariaDB versions or schema oddities no longer cause IndexError.
+
+- **metadata/mariadb/catalog.py (H4-MEDIA: bytes handling in quote_literal_default)**: Function now
+  handles bytes input by decoding to str with errors="replace" (lines 267-295). mariadb-connector
+  < 1.1.4 returns bytes for column defaults in some cases.
+
+- **metadata/mariadb/catalog.py (H6-MEDIA: _ON_UPDATE regex for complex expressions)**: Regex changed
+  from `r"\bon update (\S+)"` to `r"\bon\s+update\s+(\S+(?:\s*\(\s*\d*\s*\))?)"` (line 121) to capture
+  function calls with parentheses: `NOW()`, `CURRENT_TIMESTAMP(6)`, etc.
+
+### Testing
+
+- ✅ Ruff: 0 linting issues
+- ✅ Mypy: All type checks passed
+- ✅ Pytest: 313 passed, 2 skipped (metadata suite)
+- ✅ Custom audit tests: 30 passed, 0 failed
+
+---
+
+## [0.35.1] - 2026-10-08
+
+### Fixed
+
+- **connection (crítico: parámetros de v0.35.0 rechazados en validación)**: Los nuevos parámetros
+  `init_command` y `encoding_errors` introducidos en v0.35.0 no estaban registrados en la whitelist
+  de validación de parámetros (src/util_bbdd/data/database_types.json). Esto causaba `ValidationError`
+  en producción: "Parámetros no válidos para mariadb: init_command, encoding_errors". Agregados a la
+  sección `optional` de mariadb en database_types.json.
+
+- **connection (patrón de retry mejorado)**: Refactorizado el loop de retry defensivo en
+  `MariaDBConnection.connect()` para reemplazar el patrón `for...else` (antipatrón) con un
+  contador explícito `max_attempts` e `if attempt == max_attempts - 1` antes de lanzar error.
+  Mejora legibilidad y elimina la construcción ambigua de Python (líneas 51-75 en connection_mariadb.py).
+  Cambiado a `raise RuntimeError(...) from err` para encadenar excepciones correctamente.
+
+## [0.35.0] - 2026-10-07
+
+### Fixed
+
+- **connection (H1: retry defensivo en conexión directa)**: `MariaDBConnection.connect()` ahora
+  implementa el mismo retry defensivo que `PoolConnection` (líneas 58-71 de connection_mariadb.py).
+  Si el driver rechaza kwargs opcionales (`charset`, `init_command`, `encoding_errors`), los
+  elimina uno a uno e intenta de nuevo. Drivers viejos (< 1.1.4) hacen fallback automático.
+
+- **connection (H2: validación de encoding_errors)**: `MariaDBConnectionConfig.from_params()`
+  valida que `encoding_errors` sea uno de `{"replace", "strict", "ignore"}` (línea 71 de config.py).
+  Rechaza valores arbitrarios que podrían causar errores en runtime.
+
+- **connection (H3: docstring de seguridad para init_command)**: `to_driver_kwargs()` ahora
+  documenta explícitamente que `init_command` requiere confianza en la config interna; no es
+  seguro aceptar valores de fuentes no confiables (comentario en línea 114 de config.py).
+
+- **connection (H4: tipo de charset corregido)**: `MariaDBConnectionConfig.charset` cambió de
+  `str | None = None` a `str = "utf8mb4"` (línea 67 de config.py). Refleja garantía: siempre
+  es `str`, nunca `None`, por la lógica de `from_params()`.
+
+- **connection (H5: log mejorado en pool retry)**: cuando `mariadb.ConnectionPool()` rechaza
+  `init_command`, el log ahora advierte explícitamente "charset SET NAMES no se ejecutará"
+  (línea 119 de pool_connection_mariadb.py).
+
+- **connection (Opción C: init_command + encoding_errors)**: `MariaDBConnectionConfig` ahora replica
+  exactamente el comportamiento de PyMySQL/SQLAlchemy que no presentaba el error de charset:
+  - **`init_command`** (nuevo campo, default `"SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"`):
+    fuerza `character_set_results=utf8mb4` en cada conexión. Sin esto, el servidor devolvía bytes
+    en `latin1` aunque `charset='utf8mb4'` estuviera configurado en el handshake. Equivale al
+    `SET NAMES` que PyMySQL envía automáticamente y explica por qué SQLAlchemy no daba problemas.
+  - **`encoding_errors='replace'`** (campo existente, ahora activo): safety net para bytes que
+    no puedan decodificarse como utf8mb4 (datos heredados corruptos en information_schema).
+    Disponible desde mariadb-connector-python >= 1.1.4.
+  - Ambos parámetros se pasan a `mariadb.connect()` y a `mariadb.ConnectionPool()`.
+- **connection (H-AUDIT-1: consistencia charset en pool)**: `MariaDBPoolConfig.to_driver_kwargs()`
+  dejaba de incluir `charset` (pop incorrecto), rompiendo el comportamiento documentado y 3 tests
+  pre-existentes. Restaurado: charset, encoding_errors e init_command fluyen al pool.
+- **connection (retry generalizado del pool)**: el retry defensivo de `pool_connection_mariadb.py`
+  era específico de `charset`; ahora es genérico para cualquier kwarg opcional rechazado por el
+  driver (`_OPTIONAL_POOL_PARAMS = {"charset", "init_command", "encoding_errors"}`). Drivers
+  antiguos (< 1.1.4) que rechacen `encoding_errors` o `init_command` hacen fallback automático.
+
+## [0.34.1] - 2026-10-06
+
+### Fixed
+
+- **metadata (Hotfix: charset detection edge case)**: `CharsetStateDetector._determine_state()` ahora
+  detecta **ambos sentidos** del LATIN1_MISMATCH:
+  - `server='utf8mb4', database='latin1'` (caso ya manejado en v0.33.0)
+  - `server='latin1', database='utf8mb4'` (nuevo, reportado en producción)
+  - Ambos ahora generan diagnóstico explícito LATIN1_MISMATCH con recomendación `ALTER DATABASE`
+    en lugar de UNKNOWN, evitando confusión.
+
+## [0.34.0] - 2026-10-06
+
+### Added
+
+- **managers (Adaptive charset integration, v0.34.0)**: `ManagerCatalogExecutor` ahora usa
+  `AdaptiveCatalogExecutor` para drivers `mariadb` y `pymysql`, activando la detección automática
+  de charset y la selección de estrategia introducidas en v0.33.0.
+  - La detección se ejecuta **una sola vez** por instancia de executor (lazy, primera consulta) y
+    la estrategia queda cacheada para todas las consultas siguientes.
+  - `_ADAPTIVE_DRIVERS = {"mariadb", "pymysql"}`: otros drivers (PostgreSQL, Oracle, SQLite,
+    SQL Server) continúan usando `DbapiCatalogExecutor` sin cambios.
+  - El código de reintentos sobre `SystemError` del driver mariadb se mantiene como segunda
+    línea de defensa; la primera es la estrategia CONVERT de `AdaptiveCatalogExecutor`.
+
+## [0.33.0] - 2026-10-07
+
+### Added
+
+- **metadata (Adaptive charset detection, v0.33.0 feature)**:
+  - `CharsetStateDetector`: Módulo nuevo para detección automática de estados de charset sin
+    excepciones. Detecta 5 estados: `UTF8MB4_CLEAN` (utf8mb4 limpio), `UTF8MB4_MIXED` (servidor
+    utf8mb4 pero información_schema en utf8mb3), `UTF8MB3_LEGACY` (servidor y BD en utf8mb3),
+    `LATIN1_MISMATCH` (servidor utf8mb4 pero BD en latin1), `UNKNOWN` (no clasificable).
+    - Método `diagnose()` devuelve `CharsetDiagnosis` con estado, charset de servidor/BD/cliente/conexión,
+      información de soporte para CONVERT y lectura de comentarios.
+    - No lanza excepciones; todas las verificaciones son tolerantes y devuelven diagnóstico claro.
+    - Cubre casos de migración utf8mb3→utf8mb4 y heterogéneas (servidores con múltiples BDs en charset diferentes).
+
+  - `AdaptiveCatalogExecutor`: Ejecutor de catálogo con fallback automático según estado de charset.
+    - 3 estrategias progresivas: `native` (lectura directa, 100% perf), `convert` (inyecta
+      CONVERT(field USING utf8mb4) en comentarios/definiciones, 98% perf), `failfast` (error explícito con diagnóstico).
+    - Modos de configuración: `mode="auto"` (detección automática), `mode="native"` (fuerza native),
+      `mode="convert"` (fuerza CONVERT).
+    - Inyección de CONVERT() idempotente: evita conversiones duplicadas si se aplica múltiples veces.
+    - ADR-003 §5 — Progressive Remediation Layers para instalaciones heterogéneas.
+
+### Fixed
+
+- **metadata**: Manejo automático de 3 casos edge de MariaDB/MySQL que causaban fallos en v0.32.1:
+  - LATIN1_MISMATCH (charset_database=latin1 con charset_server=utf8mb4): Genera error explícito
+    con recomendación `ALTER DATABASE database_name CHARACTER SET utf8mb4`.
+  - UTF8MB3_LEGACY (servidor y BD en utf8mb3): Inyección de CONVERT() en campos de comentarios/definiciones.
+  - UTF8MB4_MIXED (información_schema en utf8mb3 post-upgrade): Inyección de CONVERT() en
+    campos de comentarios/definiciones.
+
+- **documentation**: Compatibilidad confirmada con todas las versiones de MariaDB 10.2+ y MySQL 8.0.16+.
+
+### Changed
+
+- **metadata**: `CharsetStateDetector` y `AdaptiveCatalogExecutor` exportados en `metadata.__init__.py`
+  para acceso público (nuevos en `__all__`).
+
 ## [0.32.2] - 2026-10-06
 
 ### Fixed
