@@ -221,5 +221,5 @@ Los parámetros `init_command` y `encoding_errors` en `conn_params` serán ignor
 
 ---
 
-**Referencia rápida:** Ver [Guía de Conexión § 6](connection_guide.md#6-parámetros-especiales-de-mariadb-init_command-y-encoding_errors)
+**Referencia rápida:** Ver [Guía de Conexión § 6](connection_guide.md#6-parametros-especiales-de-mariadb-init_command-y-encoding_errors)
 para tabla de parámetros y ejemplos; [Troubleshooting](troubleshooting.md) para error handling.

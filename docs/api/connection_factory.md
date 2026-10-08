@@ -84,7 +84,7 @@ Para MariaDB: Si el driver < 1.1.4 rechaza `encoding_errors` o un driver antiguo
 la librería ejecuta retry automático descartando el parámetro (ver `pool_connection_mariadb.py` §3.1).
 Esto permite compatibilidad con drivers antiguos sin sacrificar seguridad en versiones nuevas.
 
-Ver [Guía: Conexión § 6 — Parámetros especiales de MariaDB](../guides/connection_guide.md#6-parámetros-especiales-de-mariadb-init_command-y-encoding_errors)
+Ver [Guía: Conexión § 6 — Parámetros especiales de MariaDB](../guides/connection_guide.md#6-parametros-especiales-de-mariadb-init_command-y-encoding_errors)
 para más detalles.
 
 ## 5. Ejemplos Relacionados
