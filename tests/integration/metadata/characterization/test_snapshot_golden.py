@@ -143,6 +143,8 @@ def test_snapshot_matches_golden_and_migrate(target: GoldenTarget) -> None:
         assert len(statements) == first_read, "la segunda lectura debe salir de la caché"
         queries = [source.dialect.query(kind) for kind in ALL_KINDS]
         declared = sum(1 + len(q.extra) for q in queries if q is not None)  # una por tipo + las de ``extra``
+        # ADR-004: un dialecto versionado (Oracle) consulta la versión del servidor una vez, en la primera lectura
+        declared += 1 if hasattr(source.dialect, "server_version_sql") else 0
         assert first_read == declared, f"{first_read} consultas; el dialecto declara {declared}"
     finally:
         event.remove(engine, "before_cursor_execute", count)
