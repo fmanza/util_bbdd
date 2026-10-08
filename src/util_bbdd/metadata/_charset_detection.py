@@ -21,7 +21,21 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from ..async_utils import maybe_await
+
 logger = logging.getLogger(__name__)
+
+#: Variables de sesión del diagnóstico, en orden: servidor, BD, cliente, conexión, collation de la conexión.
+_VARIABLES_SQL: tuple[str, str, str, str, str] = (
+    "SELECT @@character_set_server",
+    "SELECT @@character_set_database",
+    "SELECT @@character_set_client",
+    "SELECT @@character_set_connection",
+    "SELECT @@collation_connection",
+)
+_READ_COMMENTS_SQL = "SELECT TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() LIMIT 1"
+_CONVERT_SQL = "SELECT CONVERT('test' USING utf8mb4)"
+_SCHEMATA_SQL = "SELECT DEFAULT_CHARACTER_SET_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = DATABASE()"
 
 
 class CharsetState(Enum):
@@ -142,34 +156,47 @@ class CharsetStateDetector:
 
     def diagnose(self) -> CharsetDiagnosis:
         """Realiza diagnóstico completo de charset sin excepciones."""
-        server_charset = self._fetch_one("SELECT @@character_set_server")
-        database_charset = self._fetch_one("SELECT @@character_set_database")
-        client_charset = self._fetch_one("SELECT @@character_set_client")
-        connection_charset = self._fetch_one("SELECT @@character_set_connection")
-        collation_connection = self._fetch_one("SELECT @@collation_connection")
+        server, database, client, connection, collation = (self._fetch_one(sql) for sql in _VARIABLES_SQL)
+        return self.build_diagnosis(
+            server,
+            database,
+            client,
+            connection,
+            collation,
+            can_read_comments=self._test_read_comments(),
+            can_convert_utf8mb4=self._test_convert_utf8mb4(),
+            info_schema_charset=self._test_info_schema_charset(),
+        )
 
+    @classmethod
+    def build_diagnosis(
+        cls,
+        server_charset: Any,
+        database_charset: Any,
+        client_charset: Any,
+        connection_charset: Any,
+        collation_connection: Any,
+        *,
+        can_read_comments: bool,
+        can_convert_utf8mb4: bool,
+        info_schema_charset: str | None,
+    ) -> CharsetDiagnosis:
+        """``CharsetDiagnosis`` a partir de los valores leídos (compartido por :meth:`diagnose` y :func:`adiagnose`)."""
         # Normalizar valores (MariaDB puede devolver bytes)
-        server_charset = str(server_charset).lower() if server_charset else None
-        database_charset = str(database_charset).lower() if database_charset else None
-        client_charset = str(client_charset).lower() if client_charset else None
-        connection_charset = str(connection_charset).lower() if connection_charset else None
-
-        # Pruebas especializadas
-        can_read_comments = self._test_read_comments()
-        can_convert_utf8mb4 = self._test_convert_utf8mb4()
-        info_schema_charset = self._test_info_schema_charset()
+        server = str(server_charset).lower() if server_charset else None
+        database = str(database_charset).lower() if database_charset else None
+        client = str(client_charset).lower() if client_charset else None
+        connection = str(connection_charset).lower() if connection_charset else None
 
         # connection_charset es el encoding real de la sesión activa (lo que importa para leer datos)
-        state = self._determine_state(
-            server_charset, database_charset, info_schema_charset, can_read_comments, connection_charset
-        )
+        state = cls._determine_state(server, database, info_schema_charset, can_read_comments, connection)
 
         return CharsetDiagnosis(
             state=state,
-            server_charset=server_charset,
-            database_charset=database_charset,
-            client_charset=client_charset,
-            connection_charset=connection_charset,
+            server_charset=server,
+            database_charset=database,
+            client_charset=client,
+            connection_charset=connection,
             collation_connection=collation_connection,
             can_read_comments=can_read_comments,
             can_convert_utf8mb4=can_convert_utf8mb4,
@@ -179,15 +206,13 @@ class CharsetStateDetector:
     def _test_read_comments(self) -> bool:
         """¿Se pueden leer comentarios de tabla sin error?"""
         # _fetch_one() captura excepciones internamente; retorna None si falla
-        result = self._fetch_one(
-            "SELECT TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() LIMIT 1"
-        )
+        result = self._fetch_one(_READ_COMMENTS_SQL)
         return result is not None
 
     def _test_convert_utf8mb4(self) -> bool:
         """¿La función CONVERT() está disponible y funciona?"""
         try:
-            result = self._fetch_one("SELECT CONVERT('test' USING utf8mb4)")
+            result = self._fetch_one(_CONVERT_SQL)
             return result is not None
         except Exception as exc:
             logger.debug(f"_test_convert_utf8mb4 failed: {exc}")
@@ -197,9 +222,7 @@ class CharsetStateDetector:
         """¿En qué charset tiene configurado la BD actual? (detección post-upgrade)."""
         try:
             # SCHEMATA.DEFAULT_CHARACTER_SET_NAME es compatible con MariaDB y MySQL
-            charset: str | None = self._fetch_one(
-                "SELECT DEFAULT_CHARACTER_SET_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = DATABASE()"
-            )
+            charset: str | None = self._fetch_one(_SCHEMATA_SQL)
             return charset
         except Exception as exc:
             logger.debug(f"_test_info_schema_charset failed: {exc}")
@@ -248,8 +271,39 @@ class CharsetStateDetector:
         return CharsetState.UNKNOWN
 
 
+async def _afetch_one(connection: Any, sql: str) -> Any:
+    """Versión async de ``CharsetStateDetector._fetch_one`` (SQL sin parámetros): primer valor o ``None`` si falla."""
+    try:
+        cursor = await maybe_await(connection.cursor())
+        try:
+            await maybe_await(cursor.execute(sql))
+            row = await maybe_await(cursor.fetchone())
+            return row[0] if row else None
+        finally:
+            await maybe_await(cursor.close())
+    except Exception as exc:
+        logger.debug(f"_afetch_one() failed: {exc}")
+        return None
+
+
+async def adiagnose(connection: Any) -> CharsetDiagnosis:
+    """Diagnóstico de charset sobre una conexión async (aiomysql); mismas consultas y reglas que ``diagnose()``."""
+    server, database, client, conn_charset, collation = [await _afetch_one(connection, sql) for sql in _VARIABLES_SQL]
+    return CharsetStateDetector.build_diagnosis(
+        server,
+        database,
+        client,
+        conn_charset,
+        collation,
+        can_read_comments=await _afetch_one(connection, _READ_COMMENTS_SQL) is not None,
+        can_convert_utf8mb4=await _afetch_one(connection, _CONVERT_SQL) is not None,
+        info_schema_charset=await _afetch_one(connection, _SCHEMATA_SQL),
+    )
+
+
 __all__ = [
     "CharsetDiagnosis",
     "CharsetState",
     "CharsetStateDetector",
+    "adiagnose",
 ]

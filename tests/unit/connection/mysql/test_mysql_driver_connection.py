@@ -77,8 +77,9 @@ class TestMySQLConnectionConfig:
 class TestDriverKwargs:
     def test_pymysql_groups_tls_in_ssl(self) -> None:
         kwargs = build_pymysql_connect_kwargs({**BASE, "ssl_ca": "/ca", "ssl_key": "/k", "ssl_verify_cert": True})
-        assert kwargs["ssl"] == {"ca": "/ca", "key": "/k"}
-        assert kwargs["ssl_verify_cert"] is True
+        # La verificación va dentro de ``ssl``: como kwarg suelto PyMySQL rehacía ``ssl`` con ca=None.
+        assert kwargs["ssl"] == {"ca": "/ca", "key": "/k", "verify_mode": True}
+        assert "ssl_verify_cert" not in kwargs
         assert "ssl_ca" not in kwargs
 
     def test_pymysql_without_tls_has_no_ssl(self) -> None:

@@ -227,11 +227,12 @@ No se requieren consultas adicionales ni configuración manual.
 
 ### PostgreSQL
 
-**Driver:** `psycopg2` o `psycopg` (v3)
+**Driver:** `psycopg` (v3) + `psycopg-pool` (sync) y `asyncpg` (async). `psycopg2` no lo usan los managers; solo
+sirve para Engines propios `postgresql+psycopg2://` (p. ej. la estrategia `execute_values` de `bulk`).
 
 **Instalación:**
 ```bash
-pip install psycopg2-binary  # o: pip install psycopg[binary]
+pip install "util_bbdd[postgresql]"  # psycopg[binary], psycopg-pool y asyncpg
 ```
 
 **Configuración:**

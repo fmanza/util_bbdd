@@ -5,6 +5,51 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.35.6] - 2026-10-08
+
+Hallazgos P1 de la FASE 1 de `drivers-connections-audit` (`.ai/sessions/2026-10-08c-fix-drivers-p1/`), más dos bugs
+encontrados al validarlos contra el banco.
+
+### Security
+
+- **connection/mysql (Y3)**: la conexión y el pool async (aiomysql) aplican `ssl_ca`/`ssl_cert`/`ssl_key`/
+  `ssl_verify_cert`/`ssl_verify_identity` como `ssl=SSLContext` (misma semántica que PyMySQL: con CA se verifican
+  certificado y hostname salvo que se desactiven). Antes se descartaban y la conexión async iba en claro sin aviso.
+- **connection/mysql**: en sync, `ssl_verify_cert`/`ssl_verify_identity` van dentro del dict `ssl` de PyMySQL. Como
+  kwargs sueltos, si alguno era verdadero PyMySQL rehacía `ssl` con `ca=None` y se perdían la CA y el certificado de
+  cliente.
+- **connection/sqlserver (Q1)**: pymssql recibe `encryption` (`mandatory` → `require`, `off` → `off`; `optional`
+  mantiene el valor por defecto de FreeTDS). Con `mandatory` se comprueba `sys.dm_exec_connections.encrypt_option` y se
+  falla si la sesión no va cifrada: el wheel de pymssql para Windows (FreeTDS 1.4.27) acepta `require` sin cifrar. Sin
+  `VIEW SERVER STATE` solo se avisa.
+
+### Fixed
+
+- **connection/sqlserver**: las cadenas ODBC de pyodbc (sync) y aioodbc (async) llevaban `Server={host},puerto`, que el
+  Driver Manager rechaza (`01S00`): desde el escapado CNX-02 (v0.11.0) ninguna conexión pyodbc/aioodbc de la librería
+  conectaba. Ahora `Server={host,puerto}`. `Encrypt` usa `yes`/`no` (válidos en ODBC Driver 17 y 18; 18 rechazaba
+  `off`).
+- **managers (Y2)**: el catálogo de MySQL con pool (`QueuePool` de SQLAlchemy) usa el ejecutor adaptativo de charset;
+  antes solo sin pool.
+- **managers / metadata (M3)**: el catálogo async de MariaDB/MySQL (aiomysql) diagnostica el charset una vez y aplica
+  `CONVERT` cuando el diagnóstico lo pide, como el sync. `CharsetStateDetector.build_diagnosis`, `adiagnose`,
+  `select_strategy` e `inject_convert` comparten la lógica entre sync y async.
+- **connection/mariadb (M1)**: el `init_command` por defecto es `SET NAMES <charset>` (antes `SET NAMES utf8mb4`
+  aunque `charset` fuera otro: sesión utf8mb4 y driver decodificando latin1). `charset` solo admite letras, dígitos y
+  `_`.
+- **data / pyproject (P1)**: `database_types.json` declara los drivers de PostgreSQL que usa la librería (psycopg 3 +
+  psycopg-pool y asyncpg, no psycopg2) y hay extra `postgresql` (`pip install "util_bbdd[postgresql]"`); guías
+  actualizadas.
+
+### Testing
+
+- Nuevos: `tests/unit/connection/mysql/test_mysql_tls_options.py`, `tests/unit/connection/test_sqlserver_pymssql_encryption.py`,
+  `tests/unit/connection/mariadb/test_mariadb_charset_init_command.py`, `tests/unit/test_catalog_executor_charset.py`,
+  `tests/unit/test_postgresql_driver_declaration.py` y un test de Engine Oracle con solo `dsn` (O1).
+- Banco: TLS MySQL sync y async (`TLS_AES_256_GCM_SHA384`; async requiere `SelectorEventLoop` en Windows, limitación de
+  aiomysql documentada en la guía de conexión); SQL Server con `encryption="mandatory"` cifrado en pyodbc y aioodbc y
+  rechazado en pymssql/Windows.
+
 ## [0.35.5] - 2026-10-08
 
 Hotfix de los P0 de la FASE 1 de `drivers-connections-audit` (`/audit-code` RECHAZADO,

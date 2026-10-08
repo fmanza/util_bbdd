@@ -41,7 +41,7 @@
             "name": "charset",
             "type": "string",
             "default": "utf8mb4",
-            "description": "Conjunto de caracteres para la conexión"
+            "description": "Conjunto de caracteres para la conexión (solo letras, dígitos y _); fija también el init_command por defecto"
           },
           {
             "name": "autocommit",
@@ -76,8 +76,8 @@
           {
             "name": "init_command",
             "type": "string",
-            "default": "SET NAMES utf8mb4",
-            "description": "Comando SQL ejecutado al establecer cada conexión (v0.35.0+; requiere mariadb >= 1.1.4)"
+            "default": "SET NAMES <charset>",
+            "description": "Comando SQL ejecutado al establecer cada conexión; por defecto SET NAMES con el charset configurado (v0.35.6+; requiere mariadb >= 1.1.4)"
           },
           {
             "name": "encoding_errors",
@@ -359,8 +359,8 @@
       "version_range": "9.6+",
       "default_port": 5432,
       "drivers": [
-        "psycopg2",
-        "psycopg"
+        "psycopg",
+        "asyncpg"
       ],
       "url_docs": "https://www.postgresql.org/docs/",
       "supported_features": [
@@ -490,12 +490,12 @@
         ]
       },
       "driver_info": {
-        "pip_package": "psycopg2-binary",
-        "import_name": "psycopg2",
-        "install_command": "pip install psycopg2-binary",
+        "pip_package": "psycopg[binary,pool]",
+        "import_name": "psycopg",
+        "install_command": "pip install \"util_bbdd[postgresql]\"  (o: pip install \"psycopg[binary,pool]\" asyncpg)",
         "system_requirements": [
-          "libpq-dev (Ubuntu/Debian)",
-          "postgresql-devel (CentOS/RHEL)"
+          "Ninguno con psycopg[binary] (incluye libpq)",
+          "libpq-dev (Ubuntu/Debian) o postgresql-devel (CentOS/RHEL) solo para psycopg sin [binary]"
         ]
       }
     },

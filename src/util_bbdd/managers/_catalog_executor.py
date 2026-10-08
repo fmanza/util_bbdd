@@ -17,7 +17,8 @@ from typing import Any
 
 from .._core.exceptions import DatabaseException, MetadataError
 from ..async_utils import maybe_await
-from ..metadata._adaptive_executor import AdaptiveCatalogExecutor
+from ..metadata._adaptive_executor import AdaptiveCatalogExecutor, inject_convert, select_strategy
+from ..metadata._charset_detection import adiagnose
 from ..metadata._paramstyle import ParamStyle, to_driver
 from ..metadata.source import DbapiCatalogExecutor
 
@@ -27,6 +28,19 @@ from ..metadata.source import DbapiCatalogExecutor
 #: Extensión: Registra nuevos drivers con :func:`register_driver_paramstyle`.
 #: Drivers que usan detección adaptativa de charset (MariaDB/MySQL family).
 _ADAPTIVE_DRIVERS: frozenset[str] = frozenset({"mariadb", "pymysql"})
+#: Drivers async de la familia MariaDB/MySQL: diagnóstico de charset y CONVERT si el diagnóstico lo pide.
+_ASYNC_ADAPTIVE_DRIVERS: frozenset[str] = frozenset({"aiomysql"})
+
+
+def _driver_root(connection: Any) -> str:
+    """Módulo raíz del driver de ``connection``, desenvolviendo el proxy de un pool de SQLAlchemy (MySQL con pool)."""
+    root = type(connection).__module__.split(".")[0]
+    if root == "sqlalchemy":
+        wrapped = getattr(connection, "dbapi_connection", None)
+        if wrapped is not None and wrapped is not connection:
+            return _driver_root(wrapped)
+    return root
+
 
 _KNOWN_STYLES: dict[str, ParamStyle] = {
     "psycopg": "pyformat",
@@ -208,9 +222,8 @@ class ManagerCatalogExecutor:
         # connection_params is accepted for backward compatibility but not used (no fallback strategy)
 
     def _resolve_executor(self, connection: Any) -> DbapiCatalogExecutor | AdaptiveCatalogExecutor:
-        """Devuelve AdaptiveCatalogExecutor para MariaDB/MySQL, DbapiCatalogExecutor para el resto."""
-        root = type(connection).__module__.split(".")[0]
-        if root not in _ADAPTIVE_DRIVERS:
+        """Devuelve AdaptiveCatalogExecutor para MariaDB/MySQL (también con pool), DbapiCatalogExecutor para el resto."""
+        if _driver_root(connection) not in _ADAPTIVE_DRIVERS:
             return DbapiCatalogExecutor(connection, driver_paramstyle(connection))
         if self._adaptive is None:
             self._adaptive = AdaptiveCatalogExecutor(connection, driver_paramstyle(connection))
@@ -292,6 +305,16 @@ class AsyncManagerCatalogExecutor:
         self._provider = provider
         self._releaser = releaser
         self._max_retries = max_retries
+        # Estrategia de charset (aiomysql): se diagnostica una vez con la primera conexión, como el ejecutor sync.
+        self._charset_strategy: str | None = None
+
+    async def _charset_safe_sql(self, connection: Any, sql: str) -> str:
+        """``sql`` con CONVERT en los campos de texto del catálogo si el diagnóstico de charset lo pide (aiomysql)."""
+        if _driver_root(connection) not in _ASYNC_ADAPTIVE_DRIVERS:
+            return sql
+        if self._charset_strategy is None:
+            self._charset_strategy = select_strategy(await adiagnose(connection))
+        return inject_convert(sql) if self._charset_strategy == "convert" else sql
 
     async def fetch_all(self, sql: str, params: Mapping[str, Any]) -> list[tuple[Any, ...]]:
         """Ejecuta SQL de catálogo con reintento mínimo en caso de SystemError (mariadb driver).
@@ -308,7 +331,7 @@ class AsyncManagerCatalogExecutor:
             try:
                 logger.debug(f"[Catálogo async intento {attempt + 1}/{total_attempts}] Ejecutando SQL: {sql[:80]}...")
                 style = driver_paramstyle(connection)
-                driver_sql, args = to_driver(sql, params, style)
+                driver_sql, args = to_driver(await self._charset_safe_sql(connection, sql), params, style)
                 if style == "dollar":
                     records = await connection.fetch(driver_sql, *(args or []))
                     return [tuple(record) for record in records]

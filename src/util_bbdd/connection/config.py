@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -74,8 +76,13 @@ class MariaDBConnectionConfig:
     def from_params(cls, params: dict[str, Any]) -> MariaDBConnectionConfig:
         db_type: str = "mariadb"
         charset = _opt_str(params, "charset") or "utf8mb4"
+        # El charset llega al driver y al SET NAMES por defecto: solo nombres de charset (letras, dígitos, _).
+        if not re.fullmatch(r"[A-Za-z0-9_]+", charset):
+            raise ValueError(f"Parametro invalido para {db_type}: charset '{charset}' no es un nombre de charset")
         encoding_errors = _opt_str(params, "encoding_errors") or "replace"
-        init_command = _opt_str(params, "init_command") or "SET NAMES utf8mb4"
+        # Por defecto la sesión usa el mismo charset con el que decodifica el driver (con un SET NAMES fijo en utf8mb4,
+        # charset="latin1" decodificaba como latin1 bytes enviados en utf8mb4).
+        init_command = _opt_str(params, "init_command") or f"SET NAMES {charset}"
 
         # Validar encoding_errors: solo valores permitidos
         if encoding_errors not in {"replace", "strict", "ignore"}:

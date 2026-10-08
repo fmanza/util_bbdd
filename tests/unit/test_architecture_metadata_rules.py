@@ -51,6 +51,7 @@ EXCEPTIONS: dict[str, str] = {
     "connection/mariadb/_variables.py": "configuración del servidor (EngineReadinessAdvisor)",
     "connection/sqlite/_variables.py": "configuración de la conexión (PRAGMA de sesión)",
     "connection/sqlserver/_variables.py": "configuración del servidor (EngineReadinessAdvisor)",
+    "connection/sqlserver/connection_sqlserver.py": "cifrado de la sesión actual (encryption='mandatory' con pymssql)",
     "connection/sqlite/connection_sqlite.py": "PRAGMA foreign_keys de la conexión",
     "connection/sqlite/pool_connection_sqlite.py": "PRAGMA foreign_keys de la conexión",
     "connection/sqlite/async_connection_sqlite.py": "PRAGMA foreign_keys de la conexión",

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "util_bbdd"
-version = "0.35.5"
+version = "0.35.6"
 description = "Librería de operaciones de base de datos: CRUD en lote, auditoría, conexiones pooled y documentación."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -43,6 +43,11 @@ mariadb = [
 mysql = [
     "pymysql[rsa]>=1.1",  # sync; [rsa] = cryptography, necesario para caching_sha2_password sin TLS
     "aiomysql>=0.2",      # async
+]
+postgresql = [
+    "psycopg[binary]>=3.1",  # sync (psycopg 3: conexión directa y Engine postgresql+psycopg)
+    "psycopg-pool>=3.2",     # pool sync
+    "asyncpg>=0.29",         # async
 ]
 # migrate: reescribe el SQL de las vistas al dialecto destino (MigrationPlanner(view_strategy="auto"|"transpile")).
 migrate = [

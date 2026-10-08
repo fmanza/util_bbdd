@@ -280,3 +280,15 @@ def test_async_engine_keeps_found_rows_for_mysql_family(monkeypatch: pytest.Monk
     call = _run_async_creator(monkeypatch, "mysql", {"host": "h", "user": "u", "password": "p"})
 
     assert call["kwargs"] == {"found_rows": True}
+
+
+def test_sync_oracle_engine_with_dsn_only_connects_through_native_dsn(monkeypatch: pytest.MonkeyPatch) -> None:
+    """O1: con ``dsn`` (sin ``service_name``) el Engine se crea y el ``creator`` nativo resuelve el destino."""
+    captured = _capture_sync_engine(monkeypatch)
+    calls = _capture_native_connect(monkeypatch)
+
+    SQLAlchemyEngineFactory.create_engine("oracle", {"user": "u", "password": "p", "dsn": "db:1521/ORCLPDB"}, "")
+    captured["kwargs"]["creator"]()
+
+    assert make_url(captured["conn_str"]).query == {}
+    assert calls[0]["params"]["dsn"] == "db:1521/ORCLPDB"

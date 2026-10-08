@@ -9,6 +9,7 @@ from typing import Any
 from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
+from .connection_sqlserver import SQLServerConnection
 
 
 class AsyncSQLServerConnection:
@@ -35,14 +36,14 @@ class AsyncSQLServerConnection:
         database: str = str(conn_params.get("database", "master"))
         port: int = int(conn_params.get("port", 1433))
         driver_name: str = str(conn_params.get("driver_name", "ODBC Driver 17 for SQL Server"))
-        encryption: str = str(conn_params.get("encryption", "optional")).lower()
+        encryption: str = SQLServerConnection.odbc_encrypt(conn_params.get("encryption", "optional"))
         trust_cert: bool = bool(conn_params.get("trust_cert", False))
         use_mars: bool = bool(conn_params.get("use_mars", True))
 
         esc = AsyncSQLServerConnection._escape_odbc_value
         return (
             f"Driver={esc(driver_name)};"
-            f"Server={esc(host)},{port};"
+            f"Server={esc(f'{host},{port}')};"  # host,puerto dentro de las llaves: fuera, el Driver Manager lo rechaza
             f"Database={esc(database)};"
             f"UID={esc(user)};"
             f"PWD={esc(password)};"

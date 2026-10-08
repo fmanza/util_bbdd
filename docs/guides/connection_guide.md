@@ -24,7 +24,7 @@ HSQLDB**. HSQLDB solo dispone de modo **síncrono** (sus factorías async lanzan
 
 | Motor (`db_type`) | Driver sync | Driver async | Instalación |
 |---|---|---|---|
-| `postgresql` | `psycopg2-binary` | `asyncpg` | `pip install psycopg2-binary asyncpg` |
+| `postgresql` | `psycopg` (v3) + `psycopg-pool` | `asyncpg` | `pip install "util_bbdd[postgresql]"` |
 | `mariadb` | `mariadb` (MariaDB Connector/Python) | `aiomysql` | `pip install "util_bbdd[mariadb]"` |
 | `mysql` | `pymysql` | `aiomysql` | `pip install "util_bbdd[mysql]"` |
 | `oracle` | `oracledb` (incluido) | `oracledb` (incluido) | — (dependencia base) |
@@ -104,9 +104,9 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 |---|---|---|
 | `postgresql` | `host`, `user`, `password`, `database` | `port`=5432, `schema` (→ `search_path`), `sslmode`, `connect_timeout`, `application_name`, `pool_size` |
 | `mariadb` | `host`, `user`, `password`, `database` | `port`=3306, `charset`=utf8mb4, `init_command`=`"SET NAMES utf8mb4"`, `encoding_errors`=`"replace"`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size` |
-| `mysql` | `host`, `user`, `password`, `database` | `port`=3306, `charset`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size`, `max_overflow`, `pool_timeout`, `pool_recycle`, `ssl_ca`/`ssl_cert`/`ssl_key`, `ssl_verify_cert`, `ssl_verify_identity` |
+| `mysql` | `host`, `user`, `password`, `database` | `port`=3306, `charset`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size`, `max_overflow`, `pool_timeout`, `pool_recycle`, `ssl_ca`/`ssl_cert`/`ssl_key`, `ssl_verify_cert`, `ssl_verify_identity` (sync y async: con CA se verifican certificado y hostname salvo que se desactiven) |
 | `oracle` | `user`, `password` + **uno de** `service_name` / `sid` / `dsn` / `database` | `host`=localhost, `port`=1521, `oracle_client_path`, `pool_size` |
-| `sqlserver` | `host`, `user`, `password`, `database` | `port`=1433, `sql_server_driver` (`pymssql`/`pyodbc`), `driver_name` (pyodbc), `encryption` (`mandatory`/`optional`/`off`), `trust_cert`, `use_mars` |
+| `sqlserver` | `host`, `user`, `password`, `database` | `port`=1433, `sql_server_driver` (`pymssql`/`pyodbc`), `driver_name` (pyodbc), `encryption` (`mandatory`/`optional`/`off`; con pymssql se traduce a `require`/por defecto de FreeTDS/`off`), `trust_cert` y `use_mars` (solo pyodbc/aioodbc) |
 | `sqlite` | `database` (ruta al fichero) | `timeout`, `isolation_level` (`""`/`DEFERRED`/`IMMEDIATE`/`EXCLUSIVE`), `check_same_thread` |
 | `hsqldb` | `user`, `jdbc_url`, `jdbc_jar` | `password`, `jdbc_driver`, `connection_properties` |
 
@@ -114,10 +114,12 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 
 | Escenario / Error | Causa probable | Solución |
 |---|---|---|
-| `No module named 'psycopg2'` / `'mariadb'` / `'pymysql'` | Driver no instalado | `pip install psycopg2-binary` / `pip install mariadb` / `pip install "pymysql[rsa]"` |
+| `No module named 'psycopg'` / `'mariadb'` / `'pymysql'` | Driver no instalado | `pip install "util_bbdd[postgresql]"` / `pip install "util_bbdd[mariadb]"` / `pip install "util_bbdd[mysql]"` |
 | MySQL 8 contra servidor MySQL con `db_type="mariadb"` | Funciona: el conector de MariaDB también conecta con MySQL | Para usar PyMySQL y el catálogo de MySQL, `db_type="mysql"` |
 | `pyodbc.Error: ('IM002'...)` | ODBC driver de SQL Server no instalado en el SO | Instalar el [Microsoft ODBC Driver](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server); usar `pymssql` si no es posible |
 | `oracledb.DatabaseError: DPY-2014` | Oracle Instant Client no encontrado | Configurar `oracle_client_path` en `conn_params` |
+| MySQL async con `ssl_*` en Windows: `Can't connect to MySQL server` (`SSLWantReadError`) | aiomysql no negocia TLS con el `ProactorEventLoop` por defecto de Windows (también sin util_bbdd) | `asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())` antes de crear el loop |
+| `encryption='mandatory' pero la sesión pymssql no va cifrada` | El FreeTDS de pymssql (p. ej. el wheel de Windows) acepta `require` y no cifra | `sql_server_driver="pyodbc"` con ODBC Driver 17/18 (`Encrypt=yes`) |
 | `Para oracle debe informar 'dsn' o 'service_name' o 'sid' o 'database'` | Falta el identificador de servicio Oracle | Añadir una de esas 4 claves |
 | `Parametro invalido para sqlserver: encryption=...` | Valor fuera de `mandatory`/`optional`/`off` | Corregir `encryption` |
 | Error async con HSQLDB | HSQLDB no soporta async | Usar `SyncDatabaseManager` (HSQLDB es solo síncrono) |
@@ -130,9 +132,11 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 A partir de **v0.35.0**, `MariaDBConnectionConfig` incluye dos parámetros que mitigan conflictos de charset
 común cuando el servidor está configurado en `latin1` pero queremos usar `utf8mb4`:
 
-#### **`init_command`** (string, default `"SET NAMES utf8mb4"`)
+#### **`init_command`** (string, default `"SET NAMES <charset>"`, es decir `"SET NAMES utf8mb4"` con el `charset` por defecto)
 
-SQL ejecutado en cada conexión (sync y pool). Replica el comportamiento de PyMySQL/SQLAlchemy:
+SQL ejecutado en cada conexión (sync y pool). Por defecto sigue a `charset` (v0.35.6+): con `charset="latin1"` es
+`SET NAMES latin1`, así la sesión y el driver usan el mismo charset. `charset` solo admite letras, dígitos y `_`.
+Replica el comportamiento de PyMySQL/SQLAlchemy:
 
 - **Sin `init_command`**: El handshake fija `charset='utf8mb4'`, pero solo en `character_set_client` y
   `character_set_connection`. El servidor no sabe que debe convertir los datos a utf8mb4 **antes** de

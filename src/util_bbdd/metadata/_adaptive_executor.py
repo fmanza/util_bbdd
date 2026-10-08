@@ -14,6 +14,7 @@ ADR-003 §5 — Progressive Remediation Layers.
 from __future__ import annotations
 
 import logging
+import re
 
 from collections.abc import Mapping
 from typing import Any
@@ -22,6 +23,68 @@ from ._charset_detection import CharsetDiagnosis, CharsetState, CharsetStateDete
 from ._paramstyle import ParamStyle, to_driver
 
 logger = logging.getLogger(__name__)
+
+
+def select_strategy(diagnosis: CharsetDiagnosis, mode: str = "auto") -> str:
+    """Estrategia de lectura del catálogo (``native``, ``convert``, ``failfast``) para un diagnóstico de charset.
+
+    Compartida por :class:`AdaptiveCatalogExecutor` (sync) y el ejecutor async de los managers.
+    """
+    logger.info(
+        f"Charset detected: state={diagnosis.state.value}, "
+        f"server={diagnosis.server_charset}, "
+        f"database={diagnosis.database_charset}"
+    )
+    if mode in ("native", "convert"):
+        return mode
+    if diagnosis.state == CharsetState.UTF8MB4_CLEAN:
+        logger.debug("✅ Charset OK: using native strategy")
+        return "native"
+    if diagnosis.state == CharsetState.UTF8MB4_MIXED:
+        logger.warning("⚠️ Mixed charset: using CONVERT() for comments/definitions")
+        return "convert"
+    if diagnosis.state == CharsetState.UTF8MB3_LEGACY:
+        # Legacy utf8mb3 debe usar CONVERT para evitar contaminar la sesión
+        logger.warning("❌ Legacy utf8mb3: using CONVERT() for safe reading")
+        return "convert"
+    if diagnosis.state == CharsetState.LATIN1_MISMATCH:
+        logger.warning(f"⚠️ latin1_mismatch: usando CONVERT() para lectura de metadatos. {diagnosis.recommendation()}")
+        return "convert"
+    logger.warning("❓ Charset unknown: falling back to fail-fast")
+    return "failfast"
+
+
+def inject_convert(sql: str) -> str:
+    """Inyecta CONVERT(CAST(field AS BINARY) USING utf8mb4) en campos de metadatos especiales.
+
+    Dos fases por campo:
+    1. Actualiza la forma simple CONVERT(field USING charset) al equivalente CAST+BINARY.
+    2. Envuelve referencias sueltas al campo que no estén ya en ningún CONVERT.
+    """
+    fields_to_convert = [
+        "TABLE_COMMENT",
+        "COLUMN_COMMENT",
+        "VIEW_DEFINITION",
+        "ROUTINE_DEFINITION",
+        "COMMENT",
+    ]
+    # Sin alias AS \1: los callers acceden por índice (tupla), y AS genera SQL inválido en WHERE/ORDER BY.
+    _conv = r"CONVERT(CAST(\1 AS BINARY) USING utf8mb4)"
+    result = sql
+
+    for field in fields_to_convert:
+        # Fase 1: CONVERT(field USING charset) → CONVERT(CAST(field AS BINARY) USING utf8mb4)
+        pattern_wrapped = rf"CONVERT\(\s*\b({field})\b\s+USING\s+\w+\)"
+        result = re.sub(pattern_wrapped, _conv, result)
+
+        # Fase 2: field suelto no ya dentro de CAST/CONVERT ni como alias.
+        # (?<! AS ) evita re-procesar "AS field" presentes en el SQL original.
+        # (?!\s+AS\s+BINARY) evita re-envolver el field dentro de CAST(field AS BINARY).
+        # (?!\s+USING) evita re-procesar formas CONVERT(field USING ...) residuales.
+        pattern_standalone = rf"(?<! AS )\b({field})\b(?!\s+AS\s+BINARY)(?!\s+USING)"
+        result = re.sub(pattern_standalone, _conv, result)
+
+    return result
 
 
 class AdaptiveCatalogExecutor:
@@ -70,37 +133,7 @@ class AdaptiveCatalogExecutor:
         """Detecta charset_state y elige estrategia; se ejecuta una sola vez."""
         detector = CharsetStateDetector(self.connection, self.paramstyle)
         self.diagnosis = detector.diagnose()
-
-        logger.info(
-            f"Charset detected: state={self.diagnosis.state.value}, "
-            f"server={self.diagnosis.server_charset}, "
-            f"database={self.diagnosis.database_charset}"
-        )
-
-        # Determinar estrategia según mode y diagnosis
-        if self.mode == "native":
-            self.strategy = "native"
-        elif self.mode == "convert":
-            self.strategy = "convert"
-        else:  # mode == "auto"
-            if self.diagnosis.state == CharsetState.UTF8MB4_CLEAN:
-                self.strategy = "native"
-                logger.debug("✅ Charset OK: using native strategy")
-            elif self.diagnosis.state == CharsetState.UTF8MB4_MIXED:
-                self.strategy = "convert"
-                logger.warning("⚠️ Mixed charset: using CONVERT() for comments/definitions")
-            elif self.diagnosis.state == CharsetState.UTF8MB3_LEGACY:
-                # Legacy utf8mb3 debe usar CONVERT para evitar contaminar la sesión
-                self.strategy = "convert"
-                logger.warning("❌ Legacy utf8mb3: using CONVERT() for safe reading")
-            elif self.diagnosis.state == CharsetState.LATIN1_MISMATCH:
-                self.strategy = "convert"
-                logger.warning(
-                    f"⚠️ latin1_mismatch: usando CONVERT() para lectura de metadatos. {self.diagnosis.recommendation()}"
-                )
-            else:  # UNKNOWN
-                self.strategy = "failfast"
-                logger.warning("❓ Charset unknown: falling back to fail-fast")
+        self.strategy = select_strategy(self.diagnosis, self.mode)
 
     def _fetch_native(self, sql: str, params: dict[str, Any]) -> list[tuple[Any, ...]]:
         """Estrategia 1: Lectura directa sin CONVERT (100% perf, solo utf8mb4 limpio)."""
@@ -149,38 +182,8 @@ class AdaptiveCatalogExecutor:
             cursor.close()
 
     def _inject_convert(self, sql: str) -> str:
-        """Inyecta CONVERT(CAST(field AS BINARY) USING utf8mb4) en campos de metadatos especiales.
-
-        Dos fases por campo:
-        1. Actualiza la forma simple CONVERT(field USING charset) al equivalente CAST+BINARY.
-        2. Envuelve referencias sueltas al campo que no estén ya en ningún CONVERT.
-        """
-        import re
-
-        fields_to_convert = [
-            "TABLE_COMMENT",
-            "COLUMN_COMMENT",
-            "VIEW_DEFINITION",
-            "ROUTINE_DEFINITION",
-            "COMMENT",
-        ]
-        # Sin alias AS \1: los callers acceden por índice (tupla), y AS genera SQL inválido en WHERE/ORDER BY.
-        _conv = r"CONVERT(CAST(\1 AS BINARY) USING utf8mb4)"
-        result = sql
-
-        for field in fields_to_convert:
-            # Fase 1: CONVERT(field USING charset) → CONVERT(CAST(field AS BINARY) USING utf8mb4)
-            pattern_wrapped = rf"CONVERT\(\s*\b({field})\b\s+USING\s+\w+\)"
-            result = re.sub(pattern_wrapped, _conv, result)
-
-            # Fase 2: field suelto no ya dentro de CAST/CONVERT ni como alias.
-            # (?<! AS ) evita re-procesar "AS field" presentes en el SQL original.
-            # (?!\s+AS\s+BINARY) evita re-envolver el field dentro de CAST(field AS BINARY).
-            # (?!\s+USING) evita re-procesar formas CONVERT(field USING ...) residuales.
-            pattern_standalone = rf"(?<! AS )\b({field})\b(?!\s+AS\s+BINARY)(?!\s+USING)"
-            result = re.sub(pattern_standalone, _conv, result)
-
-        return result
+        """Ver :func:`inject_convert`."""
+        return inject_convert(sql)
 
     def _fetch_failfast(self, sql: str, params: dict[str, Any]) -> list[tuple[Any, ...]]:
         """Estrategia 3: Error explícito con diagnóstico detallado (fail-fast v0.32.1)."""
@@ -213,4 +216,6 @@ class AdaptiveCatalogExecutor:
 
 __all__ = [
     "AdaptiveCatalogExecutor",
+    "inject_convert",
+    "select_strategy",
 ]
