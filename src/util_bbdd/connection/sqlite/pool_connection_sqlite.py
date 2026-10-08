@@ -97,6 +97,7 @@ class PoolConnection:
                 timeout=timeout,
                 check_same_thread=check_same_thread,
                 isolation_level=isolation_level,
+                cached_statements=int(sanitized_conn_params.get("cached_statements", 100)),
             )
 
             # Habilitar foreign keys

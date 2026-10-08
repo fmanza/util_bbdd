@@ -101,7 +101,7 @@ class PoolConnection:
 
         Raises:
             RuntimeError: Si el pool fue cerrado.
-            Exception: Si no hay conexiones disponibles (timeout).
+            PoolTimeoutError: Si no hay conexión libre en ``pool_timeout`` segundos.
         """
         if self._closed:
             raise RuntimeError("Pool SQL Server cerrado")
@@ -116,15 +116,25 @@ class PoolConnection:
 
         max_connections: int = self.pool_size + self.max_overflow
 
+        # Se reserva el hueco con el lock y se conecta fuera: abrir la conexión de red con el lock cogido bloqueaba
+        # a todos los que pedían conexión mientras durara el login.
         with self._lock:
             if self._closed:
                 raise RuntimeError("Pool SQL Server cerrado")
-
-            if self._total_connections < max_connections:
-                connection = self._create_connection()
+            reserved: bool = self._total_connections < max_connections
+            if reserved:
                 self._total_connections += 1
+
+        if reserved:
+            try:
+                connection = self._create_connection()
+            except Exception:
+                with self._lock:
+                    self._total_connections -= 1
+                raise
+            with self._lock:
                 self._leased_connections[id(connection)] = connection
-                return connection
+            return connection
 
         # Esperar devolución de conexión cuando ya alcanzó límite total
         try:
@@ -133,9 +143,10 @@ class PoolConnection:
                 self._leased_connections[id(connection)] = connection
             return connection
         except Empty as e:
-            raise TimeoutError(
-                f"Timeout obteniendo conexión SQL Server tras {self.pool_timeout}s "
-                f"(pool_size={self.pool_size}, max_overflow={self.max_overflow})"
+            raise PoolTimeoutError(
+                timeout_seconds=float(self.pool_timeout),
+                operation="get_connection",
+                db_type="sqlserver",
             ) from e
 
     def close_connection(self, connection: Any) -> None:

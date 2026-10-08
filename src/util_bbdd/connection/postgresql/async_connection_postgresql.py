@@ -31,10 +31,14 @@ class AsyncPostgreSQLConnection:
             "ssl",
         }
         mapped: dict[str, Any] = {k: v for k, v in conn_params.items() if k in allowed_keys}
+        # asyncpg llama ``timeout`` al connect_timeout de libpq
+        if "timeout" not in mapped and conn_params.get("connect_timeout") is not None:
+            mapped["timeout"] = conn_params["connect_timeout"]
 
         sslmode: Any = conn_params.get("sslmode")
         if "ssl" not in mapped and sslmode is not None:
-            mapped["ssl"] = str(sslmode).lower() not in {"disable", "false", "0"}
+            # asyncpg acepta el sslmode de libpq como cadena; un booleano perdía prefer/allow/verify-*
+            mapped["ssl"] = str(sslmode).lower()
 
         server_settings: dict[str, str] = build_server_settings(conn_params)
         if server_settings:

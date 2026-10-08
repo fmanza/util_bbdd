@@ -120,3 +120,23 @@ def test_async_charset_diagnosis_runs_once() -> None:
     _run_catalog(conn, times=3)
 
     assert conn.executed.count("SELECT @@character_set_server") == 1
+
+
+def test_charset_is_not_rediagnosed_after_a_system_error() -> None:
+    """M5: tras un SystemError el ejecutor sync no repite el diagnóstico (8 consultas) en cada reintento."""
+    executor = ManagerCatalogExecutor(provider=lambda: None, releaser=lambda _conn: None, max_retries=2)
+    adaptive = executor._resolve_executor(PyMySQLConnection())
+    adaptive.diagnosis = object()  # type: ignore[assignment]  # diagnóstico ya hecho
+    calls = {"n": 0}
+
+    def _fetch_all(_sql: str, _params: Any) -> list[tuple[Any, ...]]:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise SystemError("cursor corrupto")
+        return [("ok",)]
+
+    adaptive.fetch_all = _fetch_all  # type: ignore[method-assign]
+    executor._provider = PyMySQLConnection
+
+    assert executor.fetch_all("SELECT 1", {}) == [("ok",)]
+    assert executor._adaptive is adaptive  # mismo ejecutor: el diagnóstico se conserva

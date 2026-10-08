@@ -10,6 +10,7 @@ from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
 from . import _thick_mode
+from ._dsn import build_oracle_dsn
 
 
 class AsyncOracleConnection:
@@ -25,24 +26,7 @@ class AsyncOracleConnection:
             "password": conn_params.get("password"),
         }
 
-        dsn_value: str | None = conn_params.get("dsn")
-        if not dsn_value:
-            host: str = str(conn_params.get("host", "localhost"))
-            port: int = int(conn_params.get("port", 1521))
-            service_name: str | None = conn_params.get("service_name")
-            sid: str | None = conn_params.get("sid")
-            database: str | None = conn_params.get("database")
-
-            if service_name:
-                dsn_value = oracledb_module.makedsn(host=host, port=port, service_name=service_name)
-            elif sid:
-                dsn_value = oracledb_module.makedsn(host=host, port=port, sid=sid)
-            elif database:
-                dsn_value = oracledb_module.makedsn(host=host, port=port, service_name=database)
-            else:
-                raise ValueError(
-                    "Para Oracle debe proporcionar 'dsn' o bien 'service_name'/'sid' (también se acepta 'database' como alias de service_name)."
-                )
+        dsn_value: str = build_oracle_dsn(oracledb_module, conn_params)
 
         connect_params["dsn"] = dsn_value
         return connect_params

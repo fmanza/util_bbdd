@@ -1,6 +1,7 @@
 """Conexión raw al driver HSQLDB."""
 
 import logging
+import re
 
 from typing import Any
 
@@ -49,11 +50,19 @@ class HSQLDBConnection:
                 HSQLDBConnection.logger.error("❌ Se requiere jdbc_jar para HSQLDB")
                 raise ValidationError("Se requiere jdbc_jar para HSQLDB", db_type="hsqldb")
 
-            user = sanitized_conn_params.get("user", "")
-            password = sanitized_conn_params.get("password", "")
+            # Firma real: connect(jclassname, url, driver_args, jars). Antes se pasaba (…, user, password, jar): el
+            # usuario acababa en driver_args, la contraseña como ruta de jars y el jar como libs.
+            # driver_args = propiedades JDBC: user/password más connection_properties (antes validadas y descartadas).
+            driver_args: dict[str, Any] = {
+                "user": sanitized_conn_params.get("user", ""),
+                "password": sanitized_conn_params.get("password", ""),
+                **(sanitized_conn_params.get("connection_properties") or {}),
+            }
 
-            HSQLDBConnection.logger.debug(f"🔗 Conectando a HSQLDB con JDBC: {jdbc_url}")
-            conn = jaydebeapi.connect(jdbc_driver, jdbc_url, user, password, jdbc_jar)
+            # La jdbc_url puede llevar ;password=...: no se registra en claro
+            safe_url: str = re.sub(r"(?i)(password=)[^;]*", r"\1***", str(jdbc_url))
+            HSQLDBConnection.logger.debug(f"🔗 Conectando a HSQLDB con JDBC: {safe_url}")
+            conn = jaydebeapi.connect(jdbc_driver, jdbc_url, driver_args, jdbc_jar)
             HSQLDBConnection.logger.info("✅ Conexión HSQLDB establecida")
             return conn
         except ValidationError:

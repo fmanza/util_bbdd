@@ -94,7 +94,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-00. `v0.35.7` (2026-10-08): P2 S3/M2/G1 de `drivers-connections-audit` y regresión M1 de v0.35.6 corregida (`.ai/sessions/2026-10-08d-fix-drivers-p2/`). Suite: 5246 passed, 497 skipped; `tests/integration`: 552 passed, 10 skipped; `zensical build --strict` OK. Siguiente: push + tag `v0.35.7`; bug previo de `SyncDatabaseManager.close()` (bloque pegado que lanza si no hay ejecutor); resto de P2 y FASE 2 de la skill.
+00. `v0.35.8` (2026-10-08): todos los P0–P2 de la FASE 1 de `drivers-connections-audit` cerrados (v0.35.5–v0.35.8; última sesión `.ai/sessions/2026-10-08e-fix-drivers-p2b/`). Suite: 5281 passed, 497 skipped; `tests/integration`: 552 passed, 10 skipped; `zensical build --strict` OK. Siguiente: push + tag `v0.35.8`; FASE 2 de la skill; validar HSQLDB contra un servidor real.
 0. `v0.31.0` cerrada (2026-10-04; centralización de metadatos, `.ai/sessions/2026-10-03-metadata-centralization/`, ADR-003). Pendiente: push de `develop` y tag; teardown de los schemas `zz_*` del banco; hallazgos no bloqueantes F3–F5, F7, H1–H2 del audit-code (en el TRACEABILITY de la sesión). Pendiente externo: issue del ORA-03106 (`.ai/sessions/2026-10-01y-ora03106-repro/ISSUE_DRAFT.md`). S-1 sigue NO_GO.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.

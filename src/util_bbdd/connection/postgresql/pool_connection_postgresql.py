@@ -117,7 +117,9 @@ class PoolConnection:
             password_enc: str = quote(password, safe="") if password else ""
             database_enc: str = quote(database, safe="") if database else ""
 
-            conninfo: str = f"postgresql://{user_enc}:{password_enc}@{host}:{port}/{database_enc}"
+            # IPv6 literal: la URI necesita corchetes (postgresql://u:p@[::1]:5432/db)
+            host_uri: str = f"[{host}]" if ":" in host and not host.startswith("[") else host
+            conninfo: str = f"postgresql://{user_enc}:{password_enc}@{host_uri}:{port}/{database_enc}"
 
             # H6: el resto de opciones libpq (sslmode, connect_timeout, keepalives, application_name,
             # options...) van como parámetros de la URI; antes solo iba ``options`` y el pool ignoraba
@@ -164,7 +166,16 @@ class PoolConnection:
             raise RuntimeError("Pool PostgreSQL cerrado")
         if not self.pool:
             raise RuntimeError("Pool PostgreSQL no inicializado")
-        return self.pool.getconn()
+        from psycopg_pool import PoolTimeout
+
+        try:
+            return self.pool.getconn()
+        except PoolTimeout as err:
+            raise PoolTimeoutError(
+                timeout_seconds=float(self.pool_timeout),
+                operation="get_connection",
+                db_type="postgresql",
+            ) from err
 
     def close_connection(self, connection) -> None:
         """Devuelve conexión al pool.

@@ -188,7 +188,12 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             raise ValidationError(f"Error filtrando parámetros: {str(e)}", db_type=db_type, details=str(e)) from e
 
     def _init_pool(self) -> None:
-        """Inicializa pool de conexiones."""
+        """Inicializa pool de conexiones (conexión única si el motor no tiene pool nativo, p. ej. HSQLDB)."""
+        if self.db_type not in PoolFactory.SUPPORTED_POOL_TYPES:
+            self.logger.info(f"ℹ️ {self.db_type} no tiene pool nativo: se usa conexión única")
+            self.use_pool = False
+            self._connect()
+            return
         try:
             self.pool_connection = PoolFactory.create_pool(self.db_type, self.conn_params)
 
@@ -209,11 +214,8 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
                 resolver=self._query_catalog.resolver,
             )
 
-        except ValueError as e:
-            self.logger.warning(f"⚠️ Pool no disponible: {e}. Usando conexión única.")
-            self.use_pool = False
-            self._connect()
         except Exception as e:
+            # Antes un ValueError pasaba a conexión única sin pool y ocultaba errores de configuración del pool.
             self.logger.error(f"❌ Error inicializando pool: {e}")
             raise
 
@@ -306,10 +308,6 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
                 timeout_seconds=effective_timeout,
                 force=force,
             )
-        """Verifica que el ejecutor sync de consultas esté inicializado."""
-        if not self.sync_query_executor:
-            self.logger.error("❌ Ejecutor sync de consultas no inicializado")
-            raise DatabaseOperationError(self._SYNC_QUERY_EXECUTOR_NOT_INITIALIZED, db_type=self.db_type)
 
     def _get_sync_query_executor(self) -> SyncQueryExecutor:
         """Obtiene el ejecutor sync garantizando inicialización."""

@@ -138,6 +138,9 @@ class MariaDBPoolConfig:
     connection: MariaDBConnectionConfig
     pool_size: int = 5
     pool_name: str | None = None
+    #: Segundos tras los que el pool async (aiomysql) recicla una conexión, como el de MySQL. ``mariadb.ConnectionPool``
+    #: no tiene este parámetro (valida las conexiones él mismo): no va en ``to_driver_kwargs``.
+    pool_recycle: int = 3600
 
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> MariaDBPoolConfig:
@@ -148,6 +151,7 @@ class MariaDBPoolConfig:
             connection=connection,
             pool_size=_to_int(params.get("pool_size", 5), "pool_size", db_type, min_value=1),
             pool_name=pool_name,
+            pool_recycle=_to_int(params.get("pool_recycle", 3600), "pool_recycle", db_type, min_value=-1),
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:
@@ -292,13 +296,20 @@ class PostgreSQLConnectionConfig:
             valid: set[str] = {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"}
             if sslmode not in valid:
                 raise ValueError(f"Parametro invalido para {db_type}: sslmode={sslmode}")
+        schema: str | None = _opt_str(params, "schema")
+        # schema va a ``options=-c search_path=<schema>``, que libpq separa por espacios: un valor con espacios
+        # añadiría otros ``-c``. Solo nombres sin comillas (letras, dígitos, _ y $), separados por comas.
+        if schema is not None and not re.fullmatch(r"[A-Za-z0-9_$]+(,[A-Za-z0-9_$]+)*", schema):
+            raise ValueError(
+                f"Parametro invalido para {db_type}: schema '{schema}' (solo letras, dígitos, _ y $, separados por comas)"
+            )
         return cls(
             host=_require_str(params, "host", db_type),
             user=_require_str(params, "user", db_type),
             password=_require_str(params, "password", db_type),
             database=_require_str(params, "database", db_type),
             port=_to_int(params.get("port", 5432), "port", db_type, min_value=1),
-            schema=_opt_str(params, "schema"),
+            schema=schema,
             dbname=_opt_str(params, "dbname"),
             sslmode=sslmode,
             connect_timeout=_to_int(params.get("connect_timeout", 10), "connect_timeout", db_type, min_value=0),
@@ -407,6 +418,8 @@ class OracleConnectionConfig:
     database: str | None = None
     oracle_client_path: str | None = None
     oracle_thick_mode: bool = False
+    #: ``tcp`` (por defecto) o ``tcps`` (TLS); se aplica al descriptor de ``makedsn`` (ver ``oracle/_dsn.py``).
+    protocol: str = "tcp"
 
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> OracleConnectionConfig:
@@ -417,6 +430,11 @@ class OracleConnectionConfig:
         database: str | None = _opt_str(params, "database")
         if not (dsn or service_name or sid or database):
             raise ValueError("Para oracle debe informar 'dsn' o 'service_name' o 'sid' o 'database'")
+        protocol: str = (_opt_str(params, "protocol") or "tcp").lower()
+        if protocol not in {"tcp", "tcps"}:
+            raise ValueError(
+                f"Parametro invalido para {db_type}: protocol debe ser 'tcp' o 'tcps'; recibido '{protocol}'"
+            )
         return cls(
             user=_require_str(params, "user", db_type),
             password=_require_str(params, "password", db_type),
@@ -428,6 +446,7 @@ class OracleConnectionConfig:
             database=database,
             oracle_client_path=_opt_str(params, "oracle_client_path"),
             oracle_thick_mode=_to_bool(params.get("oracle_thick_mode", False), "oracle_thick_mode", db_type),
+            protocol=protocol,
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:
@@ -449,6 +468,8 @@ class OracleConnectionConfig:
             payload["oracle_client_path"] = self.oracle_client_path
         if self.oracle_thick_mode:
             payload["oracle_thick_mode"] = True
+        if self.protocol != "tcp":
+            payload["protocol"] = self.protocol
         return payload
 
 

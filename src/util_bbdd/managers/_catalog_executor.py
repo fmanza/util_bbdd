@@ -252,7 +252,8 @@ class ManagerCatalogExecutor:
             except SystemError as exc:  # Error específico del driver mariadb (cursor corrupto)
                 _rollback(connection)
                 is_unicode_error = _has_unicode_error_in_chain(exc)
-                self._adaptive = None  # fuerza re-detección de charset en el próximo intento
+                # Se conserva el diagnóstico de charset: el ejecutor adaptativo ya cae a CONVERT si la lectura nativa
+                # falla, y repetirlo costaba 8 consultas por reintento.
 
                 if attempt < total_attempts - 1:
                     delay_ms = 100 * (2**attempt)  # 100ms, 200ms, ... (exponential backoff)

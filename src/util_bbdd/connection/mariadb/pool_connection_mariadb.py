@@ -153,7 +153,8 @@ class PoolConnection:
             Conexión MariaDB lista para usar.
 
         Raises:
-            Exception: Si no hay conexiones disponibles.
+            Exception: Si no hay conexiones disponibles o falla el ``init_command`` manual (la conexión vuelve al
+                pool: entregarla dejaría la sesión sin configurar, p. ej. sin ``SET NAMES utf8mb4``).
         """
         if self._closed:
             raise RuntimeError("Pool MariaDB cerrado")
@@ -168,7 +169,9 @@ class PoolConnection:
                 finally:
                     cursor.close()
             except Exception as exc:
-                self.logger.warning(f"⚠️ init_command manual falló: {exc}")
+                self.logger.error(f"❌ init_command manual falló; la conexión vuelve al pool: {exc}")
+                conn.close()
+                raise
         return conn
 
     def close_connection(self, connection: Any) -> None:

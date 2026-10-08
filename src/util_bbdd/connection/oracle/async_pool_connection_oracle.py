@@ -17,6 +17,7 @@ from ..close import (
     run_close_operation_async,
 )
 from ..params import ConnectionParamsManager
+from ._dsn import build_oracle_dsn
 
 
 class AsyncOraclePool:
@@ -35,24 +36,7 @@ class AsyncOraclePool:
         pool_size: int = int(conn_params.get("pool_size", 5))
         max_lifetime: int = int(conn_params.get("max_lifetime", 3600))
 
-        dsn_value: str | None = conn_params.get("dsn")
-        if not dsn_value:
-            host: str = str(conn_params.get("host", "localhost"))
-            port: int = int(conn_params.get("port", 1521))
-            service_name: str | None = conn_params.get("service_name")
-            sid: str | None = conn_params.get("sid")
-            database: str | None = conn_params.get("database")
-
-            if service_name:
-                dsn_value = oracledb_module.makedsn(host=host, port=port, service_name=service_name)
-            elif sid:
-                dsn_value = oracledb_module.makedsn(host=host, port=port, sid=sid)
-            elif database:
-                dsn_value = oracledb_module.makedsn(host=host, port=port, service_name=database)
-            else:
-                raise ValueError(
-                    "Para Oracle debe proporcionar 'dsn' o bien 'service_name'/'sid' (también se acepta 'database' como alias de service_name)."
-                )
+        dsn_value: str = build_oracle_dsn(oracledb_module, conn_params)
 
         return {
             "user": conn_params.get("user"),

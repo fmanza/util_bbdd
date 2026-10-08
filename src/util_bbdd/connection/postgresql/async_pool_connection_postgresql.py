@@ -52,7 +52,8 @@ class AsyncPostgreSQLPool:
 
         sslmode: Any = conn_kwargs.pop("sslmode", None)
         if "ssl" not in conn_kwargs and sslmode is not None:
-            conn_kwargs["ssl"] = str(sslmode).lower() not in {"disable", "false", "0"}
+            # asyncpg acepta el sslmode de libpq como cadena; un booleano perdía prefer/allow/verify-*
+            conn_kwargs["ssl"] = str(sslmode).lower()
 
         server_settings: dict[str, str] = build_server_settings(conn_params)
         if server_settings:

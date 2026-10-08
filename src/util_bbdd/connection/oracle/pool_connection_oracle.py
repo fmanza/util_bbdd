@@ -17,6 +17,7 @@ except ImportError:
 from ..._core.exceptions import PoolConnectionError, PoolTimeoutError
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 from ..params import ConnectionParamsManager
+from ._dsn import build_oracle_dsn
 from ._thick_mode import init_oracle_thick_mode
 
 if TYPE_CHECKING:
@@ -117,25 +118,7 @@ class PoolConnection:
                 init_oracle_thick_mode(oracle_path)
 
             # Construir DSN si no existe
-            dsn_value: str | None = self.conn_params.get("dsn")
-            if not dsn_value:
-                host: str = self.conn_params.get("host", "localhost")
-                port: int = self.conn_params.get("port", 1521)
-                service_name: str | None = self.conn_params.get("service_name")
-                sid: str | None = self.conn_params.get("sid")
-                database: str | None = self.conn_params.get("database")
-
-                if service_name:
-                    dsn_value = oracledb.makedsn(host=host, port=port, service_name=service_name)
-                elif sid:
-                    dsn_value = oracledb.makedsn(host=host, port=port, sid=sid)
-                elif database:
-                    # Compatibilidad hacia atrás: interpretar 'database' como service_name
-                    dsn_value = oracledb.makedsn(host=host, port=port, service_name=database)
-                else:
-                    raise ValueError(
-                        "Para Oracle debe proporcionar 'dsn' o bien 'service_name'/'sid' (también se acepta 'database' como alias de service_name)."
-                    )
+            dsn_value: str = build_oracle_dsn(oracledb, self.conn_params)
 
             # Oracle requiere parámetros de sesiones válidos para el pool.
             # Usamos un pool escalable de 1..pool_size para evitar ORA-24413.

@@ -103,7 +103,12 @@ class SQLAlchemyEngineFactory:
             elif db_type == "postgresql":
                 conn_str = SQLAlchemyEngineFactory._build_postgresql_connection_string(conn_params, database)
             elif db_type == "hsqldb":
-                conn_str = SQLAlchemyEngineFactory._build_hsqldb_connection_string(conn_params, database)
+                # Sin dialecto de SQLAlchemy para HSQLDB: antes se construía hsqldb+pyodbc://sa@… (usuario fijo,
+                # jdbc_url ignorada) y fallaba con "Can't load plugin".
+                raise ConnectionError(
+                    "HSQLDB no tiene dialecto de SQLAlchemy: use la conexión nativa del manager (JDBC con jaydebeapi)",
+                    db_type=db_type,
+                )
             elif db_type == "sqlserver":
                 conn_str = SQLAlchemyEngineFactory._build_sqlserver_connection_string(
                     conn_params, database, sql_server_driver
@@ -326,22 +331,6 @@ class SQLAlchemyEngineFactory:
             raise ValidationError("Se requiere 'database' para PostgreSQL", db_type="postgresql")
 
         return SQLAlchemyEngineFactory._render_url("postgresql+psycopg", user, password, host, port, database)
-
-    @staticmethod
-    def _build_hsqldb_connection_string(conn_params: dict[str, Any], database: str) -> str:
-        """Construye connection string para HSQLDB.
-
-        Args:
-            conn_params: Parámetros de conexión
-            database: Nombre de la base de datos
-
-        Returns:
-            Connection string para HSQLDB
-        """
-        host: str = conn_params.get("host", "localhost")
-        port: int = conn_params.get("port", 9001)
-
-        return f"hsqldb+pyodbc://sa@{host}:{port}/{database}"
 
     @staticmethod
     def _build_sqlserver_connection_string(

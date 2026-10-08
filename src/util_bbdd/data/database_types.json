@@ -94,6 +94,12 @@
             "type": "float",
             "default": 10,
             "description": "Segundos de espera al cerrar la conexión o el pool en close(); <= 0 desactiva el límite"
+          },
+          {
+            "name": "pool_recycle",
+            "type": "integer",
+            "default": 3600,
+            "description": "Segundos tras los que el pool async (aiomysql) recicla una conexión; -1 desactiva"
           }
         ]
       },
@@ -295,14 +301,17 @@
           {
             "name": "protocol",
             "type": "string",
-            "default": "TCP",
-            "description": "Protocolo de conexión"
+            "default": "tcp",
+            "description": "Protocolo de red: tcp o tcps (TLS); se aplica cuando el destino se construye con host/port (sin dsn)",
+            "options": [
+              "tcp",
+              "tcps"
+            ]
           },
           {
             "name": "encoding",
             "type": "string",
-            "default": "UTF-8",
-            "description": "Codificación de caracteres para la conexión"
+            "description": "Ignorado: python-oracledb usa siempre UTF-8 (se acepta por compatibilidad)"
           },
           {
             "name": "oracle_client_path",

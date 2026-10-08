@@ -5,6 +5,59 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.35.8] - 2026-10-08
+
+Resto de hallazgos P2 de la FASE 1 de `drivers-connections-audit` (`.ai/sessions/2026-10-08e-fix-drivers-p2b/`).
+
+### Fixed
+
+- **managers**: `SyncDatabaseManager.close()` lanzaba `DatabaseOperationError` si el ejecutor de consultas no estaba
+  inicializado (p. ej. tras un `__init__` a medias, en `__exit__` o `__del__`): desde v0.6.6 (commit `9ae9a46a`) el
+  cuerpo de un método de verificación sin llamadas quedó pegado al final de `close()`.
+- **managers (G2)**: `_init_pool` ya no oculta errores al crear el pool pasando a conexión única; solo los motores sin
+  pool nativo (`PoolFactory.SUPPORTED_POOL_TYPES`, hoy HSQLDB) usan conexión única.
+- **connection/hsqldb (H1)**: `jaydebeapi.connect` recibía `(driver, url, user, password, jar)` frente a su firma
+  `(jclassname, url, driver_args, jars)`: el usuario acababa en `driver_args`, la contraseña como ruta de jars y el jar
+  como `libs`. Ahora `driver_args` es un dict con `user`, `password` y `connection_properties` (antes validadas y
+  descartadas), y la `jdbc_url` se registra sin `password=`.
+- **factory (H2)**: el Engine de SQLAlchemy para HSQLDB se construía como `hsqldb+pyodbc://sa@…` (usuario fijo,
+  `jdbc_url` ignorada, dialecto inexistente); ahora falla con un `ConnectionError` claro.
+- **connection/postgresql (P2, P3)**: asyncpg recibe `sslmode` como cadena de libpq (antes un booleano: `prefer` pasaba
+  a exigir TLS y fallaba contra servidores sin TLS) y `connect_timeout` (como `timeout`).
+- **connection/postgresql (P5)**: la URI del pool pone corchetes a hosts IPv6.
+- **connection/sqlite (L1)**: el pool aplica `cached_statements`.
+- **connection/mariadb (M6)**: si falla el `init_command` manual del pool (drivers que no lo admiten en
+  `ConnectionPool`), la conexión vuelve al pool y se lanza el error en vez de entregarla sin configurar.
+- **connection/mariadb (M7)**: el pool async (aiomysql) recicla conexiones (`pool_recycle`, por defecto 3600 s), como
+  el de MySQL.
+- **managers (M5)**: el ejecutor de catálogo sync conserva el diagnóstico de charset tras un `SystemError` (antes lo
+  repetía, 8 consultas, en cada reintento).
+
+### Security
+
+- **connection/postgresql (P4)**: `schema` solo admite nombres sin comillas (letras, dígitos, `_` y `$`, separados por
+  comas): se interpolaba en `options=-c search_path=…` y un valor con espacios añadía otros `-c`.
+- **connection/oracle (O2)**: `protocol="tcps"` se aplica al descriptor de conexión (antes se descartaba y la
+  conexión iba por TCP sin TLS); valores admitidos `tcp`/`tcps`. La construcción del DSN, repetida en 4 sitios, está
+  en `connection/oracle/_dsn.py`. `encoding` sigue aceptándose y se ignora (python-oracledb usa siempre UTF-8).
+
+### Changed
+
+- **connection/sqlserver (Q2)**: el pool propio abre las conexiones de desbordamiento fuera del lock (una conexión
+  lenta bloqueaba a todos los que pedían conexión) y libera el hueco si la conexión falla. Al agotarse lanza
+  `PoolTimeoutError` (como MySQL y PostgreSQL) en lugar del `TimeoutError` estándar.
+- **connection/postgresql (P6)**: agotar el pool lanza `PoolTimeoutError` en lugar de `psycopg_pool.PoolTimeout`.
+- Q3 (valores de `Encrypt` para ODBC Driver 17/18) quedó resuelto en v0.35.6.
+
+### Testing
+
+- Nuevos: `tests/unit/test_drivers_p2_managers.py`, `tests/unit/connection/mariadb/test_mariadb_pool_p2.py`,
+  `tests/unit/connection/test_postgresql_p2.py`, `tests/unit/connection/test_drivers_p2_sqlserver_sqlite_hsqldb_oracle.py`
+  y un test de M5 en `tests/unit/test_catalog_executor_charset.py`.
+- `pytest`: 5281 passed, 497 skipped. `tests/integration`: 552 passed, 10 skipped. Banco: asyncpg con
+  `sslmode="prefer"` conecta y con `require` falla (servidor sin TLS); pool de PostgreSQL agotado →
+  `PoolTimeoutError`; Oracle por TCP. HSQLDB (H1) sin validación real: no hay servidor HSQLDB en el banco.
+
 ## [0.35.7] - 2026-10-08
 
 Hallazgos P2 de la FASE 1 de `drivers-connections-audit` (`.ai/sessions/2026-10-08d-fix-drivers-p2/`) y corrección de

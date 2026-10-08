@@ -10,7 +10,7 @@ import inspect
 import logging
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, ClassVar
 
 from ..connection.protocols import ConnectionPoolProtocol
 from ..core.capabilities import is_async_supported
@@ -26,6 +26,11 @@ class PoolFactory:
     """
 
     logger: logging.Logger = logging.getLogger(__name__)
+
+    #: Motores con pool nativo en :meth:`create_pool`; el resto (HSQLDB) usa conexión única en los managers.
+    SUPPORTED_POOL_TYPES: ClassVar[frozenset[str]] = frozenset(
+        {"mariadb", "mysql", "oracle", "postgresql", "sqlserver", "sqlite"}
+    )
     _async_pool_builders: dict[str, Callable[..., Any]] = {}
 
     @staticmethod

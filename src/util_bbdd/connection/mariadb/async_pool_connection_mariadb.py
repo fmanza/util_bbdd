@@ -84,7 +84,8 @@ class AsyncMariaDBPool:
             cls.logger.debug(
                 f"🔗 Creando pool MariaDB async (min={pool_kwargs['minsize']}, max={pool_kwargs['maxsize']})"
             )
-            pool: Any = await aiomysql.create_pool(**conn_kwargs, **pool_kwargs)
+            # Sin pool_recycle, las conexiones ociosas más allá de wait_timeout se entregaban muertas.
+            pool: Any = await aiomysql.create_pool(**conn_kwargs, **pool_kwargs, pool_recycle=pool_config.pool_recycle)
             cls.logger.info("✅ Pool MariaDB async creado")
             return cls(pool, close_timeout_seconds=close_timeout_seconds)
         except ImportError as err:
