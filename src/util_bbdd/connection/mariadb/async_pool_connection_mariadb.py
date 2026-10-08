@@ -10,6 +10,7 @@ from typing import Any
 from util_bbdd._core.exceptions import ConnectionError
 
 from ...async_utils import maybe_await
+from .._aiomysql import build_aiomysql_connect_kwargs
 from ..close import (
     FORCE_CLOSE_TIMEOUT_SECONDS,
     AsyncCloseMode,
@@ -18,6 +19,7 @@ from ..close import (
     run_close_operation_async,
 )
 from ..params import ConnectionParamsManager
+from .async_connection_mariadb import MARIADB_AIOMYSQL_EXCLUDE
 
 
 class AsyncMariaDBPool:
@@ -30,38 +32,6 @@ class AsyncMariaDBPool:
         self._close_timeout_seconds: float | None = close_timeout_seconds
         self._closed: bool = False
 
-    @staticmethod
-    def _split_pool_kwargs(conn_params: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Separa kwargs de conexión y de pool para aiomysql.create_pool."""
-        pool_size: int = int(conn_params.get("pool_size", 5))
-
-        # aiomysql usa "db" (no "database")
-        conn_keys: set[str] = {
-            "host",
-            "port",
-            "user",
-            "password",
-            "db",
-            "unix_socket",
-            "autocommit",
-            "connect_timeout",
-            "read_timeout",
-            "write_timeout",
-            "charset",
-        }
-
-        normalized_params: dict[str, Any] = dict(conn_params)
-        if "database" in normalized_params and "db" not in normalized_params:
-            normalized_params["db"] = normalized_params["database"]
-
-        conn_kwargs: dict[str, Any] = {k: v for k, v in normalized_params.items() if k in conn_keys and v is not None}
-
-        pool_kwargs: dict[str, Any] = {
-            "minsize": pool_size,
-            "maxsize": pool_size,
-        }
-        return conn_kwargs, pool_kwargs
-
     @classmethod
     async def create(cls, conn_params: dict[str, Any]) -> AsyncMariaDBPool:
         """Crea un pool async de MariaDB."""
@@ -69,23 +39,21 @@ class AsyncMariaDBPool:
             import aiomysql
 
             pool_config = ConnectionParamsManager.get_pool_config("mariadb", conn_params)
-            sanitized_pool_params: dict[str, Any] = pool_config.to_driver_kwargs()
-            conn_kwargs, pool_kwargs = cls._split_pool_kwargs(sanitized_pool_params)
+            conn_kwargs: dict[str, Any] = build_aiomysql_connect_kwargs(
+                pool_config.connection.to_driver_kwargs(),
+                aiomysql.connect,
+                exclude=MARIADB_AIOMYSQL_EXCLUDE,
+            )
             close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
 
-            # Filtrar kwargs no soportados por la versión instalada de aiomysql.connect
-            connect_signature = inspect.signature(aiomysql.connect)
-            supported_connect_args = set(connect_signature.parameters.keys())
-            discarded_args: set[str] = set(conn_kwargs.keys()) - supported_connect_args
-            if discarded_args:
-                cls.logger.warning(f"⚠️  Parámetros descartados no soportados por aiomysql: {discarded_args}")
-            conn_kwargs = {k: v for k, v in conn_kwargs.items() if k in supported_connect_args}
-
-            cls.logger.debug(
-                f"🔗 Creando pool MariaDB async (min={pool_kwargs['minsize']}, max={pool_kwargs['maxsize']})"
-            )
+            cls.logger.debug(f"🔗 Creando pool MariaDB async (min=max={pool_config.pool_size})")
             # Sin pool_recycle, las conexiones ociosas más allá de wait_timeout se entregaban muertas.
-            pool: Any = await aiomysql.create_pool(**conn_kwargs, **pool_kwargs, pool_recycle=pool_config.pool_recycle)
+            pool: Any = await aiomysql.create_pool(
+                minsize=pool_config.pool_size,
+                maxsize=pool_config.pool_size,
+                pool_recycle=pool_config.pool_recycle,
+                **conn_kwargs,
+            )
             cls.logger.info("✅ Pool MariaDB async creado")
             return cls(pool, close_timeout_seconds=close_timeout_seconds)
         except ImportError as err:

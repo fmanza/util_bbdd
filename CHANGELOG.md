@@ -5,6 +5,23 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.35.11] - 2026-10-09
+
+Bloque B4 (mapeo aiomysql) de la FASE 4 de `drivers-connections-audit` (`.ai/sessions/2026-10-09-refactor-drivers-b4/`).
+Sin cambios funcionales: los kwargs que reciben `aiomysql.connect` y `aiomysql.create_pool` son idénticos a v0.35.10 en
+los cuatro caminos (54 llamadas comparadas con aiomysql 0.3.2).
+
+### Changed
+
+- **connection**: nuevo módulo privado `connection/_aiomysql.py` con `build_aiomysql_connect_kwargs`, única traducción
+  de la config a `aiomysql.connect` para la conexión y el pool async de MariaDB y MySQL (antes tres implementaciones:
+  lista fija en `AsyncMariaDBConnection._map_connect_kwargs`, `AsyncMariaDBPool._split_pool_kwargs` + filtro por firma,
+  y la de MySQL). MariaDB excluye `init_command` (`MARIADB_AIOMYSQL_EXCLUDE`), como hasta ahora. Si `connect` acepta
+  `**kwargs` (dobles de test) se toma la lista de parámetros reales de aiomysql. `build_aiomysql_connect_kwargs` se
+  sigue importando desde `connection.mysql.async_connection_mysql` y `_map_connect_kwargs` se conserva.
+- **connection/mariadb**: el pool async ya no emite un WARNING por `read_timeout`/`write_timeout` descartados en cada
+  creación (ahora DEBUG, como MySQL).
+
 ## [0.35.10] - 2026-10-09
 
 Bloque B5 (factories de Engine) de la FASE 4 de `drivers-connections-audit` (`.ai/sessions/2026-10-09-refactor-drivers-b5/`).

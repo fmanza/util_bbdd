@@ -2,44 +2,18 @@
 
 from __future__ import annotations
 
-import inspect
 import logging
 
 from typing import Any
 
 from util_bbdd._core.exceptions import ConnectionError
 
+from .._aiomysql import build_aiomysql_connect_kwargs
 from ..params import ConnectionParamsManager
-from .connection_mysql import build_ssl_context, pop_mysql_ssl_options
 
 logger: logging.Logger = logging.getLogger(__name__)
 
-
-def build_aiomysql_connect_kwargs(driver_kwargs: dict[str, Any], connect: Any) -> dict[str, Any]:
-    """Adapta los kwargs de ``MySQLConnectionConfig`` a la firma real de ``aiomysql.connect``.
-
-    aiomysql llama ``db`` a la base de datos y no acepta ``read_timeout``/``write_timeout`` ni las claves TLS de
-    PyMySQL: los parámetros ``ssl_*`` se convierten en ``ssl=SSLContext`` (misma semántica que el camino sync, ver
-    :func:`~util_bbdd.connection.mysql.connection_mysql.build_ssl_context`) y se descarta (con aviso) todo lo que su
-    firma no admita.
-
-    Args:
-        driver_kwargs: Salida de ``MySQLConnectionConfig.to_driver_kwargs()`` (o de la config de pool).
-        connect: ``aiomysql.connect`` (se inspecciona su firma).
-    """
-    kwargs: dict[str, Any] = dict(driver_kwargs)
-    if "database" in kwargs:
-        kwargs["db"] = kwargs.pop("database")
-    supported: set[str] = set(inspect.signature(connect).parameters)
-    ssl_options: dict[str, Any] = pop_mysql_ssl_options(kwargs)
-    if ssl_options and "ssl" in supported:
-        kwargs["ssl"] = build_ssl_context(ssl_options)
-    elif ssl_options:
-        logger.warning("⚠️ El connect async no acepta 'ssl': la conexión no usará TLS")
-    discarded: set[str] = set(kwargs) - supported
-    if discarded:
-        logger.debug(f"Parámetros no soportados por aiomysql.connect descartados: {sorted(discarded)}")
-    return {key: value for key, value in kwargs.items() if key in supported and value is not None}
+__all__ = ["AsyncMySQLConnection", "build_aiomysql_connect_kwargs"]
 
 
 class AsyncMySQLConnection:

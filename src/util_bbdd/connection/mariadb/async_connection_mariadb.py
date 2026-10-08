@@ -8,7 +8,11 @@ from typing import Any
 
 from util_bbdd._core.exceptions import ConnectionError
 
+from .._aiomysql import build_aiomysql_connect_kwargs
 from ..params import ConnectionParamsManager
+
+#: MariaDB async no envía ``init_command``: el ``SET NAMES utf8mb4`` por defecto es del conector sync y pisaría ``charset``.
+MARIADB_AIOMYSQL_EXCLUDE: frozenset[str] = frozenset({"init_command"})
 
 
 class AsyncMariaDBConnection:
@@ -18,26 +22,10 @@ class AsyncMariaDBConnection:
 
     @staticmethod
     def _map_connect_kwargs(conn_params: dict[str, Any]) -> dict[str, Any]:
-        """Mapea conn_params al contrato de aiomysql.connect.
+        """kwargs de ``aiomysql.connect`` para MariaDB (sin ``init_command``: ver ``build_aiomysql_connect_kwargs``)."""
+        import aiomysql
 
-        aiomysql llama ``db`` a la base de datos y no acepta ``read_timeout`` ni ``write_timeout`` (como en
-        ``AsyncMariaDBPool._split_pool_kwargs``); pasarlos lanzaba ``TypeError`` en toda conexión directa.
-        """
-        allowed_keys: set[str] = {
-            "host",
-            "port",
-            "user",
-            "password",
-            "db",
-            "unix_socket",
-            "autocommit",
-            "connect_timeout",
-            "charset",
-        }
-        normalized: dict[str, Any] = dict(conn_params)
-        if "database" in normalized and "db" not in normalized:
-            normalized["db"] = normalized.pop("database")
-        return {k: v for k, v in normalized.items() if k in allowed_keys}
+        return build_aiomysql_connect_kwargs(conn_params, aiomysql.connect, exclude=MARIADB_AIOMYSQL_EXCLUDE)
 
     @staticmethod
     async def connect(conn_params: dict[str, Any], found_rows: bool = False) -> Any:
