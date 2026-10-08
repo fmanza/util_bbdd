@@ -180,8 +180,7 @@ class CharsetStateDetector:
         """¿Se pueden leer comentarios de tabla sin error?"""
         # _fetch_one() captura excepciones internamente; retorna None si falla
         result = self._fetch_one(
-            "SELECT TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = :schema LIMIT 1",
-            {"schema": "information_schema"},
+            "SELECT TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() LIMIT 1"
         )
         return result is not None
 
@@ -216,8 +215,11 @@ class CharsetStateDetector:
     ) -> CharsetState:
         """Lógica de diagnóstico para determinar estado."""
 
-        # Prioritario: la sesión activa usa utf8mb4 y la BD también → el global del servidor no importa
+        # Prioritario: la sesión activa usa utf8mb4 y la BD también
         if connection_charset == "utf8mb4" and database_charset == "utf8mb4":
+            # server=latin1 implica riesgo de bytes mixtos en objetos creados antes de la migración
+            if server_charset is not None and server_charset != "utf8mb4":
+                return CharsetState.UTF8MB4_MIXED
             if info_schema_charset is not None and info_schema_charset not in ("utf8mb4",):
                 return CharsetState.UTF8MB4_MIXED
             if can_read_comments:

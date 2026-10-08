@@ -76,7 +76,7 @@
           {
             "name": "init_command",
             "type": "string",
-            "default": "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
+            "default": "SET NAMES utf8mb4",
             "description": "Comando SQL ejecutado al establecer cada conexión (v0.35.0+; requiere mariadb >= 1.1.4)"
           },
           {

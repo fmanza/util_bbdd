@@ -103,7 +103,7 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 | Motor | Claves requeridas | Opcionales habituales |
 |---|---|---|
 | `postgresql` | `host`, `user`, `password`, `database` | `port`=5432, `schema` (→ `search_path`), `sslmode`, `connect_timeout`, `application_name`, `pool_size` |
-| `mariadb` | `host`, `user`, `password`, `database` | `port`=3306, `charset`=utf8mb4, `init_command`=`"SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"`, `encoding_errors`=`"replace"`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size` |
+| `mariadb` | `host`, `user`, `password`, `database` | `port`=3306, `charset`=utf8mb4, `init_command`=`"SET NAMES utf8mb4"`, `encoding_errors`=`"replace"`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size` |
 | `mysql` | `host`, `user`, `password`, `database` | `port`=3306, `charset`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size`, `max_overflow`, `pool_timeout`, `pool_recycle`, `ssl_ca`/`ssl_cert`/`ssl_key`, `ssl_verify_cert`, `ssl_verify_identity` |
 | `oracle` | `user`, `password` + **uno de** `service_name` / `sid` / `dsn` / `database` | `host`=localhost, `port`=1521, `oracle_client_path`, `pool_size` |
 | `sqlserver` | `host`, `user`, `password`, `database` | `port`=1433, `sql_server_driver` (`pymssql`/`pyodbc`), `driver_name` (pyodbc), `encryption` (`mandatory`/`optional`/`off`), `trust_cert`, `use_mars` |
@@ -130,7 +130,7 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 A partir de **v0.35.0**, `MariaDBConnectionConfig` incluye dos parámetros que mitigan conflictos de charset
 común cuando el servidor está configurado en `latin1` pero queremos usar `utf8mb4`:
 
-#### **`init_command`** (string, default `"SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"`)
+#### **`init_command`** (string, default `"SET NAMES utf8mb4"`)
 
 SQL ejecutado en cada conexión (sync y pool). Replica el comportamiento de PyMySQL/SQLAlchemy:
 

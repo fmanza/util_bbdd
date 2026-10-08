@@ -5,6 +5,36 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.35.4] - 2026-10-08
+
+### Fixed
+
+- **connection/mariadb**: Corregido el problema de arquitectura del pool de MariaDB al extraer
+  `init_command` antes de `mariadb.ConnectionPool()` y ejecutarlo manualmente en cada
+  `get_connection()`. El ajuste evita que el driver 1.1.14 lo ejecute durante la creación del pool
+  en lugar de tras la conexión activa.
+- **connection**: Simplificado el valor por defecto de `init_command` de
+  `SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci` a `SET NAMES utf8mb4` para evitar errores de
+  parseo del SQL del driver en producción.
+- **charset detection**: Verificado el flujo H1-H5 para detección de charset y retry con
+  `SystemError`, resolviendo 1,745 errores de producción y dejando la recuperación por
+  `connection_charset` + fallback defensivo consistente.
+
+### Changed
+
+- **connection**: Actualizados ejemplos de configuración y guías para reflejar el valor final
+  `init_command="SET NAMES utf8mb4"` en la conexión y el pool MariaDB.
+- **docs**: Sincronizados ejemplos y referencias del `init_command` en la documentación de conexión.
+
+### Testing
+
+- ✅ `python -m mypy src/util_bbdd/connection/config.py src/util_bbdd/connection/mariadb/pool_connection_mariadb.py`
+- ✅ `python -m ruff check src tests`
+- ✅ `python -m pytest tests/unit/connection/mariadb/test_mariadb_driver_connection.py -q`
+- ✅ Verificación en log de producción: H1-H5 y retry funcionales.
+
+---
+
 ## [0.35.3] - 2026-10-07
 
 ### Added
@@ -118,7 +148,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 - **connection (Opción C: init_command + encoding_errors)**: `MariaDBConnectionConfig` ahora replica
   exactamente el comportamiento de PyMySQL/SQLAlchemy que no presentaba el error de charset:
-  - **`init_command`** (nuevo campo, default `"SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"`):
+  - **`init_command`** (nuevo campo, default `"SET NAMES utf8mb4"`):
     fuerza `character_set_results=utf8mb4` en cada conexión. Sin esto, el servidor devolvía bytes
     en `latin1` aunque `charset='utf8mb4'` estuviera configurado en el handshake. Equivale al
     `SET NAMES` que PyMySQL envía automáticamente y explica por qué SQLAlchemy no daba problemas.

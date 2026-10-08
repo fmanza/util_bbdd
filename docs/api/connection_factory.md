@@ -77,7 +77,7 @@ a través de la factoría:
 | Motor | Parámetro | Valor por defecto | Propósito | Mínima versión |
 |---|---|---|---|---|
 | `mariadb` | `charset` | `utf8mb4` | Charset de conexión | cualquiera |
-| `mariadb` | `init_command` | `"SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"` | SQL ejecutado en cada conexión (repl. PyMySQL) | v0.35.0+ |
+| `mariadb` | `init_command` | `"SET NAMES utf8mb4"` | SQL ejecutado en cada conexión | v0.35.0+ |
 | `mariadb` | `encoding_errors` | `"replace"` | Manejo de bytes no-decodificables en metadata | mariadb-connector >= 1.1.4 |
 
 Para MariaDB: Si el driver < 1.1.4 rechaza `encoding_errors` o un driver antiguo rechaza `init_command`,

@@ -31,7 +31,7 @@ el handshake del cliente; **no fuerza el servidor a convertir datos antes de env
 
 ```python
 class MariaDBConnectionConfig:
-    init_command: str = "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
+    init_command: str = "SET NAMES utf8mb4"
     # ^^^^^^^^^^^^^^^
     # ↓ Ejecutado en CADA conexión (sync y pool) en connectionOpen
 ```
@@ -39,7 +39,7 @@ class MariaDBConnectionConfig:
 **¿Qué hace?**
 
 ```sql
-SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+SET NAMES utf8mb4;
 -- ↓ Equivalente a estos 3 comandos:
 SET character_set_client = utf8mb4;
 SET character_set_connection = utf8mb4;
@@ -99,7 +99,7 @@ conn_params = {
     "database": "mydb",
     # Opcional en v0.35.0+: estos son los valores por defecto
     # "charset": "utf8mb4",
-    # "init_command": "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
+    # "init_command": "SET NAMES utf8mb4",
     # "encoding_errors": "replace",
 }
 
@@ -120,9 +120,7 @@ conn_params = {
     "charset": "utf8mb4",  # Recomendado
     
     # SQL ejecutado en cada conexión (replicar PyMySQL)
-    "init_command": "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
-    # Alternativa si el servidor tiene collation diferente:
-    # "init_command": "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci",
+    "init_command": "SET NAMES utf8mb4",
     
     # Manejo de bytes no-decodificables
     "encoding_errors": "replace",  # "strict" (antiguo) o "ignore"
@@ -159,7 +157,7 @@ UnicodeDecodeError: 'utf8' codec can't decode byte 0xc3 in position 42
 2. **`init_command` ignorado silenciosamente**: Servidor no ejecuta comandos custom. Verificar:
    ```sql
    -- Conectar manualmente y ejecutar:
-   SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+   SET NAMES utf8mb4;
    SELECT @@character_set_results;  -- Debe ser utf8mb4
    ```
 

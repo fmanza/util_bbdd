@@ -34,7 +34,7 @@ class TestMariaDBConnectionConfig:
     def test_defaults_include_init_command(self) -> None:
         """init_command debe incluir SET NAMES por defecto (equivale al comportamiento de PyMySQL)."""
         kwargs = MariaDBConnectionConfig.from_params(BASE).to_driver_kwargs()
-        assert kwargs["init_command"] == "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
+        assert kwargs["init_command"] == "SET NAMES utf8mb4"
 
     def test_explicit_init_command_is_preserved(self) -> None:
         """Si el usuario especifica init_command, debe respetarse."""

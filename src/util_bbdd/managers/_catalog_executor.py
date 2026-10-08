@@ -158,6 +158,30 @@ async def _arollback(connection: Any) -> None:
             logger.debug(f"Async rollback falló (continuando): {exc}")
 
 
+def _build_system_error_msg(total_attempts: int, exc: SystemError, is_unicode_error: bool) -> str:
+    msg = (
+        f"Error leyendo el catálogo de MariaDB (SystemError del driver mariadb, "
+        f"{total_attempts} intentos sin fallback): {exc}"
+    )
+    if is_unicode_error:
+        msg += " [UnicodeDecodeError subyacente en la cadena de excepciones]."
+    msg += (
+        "\n\nDiagnóstico:\n"
+        "  (1) Verifique charset de servidor MariaDB: @@character_set_server debe ser 'utf8mb4'\n"
+        "  (2) Verifique charset de sesión: @@character_set_client, @@character_set_connection\n"
+        "  (3) Si information_schema contiene datos heredados de utf8mb3, limpie con:\n"
+        "      ALTER TABLE <tabla> COMMENT = 'comentario nuevo limpio';\n"
+        "  (4) Si @@character_set_server es 'latin1', el driver mariadb ≤ 1.1.x falla a nivel\n"
+        "      C en cursor.fetchrows() aunque el SQL use CONVERT(). El CONVERT en SQL no es\n"
+        "      suficiente: el driver decodifica los bytes antes de que Python los vea.\n"
+        "      Solución: actualizar a mariadb ≥ 1.2 (pip install 'mariadb>=1.2') o configurar\n"
+        "      @@character_set_server = utf8mb4 en el servidor MariaDB.\n"
+        "  (5) Versión de mariadb driver actual: pip show mariadb\n"
+        "\nDocs: https://mariadb.com/kb/en/library/character-sets-and-collations/"
+    )
+    return msg
+
+
 class ManagerCatalogExecutor:
     """:class:`~util_bbdd.metadata.contracts.CatalogExecutor` sobre las conexiones de un manager síncrono.
 
@@ -215,6 +239,7 @@ class ManagerCatalogExecutor:
             except SystemError as exc:  # Error específico del driver mariadb (cursor corrupto)
                 _rollback(connection)
                 is_unicode_error = _has_unicode_error_in_chain(exc)
+                self._adaptive = None  # fuerza re-detección de charset en el próximo intento
 
                 if attempt < total_attempts - 1:
                     delay_ms = 100 * (2**attempt)  # 100ms, 200ms, ... (exponential backoff)
@@ -227,22 +252,7 @@ class ManagerCatalogExecutor:
 
                 # Todos los intentos agotados: error explícito con diagnóstico (sin fallback)
                 logger.error(f"SystemError persistente tras {total_attempts} intentos (sin fallback): {exc}")
-                error_msg = (
-                    f"Error leyendo el catálogo de MariaDB (SystemError del driver mariadb, "
-                    f"{total_attempts} intentos sin fallback): {exc}"
-                )
-                if is_unicode_error:
-                    error_msg += " [UnicodeDecodeError subyacente en la cadena de excepciones]."
-                error_msg += (
-                    "\n\nDiagnóstico:\n"
-                    "  (1) Verifique charset de servidor MariaDB: @@character_set_server debe ser 'utf8mb4'\n"
-                    "  (2) Verifique charset de sesión: @@character_set_client, @@character_set_connection\n"
-                    "  (3) Si information_schema contiene datos heredados de utf8mb3, limpie con:\n"
-                    "      ALTER TABLE <tabla> COMMENT = 'comentario nuevo limpio';\n"
-                    "  (4) Versión de mariadb driver: pip show mariadb (considere actualizar a 1.2+)\n"
-                    "\nDocs: https://mariadb.com/kb/en/library/character-sets-and-collations/"
-                )
-                raise MetadataError(error_msg) from exc
+                raise MetadataError(_build_system_error_msg(total_attempts, exc, is_unicode_error)) from exc
             except Exception as exc:  # noqa: BLE001 - error del driver
                 _rollback(connection)
                 raise MetadataError(f"Error leyendo el catálogo: {exc}") from exc
@@ -251,6 +261,13 @@ class ManagerCatalogExecutor:
 
         # No debería llegar aquí: cada iteración hace return, raise, o continue
         raise AssertionError("Unexpected exit from retry loop")  # pragma: no cover  # type: ignore[return-value]
+
+
+async def _cursor_execute(cursor: Any, driver_sql: str, args: dict[str, Any] | list[Any] | None) -> None:
+    if args is None:
+        await maybe_await(cursor.execute(driver_sql))
+    else:
+        await maybe_await(cursor.execute(driver_sql, args))
 
 
 class AsyncManagerCatalogExecutor:
@@ -297,10 +314,7 @@ class AsyncManagerCatalogExecutor:
                     return [tuple(record) for record in records]
                 cursor = await maybe_await(connection.cursor())
                 try:
-                    if args is None:
-                        await maybe_await(cursor.execute(driver_sql))
-                    else:
-                        await maybe_await(cursor.execute(driver_sql, args))
+                    await _cursor_execute(cursor, driver_sql, args)
                     rows = await maybe_await(cursor.fetchall())
                 finally:
                     await maybe_await(cursor.close())
@@ -322,22 +336,7 @@ class AsyncManagerCatalogExecutor:
 
                 # Todos los intentos agotados: error explícito con diagnóstico (sin fallback)
                 logger.error(f"SystemError persistente (async) tras {total_attempts} intentos (sin fallback): {exc}")
-                error_msg = (
-                    f"Error leyendo el catálogo de MariaDB (SystemError del driver mariadb, "
-                    f"{total_attempts} intentos sin fallback): {exc}"
-                )
-                if is_unicode_error:
-                    error_msg += " [UnicodeDecodeError subyacente en la cadena de excepciones]."
-                error_msg += (
-                    "\n\nDiagnóstico:\n"
-                    "  (1) Verifique charset de servidor MariaDB: @@character_set_server debe ser 'utf8mb4'\n"
-                    "  (2) Verifique charset de sesión: @@character_set_client, @@character_set_connection\n"
-                    "  (3) Si information_schema contiene datos heredados de utf8mb3, limpie con:\n"
-                    "      ALTER TABLE <tabla> COMMENT = 'comentario nuevo limpio';\n"
-                    "  (4) Versión de mariadb driver: pip show mariadb (considere actualizar a 1.2+)\n"
-                    "\nDocs: https://mariadb.com/kb/en/library/character-sets-and-collations/"
-                )
-                raise MetadataError(error_msg) from exc
+                raise MetadataError(_build_system_error_msg(total_attempts, exc, is_unicode_error)) from exc
             except Exception as exc:  # noqa: BLE001 - ver ManagerCatalogExecutor.fetch_all
                 await _arollback(connection)
                 raise MetadataError(f"Error leyendo el catálogo: {exc}") from exc

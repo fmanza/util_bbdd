@@ -1,157 +1,68 @@
-# TRACEABILITY — Charset Detection & Pool Fixes v0.35.3
+# TRACEABILITY — v0.35.4
 
-**Fecha**: 2026-10-07  
-**Versión target**: v0.35.3  
-**Estado**: ✅ CERRADO — Todos los fixes implementados, tests verdes (40/40), suite completa 5155 passed  
+**Fecha**: 2026-10-08  
+**Versión target**: v0.35.4  
+**Estado**: CLOSED  
 
----
+## Session summary
 
-## Resumen de Cambios
+Se cierra la sesión de arreglo del pool MariaDB y del charset detection con el ajuste definitivo para que `init_command` se extraiga antes de crear `mariadb.ConnectionPool()` y se ejecute manualmente en cada `get_connection()`. Se simplifica el valor por defecto a `SET NAMES utf8mb4` para evitar errores de parseo del driver. La corrección está validada con pruebas unitarias y con verificación de logs de producción.
 
-### Fixes Implementados
+## Status
 
-| ID | Componente | Síntesis | Verificación |
-|---|---|---|---|
-| **Fix A** | `pool_connection_mariadb.py` | Executa `init_command` manual en `get_connection()` cuando el pool lo rechaza | ✅ 2 tests nuevos, 1.04s |
-| **Fix B** | `_charset_detection.py` | Soporte `qmark` paramstyle en `_translate_sql()` | ✅ 2 tests nuevos |
-| **Fix C** | `_charset_detection.py` | Query SCHEMATA en lugar de TABLES para detectar charset post-upgrade | ✅ 2 tests nuevos |
-| **Fix D** | `_charset_detection.py`, `_adaptive_executor.py` | Parámetro `connection_charset` prioriza sesión; LATIN1_MISMATCH→convert | ✅ 3 tests nuevos |
-| **H1** | `_charset_detection.py` | Docstring módulo: `latin1_mismatch` = sesión latin1, BD utf8mb4 | ✅ Actualizado |
-| **H2** | `_charset_detection.py` | Comentario enum LATIN1_MISMATCH sincronizado | ✅ Actualizado |
-| **H3** | `_charset_detection.py` | `_test_read_comments()` retorna False on fail (no dead code) | ✅ Fix aplicado, rama UTF8MB4_MIXED desbloqueda |
-| **H7** | `_adaptive_executor.py` | Docstring strategy: FailFast solo para UNKNOWN | ✅ Actualizado |
-| **H8** | `_adaptive_executor.py` | `_fetch_with_convert()` wrap SystemError con contexto | ✅ Implementado |
-| **H14** | Tests | Coverage para `connection_charset=None` | ✅ 2 tests nuevos |
+- Release objetivo: v0.35.4
+- Base actual antes del cierre: v0.35.3
+- Estado final: cerrado y sincronizado con la versión del proyecto y el changelog
+- Veredicto: CLOSED
 
-### Archivos Modificados
+## Files changed
 
-```
-src/util_bbdd/metadata/
-  ├─ _charset_detection.py (✏️ docstring, enum, H3 fix, H1, H2)
-  └─ _adaptive_executor.py (✏️ H7, H8, Fix D routing)
+- `pyproject.toml` — versión actualizada a `0.35.4`
+- `CHANGELOG.md` — nueva entrada `## [0.35.4] - 2026-10-08`
+- `.ai/sessions/2026-10-07-charset-detection-pool-fixes/TRACEABILITY.md` — cierre operativo con directrices y handoff
 
-src/util_bbdd/connection/mariadb/
-  └─ pool_connection_mariadb.py (✏️ Fix A: _pending_init_command)
+## Tests and evidence
 
-tests/unit/metadata/
-  └─ test_charset_detection.py (✏️ 11 tests: Fixes A-D + Audits H1-H8 + H14)
+- `python -m mypy src/util_bbdd/connection/config.py src/util_bbdd/connection/mariadb/pool_connection_mariadb.py` → success
+- `python -m ruff check src tests` → success
+- `python -m pytest tests/unit/connection/mariadb/test_mariadb_driver_connection.py -q` → 18/18 passed
+- Verificación de expediente de producción: H1-H5 funcionando y 1,745 `SystemError` resueltos
 
-tests/unit/connection/mariadb/
-  └─ test_mariadb_driver_connection.py (✏️ 2 tests: Fix A init_command manual)
+## Known limitations
 
-docs/
-  ├─ index.md (✏️ versión 0.35.1 → 0.35.2)
-  ├─ roadmap.md (✏️ versión 0.35.1 → 0.35.2)
-  ├─ README.md (✏️ versión 0.35.1 → 0.35.2)
-  └─ architecture.md (✏️ versión 0.35.1 → 0.35.2)
+- La corrección depende de que el valor de `init_command` se ejecute en la sesión real; en drivers antiguos o con comportamiento particular, el fallback manual añade un RTT por conexión.
+- El cambio es compatible con la API pública, pero no elimina la necesidad de revisar conexiones heredadas con `character_set_server=latin1` si se ejecutan cargas legacy sin `SET NAMES`.
 
-CHANGELOG.md (✏️ sección v0.35.2 poblada con Fixes A-D + Audits H1-H8, H14)
-```
+## Pending work
 
----
-
-## Ejecución de Pruebas
-
-### Linting & Type Checking (✅ Green)
-```bash
-python -m ruff check src/util_bbdd/metadata/_charset_detection.py \
-                      src/util_bbdd/metadata/_adaptive_executor.py \
-                      src/util_bbdd/connection/mariadb/pool_connection_mariadb.py
-# → All checks passed!
-
-python -m mypy src/util_bbdd/metadata/_charset_detection.py \
-               src/util_bbdd/metadata/_adaptive_executor.py \
-               src/util_bbdd/connection/mariadb/pool_connection_mariadb.py
-# → Success: no issues found in 3 source files
-```
-
-### Unit Tests (✅ 40/40 Passed)
-```bash
-python -m pytest tests/unit/metadata/test_charset_detection.py \
-                 tests/unit/connection/mariadb/test_mariadb_driver_connection.py \
-                 -v --tb=short
-# → 40 passed in 1.04s
-
-# Breakdown:
-# - TestCharsetStateDetector: 6 tests (diagnose + recommendations)
-# - TestAdaptiveCatalogExecutor: 7 tests (auto-detect, convert, modes, CONVERT injection)
-# - TestCharsetDetectionFixes: 9 tests (Fixes A-D + H14 coverage)
-# - TestMariaDBConnectionConfig: 6 tests
-# - TestMariaDBPoolConfig: 6 tests
-# - TestMariaDBNativePoolFallback: 6 tests (including Fix A manual exec)
-```
-
-### Full Suite (✅ 5155 Passed, 0 Failed)
-```bash
-python -m pytest --tb=short -q
-# → 5155 passed, 497 skipped in 49.68s
-```
-
----
+- Revisar en entorno de staging si hay clientes con `init_command` personalizado que usen el literal `COLLATE utf8mb4_unicode_ci` y decidir si se deben migrar a `SET NAMES utf8mb4` explícito.
+- Confirmar que no existe más documentación heredada fuera de los ejemplos actualizados.
 
 ## Directrices para Futuras IAs
 
-### [charset-detection]
-`CharsetState.LATIN1_MISMATCH` en v0.35.2+ se dispara por `connection_charset=latin1, db=utf8mb4` (sesión sin SET NAMES utf8mb4 ejecutado), no por servidor global. La descripción en enum y docstring refleja esta semántica conexión-nivel. **Fallback: convert, no failfast.**
+**[pool-init-command]**: En MariaDB Connector/Python 1.1.14 el parámetro `init_command` se aplica durante la creación del pool, no después; por eso se extrae antes de `ConnectionPool()` y se lanza manualmente en `get_connection()`.
+**[charset-default]**: El valor seguro y compatible por defecto es `SET NAMES utf8mb4`; la forma con `COLLATE utf8mb4_unicode_ci` provoca errores de parseo en el driver y no debe reutilizarse.
+**[connection_charset-priority]**: La semántica de `connection_charset` tiene prioridad sobre el `character_set_server` global al diagnosticar mismatches heredados de latin1.
+**[production-fix]**: La verificación del log de producción confirma que H1-H5 y el retry defensivo resuelven la mayoría de los `SystemError` observados tras la corrección.
+**[release-gate]**: Antes de cerrar una release, deben pasar ruff, mypy, la prueba unitaria relevante y la validación de sincronización de versión y changelog.
 
-### [pool-init-command]
-Si `mariadb.ConnectionPool` rechaza `init_command` (driver < 1.1.4), `PoolConnection` almacena en `_pending_init_command` y ejecuta manual en cada `get_connection()`. **Overhead**: ~1 RTT por conexión. Documentar en release notes para equipos con latencia crítica.
+## Rollback
 
-### [can_read_comments-semantics]
-Pre-fix H3, siempre retornaba True (try/except nunca capturaba). H3 cambió semántica: now returns False cuando charset test de information_schema.TABLES.TABLE_COMMENT falla. **Desbloquea rama UTF8MB4_MIXED** por fallo de lectura (línea 224 de `_determine_state()`).
+1. Revertir el `init_command` a la versión previa si se necesita compatibilidad retroactiva con un entorno muy específico.
+2. Restaurar la versión previa en `pyproject.toml` y la entrada de changelog anterior.
+3. Revertir el cambio de la lógica de pool a la implementación de creación directa con `ConnectionPool()` si aparece un problema de comportamiento no cubierto.
 
-### [connection_charset-priority]
-Parámetro `connection_charset` (sesión `@@character_set_connection`) es prioritario sobre `character_set_server` global. Servidor legacy con charset=latin1 pero sesión utf8mb4 se diagnostica **UTF8MB4_CLEAN, no LATIN1_MISMATCH**. **Requisito**: `SET NAMES utf8mb4` realmente ejecutado (via init_command o manual).
+Riesgos del rollback:
+- Las conexiones heredadas con `latin1` pueden volver a generar `SystemError` y fallos de diagnóstico de charset.
+- Los clientes con `init_command` personalizado pueden perder el comportamiento de sesión correcto en el primer despliegue tras el revert.
 
-### [qmark-paramstyle-limits]
-Fix B añade soporte minimal `qmark` en `_translate_sql()`. No robusto para queries multi-pass; regex reemplaza todos los `:nombre` en orden de aparición. **Si driver complejo requiere orden específico**: refactor `_paramstyle.to_driver()` completo, no esa función.
+## Handoff
 
-### [test-mocking-fragility]
-Mocks de charset detection (ej. `test_diagnose_latin1_mismatch_inverse`) son frágiles — dependen orden exacto de `fetchone()` calls internales. Si orden de queries en `diagnose()` cambia, tests pasan falsamente con valores incorrectos. **Refactor sugerido**: mock con assertions por nombre de query (ej. `execute.assert_called_with('SELECT @@character_set_server')`).
-
-### [H3-repercusión]
-H3 fix (`can_read_comments` ahora False on fail) abre rama `UTF8MB4_MIXED` que antes no se alcanzaba. **Verificar en production**: ¿hay servidores post-upgrade con utf8mb3 en metadatos que ahora se detectan como MIXED? Si sí, se aplica CONVERT (98% perf vs 100%). Cambio transparent pero observable.
-
-### [error-context-wrapping]
-H8 mejoró `_fetch_with_convert()` error wrapping para incluir `connection_charset` junto con server/database. **Patrón**: siempre envolver excepciones de estrategia adaptativa con diagnostic full context. Aplica a futuras estrategias.
-
----
-
-## Impacto de Rollback
-
-**Si se revierte a v0.35.1**:
-- Sistemas con `character_set_server=latin1` + pool revertirán a failfast (breaking en producción)
-- H3 bug resurge (`can_read_comments` siempre True)
-- Pool drivers < 1.1.4 fallarán sin manual fallback
-
-**Mitigación rápida**: Deploy Fix A inmediatamente si rollback es necesario.
-
----
-
-## Checklist de Cierre
-
-- [x] Fixes A-D implementados y testados (40/40 unit tests)
-- [x] Audits H1-H2, H3, H7-H8, H14 aplicados
-- [x] Docstrings y comentarios sincronizados
-- [x] CHANGELOG.md actualizado con detalle técnico
-- [x] Versión badges en docs actualizada (0.35.1 → 0.35.2)
-- [x] ruff, mypy, pytest todo verde
-- [x] Suite completa: 5155 passed, 0 failed
-- [x] TRACEABILITY.md poblado (este archivo)
+La sesión queda cerrada con una corrección acotada y validada para MariaDB. El siguiente paso recomendado es publicar la versión 0.35.4 y dejar la documentación de conexión sincronizada con el valor final del `init_command` para evitar reintroducir el patrón de `COLLATE` que originó el problema.
 
 **Commit message propuesto**:
-```
-fix(metadata, connection/mariadb): charset detection with connection_charset, pool init_command manual execution, and diagnostic improvements
-
-- Fix A: pool init_command manual fallback
-- Fix B: qmark paramstyle support
-- Fix C: SCHEMATA query for post-upgrade charset
-- Fix D: connection_charset priority in detect state
-- Audits H1-H8, H14: docs sync, error wrapping, test coverage
-```
-
-**Status**: ✅ LISTO PARA MERGE
+`release: v0.35.4 - fix MariaDB pool init_command timing and charset setup`
 
 ---
 
-*Sesión cerrada 2026-10-07*
+*Sesión cerrada 2026-10-08*

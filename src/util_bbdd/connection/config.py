@@ -68,14 +68,14 @@ class MariaDBConnectionConfig:
     write_timeout: int = 60
     charset: str = "utf8mb4"
     encoding_errors: str = "replace"
-    init_command: str = "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
+    init_command: str = "SET NAMES utf8mb4"
 
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> MariaDBConnectionConfig:
         db_type: str = "mariadb"
         charset = _opt_str(params, "charset") or "utf8mb4"
         encoding_errors = _opt_str(params, "encoding_errors") or "replace"
-        init_command = _opt_str(params, "init_command") or "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
+        init_command = _opt_str(params, "init_command") or "SET NAMES utf8mb4"
 
         # Validar encoding_errors: solo valores permitidos
         if encoding_errors not in {"replace", "strict", "ignore"}:

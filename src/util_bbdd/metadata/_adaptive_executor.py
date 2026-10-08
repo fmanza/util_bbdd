@@ -164,21 +164,21 @@ class AdaptiveCatalogExecutor:
             "ROUTINE_DEFINITION",
             "COMMENT",
         ]
-        replacement = r"CONVERT(CAST(\1 AS BINARY) USING utf8mb4) AS \1"
+        # Sin alias AS \1: los callers acceden por índice (tupla), y AS genera SQL inválido en WHERE/ORDER BY.
+        _conv = r"CONVERT(CAST(\1 AS BINARY) USING utf8mb4)"
         result = sql
 
         for field in fields_to_convert:
-            # Fase 1: actualiza CONVERT(field USING charset) → CONVERT(CAST(field AS BINARY)...)
-            # Requiere que 'field' sea el argumento directo de CONVERT, sin CAST intermedio.
+            # Fase 1: CONVERT(field USING charset) → CONVERT(CAST(field AS BINARY) USING utf8mb4)
             pattern_wrapped = rf"CONVERT\(\s*\b({field})\b\s+USING\s+\w+\)"
-            result = re.sub(pattern_wrapped, replacement, result)
+            result = re.sub(pattern_wrapped, _conv, result)
 
-            # Fase 2: envuelve 'field' standalone (no en alias ni ya dentro de CAST/CONVERT).
-            # (?<! AS ) evita re-procesar alias "AS field" generados en fase 1 u otras fases.
-            # (?!\s+AS\s+BINARY) evita re-convertir el inner field dentro de CAST(field AS BINARY).
+            # Fase 2: field suelto no ya dentro de CAST/CONVERT ni como alias.
+            # (?<! AS ) evita re-procesar "AS field" presentes en el SQL original.
+            # (?!\s+AS\s+BINARY) evita re-envolver el field dentro de CAST(field AS BINARY).
             # (?!\s+USING) evita re-procesar formas CONVERT(field USING ...) residuales.
             pattern_standalone = rf"(?<! AS )\b({field})\b(?!\s+AS\s+BINARY)(?!\s+USING)"
-            result = re.sub(pattern_standalone, replacement, result)
+            result = re.sub(pattern_standalone, _conv, result)
 
         return result
 

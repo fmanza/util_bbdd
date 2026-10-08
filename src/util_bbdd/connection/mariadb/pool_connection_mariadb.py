@@ -104,8 +104,10 @@ class PoolConnection:
                 pool_name = f"pool_{uuid4().hex[:12]}"
                 sanitized_conn_params["pool_name"] = pool_name
 
-            # Crear pool; reintentar eliminando kwargs opcionales rechazados por el driver
+            # Preparar pool_params
             pool_params: dict[str, str | int] = dict(sanitized_conn_params)
+
+            # Crear pool; reintentar eliminando kwargs opcionales rechazados por el driver
             for _ in range(len(_OPTIONAL_POOL_PARAMS) + 1):
                 try:
                     self.pool = mariadb.ConnectionPool(**pool_params)
@@ -118,16 +120,21 @@ class PoolConnection:
                     if not match or match.group(1) not in _OPTIONAL_POOL_PARAMS:
                         raise
                     rejected = match.group(1)
-                    if rejected == "init_command":
-                        # Guardar para ejecutar manualmente en cada get_connection()
-                        self._pending_init_command = str(pool_params.get("init_command", "")) or None
-                    pool_params = {k: v for k, v in pool_params.items() if k != rejected}
                     mariadb_version: str = str(getattr(mariadb, "__version__", "?"))
-                    extra_msg = " — se ejecutará manualmente en cada conexión" if rejected == "init_command" else ""
-                    self.logger.warning(
-                        f"⚠️ mariadb.ConnectionPool() rechazó '{rejected}'; "
-                        f"reintentando sin él (mariadb version={mariadb_version}){extra_msg}"
-                    )
+                    # Si driver rechaza init_command, extraerlo y ejecutar manual en get_connection()
+                    if rejected == "init_command":
+                        self._pending_init_command = str(pool_params.pop("init_command", "")) or None
+                        self.logger.warning(
+                            f"⚠️ mariadb.ConnectionPool() rechazó 'init_command'; "
+                            f"ejecutaremos manualmente en get_connection() (mariadb version={mariadb_version})"
+                        )
+                    else:
+                        # Otros parámetros (charset, encoding_errors, etc.)
+                        pool_params = {k: v for k, v in pool_params.items() if k != rejected}
+                        self.logger.warning(
+                            f"⚠️ mariadb.ConnectionPool() rechazó '{rejected}'; "
+                            f"reintentando sin él (mariadb version={mariadb_version})"
+                        )
             else:
                 raise RuntimeError("No se pudo crear el pool de MariaDB; parámetros opcionales agotados")
 
