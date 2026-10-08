@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -12,6 +11,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine
 
 from .._core.exceptions import ConnectionError, ValidationError
+from ._url import get_test_query, render_url, sanitize_conn_str, sqlite_url
 
 
 class AsyncSQLAlchemyEngineFactory:
@@ -48,30 +48,6 @@ class AsyncSQLAlchemyEngineFactory:
             return await ConnectionFactory.create_async_connection(db_type, params, **extra)
 
         return _async_creator
-
-    @staticmethod
-    def _render_url(
-        drivername: str,
-        user: str,
-        password: str,
-        host: str,
-        port: Any,
-        database: str,
-        query: dict[str, str] | None = None,
-    ) -> str:
-        """URL con usuario y contraseña escapados (``URL.create``); ver ``SQLAlchemyEngineFactory._render_url``."""
-        from sqlalchemy.engine import URL
-
-        url = URL.create(
-            drivername,
-            username=str(user),
-            password=str(password),
-            host=str(host),
-            port=int(port),
-            database=database,
-            query=query or {},
-        )
-        return url.render_as_string(hide_password=False)
 
     @staticmethod
     async def create_engine(
@@ -201,36 +177,10 @@ class AsyncSQLAlchemyEngineFactory:
                 details=str(err),
             ) from err
 
-    @staticmethod
-    def _sanitize_conn_str(conn_str: str) -> str:
-        """Oculta contraseña en una URL de conexión para logging."""
-        if "@" not in conn_str or "://" not in conn_str:
-            return conn_str
-        prefix, rest = conn_str.split("://", 1)
-        if ":" not in rest or "@" not in rest:
-            return conn_str
-        credentials, suffix = rest.split("@", 1)
-        if ":" not in credentials:
-            return conn_str
-        user, _password = credentials.split(":", 1)
-        return f"{prefix}://{user}:***@{suffix}"
-
-    @staticmethod
-    def _get_test_query(db_type: str) -> str:
-        """
-        Retorna query de verificación de conexión apropiada por motor.
-
-        Oracle requiere FROM DUAL; otros motores usan SELECT 1.
-
-        Args:
-            db_type: Tipo de motor ('mariadb', 'oracle', 'postgresql', 'sqlserver', 'sqlite')
-
-        Returns:
-            Query SQL de verificación de conexión
-        """
-        if db_type == "oracle":
-            return "SELECT 1 FROM DUAL"
-        return "SELECT 1"
+    # Helpers compartidos con SQLAlchemyEngineFactory (``factory/_url.py``).
+    _get_test_query = staticmethod(get_test_query)
+    _sanitize_conn_str = staticmethod(sanitize_conn_str)
+    _render_url = staticmethod(render_url)
 
     @staticmethod
     def _build_mariadb_connection_string(conn_params: dict[str, Any], database: str | None) -> str:
@@ -288,8 +238,6 @@ class AsyncSQLAlchemyEngineFactory:
         Raises:
             ValidationError: Si faltan parámetros requeridos
         """
-        from sqlalchemy.engine import URL
-
         password_value: Any = conn_params.get("password")
         if password_value is None or not str(password_value):
             AsyncSQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para MySQL")
@@ -300,15 +248,14 @@ class AsyncSQLAlchemyEngineFactory:
         if not target_db:
             raise ValidationError("Se requiere 'database' para MySQL", db_type="mysql")
 
-        url = URL.create(
+        return render_url(
             "mysql+aiomysql",
-            username=str(conn_params.get("user") or "root"),
-            password=str(password_value),
-            host=str(conn_params.get("host") or "localhost"),
-            port=int(conn_params.get("port", 3306)),
-            database=target_db,
+            conn_params.get("user") or "root",
+            password_value,
+            conn_params.get("host") or "localhost",
+            conn_params.get("port", 3306),
+            target_db,
         )
-        return url.render_as_string(hide_password=False)
 
     @staticmethod
     def _build_oracle_connection_string(conn_params: dict[str, Any], database: str | None) -> str:
@@ -487,11 +434,4 @@ class AsyncSQLAlchemyEngineFactory:
                 db_type="sqlite",
             )
 
-        # SQLite URL async: sqlite+aiosqlite:///:memory: o sqlite+aiosqlite:///{path}
-        if db_path == ":memory:":
-            return "sqlite+aiosqlite:///:memory:"
-
-        normalized_path: str = str(db_path).replace("\\", "/")
-        if os.path.isabs(db_path):
-            return f"sqlite+aiosqlite:///{normalized_path}"
-        return f"sqlite+aiosqlite:///{normalized_path}"
+        return sqlite_url(db_path, "sqlite+aiosqlite")

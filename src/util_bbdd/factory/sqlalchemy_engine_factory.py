@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from sqlalchemy.engine.base import Engine
 
 from .._core.exceptions import ConnectionError, ValidationError
+from ._url import get_test_query, render_url, sanitize_conn_str, sqlite_url
 
 
 class SQLAlchemyEngineFactory:
@@ -155,41 +156,10 @@ class SQLAlchemyEngineFactory:
                 f"Error creando Engine de SQLAlchemy: {str(e)}", db_type=db_type, details=str(e)
             ) from e
 
-    @staticmethod
-    def _get_test_query(db_type: str) -> str:
-        """
-        Retorna query de verificación de conexión apropiada por motor.
-
-        Oracle requiere FROM DUAL; otros motores usan SELECT 1.
-
-        Args:
-            db_type: Tipo de motor ('mariadb', 'oracle', 'postgresql', 'sqlserver', 'hsqldb', 'sqlite')
-
-        Returns:
-            Query SQL de verificación de conexión
-        """
-        if db_type == "oracle":
-            return "SELECT 1 FROM DUAL"
-        return "SELECT 1"
-
-    @staticmethod
-    def _sanitize_conn_str(conn_str: str) -> str:
-        """Oculta contraseña en una URL de conexión para logging.
-
-        SVC-01 (AUDIT_CODE 2026-09-22): antes se logueaban los primeros 50 caracteres del
-        connection string sin redactar, exponiendo la contraseña en claro para hosts/usuarios
-        cortos. Réplica exacta de ``AsyncSQLAlchemyEngineFactory._sanitize_conn_str``.
-        """
-        if "@" not in conn_str or "://" not in conn_str:
-            return conn_str
-        prefix, rest = conn_str.split("://", 1)
-        if ":" not in rest or "@" not in rest:
-            return conn_str
-        credentials, suffix = rest.split("@", 1)
-        if ":" not in credentials:
-            return conn_str
-        user, _password = credentials.split(":", 1)
-        return f"{prefix}://{user}:***@{suffix}"
+    # Helpers compartidos con AsyncSQLAlchemyEngineFactory (``factory/_url.py``).
+    _get_test_query = staticmethod(get_test_query)
+    _sanitize_conn_str = staticmethod(sanitize_conn_str)
+    _render_url = staticmethod(render_url)
 
     @staticmethod
     def _build_mariadb_connection_string(conn_params: dict[str, Any], database: str) -> str:
@@ -238,8 +208,6 @@ class SQLAlchemyEngineFactory:
         Raises:
             ValidationError: Si faltan parámetros requeridos
         """
-        from sqlalchemy.engine import URL
-
         password: str | None = conn_params.get("password")
         if not password:
             SQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para MySQL")
@@ -247,15 +215,14 @@ class SQLAlchemyEngineFactory:
         if not database:
             raise ValidationError("Se requiere 'database' para MySQL", db_type="mysql")
 
-        url = URL.create(
+        return render_url(
             "mysql+pymysql",
-            username=str(conn_params.get("user", "root")),
-            password=str(password),
-            host=str(conn_params.get("host", "localhost")),
-            port=int(conn_params.get("port", 3306)),
-            database=str(database),
+            conn_params.get("user", "root"),
+            password,
+            conn_params.get("host", "localhost"),
+            conn_params.get("port", 3306),
+            str(database),
         )
-        return url.render_as_string(hide_password=False)
 
     @staticmethod
     def _build_oracle_connection_string(conn_params: dict[str, Any], database: str) -> str:
@@ -368,34 +335,6 @@ class SQLAlchemyEngineFactory:
         return SQLAlchemyEngineFactory._render_url(drivername, user, password, host, port, database)
 
     @staticmethod
-    def _render_url(
-        drivername: str,
-        user: str,
-        password: str,
-        host: str,
-        port: Any,
-        database: str,
-        query: dict[str, str] | None = None,
-    ) -> str:
-        """URL con usuario y contraseña escapados (``URL.create``).
-
-        Interpolarlos crudos permite que ``@``, ``:``, ``/``, ``?`` o ``#`` en la contraseña cambien el host de la URL
-        (hotfix S1, drivers-connections-audit FASE 1).
-        """
-        from sqlalchemy.engine import URL
-
-        url = URL.create(
-            drivername,
-            username=str(user),
-            password=str(password),
-            host=str(host),
-            port=int(port),
-            database=database,
-            query=query or {},
-        )
-        return url.render_as_string(hide_password=False)
-
-    @staticmethod
     def _build_sqlite_connection_string(conn_params: dict[str, Any]) -> str:
         """
         Construye connection string para SQLite.
@@ -423,12 +362,4 @@ class SQLAlchemyEngineFactory:
                 db_type="sqlite",
             )
 
-        # SQLite URL: sqlite:////absolute/path o sqlite:///relative/path o sqlite:///:memory:
-        if db_path == ":memory:":
-            return "sqlite:///:memory:"
-
-        # Normaliza separadores Windows (\) a / — una ruta absoluta tipo "C:\a\b.db" sin
-        # normalizar produce un URI SQLite inválido/frágil (SVC-03: la versión async ya
-        # normalizaba, la sync no).
-        normalized_path: str = db_path.replace("\\", "/")
-        return f"sqlite:///{normalized_path}"
+        return sqlite_url(db_path, "sqlite")

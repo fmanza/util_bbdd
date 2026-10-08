@@ -5,6 +5,19 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.35.10] - 2026-10-09
+
+Bloque B5 (factories de Engine) de la FASE 4 de `drivers-connections-audit` (`.ai/sessions/2026-10-09-refactor-drivers-b5/`).
+Sin cambios funcionales: 9.744 combinaciones de entrada comparadas con v0.35.9, misma salida y mismos errores.
+
+### Changed
+
+- **factory**: nuevo módulo privado `factory/_url.py` con `render_url` (escapado de credenciales, S1),
+  `sanitize_conn_str` (redacción para logs, SVC-01), `get_test_query` y `sqlite_url`, que estaban copiados en
+  `SQLAlchemyEngineFactory` y `AsyncSQLAlchemyEngineFactory`. Los métodos privados de ambas clases
+  (`_render_url`, `_sanitize_conn_str`, `_get_test_query`) se conservan como alias. Los builders de MySQL usan
+  `render_url` y el de SQLite async pierde una rama `os.path.isabs` que devolvía lo mismo.
+
 ## [0.35.9] - 2026-10-09
 
 Bloque B6 (limpieza) de la FASE 4 de `drivers-connections-audit` (`.ai/sessions/2026-10-09-refactor-drivers-b6/`).
