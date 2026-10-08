@@ -1,11 +1,14 @@
 # Ejecución de drivers-connections-audit SKILL en Claude Code
 
-**Versión SKILL:** 1.0.3 (premisas corregidas contra el código tras FASE 1)  
+**Versión SKILL:** 1.0.4 (premisas corregidas tras FASE 1 y FASE 2)  
 **Ubicación SKILL:** `.github/skills/drivers-connections-audit/SKILL.md`  
 **Estado:** FASE 1 ejecutada el 2026-10-08 con `/audit-code` → veredicto **RECHAZADO** (5 bloqueantes P0).
 ✅ P0 corregidos en **v0.35.5** con `/hotfix` (`.ai/sessions/2026-10-08b-hotfix-drivers-p0/`) y P1 en **v0.35.6**
 (`.ai/sessions/2026-10-08c-fix-drivers-p1/`); P2 S3/M2/G1 en **v0.35.7** (`.ai/sessions/2026-10-08d-fix-drivers-p2/`) y el resto de P2 en **v0.35.8**
-(`.ai/sessions/2026-10-08e-fix-drivers-p2b/`). Todos los hallazgos de FASE 1 cerrados. Siguiente paso: FASE 2.
+(`.ai/sessions/2026-10-08e-fix-drivers-p2b/`). Todos los hallazgos de FASE 1 cerrados. FASE 2-3 ejecutadas el 2026-10-09
+(`.ai/sessions/2026-10-09-drivers-connections-audit-fase2/`): Opción B acotada, readiness gate **GO_CONDICIONAL**.
+Siguiente paso: FASE 4 por bloques B6 → B5 → B4 (`/refactor`, 0.35.x) → B3 → B1 (`/refactor`, 0.36.0) → CS → B2
+(`/new-feature`, 0.36.0); ver SKILL.md § FASE 2.
 
 ### Resultado de FASE 1 (resumen)
 
@@ -316,7 +319,7 @@ FASE 6: VERSION
 .github/
   skills/
     drivers-connections-audit/
-      SKILL.md                    ← Archivo maestro (v1.0.3)
+      SKILL.md                    ← Archivo maestro (v1.0.4)
       AUDIT_REPORT.md             ← Auditoría de la skill v1.0.0 (histórico; ver anexo FASE 1)
       CORRECTIONS_APPLIED.md      ← Correcciones v1.0.1 y v1.0.3
 .claude/

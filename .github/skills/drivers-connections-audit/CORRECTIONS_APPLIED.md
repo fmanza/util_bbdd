@@ -350,3 +350,26 @@ Además, la plantilla de `audit_phase_2a.md` (2.3) recoge ahora los P0 reales de
 Las plantillas de FASE 6 conservan sus cifras ilustrativas con una advertencia explícita.
 
 *Changelog: 2026-10-08 | Premisas corregidas: 10 | Version: 1.0.3*
+
+---
+
+# Correcciones v1.0.3 → v1.0.4: premisas contrastadas en FASE 2 y decisiones de FASE 3
+
+**Fecha**: 2026-10-09
+**Origen**: FASE 2 (2A/2B/2C) con `/audit-code` sobre v0.35.8 y resolución de FASE 3
+(`.ai/sessions/2026-10-09-drivers-connections-audit-fase2/`)
+
+| # | Premisa en v1.0.3 | Realidad verificada | Secciones corregidas |
+|---|---|---|---|
+| P-11 | Pool genérico (`connection/_pool/base_pool.py`) consolida el boilerplate | Pools sync 32 % de similitud media; solo `__del__` (72 %) y `close_connection` (54 %) superan el 50 % (~134 LoC): basta un mixin de cierre | 2 (resultado), 2.1, 4 |
+| P-12 | Falta un `metadata/_base/executor.py` abstracto | `CatalogExecutor`, `AsyncCatalogExecutor` y `CatalogDialect` ya existen en `metadata/contracts.py` (ADR-003) | 2.1, 4 |
+| P-13 | `CharsetStrategy` DETECT/UTF8MB4/NATIVE/CUSTOM para la conexión | Mezcla charset de sesión (MariaDB sync solo admite utf8mb4) con estrategia de lectura del catálogo (`native`/`convert`/`failfast`); decisión CS-1 `catalog_charset_mode` | 2.2 |
+| P-14 | Matriz MariaDB 10.4/10.5/10.6 "soportadas", 11.0 "GA" | Banco: `mariadb:11.4` (11.4.13) y `mysql:8.4`; ninguna 10.x validada | 1.5 |
+| P-15 | Validación de conn_params en tres capas aplicada por los managers | `AsyncDatabaseManager` no pasa por ninguna (solo `validate_db_type`); reproducido | 1.2 |
+| P-16 | Adaptativo solo sync y solo `pymysql` sin pool; 5 tests rojos | Corregido en v0.35.5 (T1) y v0.35.6 (Y2, M3) | 1.3, 1.6 |
+
+Además: resultado de FASE 2 y bloques B1–B6/CS al inicio de FASE 2; tabla de esfuerzo recalculada (Opción A
+descartada); § 3.2 con las decisiones de FASE 3 (validación async con `ValidationError` directo por decisión del
+usuario); aviso en FASE 4 que mapea las sub-fases 4.1–4.4 a los bloques.
+
+*Changelog: 2026-10-09 | Premisas corregidas: 6 | Version: 1.0.4*

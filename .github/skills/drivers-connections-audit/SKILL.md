@@ -7,10 +7,10 @@ scope: "workspace"
 applies_to: "src/util_bbdd/connection/**,src/util_bbdd/_drivers/**,src/util_bbdd/metadata/**,src/util_bbdd/managers/**"
 requires_context: ".github/SHARED_INSTRUCTIONS.md, pyproject.toml"
 tags: ["drivers", "connections", "architecture", "database-engines", "refactor", "charsets", "api-breaking"]
-version: "1.0.3"
+version: "1.0.4"
 created: "2026-10-08"
-updated: "2026-10-08"
-status: "FASE 1 ejecutada (/audit-code, veredicto RECHAZADO); premisas corregidas contra el código real (v0.35.4)"
+updated: "2026-10-09"
+status: "FASE 1 y FASE 2-3 ejecutadas (/audit-code); decisiones de FASE 3 resueltas (GO_CONDICIONAL); premisas corregidas contra el código real (v0.35.8)"
 ---
 
 # Drivers & Connections Architecture Audit — util_bbdd
@@ -88,7 +88,10 @@ status: "FASE 1 ejecutada (/audit-code, veredicto RECHAZADO); premisas corregida
 - Validación de parámetros de conexión (no de queries):
   - Tres capas: `connection/builder.py` (`_validate_required`), `_drivers/validator.py`
     (`validate_connection_params` contra la lista blanca de `database_types.json`) y `*Config.from_params`
-  - Comprobar que las tres aceptan el mismo conjunto de claves
+  - Comprobar que las tres aceptan el mismo conjunto de claves **y los mismos defaults** (FASE 2: claves alineadas
+    desde v0.35.5; 4 defaults divergentes)
+  - Comprobar que **los dos managers** pasan por ellas: en v0.35.8 `AsyncDatabaseManager` solo valida `db_type`
+    (no llama a `ConnectionParamsManager.prepare_and_validate`); el sync sí
   - `validators/<motor>_validator.py` queda fuera: valida parámetros de queries, no de conexión
 
 **Entrega**: Matriz de duplicidades **medida** (p. ej. `difflib.SequenceMatcher` por líneas no vacías), no
@@ -147,8 +150,8 @@ estimada. Resultado de FASE 1 (v0.35.4):
   (`CHECK_CONSTRAINTS`): MySQL 5.7 está sin soporte declarado en `Kind.CHECKS`
 - ¿Hereda problemas de charset de MariaDB o tiene comportamiento diferente?
   - PyMySQL vs aiomysql: ¿manejan charset igual? (`charset` es `None` por defecto: depende del default del driver)
-  - El ejecutor adaptativo solo se activa si la conexión es de `pymysql` **sin pool**: con pool la conexión llega
-    envuelta por SQLAlchemy (`_ConnectionFairy`) y `_resolve_executor` no la desenvuelve
+  - ~~El ejecutor adaptativo solo se activa si la conexión es de `pymysql` **sin pool**~~ — **corregido en v0.35.6**
+    (Y2): `_driver_root` desenvuelve `_ConnectionFairy`; el adaptativo actúa también con el `QueuePool`
 - MySQL 5.7 (EOL) vs 8.0 vs 8.4: ¿soporte diferenciado?
 - **Preguntas**:
   - ¿Debe el ejecutor adaptativo aplicarse igual con y sin pool?
@@ -206,18 +209,24 @@ pytest tests/unit/connection/mysql/test_mysql_driver_connection.py -q
 
 ### 1.5 MariaDB Version Matrix (C7 RESOLVED)
 
-**Antes de FASE 2, validar**: ¿Qué versiones de MariaDB soportamos y cómo varían?
+**Regla**: "soportado" = validado en el banco de integración (`tests/integration`). Versión real del banco
+(`docker ps`, 2026-10-09): `util_bbdd_bench_mariadb` → `mariadb:11.4` (11.4.13), `util_bbdd_bench_mysql` → `mysql:8.4`.
+La tabla de v1.0.3 declaraba soportadas 10.4/10.5 (fuera de soporte de MariaDB) y 11.0 "GA" sin ninguna prueba: se
+sustituye por la verificada.
 
-| Versión | Support Status | info_schema Changes | Charset Issues (H-32/H-39) | Strategy | Test Coverage | Notes |
-|---|---|---|---|---|---|---|
-| 10.3 (EOL 2023) | ❌ Drop | — | — | — | — | No longer supported |
-| 10.4 (EOL 2024-09) | ⚠️ LTS (short window) | Minor | H-32 detected, H-39 fixed in v0.35.2 | DETECT | pytest + mariadb driver | Last 10.x LTS |
-| 10.5 (EOL 2025) | ✅ LTS | Minor | H-32/H-39 behavior baseline | DETECT | pytest + mariadb driver | Stable baseline |
-| 10.6 (EOL 2026) | ✅ LTS | Minor | Inherited fixes | DETECT | pytest + mariadb driver | Current stable |
-| 11.0 (Current) | ✅ GA | ❓ Investigar | ❓ H-32/H-39 still valid? | DETECT (TBD) | pytest + mariadb driver | Pre-FASE-1 test: charset_detect.py |
-| 11.1+ (Future) | ✅ Future | ❓ TBD | ❓ TBD | TBD | TBD (add to tox matrix) | Follow upstream |
+| Motor / versión | Estado | Evidencia | Charset (estrategia de lectura del catálogo) |
+|---|---|---|---|
+| MariaDB 11.4 LTS | ✅ validada | banco `mariadb:11.4` (11.4.13); `tests/integration` 552 passed (v0.35.8) | `auto` (diagnóstico → `native`/`convert`) |
+| MariaDB 10.6 / 10.11 LTS | ⚠️ sin validar | ninguna en el banco | se espera igual que 11.4; no declarado |
+| MariaDB 10.5 y anteriores | ❌ sin soporte declarado | fuera de soporte del fabricante | — |
+| MySQL 8.4 LTS | ✅ validada | banco `mysql:8.4` | `auto` |
+| MySQL 8.0.16+ | ⚠️ sin validar | requisito de `CHECK_CONSTRAINTS` en `MySQLCatalog` | `auto` |
+| MySQL 5.7 | ❌ sin soporte | sin `CHECK_CONSTRAINTS` | — |
 
-**Pre-FASE-2 Investigation**:
+**C7 (cerrada en FASE 3, 2026-10-09)**: sin evidencia de diferencias de catálogo o charset entre versiones en el
+código ni en los tests; añadir una versión al banco antes de declararla soportada.
+
+**Verificación de regresión**:
 ```bash
 # Catálogo base de MariaDB
 pytest tests/unit/metadata/test_mariadb_catalog.py -q
@@ -243,12 +252,15 @@ pytest tests/integration/test_mariadb_engine_e2e.py -q
   3. Fallback de reintentos en managers
 
 **Hallazgos de FASE 1 que acotan la pregunta**:
-- La estrategia actual solo cubre: sync + conexión nativa + driver `mariadb`, o `pymysql` sin pool. No cubre async
-  (`AsyncManagerCatalogExecutor`), ni el camino SQLAlchemy (`SqlAlchemyCatalogExecutor`, bulk/dump), ni MySQL con pool
+- En v0.35.4 la estrategia solo cubría sync + conexión nativa (`mariadb`, o `pymysql` sin pool). **Desde v0.35.6**
+  cubre también async (aiomysql, `AsyncManagerCatalogExecutor._charset_safe_sql`, diagnóstico una vez) y MySQL con
+  pool (Y2/M3). Sigue sin cubrir el camino SQLAlchemy (`SqlAlchemyCatalogExecutor`, bulk/dump/comparar): decisión
+  de FASE 3, fuera de alcance (CS-1)
 - PostgreSQL, Oracle thin, SQLite y SQL Server (pyodbc) negocian UTF-8 por sí mismos: no hay evidencia de que
   necesiten una estrategia equivalente
-- v0.35.4 tiene 5 tests rojos en `tests/unit/metadata/test_charset_detection.py` (código y tests divergen en
-  `_determine_state` y `_inject_convert`): resolver antes de diseñar nada encima
+- v0.35.4 tenía 5 tests rojos en `tests/unit/metadata/test_charset_detection.py`; **resueltos en v0.35.5** (T1) con
+  la semántica decidida por el usuario: sesión y BD en utf8mb4 → `UTF8MB4_CLEAN` aunque el servidor sea latin1;
+  `_inject_convert` sin alias
 
 **Pregunta de diseño**:
 - ¿Es este problema EXCLUSIVO de MariaDB o afecta a MySQL y otros? (FASE 1: MariaDB/MySQL; el resto, sin evidencia)
@@ -309,7 +321,30 @@ Nota: `metadata/_charset/` **no existe**; es la propuesta de FASE 2. El código 
 
 ## FASE 2: PLANNING (Auditoría Propuesta)
 
+> **Resultado de FASE 2-3 (2026-10-09, v0.35.8)** — artefactos en
+> `.ai/sessions/2026-10-09-drivers-connections-audit-fase2/` (`audit_phase_2a.md`, `decision_matrix_phase_2.md`,
+> `risk_assessment_phase_2c.md`). **Decisión: Opción B acotada; Opción A descartada.** Las propuestas de § 2.1 y § 2.2
+> se conservan como contexto histórico; mandan los bloques de abajo y la tabla de decisiones de § 3.2.
+>
+> | Bloque | Contenido | Comando | Versión |
+> |---|---|---|---|
+> | B6 Limpieza | borrar `managers/_manager_lifecycle_async.py` y `CharsetStateDetector._translate_sql`; exportar configs MySQL | `/refactor` | 0.35.x |
+> | B5 Factories | helpers comunes de URL / test query / sanitizado (79–92 % de similitud) | `/refactor` | 0.35.x |
+> | B4 aiomysql | una función de mapeo para conexión y pool de MariaDB y MySQL | `/refactor` | 0.35.x |
+> | B3 Pools | mixin de cierre sync, `close_timeout` en `*PoolConfig`, política única de pool del Engine | `/refactor` | 0.36.0 |
+> | B1 Validación | `*Config` fuente única de claves y defaults; async con `ValidationError` | `/refactor` | 0.36.0 |
+> | CS Charset | `catalog_charset_mode: auto \| native \| convert` (mariadb/mysql, camino manager) | `/new-feature` | 0.36.0 |
+> | B2 TLS MariaDB | `ssl_*` en config, JSON, sync, pool y aiomysql (verificar antes contra el driver real) | `/new-feature` | 0.36.0 |
+>
+> Condiciones (GO_CONDICIONAL): cada bloque que toque parámetros de driver se valida contra el banco antes de cerrarse;
+> un commit y una versión por bloque o grupo, en el orden de la tabla.
+
 ### 2.1 Propuestas de Organización (Refactorización Arquitectónica)
+
+> ⚠️ **Opción A descartada en FASE 2** con la duplicidad medida: pool genérico sin base (pools sync 32 % de similitud
+> media; solo `__del__` 72 % y `close_connection` 54 % superan el 50 %, ~134 LoC); `metadata/_base/executor.py` ya
+> existe como `CatalogExecutor`/`AsyncCatalogExecutor`/`CatalogDialect` en `metadata/contracts.py` (ADR-003); renombrar
+> `connection/<motor>/*.py` rompe imports en 91 ficheros de tests sin beneficio funcional.
 
 **Objetivo**: Agrupar módulos por responsabilidad, eliminar duplicidades, mejorar mantenibilidad.
 
@@ -378,11 +413,13 @@ src/util_bbdd/
 
 **Estimación de Esfuerzo (C6 RESOLVED)**:
 
-| Opción | Esfuerzo (h) | API Break | Regresión Risk | Test Effort (h) | Rollback Strategy | Recomendación |
+Recalculado en FASE 2 sobre la duplicidad medida (v0.35.8):
+
+| Opción | Esfuerzo (h) | API Break | Regresión Risk | Test Effort (h) | Rollback Strategy | Decisión |
 |---|---|---|---|---|---|---|
-| **A: Layered** | 35-45 | Sí (Level 2: imports change) | MEDIO (6-8 motores) | 15-20 | Revert commits + shims | ✅ **Recomendada** si timeline lo permite |
-| **B: Monolítico** | 15-20 | No (Level 0: backward compat) | BAJO (1-2 engines) | 8-10 | Simple revert | ✅ **Si conservador**: menos riesgo, adopción gradual |
-| **C: Plugin** | 20-30 | No (Level 0) | ALTO (MCP complexity) | 12-15 | Revert + config reset | ❌ **No ahora**: overkill actual, complejidad innecesaria |
+| **A: Layered** | B + 15-20 (mover y reimportar) | Sí (imports de `connection/<motor>/`, 91 ficheros de tests) | MEDIO | 15-20 | Revert commits + shims | ❌ **Descartada**: ahorra los mismos ~200 LoC que B |
+| **B acotada (B1–B6)** | 18-24 | Comportamiento (async valida; Engine sync respeta `pool_*`) | MEDIO en MariaDB, BAJO resto | 11,5 | Un `git revert` por bloque | ✅ **Elegida** |
+| **C: Plugin** | 20-30 | No (Level 0) | ALTO | 12-15 | Revert + config reset | ❌ No ahora |
 
 #### **Opción B: Monolítico Mejorado (Menos Disruptivo)**
 
@@ -422,7 +459,17 @@ DRIVERS = {
 - Heredables a MySQL (drivers PyMySQL/aiomysql vs mariadb)
 - Genéricos a todos los engines (problema universal)
 
-**Propuesta de contrato** (aplicable a todos motores, con defaults diferenciados):
+> ⚠️ **Premisa refutada en FASE 2**: el enum `DETECT/UTF8MB4/NATIVE/CUSTOM` mezcla dos decisiones distintas.
+> (1) El **charset de la sesión**: MariaDB Connector/Python 1.1.14 (sync y pool) solo admite utf8mb4 y rechaza `charset`;
+> solo PyMySQL y aiomysql lo negocian, así que no hay estrategia que elegir en MariaDB sync. (2) La **estrategia de
+> lectura del catálogo** (`native` / `convert` / `failfast`), que ya calcula `select_strategy` en
+> `metadata/_adaptive_executor.py` a partir del diagnóstico. **Decisión FASE 3 (CS-1)**: parámetro
+> `catalog_charset_mode: auto | native | convert`, solo mariadb/mysql, solo camino manager (sync y async), default
+> `auto`; `native` omite el diagnóstico. El camino Engine (`SqlAlchemyCatalogExecutor`) queda fuera (cambiaría el
+> número de consultas de ADR-003/ADR-004). Resto de motores: sin estrategia (sin evidencia del problema).
+> La propuesta original se conserva solo como contexto.
+
+**Propuesta de contrato original (histórica, no implementar)**:
 
 ```python
 # src/util_bbdd/metadata/_charset/strategy.py
@@ -629,7 +676,23 @@ de factories; B1 → 4.4; B2 → 4.2; T1 → antes de cualquier sub-fase)
 
 ### 3.2 Preguntas de Clarificación (si aplica)
 
-Si no hay respuesta a alguna, escalera a usuario:
+**Resueltas el 2026-10-09** (`decision_matrix_phase_2.md` § 6; readiness gate **GO_CONDICIONAL**):
+
+| Pregunta | Decisión |
+|---|---|
+| Alcance | Opción B acotada (B1–B6); Opción A descartada |
+| Validación async | `ValidationError` directo en 0.36.0 (decisión del usuario; sin fase de `FutureWarning`) |
+| Defaults de `schema` | se mueven del builder a `*Config` y valen en sync, async y `ConnectionFactory` |
+| Charset | CS-1 (`catalog_charset_mode`), solo MariaDB/MySQL, camino manager |
+| Doble pool (manager + Engine) | documentar + política única de pool del Engine |
+| Semántica de `pool_size` por motor | documentar; sin cambios |
+| TLS MariaDB | `/new-feature` separado, tras verificar `ssl_*` contra el driver real |
+| Versión | B6, B5, B4 en 0.35.x; B3, B1, CS, B2 en 0.36.0 |
+| C7 MariaDB | cerrada: soportado = validado en el banco (MariaDB 11.4, MySQL 8.4; ver § 1.5) |
+| MySQL 5.7 | sin soporte declarado |
+| HSQLDB sin async/pool | se mantiene; H1 sin validar contra servidor real |
+
+Preguntas originales (históricas):
 
 1. ¿Es aceptable romper API pública de `connection/<motor>/` o debe mantenerse compatible?
 
@@ -652,6 +715,11 @@ Si no hay respuesta a alguna, escalera a usuario:
 ---
 
 ## FASE 4: IMPLEMENT (Refactorización y Resoluciones)
+
+> ⚠️ **Desde v1.0.4 las sub-fases 4.1–4.4 son históricas.** FASE 3 sustituyó la Opción A por los bloques B6 → B5 → B4 →
+> B3 → B1 → CS → B2 (tabla al inicio de FASE 2). 4.1 → CS (solo MariaDB/MySQL); 4.2 → B3 (mixin de cierre, sin pool
+> genérico); 4.3 → descartada (`CatalogExecutor` ya existe); 4.4 → B1 (`*Config` como fuente única; `validators/`
+> queda fuera porque valida queries).
 
 Dependiendo del scope, puede ejecutarse en sub-fases por motor o por aspecto:
 
@@ -894,4 +962,4 @@ Entregar: hallazgos de seguridad, rendimiento, bugs, charset strategy aplicable
 
 ---
 
-*Skill version: 1.0.3 | Last updated: 2026-10-08 | Premisas corregidas tras FASE 1 | Approved for breaking changes*
+*Skill version: 1.0.4 | Last updated: 2026-10-09 | Premisas corregidas tras FASE 1 y FASE 2 | Approved for breaking changes*
