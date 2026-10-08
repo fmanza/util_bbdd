@@ -70,9 +70,11 @@ def _build_oracle_params(kwargs: dict[str, Any], db_type: str) -> dict[str, Any]
     has_dsn: bool = bool(kwargs.get("dsn"))
     has_service: bool = bool(kwargs.get("service_name"))
     has_sid: bool = bool(kwargs.get("sid"))
+    # ``database`` es alias de service_name en OracleConnectionConfig y en las conexiones (makedsn).
+    has_database: bool = bool(kwargs.get("database"))
 
-    if not (has_dsn or has_service or has_sid):
-        raise ValueError("Para oracle debe informar 'dsn' o 'service_name' o 'sid'")
+    if not (has_dsn or has_service or has_sid or has_database):
+        raise ValueError("Para oracle debe informar 'dsn' o 'service_name' o 'sid' o 'database'")
 
     conn_params: dict[str, Any] = {
         "user": kwargs["user"],
@@ -93,6 +95,8 @@ def _build_oracle_params(kwargs: dict[str, Any], db_type: str) -> dict[str, Any]
             conn_params["service_name"] = kwargs["service_name"]
         if has_sid:
             conn_params["sid"] = kwargs["sid"]
+        if has_database:
+            conn_params["database"] = kwargs["database"]
 
     return conn_params
 

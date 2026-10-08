@@ -215,11 +215,9 @@ class CharsetStateDetector:
     ) -> CharsetState:
         """Lógica de diagnóstico para determinar estado."""
 
-        # Prioritario: la sesión activa usa utf8mb4 y la BD también
+        # Prioritario: la sesión activa usa utf8mb4 y la BD también → el global del servidor no importa: el charset
+        # de los datos lo fija la BD/tabla, y si la lectura nativa falla (SystemError) el ejecutor cae a CONVERT.
         if connection_charset == "utf8mb4" and database_charset == "utf8mb4":
-            # server=latin1 implica riesgo de bytes mixtos en objetos creados antes de la migración
-            if server_charset is not None and server_charset != "utf8mb4":
-                return CharsetState.UTF8MB4_MIXED
             if info_schema_charset is not None and info_schema_charset not in ("utf8mb4",):
                 return CharsetState.UTF8MB4_MIXED
             if can_read_comments:

@@ -343,9 +343,12 @@ class TestAdaptiveCatalogExecutor:
         sql = "SELECT COLUMN_COMMENT FROM information_schema.COLUMNS"
         converted = executor._inject_convert(sql)
 
-        # El alias AS COLUMN_COMMENT no debe contener una conversión parcial de COMMENT
-        assert "AS COLUMN_CONVERT" not in converted
-        assert "CONVERT(CAST(COLUMN_COMMENT AS BINARY) USING utf8mb4) AS COLUMN_COMMENT" in converted
+        # COMMENT no debe convertirse por separado dentro de COLUMN_COMMENT. Sin alias AS (v0.35.4): los callers
+        # leen por índice y el alias hacía inválido el SQL en WHERE/ORDER BY.
+        assert "COLUMN_CONVERT" not in converted
+        assert (
+            converted == "SELECT CONVERT(CAST(COLUMN_COMMENT AS BINARY) USING utf8mb4) FROM information_schema.COLUMNS"
+        )
 
     def test_inject_convert_upgrades_existing_convert_wrapper(self) -> None:
         """Regresión: CONVERT(field USING utf8mb4) debe ser actualizado a CAST+BINARY."""
@@ -355,10 +358,11 @@ class TestAdaptiveCatalogExecutor:
         sql = "SELECT TABLE_NAME, CONVERT(COLUMN_COMMENT USING utf8mb4), CASE WHEN COLLATION_NAME <> x THEN 1 END"
         converted = executor._inject_convert(sql)
 
-        # Debe actualizar la forma simple a CAST+BINARY sin anidar CONVERT dentro de CONVERT
-        assert "CONVERT(CAST(COLUMN_COMMENT AS BINARY) USING utf8mb4) AS COLUMN_COMMENT" in converted
-        # No debe producir la forma doble que genera SQL inválido
-        assert "AS COLUMN_COMMENT USING utf8mb4)" not in converted
+        # Debe actualizar la forma simple a CAST+BINARY sin anidar CONVERT dentro de CONVERT (y sin alias AS)
+        assert "CONVERT(CAST(COLUMN_COMMENT AS BINARY) USING utf8mb4)," in converted
+        # No debe producir formas dobles que generan SQL inválido
+        assert "AS COLUMN_COMMENT" not in converted
+        assert converted.count("CONVERT(") == 1
         # No debe quedar la forma simple
         assert "CONVERT(COLUMN_COMMENT USING utf8mb4)" not in converted
 

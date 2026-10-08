@@ -3,7 +3,8 @@
 **Versión SKILL:** 1.0.3 (premisas corregidas contra el código tras FASE 1)  
 **Ubicación SKILL:** `.github/skills/drivers-connections-audit/SKILL.md`  
 **Estado:** FASE 1 ejecutada el 2026-10-08 con `/audit-code` → veredicto **RECHAZADO** (5 bloqueantes P0).
-Siguiente paso: corregir los P0 antes de FASE 2.
+✅ P0 corregidos en **v0.35.5** con `/hotfix` (`.ai/sessions/2026-10-08b-hotfix-drivers-p0/`). Siguiente paso: FASE 2
+(incluyendo los P1 de FASE 1).
 
 ### Resultado de FASE 1 (resumen)
 

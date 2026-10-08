@@ -17,6 +17,7 @@ except ImportError:
 from ..._core.exceptions import PoolConnectionError, PoolTimeoutError
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 from ..params import ConnectionParamsManager
+from ._thick_mode import init_oracle_thick_mode
 
 if TYPE_CHECKING:
     import oracledb
@@ -104,10 +105,16 @@ class PoolConnection:
             Exception: Si la creación del pool falla.
         """
         try:
-            # Inicializar cliente Oracle si se proporciona path
+            # Inicializar cliente Oracle (thick) si se proporciona path: una sola vez por proceso y bajo el lock de
+            # _thick_mode, igual que OracleConnection.connect y el engine de SQLAlchemy.
             oracle_path: str | None = self.conn_params.get("oracle_client_path")
+            if self.conn_params.get("oracle_thick_mode") and not oracle_path:
+                raise ValueError(
+                    "Para usar oracle_thick_mode=True es obligatorio especificar oracle_client_path "
+                    "(ruta del Oracle Instant Client 19+)"
+                )
             if oracle_path:
-                oracledb.init_oracle_client(oracle_path)
+                init_oracle_thick_mode(oracle_path)
 
             # Construir DSN si no existe
             dsn_value: str | None = self.conn_params.get("dsn")

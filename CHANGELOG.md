@@ -5,6 +5,56 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.35.5] - 2026-10-08
+
+Hotfix de los P0 de la FASE 1 de `drivers-connections-audit` (`/audit-code` RECHAZADO,
+`.ai/sessions/2026-10-08-drivers-connections-audit-fase1/`).
+
+### Security
+
+- **factory (S1)**: `SQLAlchemyEngineFactory` y `AsyncSQLAlchemyEngineFactory` escapan usuario y contraseña con
+  `URL.create` en las URLs de MariaDB, PostgreSQL, Oracle y SQL Server (MySQL ya lo hacía). Antes se interpolaban
+  crudos: con una contraseña como `a@evil.example:3306/x?` el Engine conectaba a `evil.example` y le enviaba las
+  credenciales. Corrige también el log saneado, que dejaba ver el final de las contraseñas con `@`.
+- **factory (S4)**: el Engine de `get_sqlalchemy_engine()` (sync y async) conecta con la conexión nativa de
+  `ConnectionFactory` (`creator` / `async_creator`) en MariaDB, MySQL, Oracle, PostgreSQL y SQL Server. Antes solo
+  recibía la URL e ignoraba TLS (`ssl_*` de MySQL, `sslmode` de PostgreSQL, `encryption`/`trust_cert` de SQL Server)
+  y charset (`charset`, `init_command`, `encoding_errors` de MariaDB): bulk, dump y comparar conectaban sin ellos.
+  Oracle con `dsn` o `sid` puede ya obtener Engine. SQLite y HSQLDB siguen conectando por URL.
+
+### Fixed
+
+- **_drivers / data (B1)**: la lista blanca de `database_types.json` acepta los parámetros que admiten las configs:
+  `close_timeout` (todos los motores), `pool_name` (MariaDB), `options` y `target_session_attrs` (PostgreSQL),
+  `database` y `oracle_thick_mode` (Oracle). Antes `SyncDatabaseManager` los rechazaba con `ValidationError`, aunque
+  `docs/guides/drivers.md` documenta `oracle_thick_mode=True`. `connection/builder.py` acepta Oracle con solo
+  `database` (alias de `service_name`).
+- **connection/oracle (B2)**: `OracleConnectionConfig.to_driver_kwargs()` emite `oracle_thick_mode`, así que
+  `OracleConnection.connect` inicializa el modo thick; el pool lo inicializa con `init_oracle_thick_mode` (una vez
+  por proceso, con lock) en lugar de `oracledb.init_oracle_client` directo.
+- **metadata (T1)**: `CharsetStateDetector` vuelve a clasificar como `UTF8MB4_CLEAN` una sesión y una BD en utf8mb4
+  aunque `character_set_server` sea latin1 (semántica de v0.35.3; v0.35.4 lo marcaba `UTF8MB4_MIXED` y forzaba
+  `CONVERT` en todo el catálogo). Si la lectura nativa falla, el ejecutor sigue cayendo a `CONVERT`. Los tests de
+  `_inject_convert` se alinean con la retirada del alias `AS campo` de v0.35.4.
+
+### Changed
+
+- **connection**: `ConnectionFactory.create_connection`, `MariaDBConnection.connect`, `MySQLConnection.connect` y sus
+  versiones async aceptan `found_rows` (por defecto `False`). Los Engine lo activan para conservar el
+  `CLIENT.FOUND_ROWS` que SQLAlchemy pone en MySQL/MariaDB (`rowcount` = filas encontradas). `client_flag` sigue
+  fuera de la lista blanca de `conn_params`.
+- **factory**: el Engine de MariaDB aplica ahora los defaults de la conexión nativa (`init_command="SET NAMES
+  utf8mb4"`, `encoding_errors="replace"` si el driver lo admite), igual que los managers.
+
+### Testing
+
+- Nuevos: `tests/unit/test_engine_factory_credentials.py`, `tests/unit/connection/test_conn_params_whitelist.py`
+  (incluye un guardián: todo campo de `*Config` debe estar en `database_types.json`) y
+  `tests/unit/connection/test_oracle_thick_mode.py`.
+- `pytest`: 5201 passed, 497 skipped (antes 10 failed). `tests/integration` contra el banco: 551 passed, 10 skipped,
+  1 failed preexistente (`test_snapshot_golden.py::…[oracle]`: 13 consultas frente a 12 declaradas; falla igual en
+  v0.35.4).
+
 ## [0.35.4] - 2026-10-08
 
 ### Fixed

@@ -32,12 +32,15 @@ class MySQLConnection:
     logger: logging.Logger = logging.getLogger(__name__)
 
     @staticmethod
-    def connect(conn_params: dict[str, Any]) -> Any:
+    def connect(conn_params: dict[str, Any], found_rows: bool = False) -> Any:
         """
         Establece conexión raw a MySQL.
 
         Args:
             conn_params: Parámetros de conexión validados.
+            found_rows: Activa ``CLIENT.FOUND_ROWS`` (``rowcount`` = filas encontradas, no cambiadas), como hace
+                SQLAlchemy al conectar; lo usa el ``creator`` de ``SQLAlchemyEngineFactory``. No se lee de
+                ``conn_params``: ``client_flag`` sigue fuera de la lista blanca.
 
         Returns:
             Conexión PyMySQL.
@@ -53,6 +56,10 @@ class MySQLConnection:
                 conn_params,
             )
             connect_kwargs: dict[str, Any] = build_pymysql_connect_kwargs(sanitized_conn_params)
+            if found_rows:
+                from pymysql.constants import CLIENT
+
+                connect_kwargs["client_flag"] = CLIENT.FOUND_ROWS
 
             MySQLConnection.logger.debug(f"🔗 Conectando a MySQL con parámetros: {list(connect_kwargs.keys())}")
             conn = pymysql.connect(**connect_kwargs)

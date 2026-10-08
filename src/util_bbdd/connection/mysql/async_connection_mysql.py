@@ -41,8 +41,11 @@ class AsyncMySQLConnection:
     logger: logging.Logger = logging.getLogger(__name__)
 
     @staticmethod
-    async def connect(conn_params: dict[str, Any]) -> Any:
-        """Establece conexión async a MySQL."""
+    async def connect(conn_params: dict[str, Any], found_rows: bool = False) -> Any:
+        """Establece conexión async a MySQL.
+
+        ``found_rows`` activa ``CLIENT.FOUND_ROWS`` como hace SQLAlchemy (``async_creator`` de los AsyncEngine).
+        """
         try:
             import aiomysql
 
@@ -51,6 +54,10 @@ class AsyncMySQLConnection:
                 conn_params,
             )
             connect_kwargs: dict[str, Any] = build_aiomysql_connect_kwargs(sanitized_conn_params, aiomysql.connect)
+            if found_rows:
+                from pymysql.constants import CLIENT
+
+                connect_kwargs["client_flag"] = CLIENT.FOUND_ROWS
 
             AsyncMySQLConnection.logger.debug(
                 f"🔗 Conectando a MySQL async con parámetros: {list(connect_kwargs.keys())}"

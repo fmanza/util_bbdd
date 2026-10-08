@@ -40,8 +40,11 @@ class AsyncMariaDBConnection:
         return {k: v for k, v in normalized.items() if k in allowed_keys}
 
     @staticmethod
-    async def connect(conn_params: dict[str, Any]) -> Any:
-        """Establece conexión async a MariaDB."""
+    async def connect(conn_params: dict[str, Any], found_rows: bool = False) -> Any:
+        """Establece conexión async a MariaDB.
+
+        ``found_rows`` activa ``CLIENT.FOUND_ROWS`` como hace SQLAlchemy (``async_creator`` de los AsyncEngine).
+        """
         try:
             import aiomysql
 
@@ -50,6 +53,10 @@ class AsyncMariaDBConnection:
                 conn_params,
             )
             connect_kwargs: dict[str, Any] = AsyncMariaDBConnection._map_connect_kwargs(sanitized_conn_params)
+            if found_rows:
+                from pymysql.constants import CLIENT
+
+                connect_kwargs["client_flag"] = CLIENT.FOUND_ROWS
 
             AsyncMariaDBConnection.logger.debug(
                 f"🔗 Conectando a MariaDB async con parámetros: {list(connect_kwargs.keys())}"

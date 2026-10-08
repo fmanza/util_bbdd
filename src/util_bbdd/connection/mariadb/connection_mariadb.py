@@ -19,12 +19,15 @@ class MariaDBConnection:
     logger: logging.Logger = logging.getLogger(__name__)
 
     @staticmethod
-    def connect(conn_params: dict[str, Any]) -> Any:
+    def connect(conn_params: dict[str, Any], found_rows: bool = False) -> Any:
         """
         Establece conexión raw a MariaDB.
 
         Args:
             conn_params: Parámetros de conexión validados.
+            found_rows: Activa ``CLIENT.FOUND_ROWS`` (``rowcount`` = filas encontradas, no cambiadas), como hace
+                SQLAlchemy al conectar; lo usa el ``creator`` de ``SQLAlchemyEngineFactory``. No se lee de
+                ``conn_params``: ``client_flag`` sigue fuera de la lista blanca.
 
         Returns:
             Conexión a MariaDB.
@@ -39,6 +42,10 @@ class MariaDBConnection:
                 "mariadb",
                 conn_params,
             )
+            if found_rows:
+                from mariadb.constants import CLIENT
+
+                sanitized_conn_params["client_flag"] = CLIENT.FOUND_ROWS
 
             MariaDBConnection.logger.debug(
                 f"🔗 Conectando a MariaDB con parámetros: {list(sanitized_conn_params.keys())}"

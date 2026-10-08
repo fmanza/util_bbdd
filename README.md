@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, MySQL, Oracle, PostgreSQL, SQLite y SQL Server (sync y async), y HSQLDB (sync).
 
-**Version:** 0.35.4 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.35.5 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -1128,7 +1128,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.35.4** (pool MariaDB: `init_command` ejecutado en cada `get_connection()`; `init_command` por defecto `SET NAMES utf8mb4`)
+**Current Version: v0.35.5** (hotfix de seguridad: credenciales escapadas en las URLs de Engine; el Engine aplica TLS y charset de `conn_params`; `oracle_thick_mode` y `close_timeout` aceptados)
 
 Roadmap resumido (ver [ROADMAP completo](docs/roadmap.md) y
 [CHANGELOG](CHANGELOG.md) para el detalle):

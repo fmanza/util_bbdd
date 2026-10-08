@@ -84,6 +84,17 @@
             "type": "string",
             "default": "replace",
             "description": "Estrategia para manejar errores de decodificación: 'replace', 'strict', 'ignore' (v0.35.0+; requiere mariadb >= 1.1.4)"
+          },
+          {
+            "name": "pool_name",
+            "type": "string",
+            "description": "Nombre del pool nativo de MariaDB (por defecto se genera uno único por instancia)"
+          },
+          {
+            "name": "close_timeout",
+            "type": "float",
+            "default": 10,
+            "description": "Segundos de espera al cerrar la conexión o el pool en close(); <= 0 desactiva el límite"
           }
         ]
       },
@@ -213,6 +224,12 @@
             "name": "ssl_verify_identity",
             "type": "boolean",
             "description": "Verificar que el nombre del host coincide con el certificado"
+          },
+          {
+            "name": "close_timeout",
+            "type": "float",
+            "default": 10,
+            "description": "Segundos de espera al cerrar la conexión o el pool en close(); <= 0 desactiva el límite"
           }
         ]
       },
@@ -304,6 +321,23 @@
             "type": "integer",
             "default": 3600,
             "description": "Tiempo máximo de vida de una sesión en segundos"
+          },
+          {
+            "name": "database",
+            "type": "string",
+            "description": "Alias de service_name (se usa si no se informa dsn, service_name ni sid)"
+          },
+          {
+            "name": "oracle_thick_mode",
+            "type": "boolean",
+            "default": false,
+            "description": "Inicializa python-oracledb en modo thick (requiere oracle_client_path; necesario para Oracle 11g)"
+          },
+          {
+            "name": "close_timeout",
+            "type": "float",
+            "default": 10,
+            "description": "Segundos de espera al cerrar la conexión o el pool en close(); <= 0 desactiva el límite"
           }
         ]
       },
@@ -436,6 +470,22 @@
             "type": "integer",
             "default": 300,
             "description": "Tiempo máximo de inactividad de conexión en segundos"
+          },
+          {
+            "name": "options",
+            "type": "string",
+            "description": "Opciones libpq de sesión (p. ej. '-c statement_timeout=0'); se combinan con schema"
+          },
+          {
+            "name": "target_session_attrs",
+            "type": "string",
+            "description": "Tipo de servidor aceptado en conexiones multi-host (libpq: any, read-write, read-only...)"
+          },
+          {
+            "name": "close_timeout",
+            "type": "float",
+            "default": 10,
+            "description": "Segundos de espera al cerrar la conexión o el pool en close(); <= 0 desactiva el límite"
           }
         ]
       },
@@ -507,6 +557,12 @@
             "name": "connection_properties",
             "type": "object",
             "description": "Propiedades adicionales de conexión"
+          },
+          {
+            "name": "close_timeout",
+            "type": "float",
+            "default": 10,
+            "description": "Segundos de espera al cerrar la conexión o el pool en close(); <= 0 desactiva el límite"
           }
         ]
       },
@@ -644,6 +700,12 @@
             "type": "integer",
             "default": 30,
             "description": "Timeout para obtener conexión del pool en segundos"
+          },
+          {
+            "name": "close_timeout",
+            "type": "float",
+            "default": 10,
+            "description": "Segundos de espera al cerrar la conexión o el pool en close(); <= 0 desactiva el límite"
           }
         ]
       },
@@ -758,6 +820,12 @@
             "type": "integer",
             "default": 1,
             "description": "Tamaño del pool (SQLite siempre usa 1 conexión, parámetro ignorado)"
+          },
+          {
+            "name": "close_timeout",
+            "type": "float",
+            "default": 10,
+            "description": "Segundos de espera al cerrar la conexión o el pool en close(); <= 0 desactiva el límite"
           }
         ]
       },

@@ -433,6 +433,8 @@ class OracleConnectionConfig:
             payload["database"] = self.database
         if self.oracle_client_path:
             payload["oracle_client_path"] = self.oracle_client_path
+        if self.oracle_thick_mode:
+            payload["oracle_thick_mode"] = True
         return payload
 
 

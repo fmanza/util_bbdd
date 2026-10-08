@@ -87,6 +87,7 @@ class ConnectionFactory:
         conn_params: dict[str, Any],
         db_validator: Any = None,
         sql_server_driver: str = "pymssql",
+        found_rows: bool = False,
     ) -> Any:
         """Crea una conexión sincrónica nativa según tipo de BD.
 
@@ -96,6 +97,8 @@ class ConnectionFactory:
             conn_params: Parámetros de conexión filtrados
             db_validator: Validador de tipos de BD (opcional)
             sql_server_driver: Driver SQL Server a usar ('pymssql' o 'pyodbc')
+            found_rows: MariaDB/MySQL: ``CLIENT.FOUND_ROWS`` como lo activa SQLAlchemy (``creator`` de los Engine);
+                se ignora en el resto de motores
 
         Returns:
             Conexión del driver específico
@@ -118,14 +121,14 @@ class ConnectionFactory:
             if normalized_type == "mariadb":
                 from .mariadb.connection_mariadb import MariaDBConnection
 
-                connection = MariaDBConnection.connect(conn_params)
+                connection = MariaDBConnection.connect(conn_params, found_rows=found_rows)
                 logger.info("🔗 MariaDB conexión creada (nativo)")
                 return connection
 
             elif normalized_type == "mysql":
                 from .mysql.connection_mysql import MySQLConnection
 
-                connection = MySQLConnection.connect(conn_params)
+                connection = MySQLConnection.connect(conn_params, found_rows=found_rows)
                 logger.info("🔗 MySQL conexión creada (PyMySQL)")
                 return connection
 

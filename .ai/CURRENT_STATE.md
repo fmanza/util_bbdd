@@ -94,7 +94,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-00. `v0.35.4` (2026-10-08): FASE 1 de `drivers-connections-audit` RECHAZADO (`.ai/sessions/2026-10-08-drivers-connections-audit-fase1/`). Siguiente: `/hotfix` de los P0 S1, B1, B2, S4, T1 (5 tests rojos en `tests/unit/metadata/test_charset_detection.py`); arreglar 3 anclas rotas que hacen fallar `zensical build --strict`. Suite: 5153 passed, 5 failed, 497 skipped.
+00. `v0.35.5` (2026-10-08): hotfix de los P0 de `drivers-connections-audit` (S1, B1, B2, S4, T1; `.ai/sessions/2026-10-08b-hotfix-drivers-p0/`). Suite: 5201 passed, 497 skipped; `tests/integration`: 551 passed, 10 skipped, 1 failed preexistente (`test_snapshot_golden.py[oracle]`). Siguiente: P1 de la FASE 1 (Q1, Y3, M3/Y2, M1, P1, O1), 3 anclas rotas que hacen fallar `zensical build --strict`, FASE 2 de la skill.
 0. `v0.31.0` cerrada (2026-10-04; centralización de metadatos, `.ai/sessions/2026-10-03-metadata-centralization/`, ADR-003). Pendiente: push de `develop` y tag; teardown de los schemas `zz_*` del banco; hallazgos no bloqueantes F3–F5, F7, H1–H2 del audit-code (en el TRACEABILITY de la sesión). Pendiente externo: issue del ORA-03106 (`.ai/sessions/2026-10-01y-ora03106-repro/ISSUE_DRAFT.md`). S-1 sigue NO_GO.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.

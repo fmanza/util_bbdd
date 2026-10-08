@@ -2,7 +2,8 @@
 
 import logging
 
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from sqlalchemy.engine.base import Engine
@@ -14,6 +15,40 @@ class SQLAlchemyEngineFactory:
     """Factory para crear y gestionar Engine de SQLAlchemy."""
 
     logger: logging.Logger = logging.getLogger(__name__)
+
+    #: Motores cuyo Engine abre conexiones con :class:`~util_bbdd.connection.factory.ConnectionFactory` (``creator``):
+    #: la URL solo elige el dialecto y TLS, charset, ``init_command``, ``dsn``/``sid``… se aplican igual que en los
+    #: managers. SQLite y HSQLDB no tienen nada de eso que aplicar y siguen conectando por URL.
+    _NATIVE_CREATOR_TYPES: ClassVar[frozenset[str]] = frozenset(
+        {"mariadb", "mysql", "oracle", "postgresql", "sqlserver"}
+    )
+
+    @staticmethod
+    def _native_creator(
+        db_type: str,
+        conn_params: dict[str, Any],
+        database: str,
+        sql_server_driver: str,
+    ) -> Callable[[], Any] | None:
+        """``creator`` de ``create_engine`` que conecta con el driver nativo de la librería (``None`` si no aplica)."""
+        if db_type not in SQLAlchemyEngineFactory._NATIVE_CREATOR_TYPES:
+            return None
+        from ..connection.factory import ConnectionFactory
+
+        params: dict[str, Any] = dict(conn_params)
+        if database:
+            params["database"] = database
+
+        # Con ``creator`` SQLAlchemy no llama a ``dialect.create_connect_args``: el CLIENT.FOUND_ROWS que añaden los
+        # dialectos MySQL/MariaDB (``rowcount`` = filas encontradas) hay que pedirlo aquí.
+        found_rows = db_type in ("mariadb", "mysql")
+
+        def _creator() -> Any:
+            return ConnectionFactory.create_connection(
+                db_type, params, sql_server_driver=sql_server_driver, found_rows=found_rows
+            )
+
+        return _creator
 
     @staticmethod
     def create_engine(
@@ -87,6 +122,9 @@ class SQLAlchemyEngineFactory:
             pool_kwargs: dict[str, Any] = {"pool_pre_ping": True, "echo": False}
             if db_type in ("mariadb", "mysql"):
                 pool_kwargs["pool_recycle"] = 3600
+            creator = SQLAlchemyEngineFactory._native_creator(db_type, conn_params, database, sql_server_driver)
+            if creator is not None:
+                pool_kwargs["creator"] = creator
             engine: Engine = create_engine(conn_str, **pool_kwargs)
 
             # Verificar que la conexión funciona con query apropiada por motor
@@ -177,7 +215,7 @@ class SQLAlchemyEngineFactory:
         if not database:
             raise ValidationError("Se requiere 'database' para MariaDB", db_type="mariadb")
 
-        return f"mariadb+mariadbconnector://{user}:{password}@{host}:{port}/{database}"
+        return SQLAlchemyEngineFactory._render_url("mariadb+mariadbconnector", user, password, host, port, database)
 
     @staticmethod
     def _build_mysql_connection_string(conn_params: dict[str, Any], database: str) -> str:
@@ -249,9 +287,14 @@ class SQLAlchemyEngineFactory:
             )
 
         if not service_name:
+            if conn_params.get("dsn") or conn_params.get("sid"):
+                # El destino lo resuelve el ``creator`` nativo (OracleConnection: makedsn con dsn/sid).
+                return SQLAlchemyEngineFactory._render_url("oracle+oracledb", user, password, host, port, "")
             raise ValidationError("Se requiere 'service_name' o 'database' para Oracle", db_type="oracle")
 
-        return f"oracle+oracledb://{user}:{password}@{host}:{port}/?service_name={service_name}"
+        return SQLAlchemyEngineFactory._render_url(
+            "oracle+oracledb", user, password, host, port, "", query={"service_name": service_name}
+        )
 
     @staticmethod
     def _build_postgresql_connection_string(conn_params: dict[str, Any], database: str) -> str:
@@ -282,7 +325,7 @@ class SQLAlchemyEngineFactory:
         if not database:
             raise ValidationError("Se requiere 'database' para PostgreSQL", db_type="postgresql")
 
-        return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{database}"
+        return SQLAlchemyEngineFactory._render_url("postgresql+psycopg", user, password, host, port, database)
 
     @staticmethod
     def _build_hsqldb_connection_string(conn_params: dict[str, Any], database: str) -> str:
@@ -331,11 +374,37 @@ class SQLAlchemyEngineFactory:
                 db_type="sqlserver",
             )
 
-        # Construir URL diferente según el driver
-        if sql_server_driver == "pyodbc":
-            return f"mssql+pyodbc://{user}:{password}@{host}:{port}/{database}"
-        else:  # pymssql por defecto
-            return f"mssql+pymssql://{user}:{password}@{host}:{port}/{database}"
+        # Construir URL diferente según el driver (pymssql por defecto)
+        drivername = "mssql+pyodbc" if sql_server_driver == "pyodbc" else "mssql+pymssql"
+        return SQLAlchemyEngineFactory._render_url(drivername, user, password, host, port, database)
+
+    @staticmethod
+    def _render_url(
+        drivername: str,
+        user: str,
+        password: str,
+        host: str,
+        port: Any,
+        database: str,
+        query: dict[str, str] | None = None,
+    ) -> str:
+        """URL con usuario y contraseña escapados (``URL.create``).
+
+        Interpolarlos crudos permite que ``@``, ``:``, ``/``, ``?`` o ``#`` en la contraseña cambien el host de la URL
+        (hotfix S1, drivers-connections-audit FASE 1).
+        """
+        from sqlalchemy.engine import URL
+
+        url = URL.create(
+            drivername,
+            username=str(user),
+            password=str(password),
+            host=str(host),
+            port=int(port),
+            database=database,
+            query=query or {},
+        )
+        return url.render_as_string(hide_password=False)
 
     @staticmethod
     def _build_sqlite_connection_string(conn_params: dict[str, Any]) -> str:

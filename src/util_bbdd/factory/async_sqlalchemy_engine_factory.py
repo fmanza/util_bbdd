@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 import os
 
-from typing import TYPE_CHECKING, Any
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine
@@ -17,6 +18,60 @@ class AsyncSQLAlchemyEngineFactory:
     """Factory para crear y gestionar AsyncEngine de SQLAlchemy."""
 
     logger: logging.Logger = logging.getLogger(__name__)
+
+    #: Motores cuyo AsyncEngine abre conexiones con ``ConnectionFactory.create_async_connection`` (``async_creator``):
+    #: la URL solo elige el dialecto y los parámetros de ``conn_params`` se aplican igual que en los managers.
+    _NATIVE_CREATOR_TYPES: ClassVar[frozenset[str]] = frozenset(
+        {"mariadb", "mysql", "oracle", "postgresql", "sqlserver"}
+    )
+
+    @staticmethod
+    def _native_async_creator(
+        db_type: str,
+        conn_params: dict[str, Any],
+        database: str | None,
+    ) -> Callable[[], Awaitable[Any]] | None:
+        """``async_creator`` que conecta con el driver async nativo de la librería (``None`` si no aplica)."""
+        if db_type not in AsyncSQLAlchemyEngineFactory._NATIVE_CREATOR_TYPES:
+            return None
+        from ..connection.factory import ConnectionFactory
+
+        params: dict[str, Any] = dict(conn_params)
+        if database:
+            params["database"] = database
+
+        # Con ``async_creator`` SQLAlchemy no llama a ``dialect.create_connect_args``: el CLIENT.FOUND_ROWS que añade
+        # el dialecto aiomysql (``rowcount`` = filas encontradas) hay que pedirlo aquí.
+        extra: dict[str, Any] = {"found_rows": True} if db_type in ("mariadb", "mysql") else {}
+
+        async def _async_creator() -> Any:
+            return await ConnectionFactory.create_async_connection(db_type, params, **extra)
+
+        return _async_creator
+
+    @staticmethod
+    def _render_url(
+        drivername: str,
+        user: str,
+        password: str,
+        host: str,
+        port: Any,
+        database: str,
+        query: dict[str, str] | None = None,
+    ) -> str:
+        """URL con usuario y contraseña escapados (``URL.create``); ver ``SQLAlchemyEngineFactory._render_url``."""
+        from sqlalchemy.engine import URL
+
+        url = URL.create(
+            drivername,
+            username=str(user),
+            password=str(password),
+            host=str(host),
+            port=int(port),
+            database=database,
+            query=query or {},
+        )
+        return url.render_as_string(hide_password=False)
 
     @staticmethod
     async def create_engine(
@@ -108,6 +163,10 @@ class AsyncSQLAlchemyEngineFactory:
                     )
             else:
                 engine_kwargs["poolclass"] = NullPool
+
+            async_creator = AsyncSQLAlchemyEngineFactory._native_async_creator(normalized_type, conn_params, database)
+            if async_creator is not None:
+                engine_kwargs["async_creator"] = async_creator
 
             engine: AsyncEngine = create_async_engine(conn_str, **engine_kwargs)
 
@@ -211,7 +270,7 @@ class AsyncSQLAlchemyEngineFactory:
         if not target_db:
             raise ValidationError("Se requiere 'database' para MariaDB", db_type="mariadb")
 
-        return f"mysql+aiomysql://{user}:{password}@{host}:{port}/{target_db}"
+        return AsyncSQLAlchemyEngineFactory._render_url("mysql+aiomysql", user, password, host, port, target_db)
 
     @staticmethod
     def _build_mysql_connection_string(conn_params: dict[str, Any], database: str | None) -> str:
@@ -296,12 +355,17 @@ class AsyncSQLAlchemyEngineFactory:
             )
 
         if not service_name:
+            if conn_params.get("dsn") or conn_params.get("sid"):
+                # El destino lo resuelve el ``async_creator`` nativo (AsyncOracleConnection: makedsn con dsn/sid).
+                return AsyncSQLAlchemyEngineFactory._render_url("oracle+oracledb", user, password, host, port, "")
             raise ValidationError(
                 "Se requiere 'service_name' o 'database' para Oracle",
                 db_type="oracle",
             )
 
-        return f"oracle+oracledb://{user}:{password}@{host}:{port}/?service_name={service_name}"
+        return AsyncSQLAlchemyEngineFactory._render_url(
+            "oracle+oracledb", user, password, host, port, "", query={"service_name": service_name}
+        )
 
     @staticmethod
     def _build_postgresql_connection_string(conn_params: dict[str, Any], database: str | None) -> str:
@@ -341,7 +405,7 @@ class AsyncSQLAlchemyEngineFactory:
         if not target_db:
             raise ValidationError("Se requiere 'database' para PostgreSQL", db_type="postgresql")
 
-        return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{target_db}"
+        return AsyncSQLAlchemyEngineFactory._render_url("postgresql+asyncpg", user, password, host, port, target_db)
 
     @staticmethod
     def _build_sqlserver_connection_string(
@@ -392,7 +456,7 @@ class AsyncSQLAlchemyEngineFactory:
                 db_type="sqlserver",
             )
 
-        return f"mssql+aioodbc://{user}:{password}@{host}:{port}/{target_db}"
+        return AsyncSQLAlchemyEngineFactory._render_url("mssql+aioodbc", user, password, host, port, target_db)
 
     @staticmethod
     def _build_sqlite_connection_string(conn_params: dict[str, Any]) -> str:
