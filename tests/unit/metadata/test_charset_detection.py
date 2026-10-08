@@ -370,34 +370,6 @@ class TestAdaptiveCatalogExecutor:
 class TestCharsetDetectionFixes:
     """Tests para los fixes B, C, D aplicados en v0.35.3."""
 
-    # --- Fix B: qmark paramstyle ---
-
-    def test_translate_sql_qmark_single_placeholder(self) -> None:
-        """Fix B: qmark traduce :nombre → ? con valor en posición correcta."""
-        conn = mock.MagicMock()
-        detector = CharsetStateDetector(conn, "qmark")
-
-        result = detector._translate_sql(
-            "SELECT TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = :schema LIMIT 1",
-            {"schema": "mydb"},
-        )
-
-        assert isinstance(result, tuple)
-        sql, args = result
-        assert "?" in sql
-        assert ":schema" not in sql
-        assert args == ("mydb",)
-
-    def test_translate_sql_qmark_no_placeholders_returns_string(self) -> None:
-        """Fix B: qmark sin placeholders retorna SQL sin modificar (no tuple)."""
-        conn = mock.MagicMock()
-        detector = CharsetStateDetector(conn, "qmark")
-
-        result = detector._translate_sql("SELECT @@character_set_server", {})
-
-        assert isinstance(result, str)
-        assert result == "SELECT @@character_set_server"
-
     # --- Fix C: SCHEMATA query ---
 
     def test_info_schema_charset_query_uses_schemata(self) -> None:

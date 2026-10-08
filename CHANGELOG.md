@@ -5,6 +5,24 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.35.9] - 2026-10-09
+
+Bloque B6 (limpieza) de la FASE 4 de `drivers-connections-audit` (`.ai/sessions/2026-10-09-refactor-drivers-b6/`).
+Sin cambios funcionales.
+
+### Added
+
+- **connection**: `MySQLConnectionConfig` y `MySQLPoolConfig` se exportan en `util_bbdd.connection`, como las configs de
+  los otros seis motores (D11).
+
+### Removed
+
+- **managers**: `managers/_manager_lifecycle_async.py` (`AsyncLifecycleManager`), módulo privado sin uso desde MGR-02;
+  `AsyncDatabaseManager` gestiona su ciclo de vida con `_manager_lifecycle.py::init_async_resources` (D7).
+- **metadata**: `CharsetStateDetector._translate_sql`, privado. Las consultas de diagnóstico son literales: con los
+  `paramstyle` de pymysql (`pyformat`) y mariadb (`qmark`) ya devolvía el SQL sin cambios; su rama `format` ordenaba los
+  argumentos por nombre y nunca se ejecutaba (D8). `_fetch_one` ejecuta la consulta directamente.
+
 ## [0.35.8] - 2026-10-08
 
 Resto de hallazgos P2 de la FASE 1 de `drivers-connections-audit` (`.ai/sessions/2026-10-08e-fix-drivers-p2b/`).

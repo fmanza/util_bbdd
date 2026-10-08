@@ -31,6 +31,8 @@ from .config import (
     HSQLDBConnectionConfig,
     MariaDBConnectionConfig,
     MariaDBPoolConfig,
+    MySQLConnectionConfig,
+    MySQLPoolConfig,
     OracleConnectionConfig,
     OraclePoolConfig,
     PostgreSQLConnectionConfig,
@@ -67,6 +69,8 @@ __all__: list[str] = [
     # Configs
     "MariaDBConnectionConfig",
     "MariaDBPoolConfig",
+    "MySQLConnectionConfig",
+    "MySQLPoolConfig",
     "OracleConnectionConfig",
     "OraclePoolConfig",
     "PostgreSQLConnectionConfig",

@@ -92,7 +92,8 @@ class CharsetStateDetector:
 
     Args:
         connection: Conexión DB-API 2.0 abierta (mariadb, pymysql, etc.).
-        paramstyle: `paramstyle` del driver (p.ej. "named", "qmark", "format").
+        paramstyle: `paramstyle` del driver. Se conserva por compatibilidad de firma: las consultas de diagnóstico
+            son literales y no necesitan traducción.
 
     Example:
         >>> detector = CharsetStateDetector(conn, "named")
@@ -105,19 +106,12 @@ class CharsetStateDetector:
         self.connection = connection
         self.paramstyle = paramstyle
 
-    def _fetch_one(self, sql: str, params: dict[str, Any] | None = None) -> Any:
-        """Ejecuta query simple, retorna primer valor o None en caso de error."""
-        if params is None:
-            params = {}
+    def _fetch_one(self, sql: str) -> Any:
+        """Ejecuta una consulta literal (sin parámetros) y devuelve el primer valor, o None si falla."""
         try:
             cursor = self.connection.cursor()
             try:
-                # Traducir SQL de catálogo al paramstyle del driver
-                driver_sql = self._translate_sql(sql, params)
-                if isinstance(driver_sql, tuple):
-                    cursor.execute(driver_sql[0], driver_sql[1])
-                else:
-                    cursor.execute(driver_sql)
+                cursor.execute(sql)
                 row = cursor.fetchone()
                 return row[0] if row else None
             finally:
@@ -125,34 +119,6 @@ class CharsetStateDetector:
         except Exception as exc:
             logger.debug(f"_fetch_one() failed: {exc}")
             return None
-
-    def _translate_sql(self, sql: str, params: dict[str, Any]) -> str | tuple[str, Any]:
-        """Traduce SQL con :nombre a paramstyle del driver (naive; paramstyle='named' es pass-through)."""
-        # En v0.33.0 usamos paramstyle='named' (heredado de paramstyle de driver)
-        # La traducción completa requiere _paramstyle.to_driver(), pero aquí es simple
-        if self.paramstyle == "named":
-            return sql
-        elif self.paramstyle == "format":
-            # :schema → %s; params → list en orden
-            import re
-
-            placeholders = sorted(re.findall(r":(\w+)", sql), reverse=True)
-            translated_sql = sql
-            for name in placeholders:
-                translated_sql = translated_sql.replace(f":{name}", "%s", 1)
-            args = [params.get(name) for name in sorted(params.keys())]
-            return translated_sql, tuple(args)
-        elif self.paramstyle == "qmark":
-            import re
-
-            names_ordered = re.findall(r":(\w+)", sql)
-            if not names_ordered:
-                return sql
-            translated_sql = re.sub(r":\w+", "?", sql)
-            args = [params.get(n) for n in names_ordered]
-            return translated_sql, tuple(args)
-        else:
-            return sql
 
     def diagnose(self) -> CharsetDiagnosis:
         """Realiza diagnóstico completo de charset sin excepciones."""
