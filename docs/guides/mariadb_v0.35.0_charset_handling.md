@@ -1,5 +1,11 @@
 # MariaDB v0.35.0: Manejo de Charset — `init_command` y `encoding_errors`
 
+!!! warning "Corrección (v0.35.7)"
+    Esta guía describe el diseño de v0.35.0. Comprobado contra el driver real: MariaDB Connector/Python 1.1.14 (la
+    última versión) **no admite `encoding_errors` ni `charset`**, así que con ese driver `encoding_errors` nunca
+    llegó a aplicarse; desde v0.35.7 es un parámetro sin efecto. Lo vigente está en
+    la [Guía de conexión § 6](connection_guide.md#6-parametros-especiales-de-mariadb-init_command-y-encoding_errors).
+
 ## 1. Objetivo
 
 Explicar los dos nuevos parámetros introducidos en v0.35.0 (`init_command` y `encoding_errors`) y cómo

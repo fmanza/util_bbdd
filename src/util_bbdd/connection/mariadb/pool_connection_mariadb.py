@@ -19,7 +19,7 @@ from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_
 from ..params import ConnectionParamsManager
 
 # Parámetros que el pool puede rechazar según versión del driver; se eliminan uno a uno si procede.
-_OPTIONAL_POOL_PARAMS: frozenset[str] = frozenset({"charset", "init_command", "encoding_errors"})
+_OPTIONAL_POOL_PARAMS: frozenset[str] = frozenset({"init_command"})
 
 
 class PoolConnection:
@@ -105,7 +105,8 @@ class PoolConnection:
                 sanitized_conn_params["pool_name"] = pool_name
 
             # Preparar pool_params
-            pool_params: dict[str, str | int] = dict(sanitized_conn_params)
+            # mariadb.ConnectionPool no admite charset (comprobado en 1.1.14, la última); lo usa el pool async (aiomysql)
+            pool_params: dict[str, str | int] = {k: v for k, v in sanitized_conn_params.items() if k != "charset"}
 
             # Crear pool; reintentar eliminando kwargs opcionales rechazados por el driver
             for _ in range(len(_OPTIONAL_POOL_PARAMS) + 1):
@@ -129,7 +130,7 @@ class PoolConnection:
                             f"ejecutaremos manualmente en get_connection() (mariadb version={mariadb_version})"
                         )
                     else:
-                        # Otros parámetros (charset, encoding_errors, etc.)
+                        # Otros parámetros opcionales rechazados por la versión instalada del driver
                         pool_params = {k: v for k, v in pool_params.items() if k != rejected}
                         self.logger.warning(
                             f"⚠️ mariadb.ConnectionPool() rechazó '{rejected}'; "

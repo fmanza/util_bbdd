@@ -65,6 +65,8 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
     )
     _query_catalog: DatabaseQueries
     sync_query_executor: SyncQueryExecutor | None
+    #: Engine de ``get_sqlalchemy_engine()`` (se crea al pedirlo y se cierra en ``close()``).
+    _sqlalchemy_engine: Engine | None = None
 
     def __init__(
         self,
@@ -275,6 +277,10 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         effective_timeout: float | None = (
             self._default_close_timeout_seconds if timeout_seconds is None else timeout_seconds
         )
+        engine: Engine | None = getattr(self, "_sqlalchemy_engine", None)
+        self._sqlalchemy_engine = None
+        if engine is not None:
+            engine.dispose()
         pool: ConnectionPoolProtocol | None = self.pool_connection
         self.pool_connection = None
         cursor = self.cursor
@@ -684,10 +690,11 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
 
     def get_sqlalchemy_engine(self) -> "Engine":
         """
-        Obtiene un Engine de SQLAlchemy basado en la configuración actual.
+        Obtiene el Engine de SQLAlchemy del manager (se crea en la primera llamada y se reutiliza).
 
         Este método es útil para usar SyncDatabaseManager con librerías que requieren
-        una Engine de SQLAlchemy, como bulk_crud.
+        una Engine de SQLAlchemy, como bulk_crud. ``close()`` cierra el Engine (``dispose``);
+        una llamada posterior crea uno nuevo.
 
         Returns:
             Engine de SQLAlchemy configurado con la base de datos actual.
@@ -704,12 +711,17 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             from util_bbdd.bulk import bulk_crud
             bcm = bulk_crud(engine)
         """
-        return SQLAlchemyEngineFactory.create_engine(
-            self.db_type,
-            self.conn_params,
-            self.database,
-            sql_server_driver=self.sql_server_driver,
-        )
+        engine: Engine | None = getattr(self, "_sqlalchemy_engine", None)
+        if engine is None:
+            # Antes cada llamada creaba un Engine (pool propio + SELECT 1) que nadie cerraba.
+            engine = SQLAlchemyEngineFactory.create_engine(
+                self.db_type,
+                self.conn_params,
+                self.database,
+                sql_server_driver=self.sql_server_driver,
+            )
+            self._sqlalchemy_engine = engine
+        return engine
 
     # ==================== CONTEXT MANAGER ====================
 

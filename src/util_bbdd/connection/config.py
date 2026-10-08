@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
+import warnings
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -60,7 +61,7 @@ def _to_bool(value: Any, key: str, db_type: str) -> bool:
 class MariaDBConnectionConfig:
     host: str
     user: str
-    password: str
+    password: str = field(repr=False)  # fuera de repr: tracebacks, depuradores, Sentry
     database: str
     port: int = 3306
     unix_socket: str | None = None
@@ -69,7 +70,9 @@ class MariaDBConnectionConfig:
     read_timeout: int = 30
     write_timeout: int = 60
     charset: str = "utf8mb4"
-    encoding_errors: str = "replace"
+    #: Sin efecto: ningún driver de MariaDB lo admite (Connector/Python 1.1.14 lanza ``TypeError``). Se conserva por
+    #: compatibilidad; ``from_params`` avisa con ``FutureWarning`` y ``to_driver_kwargs`` no lo envía.
+    encoding_errors: str | None = None
     init_command: str = "SET NAMES utf8mb4"
 
     @classmethod
@@ -79,16 +82,20 @@ class MariaDBConnectionConfig:
         # El charset llega al driver y al SET NAMES por defecto: solo nombres de charset (letras, dígitos, _).
         if not re.fullmatch(r"[A-Za-z0-9_]+", charset):
             raise ValueError(f"Parametro invalido para {db_type}: charset '{charset}' no es un nombre de charset")
-        encoding_errors = _opt_str(params, "encoding_errors") or "replace"
-        # Por defecto la sesión usa el mismo charset con el que decodifica el driver (con un SET NAMES fijo en utf8mb4,
-        # charset="latin1" decodificaba como latin1 bytes enviados en utf8mb4).
-        init_command = _opt_str(params, "init_command") or f"SET NAMES {charset}"
-
-        # Validar encoding_errors: solo valores permitidos
-        if encoding_errors not in {"replace", "strict", "ignore"}:
-            raise ValueError(
-                f"Parametro invalido para {db_type}: encoding_errors debe ser 'replace', 'strict' o 'ignore'; "
-                f"recibido '{encoding_errors}'"
+        # MariaDB Connector/Python (sync) solo admite sesiones utf8mb4 ("Character set 'latin1' is not supported"):
+        # el SET NAMES por defecto es siempre utf8mb4. ``charset`` lo usa aiomysql (async).
+        init_command = _opt_str(params, "init_command") or "SET NAMES utf8mb4"
+        encoding_errors = _opt_str(params, "encoding_errors")
+        if encoding_errors is not None:
+            if encoding_errors not in {"replace", "strict", "ignore"}:
+                raise ValueError(
+                    f"Parametro invalido para {db_type}: encoding_errors debe ser 'replace', 'strict' o 'ignore'; "
+                    f"recibido '{encoding_errors}'"
+                )
+            warnings.warn(
+                "encoding_errors no tiene efecto: ningún driver de MariaDB lo admite (se ignora)",
+                FutureWarning,
+                stacklevel=2,
             )
         return cls(
             host=_require_str(params, "host", db_type),
@@ -117,9 +124,9 @@ class MariaDBConnectionConfig:
             "connect_timeout": self.connect_timeout,
             "read_timeout": self.read_timeout,
             "write_timeout": self.write_timeout,
-            "charset": self.charset,  # v0.35.0: defaults to utf8mb4 to avoid UnicodeDecodeError
-            "encoding_errors": self.encoding_errors,  # v0.35.0: mariadb >= 1.1.4; safety net for corrupt metadata
-            "init_command": self.init_command,  # v0.35.0: forces SET NAMES = same behavior as PyMySQL (requires trust from internal config only)
+            # Para aiomysql (async); mariadb.connect/ConnectionPool no lo admiten y lo quitan MariaDBConnection y PoolConnection
+            "charset": self.charset,
+            "init_command": self.init_command,  # SET NAMES utf8mb4 por defecto; SQL de conn_params (frontera de confianza)
         }
         if self.unix_socket:
             payload["unix_socket"] = self.unix_socket
@@ -161,7 +168,7 @@ class MySQLConnectionConfig:
 
     host: str
     user: str
-    password: str
+    password: str = field(repr=False)  # fuera de repr: tracebacks, depuradores, Sentry
     database: str
     port: int = 3306
     unix_socket: str | None = None
@@ -261,7 +268,7 @@ class MySQLPoolConfig:
 class PostgreSQLConnectionConfig:
     host: str
     user: str
-    password: str
+    password: str = field(repr=False)  # fuera de repr: tracebacks, depuradores, Sentry
     database: str
     port: int = 5432
     schema: str | None = None
@@ -391,7 +398,7 @@ class PostgreSQLPoolConfig:
 @dataclass(frozen=True)
 class OracleConnectionConfig:
     user: str
-    password: str
+    password: str = field(repr=False)  # fuera de repr: tracebacks, depuradores, Sentry
     dsn: str | None = None
     host: str = "localhost"
     port: int = 1521
@@ -470,7 +477,7 @@ class OraclePoolConfig:
 class SQLServerConnectionConfig:
     host: str
     user: str
-    password: str
+    password: str = field(repr=False)  # fuera de repr: tracebacks, depuradores, Sentry
     database: str
     port: int = 1433
     timeout: int = 30
@@ -612,7 +619,7 @@ class HSQLDBConnectionConfig:
     user: str
     jdbc_url: str
     jdbc_jar: str
-    password: str = ""
+    password: str = field(default="", repr=False)
     jdbc_driver: str = "org.hsqldb.jdbcDriver"
     connection_properties: dict[str, Any] | None = None
 

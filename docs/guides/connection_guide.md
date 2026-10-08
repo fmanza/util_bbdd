@@ -132,10 +132,13 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 A partir de **v0.35.0**, `MariaDBConnectionConfig` incluye dos parámetros que mitigan conflictos de charset
 común cuando el servidor está configurado en `latin1` pero queremos usar `utf8mb4`:
 
-#### **`init_command`** (string, default `"SET NAMES <charset>"`, es decir `"SET NAMES utf8mb4"` con el `charset` por defecto)
+#### **`init_command`** (string, default `"SET NAMES utf8mb4"`)
 
-SQL ejecutado en cada conexión (sync y pool). Por defecto sigue a `charset` (v0.35.6+): con `charset="latin1"` es
-`SET NAMES latin1`, así la sesión y el driver usan el mismo charset. `charset` solo admite letras, dígitos y `_`.
+SQL ejecutado en cada conexión sync y de pool (MariaDB Connector/Python). Es siempre `SET NAMES utf8mb4` por
+defecto: el conector solo trabaja en utf8mb4 y rechaza otras sesiones (`ProgrammingError: Character set 'latin1' is
+not supported`, comprobado con 1.1.14). El conector tampoco admite el parámetro `charset`: la librería no se lo envía;
+`charset` (solo letras, dígitos y `_`) lo usa la conexión async (aiomysql). v0.35.6 hacía el valor por defecto
+`SET NAMES <charset>`, que impedía conectar con `charset="latin1"`; v0.35.7 lo revierte.
 Replica el comportamiento de PyMySQL/SQLAlchemy:
 
 - **Sin `init_command`**: El handshake fija `charset='utf8mb4'`, pero solo en `character_set_client` y
@@ -167,32 +170,13 @@ with SyncDatabaseManager(db_type="mariadb", conn_params=conn_params) as db:
     docs = db.get_database_documentation()  # Sin errores de encoding
 ```
 
-#### **`encoding_errors`** (string, default `"replace"`, valido desde mariadb-connector-python ≥ 1.1.4)
+#### **`encoding_errors`** (obsoleto, sin efecto)
 
-Comportamiento del decodificador Python si un byte de `information_schema` no puede convertirse a utf8mb4:
-
-- `"replace"` (default): Bytes inválidos se substituyen por `?`. Safe para herencia de schemas con
-  datos heredados corruptos.
-- `"strict"`: Lanza `UnicodeDecodeError` si hay bytes inválidos (comportamiento pre-v0.35.0).
-- `"ignore"`: Bytes inválidos se descartan silenciosamente.
-
-**Cambio visible**: Si el servidor tiene datos heredados en `latin1` genuinamente irrecuperables, este
-parámetro permite una lectura parcial legible en lugar de un crash. Se usa como **safety net**, no como
-solución: la raíz es el mismatch de charset del servidor.
-
-**Personalización:**
-
-```python
-conn_params = {
-    ...
-    "encoding_errors": "replace",  # default (recomendado)
-    # "encoding_errors": "strict"  # si quieres errores explícitos
-}
-```
-
-**Nota de versión**: Drivers `mariadb-connector-python` < 1.1.4 no aceptan este parámetro; la librería
-lo ignora automáticamente (retry defensivo del pool). Actualizar el driver es recomendable para acceso
-completo a charset detection y error handling.
+Ningún driver de MariaDB lo admite: MariaDB Connector/Python 1.1.14 (la última versión) rechaza `encoding_errors`
+con `TypeError`, igual que `mariadb.ConnectionPool`, y aiomysql no tiene ese parámetro. Hasta v0.35.6 la librería lo
+enviaba por defecto (`"replace"`) y el reintento defensivo lo quitaba en cada conexión nueva, así que **nunca llegó a
+aplicarse** (ni como red de seguridad ni sustituyendo bytes). Desde v0.35.7 no se envía; si aparece en `conn_params`
+se acepta por compatibilidad y emite un `FutureWarning`.
 
 Para el detalle de drivers PostgreSQL (psycopg2 vs asyncpg, pooling), ver la
 [guía de drivers PostgreSQL](postgresql_driver_guide.md). Para el contrato completo de los managers,

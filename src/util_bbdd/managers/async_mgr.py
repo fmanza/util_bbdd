@@ -347,6 +347,10 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
     async def close(self, mode: AsyncCloseMode | str = "immediate") -> None:
         """Cierra pool o conexión directa con política explícita."""
         close_mode: AsyncCloseMode = normalize_close_mode(mode)
+        engine: Any = getattr(self, "_sqlalchemy_engine", None)
+        self._sqlalchemy_engine = None
+        if engine is not None:
+            await engine.dispose()
         pool_connection = self.pool_connection
         connection = self._connection
         try:
@@ -477,8 +481,11 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         return await self.metadata_source.snapshot(schema, kinds=kinds, tables=tables)
 
     async def get_sqlalchemy_engine(self) -> Any:
-        """Obtiene un AsyncEngine de SQLAlchemy basado en la configuración actual."""
-        return await AsyncSQLAlchemyEngineFactory.create_engine(
+        """AsyncEngine de SQLAlchemy del manager: se crea en la primera llamada, se reutiliza y ``close()`` lo cierra."""
+        engine: Any = getattr(self, "_sqlalchemy_engine", None)
+        if engine is not None:
+            return engine
+        engine = await AsyncSQLAlchemyEngineFactory.create_engine(
             self.db_type,
             self.conn_params,
             self.database,
@@ -489,6 +496,8 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
             pool_recycle=int(self.conn_params.get("pool_recycle", 1800)),
             sql_server_driver=str(self.conn_params.get("sql_server_driver", "aioodbc")),
         )
+        self._sqlalchemy_engine = engine
+        return engine
 
     @staticmethod
     def get_supported_db_types() -> list[str]:

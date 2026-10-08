@@ -76,13 +76,12 @@ a través de la factoría:
 
 | Motor | Parámetro | Valor por defecto | Propósito | Mínima versión |
 |---|---|---|---|---|
-| `mariadb` | `charset` | `utf8mb4` | Charset de conexión | cualquiera |
-| `mariadb` | `init_command` | `"SET NAMES utf8mb4"` | SQL ejecutado en cada conexión | v0.35.0+ |
-| `mariadb` | `encoding_errors` | `"replace"` | Manejo de bytes no-decodificables en metadata | mariadb-connector >= 1.1.4 |
+| `mariadb` | `charset` | `utf8mb4` | Charset de la conexión async (aiomysql); el conector sync trabaja siempre en utf8mb4 | cualquiera |
+| `mariadb` | `init_command` | `"SET NAMES utf8mb4"` | SQL ejecutado en cada conexión sync/pool | v0.35.0+ |
+| `mariadb` | `encoding_errors` | — | Obsoleto y sin efecto: ningún driver de MariaDB lo admite (`FutureWarning`) | — |
 
-Para MariaDB: Si el driver < 1.1.4 rechaza `encoding_errors` o un driver antiguo rechaza `init_command`,
-la librería ejecuta retry automático descartando el parámetro (ver `pool_connection_mariadb.py` §3.1).
-Esto permite compatibilidad con drivers antiguos sin sacrificar seguridad en versiones nuevas.
+Para MariaDB: MariaDB Connector/Python (1.1.14, la última) no admite `charset` ni `encoding_errors`; la librería no
+se los envía. Si un driver antiguo rechaza `init_command`, el pool lo ejecuta a mano en cada `get_connection()`.
 
 Ver [Guía: Conexión § 6 — Parámetros especiales de MariaDB](../guides/connection_guide.md#6-parametros-especiales-de-mariadb-init_command-y-encoding_errors)
 para más detalles.

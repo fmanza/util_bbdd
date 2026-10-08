@@ -5,6 +5,50 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.35.7] - 2026-10-08
+
+Hallazgos P2 de la FASE 1 de `drivers-connections-audit` (`.ai/sessions/2026-10-08d-fix-drivers-p2/`) y corrección de
+una regresión de v0.35.6 detectada al validarlos.
+
+### Fixed
+
+- **connection/mariadb (regresión de v0.35.6, M1)**: el `init_command` por defecto vuelve a ser `SET NAMES utf8mb4`.
+  v0.35.6 lo derivaba de `charset` y, con `charset="latin1"`, la conexión sync no abría: MariaDB Connector/Python solo
+  admite sesiones utf8mb4 (`ProgrammingError: Character set 'latin1' is not supported`). `charset` lo usa la conexión
+  async (aiomysql).
+- **connection/mariadb**: la conexión y el pool sync ya no envían `charset` ni `encoding_errors` a `mariadb.connect` /
+  `mariadb.ConnectionPool`. Antes cada conexión nueva hacía dos intentos fallidos (`TypeError`) y emitía dos WARNING.
+- **managers (G1)**: `SyncDatabaseManager.get_sqlalchemy_engine()` y `AsyncDatabaseManager.get_sqlalchemy_engine()`
+  reutilizan el Engine (antes uno nuevo, con pool propio y `SELECT 1`, en cada llamada y sin cerrar); `close()` lo
+  cierra (`dispose`) y una llamada posterior crea uno nuevo.
+
+### Deprecated
+
+- **connection/mariadb (M2)**: `encoding_errors` queda obsoleto y sin efecto. Ningún driver de MariaDB lo admite
+  (Connector/Python 1.1.14, la última versión, lo rechaza en `connect()` y en `ConnectionPool()`), así que el
+  `"replace"` por defecto **nunca llegó a aplicarse**: no corrompía datos, pero la documentación prometía una red de
+  seguridad inexistente. Se acepta en `conn_params` con `FutureWarning` y no se envía.
+
+### Security
+
+- **connection (S3)**: `password` queda fuera del `repr` de las `*Config` (dataclasses): ya no aparece en tracebacks
+  con variables locales, depuradores ni Sentry. S2 (log saneado que filtraba el final de contraseñas con `@`) quedó
+  corregido en v0.35.5 con el escapado de URLs.
+
+### Changed
+
+- `docs/guides/connection_guide.md` § 6, `docs/api/connection_factory.md`, `docs/guides/troubleshooting.md` y aviso
+  de corrección en `docs/guides/mariadb_v0.35.0_charset_handling.md`; descripciones de `charset`, `init_command` y
+  `encoding_errors` en `database_types.json`.
+
+### Testing
+
+- Nuevos: `tests/unit/connection/test_config_repr_secrets.py`, `tests/unit/test_manager_sqlalchemy_engine_cache.py`;
+  `tests/unit/connection/mariadb/test_mariadb_charset_init_command.py` reescrito; retirados 3 tests de
+  `test_mariadb_driver_connection.py` que simulaban que el driver aceptaba `charset`/`encoding_errors`.
+- `pytest`: 5246 passed, 497 skipped. `tests/integration`: 552 passed, 10 skipped. Banco MariaDB: `charset="latin1"`
+  conecta (sync y pool) y lee `'ñandú €'` correctamente por la conexión nativa y por el Engine.
+
 ## [0.35.6] - 2026-10-08
 
 Hallazgos P1 de la FASE 1 de `drivers-connections-audit` (`.ai/sessions/2026-10-08c-fix-drivers-p1/`), más dos bugs

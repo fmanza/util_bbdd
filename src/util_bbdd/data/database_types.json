@@ -41,7 +41,7 @@
             "name": "charset",
             "type": "string",
             "default": "utf8mb4",
-            "description": "Conjunto de caracteres para la conexión (solo letras, dígitos y _); fija también el init_command por defecto"
+            "description": "Conjunto de caracteres de la conexión async (aiomysql); solo letras, dígitos y _. El conector sync trabaja siempre en utf8mb4"
           },
           {
             "name": "autocommit",
@@ -76,14 +76,13 @@
           {
             "name": "init_command",
             "type": "string",
-            "default": "SET NAMES <charset>",
-            "description": "Comando SQL ejecutado al establecer cada conexión; por defecto SET NAMES con el charset configurado (v0.35.6+; requiere mariadb >= 1.1.4)"
+            "default": "SET NAMES utf8mb4",
+            "description": "Comando SQL ejecutado al abrir cada conexión sync/pool; MariaDB Connector/Python solo admite sesiones utf8mb4"
           },
           {
             "name": "encoding_errors",
             "type": "string",
-            "default": "replace",
-            "description": "Estrategia para manejar errores de decodificación: 'replace', 'strict', 'ignore' (v0.35.0+; requiere mariadb >= 1.1.4)"
+            "description": "Obsoleto y sin efecto: ningún driver de MariaDB lo admite; se acepta por compatibilidad con FutureWarning"
           },
           {
             "name": "pool_name",

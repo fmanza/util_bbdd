@@ -10,7 +10,10 @@ from util_bbdd._core.exceptions import ConnectionError
 from ..params import ConnectionParamsManager
 
 # Parámetros que el driver puede rechazar según versión; se eliminan uno a uno si procede.
-_OPTIONAL_CONN_PARAMS: frozenset[str] = frozenset({"charset", "init_command", "encoding_errors"})
+_OPTIONAL_CONN_PARAMS: frozenset[str] = frozenset({"init_command"})
+# Claves de la config que MariaDB Connector/Python no admite (comprobado en 1.1.14, la última): las usa aiomysql.
+# El conector solo trabaja en utf8mb4; la sesión la fija el init_command (SET NAMES utf8mb4).
+_UNSUPPORTED_BY_CONNECTOR: frozenset[str] = frozenset({"charset"})
 
 
 class MariaDBConnection:
@@ -42,6 +45,8 @@ class MariaDBConnection:
                 "mariadb",
                 conn_params,
             )
+            for key in _UNSUPPORTED_BY_CONNECTOR:
+                sanitized_conn_params.pop(key, None)
             if found_rows:
                 from mariadb.constants import CLIENT
 
