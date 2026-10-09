@@ -2,7 +2,7 @@
 
 **Generado**: 2026-06-05 (cabecera, «Próximos pasos» y tests actualizados el 2026-10-09 al cerrar `drivers-connections-audit`)  
 **Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.39.1` (la tabla de abajo no recoge todas las versiones intermedias: el detalle está en el CHANGELOG)  
-**Versión**: `v0.40.0` (2026-10-09). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`  
+**Versión**: `v0.40.1` (2026-10-09). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0` (`v0.40.1` pendiente de tag)  
 **Rama activa**: `develop`
 
 ---
@@ -91,6 +91,7 @@ mismo `mkdocs.yml`; el CI publica con Zensical. Ver `ZENICAL.md`.
 
 ## Próximos pasos
 
+00000. `v0.40.1` (2026-10-09): **hotfix tras `/audit-code` de un log de `pruebas_util`** (`.ai/sessions/2026-10-09h-hotfix-advisor-dispose/`): el informe de `EngineReadinessAdvisor` no presenta valores por defecto como leídos (H1); sin cierre de conexiones del Engine sync en la finalización del intérprete (H2). Tests: 5427 passed, 507 skipped; mypy sin errores (332 ficheros). Pendiente: H3 (log de inicio de operación en `bulk`).
 0000. `v0.40.0` (2026-10-09): **plan de pendientes cerrado** (`.ai/sessions/2026-10-09b-plan-pendientes/`): P0 mantenimiento; P1 `init_command` propio en MariaDB async y avisos una vez (v0.39.2); P2 diagnóstico de charset en una consulta y sin falso MIXED (v0.39.3); P3 URL de los Engine sync/async con la misma semántica (v0.40.0); P4 TLS de MariaDB con CA propia en el banco (F3 cerrado como límite del driver; `docker-compose.bench-tls.yml`); P5 HSQLDB en red (`docker-compose.bench-hsqldb.yml`). Tests: 5422 passed; `tests/integration` 564 passed, 8 skipped. Deuda abierta en `docs/roadmap.md`: solo la limitación del driver MariaDB (sin `ssl_verify_identity`) y `trust_cert` con pymssql. Externo: issue del ORA-03106.
 000. `v0.39.1` (2026-10-09): **`drivers-connections-audit` cerrada** (FASES 1–6; v0.35.5–v0.39.1; sesiones `.ai/sessions/2026-10-08*` y `2026-10-09-*`; decisiones en `docs/adr/ADR-005-conexiones-multimotor.md`). Suite: 5397 passed, 497 skipped; `tests/integration`: 552 passed, 10 skipped; `zensical build --strict` OK. Deuda residual (TLS MariaDB sin `ssl_verify_identity`, WARNING repetido en TLS async, builders de URL, diagnóstico de 8 consultas, HSQLDB sin servidor en red, `init_command` en MariaDB async, `trust_cert` en pymssql) en `docs/roadmap.md` § «Deuda registrada — conexiones multimotor». Plan de esos pendientes: `.ai/sessions/2026-10-09b-plan-pendientes/PLAN_AUDIT_PLAN.md` (P0 mantenimiento hecho; siguiente P1).
 00. `v0.35.8` (2026-10-08): todos los P0–P2 de la FASE 1 de `drivers-connections-audit` cerrados (v0.35.5–v0.35.8; última sesión `.ai/sessions/2026-10-08e-fix-drivers-p2b/`). Suite: 5281 passed, 497 skipped; `tests/integration`: 552 passed, 10 skipped; `zensical build --strict` OK. HSQLDB nativo validado en memoria (2026-10-09). FASE 2 hecha (ver 000).

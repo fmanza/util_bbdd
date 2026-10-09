@@ -5,6 +5,23 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.40.1] - 2026-10-09
+
+Hotfix de dos hallazgos de `/audit-code` sobre un log de `pruebas_util` (`.ai/sessions/2026-10-09h-hotfix-advisor-dispose/`).
+
+### Fixed
+
+- **connection (H1)**: el informe de `EngineReadinessAdvisor` de MariaDB/MySQL daba por buenos `autocommit=False`,
+  `write_timeout=60s` y `read_timeout=30s` sin leerlos: `report_once()` (el que lanza `BulkCrud`) solo conoce
+  host, puerto, base de datos y el pool del Engine, y los checks rellenaban el resto con valores por defecto. Con
+  `write_timeout=5` o `autocommit=True` el informe seguía diciendo OK. Ahora un parámetro ausente no se informa
+  (`pool_size` tampoco, si no se conoce).
+- **managers (H2)**: `SyncDatabaseManager.close()` llamado durante la finalización del intérprete (desde `__del__`,
+  sin `close()` explícito) cerraba las conexiones del pool del Engine de `get_sqlalchemy_engine()`; con MariaDB podía
+  salir la traza `Exception closing connection … InterfaceError: Invalid connection or not connected`. En la
+  finalización ahora se descarta el pool sin cerrar esas conexiones (`dispose(close=False)`); el proceso las libera al
+  salir. Con `close()` explícito no cambia nada.
+
 ## [0.40.0] - 2026-10-09
 
 P3 del plan de pendientes tras `drivers-connections-audit` (F5; `.ai/sessions/2026-10-09e-engine-url-parity/`).

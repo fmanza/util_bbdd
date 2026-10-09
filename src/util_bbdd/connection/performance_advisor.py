@@ -219,63 +219,68 @@ class EngineReadinessAdvisor:
     def _check_mysql(self, conn_params: dict[str, Any], *, connection: Any) -> list[AdvisoryFinding]:
         findings: list[AdvisoryFinding] = []
 
-        # Checks estáticos de pool/config
-        pool_size: int = int(conn_params.get("pool_size", 5))
-        autocommit: bool = bool(conn_params.get("autocommit", False))
-        write_timeout: int = int(conn_params.get("write_timeout", 60))
-        read_timeout: int = int(conn_params.get("read_timeout", 30))
-
-        if autocommit:
-            findings.append(
-                AdvisoryFinding(
-                    level="WARNING",
-                    param="autocommit",
-                    current="True",
-                    recommendation="autocommit=True confirma cada INSERT individualmente; usar transacciones para bulk",
+        # Checks estáticos de pool/config: solo los parámetros presentes. report_once() no conoce autocommit ni los
+        # timeouts del driver (no están en engine.url) y un valor por defecto no debe presentarse como leído.
+        if "autocommit" in conn_params:
+            if bool(conn_params["autocommit"]):
+                findings.append(
+                    AdvisoryFinding(
+                        level="WARNING",
+                        param="autocommit",
+                        current="True",
+                        recommendation="autocommit=True confirma cada INSERT individualmente; usar transacciones para bulk",
+                    )
                 )
-            )
-        else:
-            findings.append(AdvisoryFinding(level="OK", param="autocommit", current="False", recommendation=""))
+            else:
+                findings.append(AdvisoryFinding(level="OK", param="autocommit", current="False", recommendation=""))
 
-        if pool_size < 5:
-            findings.append(
-                AdvisoryFinding(
-                    level="WARNING",
-                    param="pool_size",
-                    current=str(pool_size),
-                    recommendation="Mínimo 5 para cargas concurrentes",
+        if "pool_size" in conn_params:
+            pool_size: int = int(conn_params["pool_size"])
+            if pool_size < 5:
+                findings.append(
+                    AdvisoryFinding(
+                        level="WARNING",
+                        param="pool_size",
+                        current=str(pool_size),
+                        recommendation="Mínimo 5 para cargas concurrentes",
+                    )
                 )
-            )
-        else:
-            findings.append(AdvisoryFinding(level="OK", param="pool_size", current=str(pool_size), recommendation=""))
+            else:
+                findings.append(
+                    AdvisoryFinding(level="OK", param="pool_size", current=str(pool_size), recommendation="")
+                )
 
-        if write_timeout < 30:
-            findings.append(
-                AdvisoryFinding(
-                    level="WARNING",
-                    param="write_timeout",
-                    current=f"{write_timeout}s",
-                    recommendation="Recomendado ≥60 s en cargas masivas para evitar 'Lost connection'",
+        if "write_timeout" in conn_params:
+            write_timeout: int = int(conn_params["write_timeout"])
+            if write_timeout < 30:
+                findings.append(
+                    AdvisoryFinding(
+                        level="WARNING",
+                        param="write_timeout",
+                        current=f"{write_timeout}s",
+                        recommendation="Recomendado ≥60 s en cargas masivas para evitar 'Lost connection'",
+                    )
                 )
-            )
-        else:
-            findings.append(
-                AdvisoryFinding(level="OK", param="write_timeout", current=f"{write_timeout}s", recommendation="")
-            )
+            else:
+                findings.append(
+                    AdvisoryFinding(level="OK", param="write_timeout", current=f"{write_timeout}s", recommendation="")
+                )
 
-        if read_timeout < 30:
-            findings.append(
-                AdvisoryFinding(
-                    level="WARNING",
-                    param="read_timeout",
-                    current=f"{read_timeout}s",
-                    recommendation="Recomendado ≥30 s",
+        if "read_timeout" in conn_params:
+            read_timeout: int = int(conn_params["read_timeout"])
+            if read_timeout < 30:
+                findings.append(
+                    AdvisoryFinding(
+                        level="WARNING",
+                        param="read_timeout",
+                        current=f"{read_timeout}s",
+                        recommendation="Recomendado ≥30 s",
+                    )
                 )
-            )
-        else:
-            findings.append(
-                AdvisoryFinding(level="OK", param="read_timeout", current=f"{read_timeout}s", recommendation="")
-            )
+            else:
+                findings.append(
+                    AdvisoryFinding(level="OK", param="read_timeout", current=f"{read_timeout}s", recommendation="")
+                )
 
         pool_timeout: int = int(conn_params.get("pool_timeout", 30))
         if pool_timeout < 10:

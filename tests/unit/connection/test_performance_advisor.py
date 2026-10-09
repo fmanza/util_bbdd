@@ -613,3 +613,31 @@ class TestExceptionResilienceAllEngines:
         conn.execute.side_effect = Exception("boom")
         findings = self.advisor.check(engine, {"pool_size": 10, "database": "test"}, connection=conn)
         assert isinstance(findings, list)
+
+
+# ─── Hotfix v0.40.1 (H1): sin valores por defecto presentados como leídos ─────
+
+
+class TestMySQLStaticChecksOnlyKnownValues:
+    """``report_once`` solo conoce host/port/database y el pool del Engine: ``autocommit`` y los timeouts del driver no.
+
+    Antes se rellenaban con los valores por defecto (``False``, 60 s, 30 s) y el informe los daba por buenos aunque la
+    conexión usara otros (p. ej. ``write_timeout=5``). Ahora un parámetro ausente no se informa.
+    """
+
+    @pytest.mark.parametrize("engine", ["mysql", "mariadb"])
+    def test_absent_params_are_not_reported(self, engine: str) -> None:
+        findings = EngineReadinessAdvisor().check(engine, {"host": "db", "port": 3306, "database": "app"})
+        reported = {f.param for f in findings}
+        assert reported.isdisjoint({"autocommit", "pool_size", "write_timeout", "read_timeout", "pool_timeout"})
+
+    def test_engine_params_without_driver_timeouts_are_not_reported(self) -> None:
+        from sqlalchemy import create_engine
+
+        engine = create_engine("mysql+pymysql://u:p@db:3306/app", pool_size=7)
+        try:
+            conn_params = EngineReadinessAdvisor._conn_params_from_engine(engine)
+            reported = {f.param: f.current for f in EngineReadinessAdvisor().check("mysql", conn_params)}
+        finally:
+            engine.dispose()
+        assert reported == {"pool_size": "7"}

@@ -64,3 +64,23 @@ def test_async_manager_reuses_engine_and_disposes_it_on_close(monkeypatch: pytes
 
     assert create.await_count == 1
     engine.dispose.assert_awaited_once()
+
+
+@pytest.mark.parametrize(("finalizing", "close_connections"), [(False, True), (True, False)])
+def test_sync_manager_close_does_not_close_engine_connections_during_finalization(
+    monkeypatch: pytest.MonkeyPatch, finalizing: bool, close_connections: bool
+) -> None:
+    """Hotfix v0.40.1 (H2): cerrar las conexiones del driver en la finalización del intérprete no es fiable.
+
+    Con ``close()`` desde ``__del__`` al salir, ``dispose()`` cerraba las conexiones del pool del Engine y el conector de
+    MariaDB fallaba con ``InterfaceError: Invalid connection or not connected`` (traza de SQLAlchemy en la salida).
+    """
+    engine = MagicMock()
+    monkeypatch.setattr(SQLAlchemyEngineFactory, "create_engine", staticmethod(lambda *_a, **_k: engine))
+    manager = SyncDatabaseManager("sqlite", {"database": ":memory:"})
+    manager.get_sqlalchemy_engine()
+
+    monkeypatch.setattr("util_bbdd.managers.sync_mgr.sys.is_finalizing", lambda: finalizing)
+    manager.close()
+
+    engine.dispose.assert_called_once_with(close=close_connections)

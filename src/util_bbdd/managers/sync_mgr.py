@@ -4,6 +4,7 @@ Soporta MariaDB, Oracle, PostgreSQL, SQLite, HSQLDB y SQL Server.
 """
 
 import logging
+import sys
 
 from collections.abc import Callable, Collection
 from pathlib import Path
@@ -282,7 +283,9 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         engine: Engine | None = getattr(self, "_sqlalchemy_engine", None)
         self._sqlalchemy_engine = None
         if engine is not None:
-            engine.dispose()
+            # En la finalización del intérprete (close() desde __del__) no se cierran las conexiones del driver: no es
+            # fiable (MariaDB: InterfaceError «Invalid connection or not connected») y el proceso las libera al salir.
+            engine.dispose(close=not sys.is_finalizing())
         pool: ConnectionPoolProtocol | None = self.pool_connection
         self.pool_connection = None
         cursor = self.cursor
