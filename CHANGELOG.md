@@ -5,6 +5,28 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.40.0] - 2026-10-09
+
+P3 del plan de pendientes tras `drivers-connections-audit` (F5; `.ai/sessions/2026-10-09e-engine-url-parity/`).
+
+### Cambios que pueden afectarte
+
+Solo para quien llame directamente a `SQLAlchemyEngineFactory`/`AsyncSQLAlchemyEngineFactory` con parámetros
+incompletos (desde los managers los `conn_params` ya llegan validados, v0.37.0):
+
+- **factory**: `host`, `user` o `port` explícitamente `None` toman su valor por defecto (antes: el Engine sync ponía
+  `None` en la URL, y `port=None` lanzaba `TypeError` en ambos).
+- **factory**: con `database=None`, el Engine sync toma `conn_params["database"]` como ya hacía el async (antes, error).
+- **factory**: SQL Server sin base de datos lanza `ValidationError` también en sync (antes, URL sin base de datos).
+- **factory**: Oracle con `service_name=""` usa `database` como alias también en async (antes, error o `dsn`/`sid`).
+- **factory**: MySQL async con `user=""` mantiene `""` como el resto de motores (antes, `root`).
+
+### Changed
+
+- **factory**: `factory/_url.py::server_url` construye la URL de MariaDB, MySQL, PostgreSQL, SQL Server y Oracle para
+  las dos factories; los `_build_*_connection_string` quedan como envoltorios con su driver. 43 200 combinaciones
+  comparadas con v0.39.3: las 6 696 diferencias se explican por las reglas de arriba.
+
 ## [0.39.3] - 2026-10-09
 
 P2 del plan de pendientes tras `drivers-connections-audit` (`.ai/sessions/2026-10-09d-charset-diagnosis/`).

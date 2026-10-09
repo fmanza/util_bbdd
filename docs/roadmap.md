@@ -7,7 +7,7 @@ El detalle exhaustivo de cada cambio vive en el
 [Keep a Changelog](https://keepachangelog.com/) + [SemVer](https://semver.org/)); esta página
 es la vista panorámica.
 
-> **Versión vigente: v0.39.3.** Las series `0.x` siguen siendo pre-estables: la API se mantiene
+> **Versión vigente: v0.40.0.** Las series `0.x` siguen siendo pre-estables: la API se mantiene
 > mayormente compatible, pero puede haber cambios acotados entre minors. La estabilización formal
 > llega con `v1.0.0`. Las versiones posteriores a `v0.10.0` aún no están en la tabla de abajo: su
 > detalle está en el CHANGELOG.
@@ -26,8 +26,6 @@ Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md). Pendiente, sin fe
 
 - **TLS MariaDB**: no hay `ssl_verify_identity` para verificar la CA sin comprobar el hostname (MySQL sí lo tiene);
   conectar por IP con un certificado sin esa IP en el SAN fallaría (sin comprobar con una CA propia).
-- **factory**: los `_build_*_connection_string` sync y async divergen en casos límite (`host=None`, `database=None`,
-  SQL Server sin `database`, Oracle `service_name=""`); en los motores con `creator` la URL solo elige el dialecto.
 - **HSQLDB**: la conexión nativa se validó en memoria (`jdbc:hsqldb:mem:`, 2026-10-09); falta probarla contra un servidor HSQLDB en red.
 - **SQL Server**: `trust_cert` no tiene equivalente con pymssql (usar pyodbc/aioodbc para TLS real); desde v0.39.2 se avisa una vez.
 

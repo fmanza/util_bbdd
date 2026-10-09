@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 from .._core.exceptions import ConnectionError, ValidationError
 from ._pool_policy import engine_pool_kwargs
-from ._url import get_test_query, render_url, sanitize_conn_str, sqlite_url
+from ._url import get_test_query, render_url, sanitize_conn_str, server_url, sqlite_url
 
 
 class AsyncSQLAlchemyEngineFactory:
@@ -190,175 +190,23 @@ class AsyncSQLAlchemyEngineFactory:
 
     @staticmethod
     def _build_mariadb_connection_string(conn_params: dict[str, Any], database: str | None) -> str:
-        """Construye connection string para MariaDB.
-
-        Args:
-            conn_params: Parámetros de conexión
-            database: Nombre de la base de datos
-
-        Returns:
-            Connection string para MariaDB
-
-        Raises:
-            ValidationError: Si faltan parámetros requeridos
-        """
-        host_value: Any = conn_params.get("host", "localhost")
-        host: str = str(host_value) if host_value is not None else "localhost"
-
-        user_value: Any = conn_params.get("user", "root")
-        user: str = str(user_value) if user_value is not None else "root"
-
-        password_value: Any = conn_params.get("password")
-        password: str | None = str(password_value) if password_value is not None else None
-
-        port_value: Any = conn_params.get("port", 3306)
-        port: int = int(port_value)
-
-        if not password:
-            AsyncSQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para MariaDB")
-            raise ValidationError(
-                "Se requiere una contraseña para la conexión a MariaDB",
-                db_type="mariadb",
-            )
-
-        raw_target_db: Any = database if database is not None else conn_params.get("database")
-        target_db: str = str(raw_target_db) if raw_target_db is not None else ""
-        if not target_db:
-            raise ValidationError("Se requiere 'database' para MariaDB", db_type="mariadb")
-
-        return AsyncSQLAlchemyEngineFactory._render_url("mysql+aiomysql", user, password, host, port, target_db)
+        """URL async de MariaDB (``mysql+aiomysql``); semántica común en ``factory/_url.py::server_url``."""
+        return server_url("mariadb", "mysql+aiomysql", conn_params, database)
 
     @staticmethod
     def _build_mysql_connection_string(conn_params: dict[str, Any], database: str | None) -> str:
-        """Construye connection string async para MySQL (``mysql+aiomysql``).
-
-        Usuario y contraseña se escapan con ``URL.create`` (admiten ``@``, ``:`` o ``/``).
-
-        Args:
-            conn_params: Parámetros de conexión
-            database: Nombre de la base de datos (si es None, se usa ``conn_params["database"]``)
-
-        Returns:
-            Connection string para MySQL
-
-        Raises:
-            ValidationError: Si faltan parámetros requeridos
-        """
-        password_value: Any = conn_params.get("password")
-        if password_value is None or not str(password_value):
-            AsyncSQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para MySQL")
-            raise ValidationError("Se requiere una contraseña para la conexión a MySQL", db_type="mysql")
-
-        raw_target_db: Any = database if database is not None else conn_params.get("database")
-        target_db: str = str(raw_target_db) if raw_target_db is not None else ""
-        if not target_db:
-            raise ValidationError("Se requiere 'database' para MySQL", db_type="mysql")
-
-        return render_url(
-            "mysql+aiomysql",
-            conn_params.get("user") or "root",
-            password_value,
-            conn_params.get("host") or "localhost",
-            conn_params.get("port", 3306),
-            target_db,
-        )
+        """URL async de MySQL (``mysql+aiomysql``); semántica común en ``factory/_url.py::server_url``."""
+        return server_url("mysql", "mysql+aiomysql", conn_params, database)
 
     @staticmethod
     def _build_oracle_connection_string(conn_params: dict[str, Any], database: str | None) -> str:
-        """Construye connection string para Oracle.
-
-        Args:
-            conn_params: Parámetros de conexión
-            database: Nombre de la base de datos
-
-        Returns:
-            Connection string para Oracle
-
-        Raises:
-            ValidationError: Si faltan parámetros requeridos
-        """
-        user_value: Any = conn_params.get("user")
-        user: str | None = str(user_value) if user_value is not None else None
-
-        password_value: Any = conn_params.get("password")
-        password: str | None = str(password_value) if password_value is not None else None
-
-        host_value: Any = conn_params.get("host", "localhost")
-        host: str = str(host_value) if host_value is not None else "localhost"
-
-        port_value: Any = conn_params.get("port", 1521)
-        port: int = int(port_value)
-
-        service_name_value: Any = conn_params.get("service_name")
-        raw_service_name: Any = service_name_value if service_name_value is not None else database
-        service_name: str = str(raw_service_name) if raw_service_name is not None else ""
-
-        if not user:
-            AsyncSQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó usuario para Oracle")
-            raise ValidationError(
-                "Se requiere un usuario para la conexión a Oracle",
-                db_type="oracle",
-            )
-
-        if not password:
-            AsyncSQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para Oracle")
-            raise ValidationError(
-                "Se requiere una contraseña para la conexión a Oracle",
-                db_type="oracle",
-            )
-
-        if not service_name:
-            if conn_params.get("dsn") or conn_params.get("sid"):
-                # El destino lo resuelve el ``async_creator`` nativo (AsyncOracleConnection: makedsn con dsn/sid).
-                return AsyncSQLAlchemyEngineFactory._render_url("oracle+oracledb", user, password, host, port, "")
-            raise ValidationError(
-                "Se requiere 'service_name' o 'database' para Oracle",
-                db_type="oracle",
-            )
-
-        return AsyncSQLAlchemyEngineFactory._render_url(
-            "oracle+oracledb", user, password, host, port, "", query={"service_name": service_name}
-        )
+        """URL async de Oracle (``oracle+oracledb``); semántica común en ``factory/_url.py::server_url``."""
+        return server_url("oracle", "oracle+oracledb", conn_params, database)
 
     @staticmethod
     def _build_postgresql_connection_string(conn_params: dict[str, Any], database: str | None) -> str:
-        """Construye connection string para PostgreSQL async.
-
-        Args:
-            conn_params: Parámetros de conexión
-            database: Nombre de la base de datos
-
-        Returns:
-            Connection string para PostgreSQL
-
-        Raises:
-            ValidationError: Si faltan parámetros requeridos
-        """
-        host_value: Any = conn_params.get("host", "localhost")
-        host: str = str(host_value) if host_value is not None else "localhost"
-
-        user_value: Any = conn_params.get("user", "postgres")
-        user: str = str(user_value) if user_value is not None else "postgres"
-
-        password_value: Any = conn_params.get("password")
-        password: str | None = str(password_value) if password_value is not None else None
-
-        port_value: Any = conn_params.get("port", 5432)
-        port: int = int(port_value)
-
-        if not password:
-            AsyncSQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para PostgreSQL")
-            raise ValidationError(
-                "Se requiere una contraseña para la conexión a PostgreSQL",
-                db_type="postgresql",
-            )
-
-        raw_target_db: Any = database if database is not None else conn_params.get("database")
-        target_db: str = str(raw_target_db) if raw_target_db is not None else ""
-        if not target_db:
-            raise ValidationError("Se requiere 'database' para PostgreSQL", db_type="postgresql")
-
-        return AsyncSQLAlchemyEngineFactory._render_url("postgresql+asyncpg", user, password, host, port, target_db)
+        """URL async de PostgreSQL (``postgresql+asyncpg``); semántica común en ``factory/_url.py::server_url``."""
+        return server_url("postgresql", "postgresql+asyncpg", conn_params, database)
 
     @staticmethod
     def _build_sqlserver_connection_string(
@@ -366,50 +214,14 @@ class AsyncSQLAlchemyEngineFactory:
         database: str | None,
         sql_server_driver: str = "aioodbc",
     ) -> str:
-        """Construye connection string para SQL Server según el driver configurado.
-
-        Args:
-            conn_params: Parámetros de conexión
-            database: Nombre de la base de datos
-            sql_server_driver: Driver a usar para async (solo 'aioodbc')
-
-        Returns:
-            Connection string para SQL Server
-
-        Raises:
-            ValidationError: Si faltan parámetros requeridos
-        """
-        host_value: Any = conn_params.get("host", "localhost")
-        host: str = str(host_value) if host_value is not None else "localhost"
-
-        user_value: Any = conn_params.get("user", "sa")
-        user: str = str(user_value) if user_value is not None else "sa"
-
-        password_value: Any = conn_params.get("password")
-        password: str | None = str(password_value) if password_value is not None else None
-
-        port_value: Any = conn_params.get("port", 1433)
-        port: int = int(port_value)
-
-        if not password:
-            AsyncSQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para SQL Server")
-            raise ValidationError(
-                "Se requiere una contraseña para la conexión a SQL Server",
-                db_type="sqlserver",
-            )
-
-        raw_target_db: Any = database if database is not None else conn_params.get("database")
-        target_db: str = str(raw_target_db) if raw_target_db is not None else ""
-        if not target_db:
-            raise ValidationError("Se requiere 'database' para SQL Server", db_type="sqlserver")
-
+        """URL async de SQL Server (solo ``mssql+aioodbc``); semántica común en ``factory/_url.py::server_url``."""
+        url = server_url("sqlserver", "mssql+aioodbc", conn_params, database)
         if sql_server_driver != "aioodbc":
             raise ValidationError(
                 "Para SQLAlchemy async en SQL Server use sql_server_driver='aioodbc'",
                 db_type="sqlserver",
             )
-
-        return AsyncSQLAlchemyEngineFactory._render_url("mssql+aioodbc", user, password, host, port, target_db)
+        return url
 
     @staticmethod
     def _build_sqlite_connection_string(conn_params: dict[str, Any]) -> str:

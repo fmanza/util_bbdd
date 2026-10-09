@@ -2,7 +2,69 @@
 
 from __future__ import annotations
 
+import logging
+
 from typing import Any
+
+from .._core.exceptions import ValidationError
+
+logger: logging.Logger = logging.getLogger(__name__)
+
+#: Por motor: (nombre para mensajes, usuario por defecto, puerto por defecto).
+_SERVER_DEFAULTS: dict[str, tuple[str, str | None, int]] = {
+    "mariadb": ("MariaDB", "root", 3306),
+    "mysql": ("MySQL", "root", 3306),
+    "postgresql": ("PostgreSQL", "postgres", 5432),
+    "sqlserver": ("SQL Server", "sa", 1433),
+    "oracle": ("Oracle", None, 1521),
+}
+
+
+def _text(conn_params: dict[str, Any], key: str, default: str | None) -> str | None:
+    """``conn_params[key]`` como texto; ``None`` (ausente o explícito) da ``default``."""
+    value: Any = conn_params.get(key)
+    return default if value is None else str(value)
+
+
+def server_url(db_type: str, drivername: str, conn_params: dict[str, Any], database: str | None) -> str:
+    """URL de SQLAlchemy de un motor de servidor, con la misma semántica en las factories sync y async.
+
+    ``host``/``user``/``port`` ausentes o ``None`` toman su valor por defecto; ``database`` ``None`` se toma de
+    ``conn_params["database"]``; MariaDB, MySQL, PostgreSQL y SQL Server exigen contraseña y base de datos; Oracle exige
+    usuario y contraseña y usa ``service_name`` o, si está vacío, ``database`` (alias, como ``OracleConnectionConfig``);
+    sin ninguno de los dos vale ``dsn``/``sid`` (los resuelve el ``creator`` nativo).
+
+    Raises:
+        ValidationError: Si falta un parámetro requerido.
+    """
+    name, default_user, default_port = _SERVER_DEFAULTS[db_type]
+    host: str = str(_text(conn_params, "host", "localhost"))
+    user: str | None = _text(conn_params, "user", default_user)
+    password: str | None = _text(conn_params, "password", None)
+    port_value: Any = conn_params.get("port")
+    port: int = default_port if port_value is None else int(port_value)
+    raw_database: Any = database if database is not None else conn_params.get("database")
+    target_db: str = "" if raw_database is None else str(raw_database)
+
+    if db_type == "oracle" and not user:
+        logger.warning(f"⚠️ No se proporcionó usuario para {name}")
+        raise ValidationError(f"Se requiere un usuario para la conexión a {name}", db_type=db_type)
+    if not password:
+        logger.warning(f"⚠️ No se proporcionó contraseña para {name}")
+        raise ValidationError(f"Se requiere una contraseña para la conexión a {name}", db_type=db_type)
+
+    if db_type == "oracle":
+        service_name: str = _text(conn_params, "service_name", None) or target_db
+        if not service_name:
+            if conn_params.get("dsn") or conn_params.get("sid"):
+                # El destino lo resuelve el ``creator`` nativo (makedsn con dsn/sid).
+                return render_url(drivername, str(user), password, host, port, "")
+            raise ValidationError(f"Se requiere 'service_name' o 'database' para {name}", db_type=db_type)
+        return render_url(drivername, str(user), password, host, port, "", query={"service_name": service_name})
+
+    if not target_db:
+        raise ValidationError(f"Se requiere 'database' para {name}", db_type=db_type)
+    return render_url(drivername, str(user), password, host, port, target_db)
 
 
 def render_url(

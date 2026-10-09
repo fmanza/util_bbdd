@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 from .._core.exceptions import ConnectionError, ValidationError
 from ._pool_policy import engine_pool_kwargs
-from ._url import get_test_query, render_url, sanitize_conn_str, sqlite_url
+from ._url import get_test_query, render_url, sanitize_conn_str, server_url, sqlite_url
 
 
 class SQLAlchemyEngineFactory:
@@ -161,177 +161,34 @@ class SQLAlchemyEngineFactory:
     _render_url = staticmethod(render_url)
 
     @staticmethod
-    def _build_mariadb_connection_string(conn_params: dict[str, Any], database: str) -> str:
-        """Construye connection string para MariaDB.
-
-        Args:
-            conn_params: Parámetros de conexión
-            database: Nombre de la base de datos
-
-        Returns:
-            Connection string para MariaDB
-
-        Raises:
-            ValidationError: Si faltan parámetros requeridos
-        """
-        host: str = conn_params.get("host", "localhost")
-        user: str = conn_params.get("user", "root")
-        password: str | None = conn_params.get("password")
-        port: int = conn_params.get("port", 3306)
-
-        if not password:
-            SQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para MariaDB")
-            raise ValidationError(
-                "Se requiere una contraseña para la conexión a MariaDB",
-                db_type="mariadb",
-            )
-
-        if not database:
-            raise ValidationError("Se requiere 'database' para MariaDB", db_type="mariadb")
-
-        return SQLAlchemyEngineFactory._render_url("mariadb+mariadbconnector", user, password, host, port, database)
+    def _build_mariadb_connection_string(conn_params: dict[str, Any], database: str | None) -> str:
+        """URL de MariaDB (Connector/Python); semántica común en ``factory/_url.py::server_url``."""
+        return server_url("mariadb", "mariadb+mariadbconnector", conn_params, database)
 
     @staticmethod
-    def _build_mysql_connection_string(conn_params: dict[str, Any], database: str) -> str:
-        """Construye connection string para MySQL (``mysql+pymysql``).
-
-        Usuario y contraseña se escapan con ``URL.create`` (admiten ``@``, ``:`` o ``/``).
-
-        Args:
-            conn_params: Parámetros de conexión
-            database: Nombre de la base de datos
-
-        Returns:
-            Connection string para MySQL
-
-        Raises:
-            ValidationError: Si faltan parámetros requeridos
-        """
-        password: str | None = conn_params.get("password")
-        if not password:
-            SQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para MySQL")
-            raise ValidationError("Se requiere una contraseña para la conexión a MySQL", db_type="mysql")
-        if not database:
-            raise ValidationError("Se requiere 'database' para MySQL", db_type="mysql")
-
-        return render_url(
-            "mysql+pymysql",
-            conn_params.get("user", "root"),
-            password,
-            conn_params.get("host", "localhost"),
-            conn_params.get("port", 3306),
-            str(database),
-        )
+    def _build_mysql_connection_string(conn_params: dict[str, Any], database: str | None) -> str:
+        """URL de MySQL (``mysql+pymysql``); semántica común en ``factory/_url.py::server_url``."""
+        return server_url("mysql", "mysql+pymysql", conn_params, database)
 
     @staticmethod
-    def _build_oracle_connection_string(conn_params: dict[str, Any], database: str) -> str:
-        """Construye connection string para Oracle.
-
-        Args:
-            conn_params: Parámetros de conexión
-            database: Nombre de la base de datos
-
-        Returns:
-            Connection string para Oracle
-
-        Raises:
-            ValidationError: Si faltan parámetros requeridos
-        """
-        user: str | None = conn_params.get("user")
-        password: str | None = conn_params.get("password")
-        host: str = conn_params.get("host", "localhost")
-        port: int = conn_params.get("port", 1521)
-        service_name: str = conn_params.get("service_name") or database
-
-        if not user:
-            SQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó usuario para Oracle")
-            raise ValidationError(
-                "Se requiere un usuario para la conexión a Oracle",
-                db_type="oracle",
-            )
-
-        if not password:
-            SQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para Oracle")
-            raise ValidationError(
-                "Se requiere una contraseña para la conexión a Oracle",
-                db_type="oracle",
-            )
-
-        if not service_name:
-            if conn_params.get("dsn") or conn_params.get("sid"):
-                # El destino lo resuelve el ``creator`` nativo (OracleConnection: makedsn con dsn/sid).
-                return SQLAlchemyEngineFactory._render_url("oracle+oracledb", user, password, host, port, "")
-            raise ValidationError("Se requiere 'service_name' o 'database' para Oracle", db_type="oracle")
-
-        return SQLAlchemyEngineFactory._render_url(
-            "oracle+oracledb", user, password, host, port, "", query={"service_name": service_name}
-        )
+    def _build_oracle_connection_string(conn_params: dict[str, Any], database: str | None) -> str:
+        """URL de Oracle (``oracle+oracledb``); semántica común en ``factory/_url.py::server_url``."""
+        return server_url("oracle", "oracle+oracledb", conn_params, database)
 
     @staticmethod
-    def _build_postgresql_connection_string(conn_params: dict[str, Any], database: str) -> str:
-        """Construye connection string para PostgreSQL (psycopg3).
-
-        Args:
-            conn_params: Parámetros de conexión
-            database: Nombre de la base de datos
-
-        Returns:
-            Connection string para PostgreSQL
-
-        Raises:
-            ValidationError: Si faltan parámetros requeridos
-        """
-        host: str = conn_params.get("host", "localhost")
-        user: str = conn_params.get("user", "postgres")
-        password: str | None = conn_params.get("password")
-        port: int = conn_params.get("port", 5432)
-
-        if not password:
-            SQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para PostgreSQL")
-            raise ValidationError(
-                "Se requiere una contraseña para la conexión a PostgreSQL",
-                db_type="postgresql",
-            )
-
-        if not database:
-            raise ValidationError("Se requiere 'database' para PostgreSQL", db_type="postgresql")
-
-        return SQLAlchemyEngineFactory._render_url("postgresql+psycopg", user, password, host, port, database)
+    def _build_postgresql_connection_string(conn_params: dict[str, Any], database: str | None) -> str:
+        """URL de PostgreSQL (psycopg 3); semántica común en ``factory/_url.py::server_url``."""
+        return server_url("postgresql", "postgresql+psycopg", conn_params, database)
 
     @staticmethod
     def _build_sqlserver_connection_string(
         conn_params: dict[str, Any],
-        database: str,
+        database: str | None,
         sql_server_driver: str = "pymssql",
     ) -> str:
-        """Construye connection string para SQL Server según el driver configurado.
-
-        Args:
-            conn_params: Parámetros de conexión
-            database: Nombre de la base de datos
-            sql_server_driver: Driver a usar ('pymssql' o 'pyodbc')
-
-        Returns:
-            Connection string para SQL Server
-
-        Raises:
-            ValidationError: Si faltan parámetros requeridos
-        """
-        host: str = conn_params.get("host", "localhost")
-        user: str = conn_params.get("user", "sa")
-        password: str | None = conn_params.get("password")
-        port: int = conn_params.get("port", 1433)
-
-        if not password:
-            SQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para SQL Server")
-            raise ValidationError(
-                "Se requiere una contraseña para la conexión a SQL Server",
-                db_type="sqlserver",
-            )
-
-        # Construir URL diferente según el driver (pymssql por defecto)
+        """URL de SQL Server (``mssql+pymssql`` o ``mssql+pyodbc``); semántica común en ``factory/_url.py::server_url``."""
         drivername = "mssql+pyodbc" if sql_server_driver == "pyodbc" else "mssql+pymssql"
-        return SQLAlchemyEngineFactory._render_url(drivername, user, password, host, port, database)
+        return server_url("sqlserver", drivername, conn_params, database)
 
     @staticmethod
     def _build_sqlite_connection_string(conn_params: dict[str, Any]) -> str:
