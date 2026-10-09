@@ -158,3 +158,16 @@ def test_async_manager_builds_executor_with_mode() -> None:
     with mock.patch("util_bbdd.managers.async_mgr.AsyncManagerCatalogExecutor") as executor_cls:
         _ = manager.metadata_source
     assert executor_cls.call_args.kwargs["charset_mode"] == "native"
+
+
+def test_sync_manager_builds_executor_with_mode() -> None:
+    """F2 de FASE 5: el manager sync pasa ``catalog_charset_mode`` al ejecutor de catálogo."""
+    from util_bbdd import SyncDatabaseManager
+
+    with mock.patch("util_bbdd.managers.sync_mgr.ManagerCatalogExecutor") as executor_cls:
+        manager = SyncDatabaseManager.__new__(SyncDatabaseManager)
+        manager.db_type = "mariadb"
+        manager.conn_params = {**NET, "catalog_charset_mode": "convert"}
+        manager.database = "d"
+        _ = manager.metadata_source
+    assert executor_cls.call_args.kwargs["charset_mode"] == "convert"

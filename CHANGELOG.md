@@ -5,6 +5,21 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.39.1] - 2026-10-09
+
+Hotfix de los hallazgos F1 y F2 de la FASE 5 de `drivers-connections-audit`
+(`.ai/sessions/2026-10-09-hotfix-async-database-alias/`).
+
+### Fixed
+
+- **managers (F1)**: `AsyncDatabaseManager.database` se tomaba de los `conn_params` originales y no de los validados:
+  con el alias `filepath` (SQLite) quedaba vacío en `get_connection_info()` y en el id de caché del catálogo, aunque la
+  conexión funcionaba. Ahora sale de los validados, como en `SyncDatabaseManager`.
+
+### Tests
+
+- **managers (F2)**: test de que `SyncDatabaseManager` pasa `catalog_charset_mode` al ejecutor de catálogo.
+
 ## [0.39.0] - 2026-10-09
 
 Bloque B2 de la FASE 4 de `drivers-connections-audit` (`.ai/sessions/2026-10-09-feature-mariadb-tls/`). Cierra la

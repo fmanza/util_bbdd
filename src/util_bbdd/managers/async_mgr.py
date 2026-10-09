@@ -76,7 +76,8 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         except Exception as e:
             self.logger.error(f"❌ Error validando parámetros: {e}")
             raise ValidationError(str(e), db_type=normalized_db_type) from e
-        self.database: str = str(conn_params.get("database", "") or "").strip()
+        # De los conn_params validados (alias normalizados, p. ej. ``filepath`` en SQLite), como el manager sync.
+        self.database: str = str(self.conn_params.get("database", "") or "").strip()
         self.use_pool: bool = use_pool
 
         # Inicializar cachés centralizados

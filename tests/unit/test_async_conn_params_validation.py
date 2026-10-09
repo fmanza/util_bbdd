@@ -144,3 +144,10 @@ def test_metadata_context_uses_config_default_schema_not_database(
 )
 def test_build_conn_params_output_unchanged(db_type: str, params: dict[str, Any], expected: dict[str, Any]) -> None:
     assert build_conn_params(db_type, **params) == expected
+
+
+def test_async_manager_database_comes_from_validated_params() -> None:
+    """Hotfix v0.39.1 (F1 de FASE 5): con el alias ``filepath``, ``database`` quedaba vacío en async."""
+    manager = AsyncDatabaseManager("sqlite", {"filepath": "x.db"})
+    assert manager.database == "x.db"
+    assert manager._catalog_source_id().endswith("/x.db")
