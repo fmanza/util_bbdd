@@ -53,10 +53,10 @@
 | `v0.37.0` | Liberado 2026-10-09 — validación única de `conn_params` desde las configs; **`AsyncDatabaseManager` lanza `ValidationError`** como el sync; `schema` por defecto (`public`/`dbo`/`PUBLIC`) en todos los caminos (B1; incompatible) | ✅ |
 | `v0.38.0` | Liberado 2026-10-09 — `catalog_charset_mode` (`auto`/`native`/`convert`) en MariaDB/MySQL (CS) | ✅ |
 | `v0.39.0`–`v0.39.1` | Liberados 2026-10-09 — **TLS en MariaDB** (`ssl`, `ssl_ca`, `ssl_cert`, `ssl_key`, `ssl_verify_cert`) en sync, async, pools y Engine (B2); hotfix F1/F2 de la FASE 5. Decisiones en ADR-005; auditoría `drivers-connections-audit` cerrada | ✅ |
-| Zenical | Pendiente, sin versión asignada — merge `migrate/zenical-pure` (+80% perf doc builds) cuando Zenical esté instalable |
+| Zenical | Hecho — `migrate/zenical-pure` fusionada (PR #19, `c6d765a8`); `zensical` 0.0.44 es el generador del CI y lee `mkdocs.yml` (no se usa `zensical.toml`) | ✅ |
 
-PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
-PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical v0.0.44 esté en crates.io (o instalación manual de binario).
+PR #18 (`MySQLVariableValidator`): su código (`9a71e056`) está en `main` y `develop`; el estado de la PR en GitHub no se ha comprobado (sin `gh`) — cerrarla si sigue abierta.  
+PR #19 (`migrate/zenical-pure`): fusionada.  
 
 **Tests actuales** (v0.39.1, 2026-10-09): 5397 passed, 497 skipped; `tests/integration` 552 passed, 10 skipped en 5 servidores; mypy sin errores (332 ficheros). Medición anterior: 5049 passed, 496 skipped con `pytest` completo sin URLs de servidor y el entorno de referencia `pip install -e ".[dev,docs]"` (v0.31.0, 2026-10-04); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 551 passed, 10 skipped en 5 servidores (menos que en v0.30.0: se retiraron los tests de los módulos eliminados). mypy sin errores (320 ficheros). Sin las dependencias del extra `dev` los recuentos bajan (módulos que se saltan enteros) y `tests/conftest.py` lo avisa: ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`.
 
@@ -84,30 +84,20 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Migración a Zenical
 
-| Estado | Detalle |
-|--------|---------|
-| **Configuración** | `zensical.toml` (634 L) completo y validado. 92 docs .md, 44 diagramas Mermaid — 100% compatibles, 0 cambios en contenido. |
-| **CI/CD** | `.github/workflows/docs.yml` actualizado (`zensical build` + `peaceiris/actions-gh-pages`). |
-| **Instrucciones IA** | `CLAUDE.md`, `copilot-instructions.md`, `ZENICAL.md` — referencias actualizadas. |
-| **Bloqueador** | Zenical v0.0.44 NO publicado en crates.io (solo v0.0.3 placeholder). |
-| **Solución A (ahora)** | Descargar binario precompilado desde https://github.com/zensical/zensical/releases/tag/v0.0.44, copiar a `%USERPROFILE%\.cargo\bin\`. |
-| **Solución B (esperar)** | Aguardar publicación en crates.io (~2026-Q3), usar `cargo install zensical --version 0.0.44`. |
-| **Rama** | `migrate/zenical-pure` (5 commits, lista para merge cuando Zenical esté disponible). |
-| **Build actual** | MkDocs Material 9.5 funcional (`mkdocs build` en 5.5s, 0 errores). |
-
-**Ventaja de migrar**: build 300ms → 80ms (−73%), page load 400ms → 100ms (−75%), −50% dependencias docs.
+Completada: PR #19 fusionada (`c6d765a8`). `zensical build` (0.0.44, en el entorno `.[docs]`) y `mkdocs build` leen el
+mismo `mkdocs.yml`; el CI publica con Zensical. Ver `ZENICAL.md`.
 
 ---
 
 ## Próximos pasos
 
-000. `v0.39.1` (2026-10-09): **`drivers-connections-audit` cerrada** (FASES 1–6; v0.35.5–v0.39.1; sesiones `.ai/sessions/2026-10-08*` y `2026-10-09-*`; decisiones en `docs/adr/ADR-005-conexiones-multimotor.md`). Suite: 5397 passed, 497 skipped; `tests/integration`: 552 passed, 10 skipped; `zensical build --strict` OK. Deuda residual (TLS MariaDB sin `ssl_verify_identity`, WARNING repetido en TLS async, builders de URL, diagnóstico de 8 consultas, HSQLDB sin servidor en red, `init_command` en MariaDB async, `trust_cert` en pymssql) en `docs/roadmap.md` § «Deuda registrada — conexiones multimotor».
+000. `v0.39.1` (2026-10-09): **`drivers-connections-audit` cerrada** (FASES 1–6; v0.35.5–v0.39.1; sesiones `.ai/sessions/2026-10-08*` y `2026-10-09-*`; decisiones en `docs/adr/ADR-005-conexiones-multimotor.md`). Suite: 5397 passed, 497 skipped; `tests/integration`: 552 passed, 10 skipped; `zensical build --strict` OK. Deuda residual (TLS MariaDB sin `ssl_verify_identity`, WARNING repetido en TLS async, builders de URL, diagnóstico de 8 consultas, HSQLDB sin servidor en red, `init_command` en MariaDB async, `trust_cert` en pymssql) en `docs/roadmap.md` § «Deuda registrada — conexiones multimotor». Plan de esos pendientes: `.ai/sessions/2026-10-09b-plan-pendientes/PLAN_AUDIT_PLAN.md` (P0 mantenimiento hecho; siguiente P1).
 00. `v0.35.8` (2026-10-08): todos los P0–P2 de la FASE 1 de `drivers-connections-audit` cerrados (v0.35.5–v0.35.8; última sesión `.ai/sessions/2026-10-08e-fix-drivers-p2b/`). Suite: 5281 passed, 497 skipped; `tests/integration`: 552 passed, 10 skipped; `zensical build --strict` OK. HSQLDB nativo validado en memoria (2026-10-09). FASE 2 hecha (ver 000).
-0. `v0.31.0` cerrada (2026-10-04; centralización de metadatos, `.ai/sessions/2026-10-03-metadata-centralization/`, ADR-003). Pendiente: push de `develop` y tag; teardown de los schemas `zz_*` del banco; hallazgos no bloqueantes F3–F5, F7, H1–H2 del audit-code (en el TRACEABILITY de la sesión). Pendiente externo: issue del ORA-03106 (`.ai/sessions/2026-10-01y-ora03106-repro/ISSUE_DRAFT.md`). S-1 sigue NO_GO.
-1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
-2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
-3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.
-4. **Push commit `cd22520`** (bootstrap IA) o PR a main — pendiente decisión del usuario.
+0. `v0.31.0` cerrada (2026-10-04; ADR-003): push y tag hechos. Schemas `zz_it_dump_*` huérfanos del banco borrados el 2026-10-09 (los `zz_md_*` de `scripts/bench_metadata.py` se conservan a propósito). Pendientes: hallazgos no bloqueantes F3–F5, F7, H1–H2 del audit-code de esa sesión; externo: issue del ORA-03106 (`.ai/sessions/2026-10-01y-ora03106-repro/ISSUE_DRAFT.md`, publicarlo es decisión del usuario). S-1 sigue NO_GO.
+1. ~~Merge PR #18~~: código integrado en `main`/`develop`; solo queda cerrar la PR si sigue abierta.
+2. ~~Zenical~~: hecho (PR #19).
+3. ~~Criterios de aceptación en `docs/functional/`~~: el estándar documental vigente ya no tiene esa sección (§ 4 es «Glosario y Términos»).
+4. ~~Push de `cd22520` (bootstrap IA)~~: en `origin/develop`.
 
 ---
 
