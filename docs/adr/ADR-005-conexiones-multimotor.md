@@ -47,7 +47,7 @@ capas (Opción A), con cuatro decisiones:
 | Ventaja | El tamaño y el reciclado del pool del Engine se configuran desde `conn_params` |
 | Compromiso | Cambios de comportamiento en 0.36.0 (pool del Engine) y 0.37.0 (`ValidationError` en async, `search_path=public`); documentados en el CHANGELOG |
 | Compromiso | El TLS async de MariaDB sin `ssl_ca` no verifica el certificado (el sync sí, por la configuración automática de MariaDB 11.4) |
-| Deuda técnica | Sin `ssl_verify_identity` en MariaDB (las divergencias de URL sync/async y el `init_command` en MariaDB async se resolvieron en v0.40.0 y v0.39.2) |
+| Deuda técnica | Sin `ssl_verify_identity` en MariaDB: límite del conector sync, que solo tiene `ssl_verify_cert` (certificado y hostname juntos); comprobado el 2026-10-09 con CA propia. Las divergencias de URL sync/async y el `init_command` en MariaDB async se resolvieron en v0.40.0 y v0.39.2 |
 | Riesgo aceptado | Doble pool (nativo + Engine) por gestor: se documenta en lugar de reutilizar el pool nativo |
 
 ## 4. Alternativas Consideradas

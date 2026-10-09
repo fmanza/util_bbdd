@@ -1,0 +1,19 @@
+# Opcional: TLS con CA propia en el MariaDB del banco (pruebas de verificación de certificado y hostname).
+#
+#   python scripts/bench_tls_certs.py
+#   docker compose -f docker-compose.bench.yml -f docker-compose.bench-tls.yml up -d --wait --force-recreate -V mariadb
+#
+# Sin este fichero, MariaDB 11.4 usa su certificado autogenerado. Las conexiones sin TLS siguen funcionando: no se
+# activa require_secure_transport. Volver al certificado autogenerado: recrear solo con docker-compose.bench.yml.
+name: util_bbdd_bench
+
+services:
+  mariadb:
+    command:
+      - "--max-allowed-packet=64M"
+      - "--innodb-buffer-pool-size=512M"
+      - "--ssl-ca=/etc/mysql/bench-tls/ca.pem"
+      - "--ssl-cert=/etc/mysql/bench-tls/server-cert.pem"
+      - "--ssl-key=/etc/mysql/bench-tls/server-key.pem"
+    volumes:
+      - ./build/bench_tls:/etc/mysql/bench-tls:ro

@@ -24,8 +24,8 @@ Ver la sección `[Unreleased]` del
 
 Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md). Pendiente, sin fecha:
 
-- **TLS MariaDB**: no hay `ssl_verify_identity` para verificar la CA sin comprobar el hostname (MySQL sí lo tiene);
-  conectar por IP con un certificado sin esa IP en el SAN fallaría (sin comprobar con una CA propia).
+- **TLS MariaDB** (límite del driver, no se corrige): MariaDB Connector/Python no permite verificar la CA sin comprobar
+  el hostname (no hay equivalente a `ssl_verify_identity`); el hostname de conexión debe estar en el certificado.
 - **HSQLDB**: la conexión nativa se validó en memoria (`jdbc:hsqldb:mem:`, 2026-10-09); falta probarla contra un servidor HSQLDB en red.
 - **SQL Server**: `trust_cert` no tiene equivalente con pymssql (usar pyodbc/aioodbc para TLS real); desde v0.39.2 se avisa una vez.
 

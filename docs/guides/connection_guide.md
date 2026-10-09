@@ -212,6 +212,13 @@ conn_params = {"host": "db.example", "user": "app", "password": "pwd", "database
 Para verificar el certificado también en async, indica `ssl_ca`. Con el conector sync, `ssl_ca` sin verificación no
 exige esa CA; por eso la librería activa `ssl_verify_cert` cuando hay `ssl_ca`.
 
+Con `ssl_ca` se verifican la CA **y el hostname**: el nombre o la IP con que conectas debe figurar en el certificado
+del servidor (si no, `CERT_E_CN_NO_MATCH` en sync o error de conexión en async). No hay forma de verificar la CA sin el
+hostname: MariaDB Connector/Python no tiene equivalente a `ssl_verify_identity`. Excepción del conector sync
+(Connector/C 3.4): conectando como `localhost` no comprueba el hostname (sí la CA); aiomysql lo comprueba siempre.
+Las rutas de `ssl_ca`, `ssl_cert` y `ssl_key` pueden ser relativas al directorio de trabajo (comprobado con
+Connector/Python 1.1.14, aunque su documentación pida rutas absolutas).
+
 #### **`encoding_errors`** (obsoleto, sin efecto)
 
 Ningún driver de MariaDB lo admite: MariaDB Connector/Python 1.1.14 (la última versión) rechaza `encoding_errors`
