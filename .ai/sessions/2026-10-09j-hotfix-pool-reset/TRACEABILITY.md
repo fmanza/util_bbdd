@@ -60,5 +60,5 @@ al charset del servidor (latin1) y no se re-ejecuta init_command → SystemError
 ## Veredicto final
 Veredicto: CLOSED
 Pendientes al cierre:
-- El pool nativo de MySQL (`mysql.connector` pooling, `reset_session`) puede tener el mismo patrón; no verificado (fuera de alcance).
+- ~~El pool de MySQL puede tener el mismo patrón~~ → descartado (2026-10-09, banco MariaDB 11.4 / MySQL 8.4, misma conexión usada dos veces): solo `mariadb.ConnectionPool` reinicia la sesión. Conservan la sesión el pool sync de MySQL (`QueuePool` de SQLAlchemy sobre PyMySQL; al devolver hace `rollback`, no `COM_RESET_CONNECTION`), los pools async (aiomysql) de MariaDB y MySQL y el engine de SQLAlchemy del manager (MariaDB y MySQL). MySQL no admite `init_command` en util_bbdd: el charset lo fija el handshake de PyMySQL/aiomysql y `character_set_results` sigue en utf8mb4 tras reutilizar la conexión.
 - Push y tag `v0.40.3` hechos (2026-10-09).
