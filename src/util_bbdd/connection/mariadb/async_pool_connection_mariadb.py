@@ -18,7 +18,7 @@ from ..close import (
     run_close_operation_async,
 )
 from ..params import ConnectionParamsManager
-from .async_connection_mariadb import MARIADB_AIOMYSQL_EXCLUDE
+from .async_connection_mariadb import mariadb_aiomysql_exclude
 
 
 class AsyncMariaDBPool:
@@ -38,10 +38,11 @@ class AsyncMariaDBPool:
             import aiomysql
 
             pool_config = ConnectionParamsManager.get_pool_config("mariadb", conn_params)
+            driver_kwargs: dict[str, Any] = pool_config.connection.to_driver_kwargs()
             conn_kwargs: dict[str, Any] = build_aiomysql_connect_kwargs(
-                pool_config.connection.to_driver_kwargs(),
+                driver_kwargs,
                 aiomysql.connect,
-                exclude=MARIADB_AIOMYSQL_EXCLUDE,
+                exclude=mariadb_aiomysql_exclude(driver_kwargs),
             )
             close_timeout_seconds: float | None = pool_config.close_timeout
 

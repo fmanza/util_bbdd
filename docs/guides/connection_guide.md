@@ -106,7 +106,7 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 | `mariadb` | `host`, `user`, `password`, `database` | `port`=3306, `charset`=utf8mb4, `init_command`=`"SET NAMES utf8mb4"`, `encoding_errors`=`"replace"`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size` |
 | `mysql` | `host`, `user`, `password`, `database` | `port`=3306, `charset`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size`, `max_overflow`, `pool_timeout`, `pool_recycle`, `ssl_ca`/`ssl_cert`/`ssl_key`, `ssl_verify_cert`, `ssl_verify_identity` (sync y async: con CA se verifican certificado y hostname salvo que se desactiven) |
 | `oracle` | `user`, `password` + **uno de** `service_name` / `sid` / `dsn` / `database` | `host`=localhost, `port`=1521, `protocol` (`tcp`/`tcps`; sin `dsn`), `oracle_client_path`, `oracle_thick_mode`, `pool_size` |
-| `sqlserver` | `host`, `user`, `password`, `database` | `port`=1433, `sql_server_driver` (`pymssql`/`pyodbc`), `driver_name` (pyodbc), `encryption` (`mandatory`/`optional`/`off`; con pymssql se traduce a `require`/por defecto de FreeTDS/`off`), `trust_cert` y `use_mars` (solo pyodbc/aioodbc) |
+| `sqlserver` | `host`, `user`, `password`, `database` | `port`=1433, `sql_server_driver` (`pymssql`/`pyodbc`), `driver_name` (pyodbc), `encryption` (`mandatory`/`optional`/`off`; con pymssql se traduce a `require`/por defecto de FreeTDS/`off`), `trust_cert` y `use_mars` (solo pyodbc/aioodbc; con pymssql, `trust_cert=True` avisa una vez de que no se aplica) |
 | `sqlite` | `database` (ruta al fichero) | `timeout`, `isolation_level` (`""`/`DEFERRED`/`IMMEDIATE`/`EXCLUSIVE`), `check_same_thread`, `cached_statements` |
 | `hsqldb` | `user`, `jdbc_url`, `jdbc_jar` | `password`, `jdbc_driver`, `connection_properties` (propiedades JDBC). Sin Engine de SQLAlchemy ni pool: conexión nativa única |
 
@@ -138,7 +138,9 @@ SQL ejecutado en cada conexión sync y de pool (MariaDB Connector/Python). Es si
 defecto: el conector solo trabaja en utf8mb4 y rechaza otras sesiones (`ProgrammingError: Character set 'latin1' is
 not supported`, comprobado con 1.1.14). El conector tampoco admite el parámetro `charset`: la librería no se lo envía;
 `charset` (solo letras, dígitos y `_`) lo usa la conexión async (aiomysql). v0.35.6 hacía el valor por defecto
-`SET NAMES <charset>`, que impedía conectar con `charset="latin1"`; v0.35.7 lo revierte.
+`SET NAMES <charset>`, que impedía conectar con `charset="latin1"`; v0.35.7 lo revierte. En async (aiomysql) el valor
+por defecto no se envía (pisaría `charset`), pero desde v0.39.2 uno propio sí: p. ej.
+`init_command="SET time_zone = '+00:00'"` se aplica en sync, async y pools.
 Replica el comportamiento de PyMySQL/SQLAlchemy:
 
 - **Sin `init_command`**: El handshake fija `charset='utf8mb4'`, pero solo en `character_set_client` y

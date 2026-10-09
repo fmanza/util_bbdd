@@ -5,6 +5,23 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.39.2] - 2026-10-09
+
+Hotfix P1 del plan de pendientes tras `drivers-connections-audit` (`.ai/sessions/2026-10-09c-hotfix-p1-pendientes/`).
+
+### Fixed
+
+- **connection/mariadb**: un `init_command` propio (distinto del por defecto `SET NAMES utf8mb4`) se ignoraba en la
+  conexión y el pool async (aiomysql); ahora se envía. El por defecto se sigue omitiendo para no pisar `charset`.
+- **connection (F4)**: el aviso «TLS async sin verificar el certificado» se emite una vez por servidor y proceso, no en
+  cada conexión nueva del AsyncEngine.
+- **connection/sqlserver**: `trust_cert=True` con pymssql no tenía efecto y no se avisaba; ahora avisa una vez por
+  servidor (use pyodbc/aioodbc para controlar la validación del certificado).
+
+### Changed
+
+- **connection**: `connection/_advisory.py::warn_once` (aviso una vez por clave y proceso; `reset_warned` para tests).
+
 ## [0.39.1] - 2026-10-09
 
 Hotfix de los hallazgos F1 y F2 de la FASE 5 de `drivers-connections-audit`

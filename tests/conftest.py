@@ -32,6 +32,14 @@ def setup_logging():
     logging.getLogger("test").setLevel(logging.INFO)
 
 
+@pytest.fixture(autouse=True)
+def _reset_warn_once():
+    """``connection._advisory.warn_once`` guarda estado de proceso: cada test empieza sin avisos emitidos."""
+    from util_bbdd.connection._advisory import reset_warned
+
+    reset_warned()
+
+
 def _resolve_scope_marker(node_path: str, marker_names: set[str]) -> str | None:
     """Return the expected scope marker for a collected test item."""
     if "tests/integration/" in node_path:

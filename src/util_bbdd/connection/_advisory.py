@@ -2,8 +2,32 @@
 
 from __future__ import annotations
 
+import logging
+import threading
+
+from collections.abc import Hashable
 from dataclasses import dataclass
 from typing import Literal
+
+#: Avisos ya emitidos por ``warn_once`` (estado de proceso, como ``EngineReadinessAdvisor.report_once``): la misma
+#: configuración se repite en cada conexión de un pool o de un Engine y el aviso solo aporta la primera vez.
+_WARNED: set[Hashable] = set()
+_WARNED_LOCK = threading.Lock()
+
+
+def warn_once(logger: logging.Logger, key: Hashable, message: str) -> None:
+    """Emite ``message`` como WARNING la primera vez que aparece ``key`` en el proceso."""
+    with _WARNED_LOCK:
+        if key in _WARNED:
+            return
+        _WARNED.add(key)
+    logger.warning(message)
+
+
+def reset_warned() -> None:
+    """Olvida los avisos emitidos (tests)."""
+    with _WARNED_LOCK:
+        _WARNED.clear()
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,4 +48,4 @@ def fmt_bytes(size_bytes: int) -> str:
     return f"{size_bytes} B"
 
 
-__all__: list[str] = ["AdvisoryFinding", "fmt_bytes"]
+__all__: list[str] = ["AdvisoryFinding", "fmt_bytes", "reset_warned", "warn_once"]

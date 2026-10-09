@@ -6,6 +6,7 @@ from typing import Any, ClassVar
 
 from util_bbdd._core.exceptions import ConnectionError
 
+from .._advisory import warn_once
 from ..params import ConnectionParamsManager
 
 
@@ -94,7 +95,13 @@ class SQLServerConnection:
             )
             if encryption is not None:
                 params["encryption"] = encryption
-            params.pop("trust_cert", None)
+            if params.pop("trust_cert", False):
+                warn_once(
+                    SQLServerConnection.logger,
+                    ("pymssql-trust-cert", params.get("host"), params.get("port")),
+                    "⚠️ trust_cert no tiene efecto con pymssql (la validación del certificado depende de FreeTDS): "
+                    "use sql_server_driver='pyodbc' para controlarla por conexión",
+                )
             params.pop("use_mars", None)
 
             SQLServerConnection.logger.debug(

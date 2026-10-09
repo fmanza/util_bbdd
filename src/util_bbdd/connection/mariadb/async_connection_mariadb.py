@@ -9,10 +9,20 @@ from typing import Any
 from util_bbdd._core.exceptions import ConnectionError
 
 from .._aiomysql import build_aiomysql_connect_kwargs
+from ..config import MariaDBConnectionConfig
 from ..params import ConnectionParamsManager
 
-#: MariaDB async no envía ``init_command``: el ``SET NAMES utf8mb4`` por defecto es del conector sync y pisaría ``charset``.
+#: MariaDB async no envía el ``init_command`` por defecto: su ``SET NAMES utf8mb4`` es del conector sync y pisaría
+#: ``charset``. Uno propio (distinto del por defecto) sí se envía (v0.39.2).
 MARIADB_AIOMYSQL_EXCLUDE: frozenset[str] = frozenset({"init_command"})
+_DEFAULT_INIT_COMMAND: str = MariaDBConnectionConfig.init_command
+
+
+def mariadb_aiomysql_exclude(driver_kwargs: dict[str, Any]) -> frozenset[str]:
+    """Claves de la config de MariaDB que no van a aiomysql: ``init_command`` solo si es el por defecto."""
+    if driver_kwargs.get("init_command") in (None, _DEFAULT_INIT_COMMAND):
+        return MARIADB_AIOMYSQL_EXCLUDE
+    return frozenset()
 
 
 class AsyncMariaDBConnection:
@@ -22,10 +32,12 @@ class AsyncMariaDBConnection:
 
     @staticmethod
     def _map_connect_kwargs(conn_params: dict[str, Any]) -> dict[str, Any]:
-        """kwargs de ``aiomysql.connect`` para MariaDB (sin ``init_command``: ver ``build_aiomysql_connect_kwargs``)."""
+        """kwargs de ``aiomysql.connect`` para MariaDB (``init_command`` solo si es propio: ver ``mariadb_aiomysql_exclude``)."""
         import aiomysql
 
-        return build_aiomysql_connect_kwargs(conn_params, aiomysql.connect, exclude=MARIADB_AIOMYSQL_EXCLUDE)
+        return build_aiomysql_connect_kwargs(
+            conn_params, aiomysql.connect, exclude=mariadb_aiomysql_exclude(conn_params)
+        )
 
     @staticmethod
     async def connect(conn_params: dict[str, Any], found_rows: bool = False) -> Any:

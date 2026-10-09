@@ -12,6 +12,7 @@ import ssl
 from collections.abc import Collection
 from typing import Any
 
+from ._advisory import warn_once
 from .mysql.connection_mysql import build_ssl_context, pop_mysql_ssl_options
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -84,7 +85,12 @@ def build_aiomysql_connect_kwargs(
     if (ssl_options or tls_requested) and "ssl" in supported:
         ctx = build_ssl_context(ssl_options)
         if ctx.verify_mode == ssl.CERT_NONE:
-            logger.warning("⚠️ TLS async sin verificar el certificado del servidor: indique ssl_ca para verificarlo")
+            # Una vez por servidor: el async_creator de un AsyncEngine pasa por aquí en cada conexión nueva.
+            warn_once(
+                logger,
+                ("aiomysql-tls-unverified", kwargs.get("host"), kwargs.get("port")),
+                "⚠️ TLS async sin verificar el certificado del servidor: indique ssl_ca para verificarlo",
+            )
         kwargs["ssl"] = ctx
     elif ssl_options or tls_requested:
         logger.warning("⚠️ El connect async no acepta 'ssl': la conexión no usará TLS")
