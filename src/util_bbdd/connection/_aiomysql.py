@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import ssl
 
 from collections.abc import Collection
 from typing import Any
@@ -77,10 +78,15 @@ def build_aiomysql_connect_kwargs(
     if "database" in kwargs:
         kwargs["db"] = kwargs.pop("database")
     supported: set[str] = _supported_params(connect)
+    # ``ssl=True`` (MariaDB) activa TLS aunque no haya ficheros; aiomysql solo acepta ``ssl=SSLContext``.
+    tls_requested: bool = kwargs.pop("ssl", None) is True
     ssl_options: dict[str, Any] = pop_mysql_ssl_options(kwargs)
-    if ssl_options and "ssl" in supported:
-        kwargs["ssl"] = build_ssl_context(ssl_options)
-    elif ssl_options:
+    if (ssl_options or tls_requested) and "ssl" in supported:
+        ctx = build_ssl_context(ssl_options)
+        if ctx.verify_mode == ssl.CERT_NONE:
+            logger.warning("⚠️ TLS async sin verificar el certificado del servidor: indique ssl_ca para verificarlo")
+        kwargs["ssl"] = ctx
+    elif ssl_options or tls_requested:
         logger.warning("⚠️ El connect async no acepta 'ssl': la conexión no usará TLS")
     discarded: set[str] = set(kwargs) - supported
     if discarded:

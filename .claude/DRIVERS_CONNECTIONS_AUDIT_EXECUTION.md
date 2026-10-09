@@ -7,8 +7,9 @@
 (`.ai/sessions/2026-10-08c-fix-drivers-p1/`); P2 S3/M2/G1 en **v0.35.7** (`.ai/sessions/2026-10-08d-fix-drivers-p2/`) y el resto de P2 en **v0.35.8**
 (`.ai/sessions/2026-10-08e-fix-drivers-p2b/`). Todos los hallazgos de FASE 1 cerrados. FASE 2-3 ejecutadas el 2026-10-09
 (`.ai/sessions/2026-10-09-drivers-connections-audit-fase2/`): Opción B acotada, readiness gate **GO_CONDICIONAL**.
-Siguiente paso: FASE 4 por bloques B6 → B5 → B4 (`/refactor`, 0.35.x) → B3 → B1 (`/refactor`, 0.36.0) → CS → B2
-(`/new-feature`, 0.36.0); ver SKILL.md § FASE 2.
+FASE 4 ejecutada el 2026-10-09: B6 (v0.35.9), B5 (v0.35.10), B4 (v0.35.11), B3 (v0.36.0), hotfix del pool async de
+Oracle (v0.36.1), B1 (v0.37.0), CS (v0.38.0) y B2 (v0.39.0); sesiones `.ai/sessions/2026-10-09-*`.
+Siguiente paso: FASE 5 (`/audit-code` sobre v0.35.8..v0.39.0) y FASE 6 (`/version-closure`).
 
 ### Resultado de FASE 1 (resumen)
 

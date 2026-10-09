@@ -111,6 +111,32 @@
               "convert"
             ],
             "description": "Lectura del catálogo: 'auto' diagnostica el charset (8 consultas) y elige; 'native' lee sin CONVERT; 'convert' aplica siempre CONVERT(... USING utf8mb4). 'native' y 'convert' no diagnostican"
+          },
+          {
+            "name": "ssl",
+            "type": "boolean",
+            "default": false,
+            "description": "Activa TLS. Sin CA, el conector sync verifica el certificado por huella (MariaDB 11.4+); el async cifra sin verificar"
+          },
+          {
+            "name": "ssl_ca",
+            "type": "string",
+            "description": "Ruta a la CA que firmó el certificado del servidor; activa TLS y su verificación"
+          },
+          {
+            "name": "ssl_cert",
+            "type": "string",
+            "description": "Ruta al certificado de cliente; activa TLS"
+          },
+          {
+            "name": "ssl_key",
+            "type": "string",
+            "description": "Ruta a la clave privada del certificado de cliente"
+          },
+          {
+            "name": "ssl_verify_cert",
+            "type": "boolean",
+            "description": "Verificar el certificado del servidor (por defecto, sí si hay ssl_ca); activa TLS"
           }
         ]
       },

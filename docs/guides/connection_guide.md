@@ -189,6 +189,27 @@ conn_params = {"host": "localhost", "user": "app", "password": "pwd", "database"
                "catalog_charset_mode": "native"}
 ```
 
+#### TLS en MariaDB: `ssl`, `ssl_ca`, `ssl_cert`, `ssl_key`, `ssl_verify_cert` (desde v0.39.0)
+
+Sin ninguna de estas claves la conexión no se cifra (como antes de v0.39.0). Cualquiera de ellas activa TLS en la
+conexión y el pool sync, la conexión y el pool async y los Engine de bulk/dump. Si el TLS falla, la conexión falla: no
+se reintenta sin cifrar.
+
+| Clave | Efecto |
+|---|---|
+| `ssl=True` | Cifra. En sync, MariaDB 11.4+ verifica el certificado del servidor sin CA (por huella derivada de la contraseña); en async (aiomysql) cifra **sin verificar** y avisa con un WARNING |
+| `ssl_ca` | Cifra y **verifica** el certificado del servidor contra esa CA (sync y async) |
+| `ssl_cert` + `ssl_key` | Certificado de cliente |
+| `ssl_verify_cert` | `False` desactiva la verificación (p. ej. CA de pruebas); con `ssl_ca` vale `True` por defecto |
+
+```python
+conn_params = {"host": "db.example", "user": "app", "password": "pwd", "database": "ventas",
+               "ssl_ca": "/etc/ssl/mariadb-ca.pem"}
+```
+
+Para verificar el certificado también en async, indica `ssl_ca`. Con el conector sync, `ssl_ca` sin verificación no
+exige esa CA; por eso la librería activa `ssl_verify_cert` cuando hay `ssl_ca`.
+
 #### **`encoding_errors`** (obsoleto, sin efecto)
 
 Ningún driver de MariaDB lo admite: MariaDB Connector/Python 1.1.14 (la última versión) rechaza `encoding_errors`

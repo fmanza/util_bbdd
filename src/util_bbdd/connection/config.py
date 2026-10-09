@@ -97,6 +97,13 @@ class MariaDBConnectionConfig:
     #: compatibilidad; ``from_params`` avisa con ``FutureWarning`` y ``to_driver_kwargs`` no lo envía.
     encoding_errors: str | None = None
     init_command: str = "SET NAMES utf8mb4"
+    #: TLS (MariaDB Connector/Python: ``ssl``, ``ssl_ca``, ``ssl_cert``, ``ssl_key``, ``ssl_verify_cert``; aiomysql:
+    #: ``SSLContext``). Cualquiera de ellos activa TLS; sin ninguno, la conexión no se cifra (comportamiento previo).
+    ssl: bool = False
+    ssl_ca: str | None = None
+    ssl_cert: str | None = None
+    ssl_key: str | None = None
+    ssl_verify_cert: bool | None = None
     #: Estrategia de lectura del catálogo (``auto`` | ``native`` | ``convert``); no se envía al driver.
     catalog_charset_mode: str = "auto"
 
@@ -136,8 +143,38 @@ class MariaDBConnectionConfig:
             charset=charset,
             encoding_errors=encoding_errors,
             init_command=init_command,
+            ssl=_to_bool(params.get("ssl", False), "ssl", db_type),
+            ssl_ca=_opt_str(params, "ssl_ca"),
+            ssl_cert=_opt_str(params, "ssl_cert"),
+            ssl_key=_opt_str(params, "ssl_key"),
+            ssl_verify_cert=None
+            if params.get("ssl_verify_cert") is None
+            else _to_bool(params["ssl_verify_cert"], "ssl_verify_cert", db_type),
             catalog_charset_mode=_catalog_charset_mode(params, db_type),
         )
+
+    def _tls_kwargs(self) -> dict[str, Any]:
+        """Opciones TLS en el formato de MariaDB Connector/Python (``{}`` sin TLS).
+
+        Comprobado con Connector/Python 1.1.14 (Connector/C 3.4.7) y MariaDB 11.4: ``ssl_verify_cert`` solo no cifra
+        (hace falta ``ssl=True``) y ``ssl_ca`` sin ``ssl_verify_cert=True`` no exige la CA; por eso con ``ssl_ca`` la
+        verificación se activa salvo ``ssl_verify_cert=False`` explícito. Sin CA, el conector sync verifica el
+        certificado por huella (configuración automática de MariaDB 11.4).
+        """
+        files: dict[str, str] = {
+            key: value
+            for key, value in (("ssl_ca", self.ssl_ca), ("ssl_cert", self.ssl_cert), ("ssl_key", self.ssl_key))
+            if value
+        }
+        if not (self.ssl or files or self.ssl_verify_cert is not None):
+            return {}
+        payload: dict[str, Any] = {"ssl": True, **files}
+        verify: bool | None = (
+            self.ssl_verify_cert if self.ssl_verify_cert is not None else (True if self.ssl_ca else None)
+        )
+        if verify is not None:
+            payload["ssl_verify_cert"] = verify
+        return payload
 
     def to_driver_kwargs(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -156,6 +193,7 @@ class MariaDBConnectionConfig:
         }
         if self.unix_socket:
             payload["unix_socket"] = self.unix_socket
+        payload.update(self._tls_kwargs())
         return payload
 
 

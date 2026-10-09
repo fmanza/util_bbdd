@@ -5,6 +5,25 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.39.0] - 2026-10-09
+
+Bloque B2 de la FASE 4 de `drivers-connections-audit` (`.ai/sessions/2026-10-09-feature-mariadb-tls/`). Cierra la
+FASE 4 (bloques B6, B5, B4, B3, B1, CS y B2).
+
+### Added
+
+- **connection/mariadb (D1)**: TLS en MariaDB con `ssl`, `ssl_ca`, `ssl_cert`, `ssl_key` y `ssl_verify_cert` en
+  `conn_params` (campos de `MariaDBConnectionConfig`). Se aplica en la conexión y el pool sync (MariaDB
+  Connector/Python), la conexión y el pool async (aiomysql, `SSLContext`) y los Engine (`creator`). Sin estas claves
+  no cambia nada (sin TLS). Con `ssl_ca` se activa `ssl_verify_cert`: el conector sync no exige la CA sin él
+  (comprobado con Connector/Python 1.1.14 / Connector/C 3.4.7 y MariaDB 11.4). En async, `ssl=True` sin `ssl_ca`
+  cifra sin verificar el certificado y lo avisa con un WARNING. Ver `docs/guides/connection_guide.md` § 6.
+
+### Changed
+
+- **connection**: `build_aiomysql_connect_kwargs` acepta `ssl=True` (TLS sin ficheros) y avisa con un WARNING
+  cuando el TLS async no verifica el certificado (también en MySQL con `ssl_*` sin CA).
+
 ## [0.38.0] - 2026-10-09
 
 Bloque CS de la FASE 4 de `drivers-connections-audit` (`.ai/sessions/2026-10-09-feature-catalog-charset-mode/`).
