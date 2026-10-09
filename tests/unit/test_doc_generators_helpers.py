@@ -8,10 +8,13 @@ from typing import Any, cast
 
 import pytest
 
+from util_bbdd._core.exceptions import DatabaseException
+
 pytest.importorskip("docx")
 pytest.importorskip("jinja2")
 pytest.importorskip("openpyxl")
 
+from util_bbdd._core.filenames import safe_file_stem
 from util_bbdd.doc.infrastructure.renderers.excel_generator import ExcelGenerator
 from util_bbdd.doc.infrastructure.renderers.html_generator import HtmlGenerator
 from util_bbdd.doc.infrastructure.renderers.shared.diagram_legend import (
@@ -25,13 +28,13 @@ from util_bbdd.doc.infrastructure.renderers.shared.diagram_summary import (
     build_diagram_summary_line,
     build_diagram_summary_payload,
 )
-from util_bbdd._core.filenames import safe_file_stem
 from util_bbdd.doc.infrastructure.renderers.shared.generator_shared import (
     GeneratorRoutineRuntime,
     GeneratorTableRuntime,
     GeneratorTabularRuntime,
 )
 from util_bbdd.doc.infrastructure.renderers.word_generator import WordGenerator
+from util_bbdd.doc.infrastructure.storage.engines import parse_size_to_mb, parse_temp_data_file_path_rows
 from util_bbdd.doc.infrastructure.storage.runtime import StorageInventoryRuntime
 
 
@@ -959,10 +962,7 @@ def test_matplotlib_relationship_graph_uses_multilevel_document() -> None:
 
 
 def test_storage_inventory_runtime_parses_mariadb_temp_data_file_path() -> None:
-    rows = StorageInventoryRuntime._parse_mariadb_temp_data_file_path_rows(
-        "innodb_temp_data_file_path",
-        "ibtmp1:12M:autoextend:max:5G",
-    )
+    rows = parse_temp_data_file_path_rows("innodb_temp_data_file_path", "ibtmp1:12M:autoextend:max:5G")
 
     assert rows == [
         [
@@ -977,28 +977,42 @@ def test_storage_inventory_runtime_parses_mariadb_temp_data_file_path() -> None:
 
 
 def test_storage_inventory_runtime_parse_mariadb_size_to_mb_accepts_units() -> None:
-    assert StorageInventoryRuntime._parse_mariadb_size_to_mb("64K") == pytest.approx(0.06)
-    assert StorageInventoryRuntime._parse_mariadb_size_to_mb("12M") == pytest.approx(12.0)
-    assert StorageInventoryRuntime._parse_mariadb_size_to_mb("2G") == pytest.approx(2048.0)
+    assert parse_size_to_mb("64K") == pytest.approx(0.06)
+    assert parse_size_to_mb("12M") == pytest.approx(12.0)
+    assert parse_size_to_mb("2G") == pytest.approx(2048.0)
+    assert parse_size_to_mb("7") == pytest.approx(7.0)
+    assert parse_size_to_mb("abc") is None
 
 
-def test_storage_inventory_runtime_formats_mariadb_files_access_error() -> None:
+@pytest.mark.parametrize(
+    ("error", "status", "message"),
+    [
+        ("Access denied to information_schema.FILES for user", "error", "Sin acceso a information_schema.FILES"),
+        ("Table 'information_schema.FILES' doesn't exist", "not_supported", "no expone information_schema.FILES"),
+        ("Lost connection", "error", "Error ejecutando consulta: Lost connection"),
+    ],
+)
+def test_storage_inventory_runtime_explains_mariadb_files_errors(error: str, status: str, message: str) -> None:
+    class _Manager:
+        conn_params: dict[str, Any] = {}
+
+        def get_storage_rows(self, query_name: str, **_: Any) -> list[Any]:
+            if query_name == "temp_tablespaces":
+                raise DatabaseException(error)
+            return []
+
     runtime = StorageInventoryRuntime(
-        db_manager=cast(Any, type("Manager", (), {"conn_params": {}})()),
+        db_manager=cast(Any, _Manager()),
         logger=logging.getLogger(__name__),
         db_type="mariadb",
         database="demo",
         print_config={},
     )
 
-    section: dict[str, Any] = runtime._build_mariadb_temp_tablespaces_error_section(
-        "temp_tablespaces",
-        "Temp tablespaces",
-        "Access denied to information_schema.FILES for user",
-    )
+    section = next(s for s in runtime.get_storage_inventory_report()["sections"] if s["query"] == "temp_tablespaces")
 
-    assert section["status"] == "error"
-    assert "Sin acceso a information_schema.FILES" in section["message"]
+    assert section["status"] == status
+    assert message in section["message"]
 
 
 def test_storage_inventory_runtime_storage_specs_add_sqlite_summary_section() -> None:
@@ -1010,7 +1024,7 @@ def test_storage_inventory_runtime_storage_specs_add_sqlite_summary_section() ->
         print_config={},
     )
 
-    specs = runtime._build_storage_query_specs()
+    specs = [(spec.name, spec.title) for spec in runtime.engine_spec.queries]
 
     assert specs == [
         ("ficheros_fisicos", "Ficheros físicos"),

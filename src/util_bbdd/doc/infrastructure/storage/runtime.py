@@ -1,656 +1,204 @@
-"""Helpers internos para el inventario de almacenamiento documental."""
+"""Inventario de almacenamiento de la documentación: ejecuta las secciones de ``engines.ENGINE_SPECS`` de un motor."""
 
 from __future__ import annotations
 
 import re
 
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, cast
+from typing import Any, cast
 
 from ...._core.exceptions import DatabaseException, QueryNotFoundError, QueryParameterError
 from ....metadata.storage import storage_query, storage_query_params
 from ...application._internal_ports import StorageReportServicePort
 from ...application.ports import DocumentationBackendPort, LoggerProtocol
-from .contracts import StorageInventoryManagerProtocol, StorageInventoryStrategyPort
-from .mariadb_strategy import MariadbStorageInventoryStrategy
-from .oracle_strategy import OracleStorageInventoryStrategy
+from .contracts import StorageInventoryManagerProtocol
+from .engines import ENGINE_SPECS, GENERIC_SPEC, Rows, Section, StorageEngineSpec, StorageQuerySpec, section
 from .payload import StorageInventoryReportPayload, StorageSectionPayload
-from .strategy_registry import StorageInventoryEngineStrategy
+
+# Cabeceras de tamaño: «(MB)», «Size…», «Tamaño…» como palabra (B-03: «mb» suelto marcaba «Nombre lógico»)
+_SIZE_HEADER = re.compile(r"\b(?:mb|size|tama[nñ]o)\b", re.IGNORECASE)
+_GENERIC_STORAGE_FALLBACK_MESSAGE: str = (
+    "Este motor no tiene una estrategia de almacenamiento dedicada; se usa un "
+    "fallback genérico (tablespace vacío, consultas por defecto) que puede ser "
+    "impreciso o no aplicable."
+)
 
 
 @dataclass(slots=True)
 class StorageInventoryRuntime:
-    """Construye el informe de almacenamiento consumido por los generadores."""
+    """Construye el informe de almacenamiento consumido por los generadores.
+
+    Example:
+        >>> runtime = StorageInventoryRuntime(manager, logger, "mariadb", "ventas", print_config={})
+        >>> runtime.get_storage_inventory_report()["sections"][0]["title"]
+        'Ficheros físicos'
+    """
 
     db_manager: StorageInventoryManagerProtocol
     logger: LoggerProtocol
     db_type: str
     database: str
     print_config: dict[str, Any]
-    _mariadb_strategy: MariadbStorageInventoryStrategy = field(init=False, repr=False)
-    _oracle_strategy: OracleStorageInventoryStrategy = field(init=False, repr=False)
-    _default_storage_strategy: StorageInventoryStrategyPort = field(init=False, repr=False)
-    _storage_strategy_registry: dict[str, StorageInventoryStrategyPort] = field(init=False, repr=False)
+    _tablespace: str = field(default="", init=False, repr=False)
 
-    _ARCHIVO_FISICO: str = "Archivo fisico"
-    _FICHEROS_FISICOS: str = "Ficheros físicos"
-    _TAMANO_MB: str = "Tamaño (MB)"
-    _TIPO_FICHERO: str = "Tipo de fichero"
-    _MAXIMO_MB: str = "Maximo (MB)"
-    _TEMP_TABLESPACES: str = "Temp tablespaces"
-    _GENERIC_STORAGE_FALLBACK_MESSAGE: str = (
-        "Este motor no tiene una estrategia de almacenamiento dedicada; se usa un "
-        "fallback genérico (tablespace vacío, consultas por defecto) que puede ser "
-        "impreciso o no aplicable."
-    )
-    _SIZE_HEADER_HINTS: tuple[str, ...] = ("mb", "tamano", "tamaño", "size")
-    _DEFAULT_STORAGE_QUERY_SPECS: ClassVar[tuple[tuple[str, str], ...]] = (
-        ("ficheros_fisicos", _FICHEROS_FISICOS),
-        ("temp_tablespaces", _TEMP_TABLESPACES),
-    )
-    _DB_STORAGE_QUERY_SPECS: ClassVar[dict[str, tuple[tuple[str, str], ...]]] = {
-        "mariadb": (
-            ("ficheros_fisicos", _FICHEROS_FISICOS),
-            ("temp_tablespaces", _TEMP_TABLESPACES),
-            ("temp_storage_variables", "Configuración temporales InnoDB"),
-        ),
-        "mysql": (
-            ("ficheros_fisicos", _FICHEROS_FISICOS),
-            ("temp_tablespaces", _TEMP_TABLESPACES),
-            ("temp_storage_variables", "Configuración temporales InnoDB"),
-        ),
-        "sqlite": (
-            ("ficheros_fisicos", _FICHEROS_FISICOS),
-            ("sqlite_file_summary", f"{_FICHEROS_FISICOS} - resumen SQLite"),
-            ("temp_tablespaces", _TEMP_TABLESPACES),
-        ),
-    }
-
-    def __post_init__(self) -> None:
-        """Inicializa estrategias de motor para consultas de almacenamiento."""
-        self._mariadb_strategy = MariadbStorageInventoryStrategy()
-        self._oracle_strategy = OracleStorageInventoryStrategy()
-        self._default_storage_strategy = StorageInventoryEngineStrategy(
-            query_specs=self._DEFAULT_STORAGE_QUERY_SPECS,
-            resolve_default_tablespace_fn=lambda: "",
-        )
-        self._storage_strategy_registry = {
-            "postgresql": StorageInventoryEngineStrategy(
-                query_specs=self._DEFAULT_STORAGE_QUERY_SPECS,
-                resolve_default_tablespace_fn=lambda: "pg_default",
-            ),
-            "sqlite": StorageInventoryEngineStrategy(
-                query_specs=self._DB_STORAGE_QUERY_SPECS["sqlite"],
-                resolve_default_tablespace_fn=lambda: "",
-            ),
-            "mariadb": StorageInventoryEngineStrategy(
-                query_specs=self._DB_STORAGE_QUERY_SPECS["mariadb"],
-                resolve_default_tablespace_fn=lambda: "",
-                query_processors={
-                    "temp_storage_variables": lambda query_name, query_title, _database_name, query_params: (
-                        self._process_mariadb_temp_storage_variables_query(query_name, query_title, query_params)
-                    ),
-                },
-                error_processors={
-                    "temp_tablespaces": lambda query_name, query_title, error_msg: (
-                        self._build_mariadb_temp_tablespaces_error_section(query_name, query_title, error_msg)
-                    ),
-                },
-            ),
-            # MySQL: mismas consultas y el mismo formato de variables InnoDB que MariaDB.
-            "mysql": StorageInventoryEngineStrategy(
-                query_specs=self._DB_STORAGE_QUERY_SPECS["mysql"],
-                resolve_default_tablespace_fn=lambda: "",
-                query_processors={
-                    "temp_storage_variables": lambda query_name, query_title, _database_name, query_params: (
-                        self._process_mariadb_temp_storage_variables_query(query_name, query_title, query_params)
-                    ),
-                },
-                error_processors={
-                    "temp_tablespaces": lambda query_name, query_title, error_msg: (
-                        self._build_mariadb_temp_tablespaces_error_section(query_name, query_title, error_msg)
-                    ),
-                },
-            ),
-            "oracle": StorageInventoryEngineStrategy(
-                query_specs=self._DEFAULT_STORAGE_QUERY_SPECS,
-                resolve_default_tablespace_fn=self._get_oracle_default_tablespace,
-                query_processors={
-                    "ficheros_fisicos": lambda query_name, query_title, database_name, _query_params: (
-                        self._process_oracle_storage_query(query_name, query_title, database_name)
-                    ),
-                    "temp_tablespaces": lambda query_name, query_title, database_name, _query_params: (
-                        self._process_oracle_storage_query(query_name, query_title, database_name)
-                    ),
-                },
-            ),
-        }
+    @property
+    def engine_spec(self) -> StorageEngineSpec:
+        """Secciones del motor; un motor sin entrada usa las genéricas."""
+        return ENGINE_SPECS.get(self.db_type, GENERIC_SPEC)
 
     def get_storage_inventory_report(self) -> dict[str, Any]:
         """Obtiene informe unificado de almacenamiento para Word/Excel/HTML."""
-        query_specs: list[tuple[str, str]] = self._build_storage_query_specs()
         database_name: str = str(self.database or "").strip()
-        tablespace: str = self._resolve_storage_tablespace()
-        query_params: dict[str, Any] = {"database": database_name, "tablespace": tablespace}
+        configured: list[str] = self.configured_tablespaces()
+        self._tablespace = configured[0] if configured else self.engine_spec.default_tablespace(self)
 
-        sections_payload: list[StorageSectionPayload] = []
-        if self._uses_generic_storage_fallback():
+        sections: list[StorageSectionPayload] = []
+        if self.db_type not in ENGINE_SPECS:
             self.logger.warning(
                 f"Motor '{self.db_type}' sin estrategia de almacenamiento dedicada; usando fallback genérico"
             )
-            sections_payload.append(
-                StorageSectionPayload.from_mapping(self._build_generic_storage_fallback_notice_section())
+            notice = StorageQuerySpec("generic_storage_fallback_notice", "Aviso: estrategia de almacenamiento genérica")
+            sections.append(
+                StorageSectionPayload.from_mapping(section(notice, "not_supported", _GENERIC_STORAGE_FALLBACK_MESSAGE))
             )
-
-        for query_name, query_title in query_specs:
-            section_dict: dict[str, Any] = self._process_storage_query(
-                query_name, query_title, database_name, query_params
+        for spec in self.engine_spec.queries:
+            processed: Section = (
+                spec.process(self, spec, database_name) if spec.process else self._process_standard(spec, database_name)
             )
-            sections_payload.append(StorageSectionPayload.from_mapping(section_dict))
+            sections.append(StorageSectionPayload.from_mapping(processed))
 
-        report_payload = StorageInventoryReportPayload(
+        return StorageInventoryReportPayload(
             db_type=self.db_type,
             database=self.database,
-            tablespace=tablespace,
-            sections=tuple(sections_payload),
-        )
-        return report_payload.to_dict()
+            tablespace=self._tablespace,
+            sections=tuple(sections),
+        ).to_dict()
 
-    def _resolve_storage_tablespace(self) -> str:
-        """Resuelve el tablespace para consultas de almacenamiento cuando aplica."""
-        tablespace: str = self._get_configured_tablespace()
-        if tablespace:
-            return tablespace
-        return self._get_default_database_tablespace()
-
-    def _get_configured_tablespace(self) -> str:
-        """Obtiene tablespace desde configuración o parámetros de conexión."""
+    # ── API para las secciones (engines.py) ──────────────────────────────────
+    def configured_tablespaces(self) -> list[str]:
+        """Tablespaces indicados por el usuario: ``imprimir.storage``/``almacenamiento.tablespace`` y ``conn_params``."""
         storage_cfg: object = self.print_config.get("storage")
         if not isinstance(storage_cfg, dict):
             storage_cfg = self.print_config.get("almacenamiento", {})
-        if not isinstance(storage_cfg, dict):
-            storage_cfg = {}
+        values: list[str] = [
+            str(storage_cfg.get("tablespace", "") or "").strip() if isinstance(storage_cfg, dict) else "",
+            str(self.db_manager.conn_params.get("tablespace", "") or "").strip(),
+        ]
+        return [value for value in values if value]
 
-        cfg_tablespace: str = str(storage_cfg.get("tablespace", "") or "").strip()
-        if cfg_tablespace:
-            return cfg_tablespace
-
-        return str(self.db_manager.conn_params.get("tablespace", "") or "").strip()
-
-    def _get_default_database_tablespace(self) -> str:
-        """Obtiene tablespace por defecto según el tipo de motor."""
-        return self._resolve_storage_strategy().resolve_default_tablespace()
-
-    def _get_oracle_default_tablespace(self) -> str:
-        """Intenta obtener tablespace del usuario Oracle conectado."""
-        try:
-            user_tablespaces: object = self.db_manager.get_storage_rows("user_tablespaces")
-            return self._extract_tablespace_from_row(user_tablespaces)
-        except DatabaseException:
-            return ""
-
-    def _extract_tablespace_from_row(self, row_data: object) -> str:
-        """Extrae tablespace válido de una fila de datos."""
-        normalized_rows: list[list[object]] = self._normalize_storage_rows(row_data)
-        if not normalized_rows or not normalized_rows[0]:
-            return ""
-
-        row: list[object] = normalized_rows[0]
-        if len(row) > 0:
-            default_ts: str = str(row[0] or "").strip()
-            if default_ts:
-                return default_ts
-
-        if len(row) > 1:
-            temp_ts: str = str(row[1] or "").strip()
-            if temp_ts:
-                return temp_ts
-
-        return ""
-
-    def _resolve_oracle_storage_tablespaces(self) -> dict[str, list[str]]:
-        """Resuelve tablespaces Oracle separados por tipo."""
-        return self._oracle_strategy.resolve_storage_tablespaces(self)
-
-    def _collect_oracle_data_tablespaces(self) -> list[str]:
-        """Recolecta tablespaces de datos desde configuración y usuario Oracle."""
-        return self._oracle_strategy.collect_data_tablespaces(self)
-
-    def _collect_oracle_temp_tablespaces(self) -> list[str]:
-        """Recolecta tablespaces temporales desde usuario Oracle."""
-        return self._oracle_strategy.collect_temp_tablespaces(self)
-
-    def _dedup_tablespaces(self, values: list[str]) -> list[str]:
-        """Deduplica y normaliza lista de tablespaces."""
-        return self._oracle_strategy.dedup_tablespaces(values)
-
-    def _normalize_storage_rows(self, rows: object) -> list[list[object]]:
-        """Normaliza resultados de consulta a formato tabular homogéneo."""
-        if rows is None:
-            return []
-
-        if not isinstance(rows, list):
-            rows = [rows]
-
-        normalized: list[list[object]] = []
-        for row in rows:
-            if isinstance(row, (list, tuple)):
-                normalized.append(list(row))
-            else:
-                normalized.append([row])
-        return normalized
-
-    @staticmethod
-    def _parse_mariadb_size_to_mb(size_value: str) -> float | None:
-        """Convierte tamaños MariaDB tipo 12M/5G a MB."""
-        return MariadbStorageInventoryStrategy.parse_size_to_mb(size_value)
-
-    @classmethod
-    def _parse_mariadb_temp_data_file_path_rows(cls, variable_name: str, raw_value: str) -> list[list[object]]:
-        """Parsea innodb_temp_data_file_path a filas tabulares."""
-        return MariadbStorageInventoryStrategy.parse_temp_data_file_path_rows(variable_name, raw_value)
-
-    @classmethod
-    def _extract_mariadb_temp_data_from_chunk(
-        cls, variable_name: str, chunk: str, raw_value: str
-    ) -> list[object] | None:
-        """Extrae datos de un chunk de innodb_temp_data_file_path."""
-        return MariadbStorageInventoryStrategy.extract_temp_data_from_chunk(variable_name, chunk, raw_value)
-
-    @classmethod
-    def _extract_initial_size_and_idx(cls, tokens: list[str], idx: int) -> tuple[float | str, int]:
-        """Extrae tamaño inicial y devuelve el siguiente índice."""
-        return MariadbStorageInventoryStrategy.extract_initial_size_and_idx(tokens, idx)
-
-    @classmethod
-    def _extract_optional_mariadb_params(cls, tokens: list[str], start_idx: int) -> tuple[str, float | str]:
-        """Extrae parámetros opcionales autoextend y max de MariaDB."""
-        return MariadbStorageInventoryStrategy.extract_optional_params(tokens, start_idx)
-
-    @staticmethod
-    def _is_autoextend_token(token: str) -> bool:
-        """Verifica si el token es autoextend."""
-        return MariadbStorageInventoryStrategy.is_autoextend_token(token)
-
-    @staticmethod
-    def _is_max_token(token: str, tokens: list[str], idx: int) -> bool:
-        """Verifica si el token es max y hay siguiente elemento."""
-        return MariadbStorageInventoryStrategy.is_max_token(token, tokens, idx)
-
-    def _build_storage_query_specs(self) -> list[tuple[str, str]]:
-        """Construye secciones de almacenamiento según el motor."""
-        return self._resolve_storage_strategy().get_query_specs()
-
-    def _resolve_storage_strategy(self) -> StorageInventoryStrategyPort:
-        """Resuelve la estrategia por motor o fallback genérico."""
-        return self._storage_strategy_registry.get(self.db_type, self._default_storage_strategy)
-
-    def _uses_generic_storage_fallback(self) -> bool:
-        """True si el motor actual no tiene estrategia de almacenamiento dedicada.
-
-        DOC-03 (AUDIT_CODE 2026-09-22): antes de esto, un motor sin entrada en
-        ``_storage_strategy_registry`` (p.ej. SQL Server) caía en silencio al
-        fallback genérico (tablespace vacío, consultas por defecto), sin
-        ninguna indicación en el documento generado ni en logs.
-        """
-        return self.db_type not in self._storage_strategy_registry
-
-    def _build_generic_storage_fallback_notice_section(self) -> dict[str, Any]:
-        """Construye la sección informativa que hace visible el uso del fallback genérico."""
-        return {
-            "query": "generic_storage_fallback_notice",
-            "title": "Aviso: estrategia de almacenamiento genérica",
-            "status": "not_supported",
-            "message": self._GENERIC_STORAGE_FALLBACK_MESSAGE,
-            "sql": "",
-            "headers": [],
-            "rows": [],
-            "numeric_columns": [],
-        }
-
-    @staticmethod
-    def _flatten_exception_messages(error: Exception) -> str:
-        """Concatena mensajes de la cadena de excepciones."""
-        messages: list[str] = []
-        current: BaseException | None = error
-        seen: set[int] = set()
-        while current is not None and id(current) not in seen:
-            seen.add(id(current))
-            current_message: str = str(current).strip()
-            if current_message:
-                messages.append(current_message)
-            current = current.__cause__ or current.__context__
-        return " | ".join(messages)
-
-    def _get_storage_headers_by_query(self, query_name: str) -> list[str]:
-        """Devuelve cabeceras legibles por motor y consulta de almacenamiento."""
-        headers_map: dict[str, dict[str, list[str]]] = {
-            "mariadb": {
-                "ficheros_fisicos": ["DB", "Objeto", "Motor", "Datos (MB)", "Indices (MB)", "Total (MB)"],
-                "temp_tablespaces": ["Tablespace", "Archivo", "Extent (MB)", "Inicial (MB)", self._MAXIMO_MB],
-                "temp_storage_variables": [
-                    "Variable",
-                    "Archivo",
-                    "Inicial (MB)",
-                    "Autoextend",
-                    self._MAXIMO_MB,
-                    "Valor bruto",
-                ],
-            },
-            "mysql": {
-                "ficheros_fisicos": ["DB", "Objeto", "Motor", "Datos (MB)", "Indices (MB)", "Total (MB)"],
-                "temp_tablespaces": ["Tablespace", "Archivo", "Extent (MB)", "Inicial (MB)", self._MAXIMO_MB],
-                "temp_storage_variables": [
-                    "Variable",
-                    "Archivo",
-                    "Inicial (MB)",
-                    "Autoextend",
-                    self._MAXIMO_MB,
-                    "Valor bruto",
-                ],
-            },
-            "oracle": {
-                "ficheros_fisicos": [
-                    "Tablespace",
-                    "Archivo",
-                    self._TAMANO_MB,
-                    "Estado",
-                    self._TIPO_FICHERO,
-                    "Autoextensible",
-                    self._MAXIMO_MB,
-                ],
-                "temp_tablespaces": [
-                    "Tablespace",
-                    "Archivo",
-                    self._TAMANO_MB,
-                    "Estado",
-                    self._TIPO_FICHERO,
-                    "Autoextensible",
-                    self._MAXIMO_MB,
-                ],
-            },
-            "postgresql": {
-                "ficheros_fisicos": ["Tablespace", "Ruta filesystem", "Tamaño total"],
-                "temp_tablespaces": [self._TEMP_TABLESPACES],
-            },
-            "sqlserver": {
-                "ficheros_fisicos": [
-                    "Database",
-                    "Nombre logico",
-                    self._TIPO_FICHERO,
-                    self._ARCHIVO_FISICO,
-                    self._TAMANO_MB,
-                    "Tamano maximo (MB)",
-                    "Crecimiento en porcentaje",
-                    "Configuracion crecimiento",
-                ],
-                "temp_tablespaces": [
-                    "Database",
-                    "Nombre logico",
-                    self._TIPO_FICHERO,
-                    self._ARCHIVO_FISICO,
-                    self._TAMANO_MB,
-                    "Tamano maximo (MB)",
-                    "Crecimiento en porcentaje",
-                    "Configuracion crecimiento",
-                ],
-            },
-            "sqlite": {
-                "ficheros_fisicos": ["Seq", "Nombre", "Archivo"],
-                "sqlite_file_summary": ["Page count", "Page size", "Size bytes"],
-                "temp_tablespaces": ["Temp store"],
-            },
-            "hsqldb": {"temp_tablespaces": ["Temp tablespace"]},
-        }
-        return headers_map.get(self.db_type, {}).get(query_name, [])
-
-    def _build_storage_headers(self, query_name: str, rows: list[list[object]]) -> list[str]:
-        """Construye cabeceras legibles; si no hay mapeo usa fallback genérico."""
-        preferred_headers: list[str] = self._get_storage_headers_by_query(query_name)
-        if preferred_headers:
-            if rows:
-                max_cols: int = max(len(row) for row in rows)
-                if max_cols > 0:
-                    return preferred_headers[:max_cols]
-            return preferred_headers
-        if not rows:
-            return []
-        fallback_max_cols: int = max(len(row) for row in rows)
-        return [f"Columna {idx}" for idx in range(1, fallback_max_cols + 1)]
-
-    def _is_size_header(self, header: str) -> bool:
-        """Indica si una cabecera corresponde a un valor de tamaño."""
-        normalized: str = str(header or "").strip().lower()
-        return any(hint in normalized for hint in self._SIZE_HEADER_HINTS)
-
-    def _format_spanish_decimal(self, value: object) -> object:
-        """Convierte separador decimal de punto a coma en valores numéricos."""
-        if value is None:
-            return ""
-        if isinstance(value, (int, bool)):
-            return value
-        if isinstance(value, float):
-            return f"{value:.2f}".replace(".", ",")
-
-        text_value: str = str(value)
-        normalized_numeric: str = text_value.replace(",", ".")
-        if re.fullmatch(r"-?\d+(\.\d+)?", normalized_numeric):
-            return f"{float(normalized_numeric):.2f}".replace(".", ",")
-        return value
-
-    def _format_storage_rows(self, headers: list[str], rows: list[list[object]]) -> list[list[object]]:
-        """Formatea filas de almacenamiento aplicando formato español en tamaños."""
-        if not rows:
-            return rows
-
-        formatted_rows: list[list[object]] = []
-        for row in rows:
-            formatted_row: list[object] = []
-            for idx, value in enumerate(row):
-                header: str = headers[idx] if idx < len(headers) else ""
-                formatted_row.append(self._format_spanish_decimal(value) if self._is_size_header(header) else value)
-            formatted_rows.append(formatted_row)
-        return formatted_rows
-
-    def _get_numeric_storage_indices(self, headers: list[str]) -> list[int]:
-        """Devuelve índices de columnas numéricas de almacenamiento."""
-        return [idx for idx, header in enumerate(headers) if self._is_size_header(header)]
-
-    def _process_storage_query(
-        self,
-        query_name: str,
-        query_title: str,
-        database_name: str,
-        query_params: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Procesa una consulta individual de almacenamiento."""
-        resolved_section = self._resolve_storage_strategy().process_query(
-            query_name=query_name,
-            query_title=query_title,
-            database_name=database_name,
-            query_params=query_params,
-        )
-        if resolved_section is not None:
-            return resolved_section
-        return self._process_standard_storage_query(query_name, query_title, query_params)
-
-    def _process_mariadb_temp_storage_variables_query(
-        self,
-        query_name: str,
-        query_title: str,
-        query_params: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Procesa configuración temporal MariaDB basada en SHOW VARIABLES."""
-        return self._mariadb_strategy.process_temp_storage_variables_query(self, query_name, query_title, query_params)
-
-    def _process_oracle_storage_query(self, query_name: str, query_title: str, database_name: str) -> dict[str, Any]:
-        """Procesa consulta de almacenamiento específica para Oracle."""
-        return self._oracle_strategy.process_storage_query(self, query_name, query_title, database_name)
-
-    def _collect_oracle_tablespace_data(
-        self,
-        query_name: str,
-        database_name: str,
-        oracle_tablespaces: list[str],
-    ) -> tuple[list[list[object]], list[str], list[str]]:
-        """Recolecta datos de tablespaces Oracle."""
-        return self._oracle_strategy.collect_tablespace_data(
-            runtime=self,
-            query_name=query_name,
-            database_name=database_name,
-            oracle_tablespaces=oracle_tablespaces,
-        )
-
-    def _deduplicate_rows(self, rows: list[list[object]]) -> list[list[object]]:
-        """Deduplica filas."""
-        return self._oracle_strategy.deduplicate_rows(rows)
-
-    def _build_oracle_section(
-        self,
-        query_name: str,
-        query_title: str,
-        rows: list[list[object]],
-        headers: list[str],
-        tablespace_count: int,
-        errors: list[str],
-        sql_list: list[str],
-    ) -> dict[str, Any]:
-        """Construye sección de resultado para Oracle."""
-        return self._oracle_strategy.build_oracle_section(
-            runtime=self,
-            query_name=query_name,
-            query_title=query_title,
-            rows=rows,
-            headers=headers,
-            tablespace_count=tablespace_count,
-            errors=errors,
-            sql_list=sql_list,
-        )
-
-    def _run_storage_query(self, query_name: str, query_params: dict[str, Any]) -> tuple[str, list[list[object]]]:
+    def execute(self, query_name: str, *, database: str, tablespace: str) -> tuple[str, Rows]:
         """SQL (de ``metadata.storage``, con ``:nombre``) y filas de una consulta de almacenamiento.
 
         Raises:
             QueryNotFoundError: El motor no tiene la consulta.
             QueryParameterError: Falta un parámetro que la consulta necesita (``tablespace``).
+            DatabaseException: Error del motor al ejecutarla.
         """
         sql = storage_query(self.db_type, query_name)
         if sql is None:
             raise QueryNotFoundError(f"'{query_name}' no existe para {self.db_type}")
-        params: dict[str, Any] = {
-            "schema": query_params.get("database") or None,
-            "tablespace": query_params.get("tablespace") or None,
-        }
+        params: dict[str, Any] = {"schema": database or None, "tablespace": tablespace or None}
         missing = [
             name for name in storage_query_params(self.db_type, query_name) if name != "schema" and not params[name]
         ]
         if missing:
             raise QueryParameterError(f"falta {', '.join(missing)}")
         rows = self.db_manager.get_storage_rows(query_name, **{k: v for k, v in params.items() if v is not None})
-        return sql, self._normalize_storage_rows(rows)
+        return sql, self.normalize_rows(rows)
 
-    def _process_standard_storage_query(
-        self,
-        query_name: str,
-        query_title: str,
-        query_params: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Procesa consulta de almacenamiento estándar."""
+    def run_query(self, spec: StorageQuerySpec, *, database: str) -> tuple[str, Rows] | Section:
+        """Ejecuta la consulta de ``spec`` con el tablespace del informe; si falla, la sección que lo explica."""
         try:
-            sql_text, rows = self._run_storage_query(query_name, query_params)
+            return self.execute(spec.name, database=database, tablespace=self._tablespace)
         except QueryNotFoundError:
-            return self._build_section_not_supported(query_name, query_title)
+            return section(spec, "not_supported", "No disponible para este motor de base de datos.")
         except QueryParameterError as error:
-            return self._build_section_missing_params(query_name, query_title, f"Parámetros inválidos: {error}")
+            return section(spec, "missing_params", f"Parámetros inválidos: {error}")
         except DatabaseException as error:
-            return self._build_storage_error_section(query_name, query_title, self._flatten_exception_messages(error))
-        headers: list[str] = self._build_storage_headers(query_name, rows)
-        rows = self._format_storage_rows(headers, rows)
+            message: str = _flatten_exception_messages(error)
+            explained: Section | None = spec.on_error(spec, message) if spec.on_error else None
+            return explained or section(spec, "error", f"Error ejecutando consulta: {message}")
+
+    def ok_section(
+        self, spec: StorageQuerySpec, sql: str, rows: Rows, *, message: str | None = None, status: str = "ok"
+    ) -> Section:
+        """Sección con filas: cabeceras de ``spec`` (o genéricas) y tamaños con coma decimal."""
+        headers: list[str] = _headers_for(spec, rows)
+        if message is None:
+            message = "OK" if rows else "Sin datos"
         return {
-            "query": query_name,
-            "title": query_title,
-            "status": "ok",
-            "message": "OK" if rows else "Sin datos",
-            "sql": sql_text,
-            "headers": headers,
-            "rows": rows,
-            "numeric_columns": self._get_numeric_storage_indices(headers),
-        }
-
-    def _build_storage_error_section(self, query_name: str, query_title: str, error_msg: str) -> dict[str, Any]:
-        """Construye sección de error usando transformadores por motor."""
-        override = self._resolve_storage_strategy().build_error_section(
-            query_name=query_name,
-            query_title=query_title,
-            error_msg=error_msg,
-        )
-        if override is not None:
-            return override
-        return self._build_section_error(query_name, query_title, error_msg)
-
-    def _build_mariadb_temp_tablespaces_error_section(
-        self,
-        query_name: str,
-        query_title: str,
-        error_msg: str,
-    ) -> dict[str, Any]:
-        """Construye mensaje explícito para incidencias de information_schema.FILES."""
-        return self._mariadb_strategy.build_temp_tablespaces_error_section(self, query_name, query_title, error_msg)
-
-    def _build_section_not_supported(self, query_name: str, query_title: str) -> dict[str, Any]:
-        """Construye sección de resultado para consultas no soportadas."""
-        return {
-            "query": query_name,
-            "title": query_title,
-            "status": "not_supported",
-            "message": "No disponible para este motor de base de datos.",
-            "sql": "",
-            "headers": [],
-            "rows": [],
-            "numeric_columns": [],
-        }
-
-    def _build_section_missing_params(self, query_name: str, query_title: str, message: str) -> dict[str, Any]:
-        """Construye sección de resultado para parámetros faltantes."""
-        return {
-            "query": query_name,
-            "title": query_title,
-            "status": "missing_params",
+            "query": spec.name,
+            "title": spec.title,
+            "status": status,
             "message": message,
-            "sql": "",
-            "headers": [],
-            "rows": [],
-            "numeric_columns": [],
+            "sql": sql,
+            "headers": headers,
+            "rows": _format_rows(headers, rows),
+            "numeric_columns": [index for index, header in enumerate(headers) if _is_size_header(header)],
         }
 
-    def _build_section_error(self, query_name: str, query_title: str, error_msg: str) -> dict[str, Any]:
-        """Construye sección de resultado para errores."""
-        return {
-            "query": query_name,
-            "title": query_title,
-            "status": "error",
-            "message": f"Error ejecutando consulta: {error_msg}",
-            "sql": "",
-            "headers": [],
-            "rows": [],
-            "numeric_columns": [],
-        }
+    @staticmethod
+    def normalize_rows(rows: object) -> Rows:
+        """Filas como listas (una fila suelta o un escalar se envuelven)."""
+        if rows is None:
+            return []
+        items: list[object] = rows if isinstance(rows, list) else [rows]
+        return [list(row) if isinstance(row, (list, tuple)) else [row] for row in items]
+
+    def _process_standard(self, spec: StorageQuerySpec, database: str) -> Section:
+        outcome = self.run_query(spec, database=database)
+        if isinstance(outcome, dict):
+            return outcome
+        sql_text, rows = outcome
+        return self.ok_section(spec, sql_text, rows)
 
 
-def build_storage_inventory_runtime(
-    *,
-    db_manager: StorageInventoryManagerProtocol,
-    logger: LoggerProtocol,
-    print_config: dict[str, Any],
-) -> StorageInventoryRuntime:
-    """Construye el runtime documental de almacenamiento fuera de la fachada pública."""
-    return StorageInventoryRuntime(
-        db_manager=db_manager,
-        logger=logger,
-        db_type=db_manager.db_type,
-        database=db_manager.database,
-        print_config=print_config,
-    )
+def _flatten_exception_messages(error: BaseException) -> str:
+    """Concatena los mensajes de la cadena de excepciones."""
+    messages: list[str] = []
+    current: BaseException | None = error
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        current_message: str = str(current).strip()
+        if current_message:
+            messages.append(current_message)
+        current = current.__cause__ or current.__context__
+    return " | ".join(messages)
+
+
+def _headers_for(spec: StorageQuerySpec, rows: Rows) -> list[str]:
+    """Cabeceras de ``spec`` recortadas a las columnas devueltas; ``Columna N`` si la consulta no tiene."""
+    widest: int = max((len(row) for row in rows), default=0)
+    if spec.headers:
+        return list(spec.headers[:widest] if widest > 0 else spec.headers)
+    return [f"Columna {index}" for index in range(1, widest + 1)]
+
+
+def _is_size_header(header: str) -> bool:
+    return _SIZE_HEADER.search(str(header or "")) is not None
+
+
+def _format_spanish_decimal(value: object) -> object:
+    """Tamaño con dos decimales y coma decimal; enteros y booleanos sin cambios."""
+    if value is None:
+        return ""
+    if isinstance(value, (int, bool)):
+        return value
+    if isinstance(value, float):
+        return f"{value:.2f}".replace(".", ",")
+    normalized_numeric: str = str(value).replace(",", ".")
+    if re.fullmatch(r"-?\d+(\.\d+)?", normalized_numeric):
+        return f"{float(normalized_numeric):.2f}".replace(".", ",")
+    return value
+
+
+def _format_rows(headers: list[str], rows: Rows) -> Rows:
+    size_columns: set[int] = {index for index, header in enumerate(headers) if _is_size_header(header)}
+    return [
+        [_format_spanish_decimal(value) if index in size_columns else value for index, value in enumerate(row)]
+        for row in rows
+    ]
 
 
 def get_storage_inventory_report(
@@ -660,12 +208,13 @@ def get_storage_inventory_report(
     print_config: dict[str, Any],
 ) -> dict[str, Any]:
     """Obtiene el informe de almacenamiento sin exponer bootstrap en la fachada documental."""
-    runtime: StorageInventoryRuntime = build_storage_inventory_runtime(
+    return StorageInventoryRuntime(
         db_manager=db_manager,
         logger=logger,
+        db_type=db_manager.db_type,
+        database=db_manager.database,
         print_config=print_config,
-    )
-    return runtime.get_storage_inventory_report()
+    ).get_storage_inventory_report()
 
 
 @dataclass(slots=True, frozen=True)
@@ -687,8 +236,7 @@ class StorageInventoryReportService(StorageReportServicePort):
 
 
 __all__: list[str] = [
-    "StorageInventoryRuntime",
     "StorageInventoryReportService",
-    "build_storage_inventory_runtime",
+    "StorageInventoryRuntime",
     "get_storage_inventory_report",
 ]

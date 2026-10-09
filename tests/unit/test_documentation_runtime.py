@@ -543,12 +543,11 @@ def test_storage_inventory_runtime_parses_mariadb_temp_storage_variables() -> No
 def test_storage_inventory_runtime_unregistered_engine_adds_fallback_notice(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """DOC-03 (AUDIT_CODE 2026-09-22): un motor sin estrategia dedicada (p.ej.
-    SQL Server) debe advertir explícitamente que usa el fallback genérico, no
-    caer en silencio."""
+    """DOC-03 (AUDIT_CODE 2026-09-22): un motor sin inventario propio (HSQLDB, sin consultas de almacenamiento)
+    debe advertir explícitamente que usa el fallback genérico, no caer en silencio."""
 
     class _UnregisteredEngineManager:
-        db_type = "sqlserver"
+        db_type = "hsqldb"
         conn_params: dict[str, Any] = {}
 
         def get_storage_rows(self, query_name: str, **kwargs: Any) -> list[tuple[str, str]]:
@@ -557,7 +556,7 @@ def test_storage_inventory_runtime_unregistered_engine_adds_fallback_notice(
     runtime = StorageInventoryRuntime(
         db_manager=cast(Any, _UnregisteredEngineManager()),
         logger=logging.getLogger(__name__),
-        db_type="sqlserver",
+        db_type="hsqldb",
         database="demo",
         print_config={},
     )
@@ -569,7 +568,8 @@ def test_storage_inventory_runtime_unregistered_engine_adds_fallback_notice(
     assert len(notice_sections) == 1
     assert notice_sections[0]["status"] == "not_supported"
     assert "fallback genérico" in notice_sections[0]["message"]
-    assert any("sqlserver" in message.lower() and "genérico" in message.lower() for message in caplog.messages)
+    assert any("hsqldb" in message.lower() and "genérico" in message.lower() for message in caplog.messages)
+    assert [s["status"] for s in report["sections"][1:]] == ["not_supported", "not_supported"]
 
 
 def test_storage_inventory_runtime_registered_engine_has_no_fallback_notice() -> None:

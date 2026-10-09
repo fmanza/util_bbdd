@@ -14,6 +14,7 @@ from unittest.mock import MagicMock
 
 from util_bbdd.doc.infrastructure.renderers.shared.generator_shared import GeneratorTabularRuntime
 from util_bbdd.doc.infrastructure.runtime.headers_runtime import DocumentationHeadersRuntime
+from util_bbdd.doc.infrastructure.storage.engines import ENGINE_SPECS
 from util_bbdd.doc.infrastructure.storage.runtime import StorageInventoryRuntime
 
 HEADERS_FILE = Path(__file__).resolve().parents[2] / "src/util_bbdd/doc/data/headers_config.json"
@@ -40,10 +41,10 @@ class TestMysqlFollowsMariaDBInConsumers:
         runtime = StorageInventoryRuntime(
             db_manager=manager, logger=MagicMock(), db_type="mysql", database="db1", print_config={}
         )
-        assert runtime._uses_generic_storage_fallback() is False
-        assert [name for name, _ in runtime._build_storage_query_specs()] == [
+        assert runtime.engine_spec is ENGINE_SPECS["mariadb"]
+        assert [spec.name for spec in runtime.engine_spec.queries] == [
             "ficheros_fisicos",
             "temp_tablespaces",
             "temp_storage_variables",
         ]
-        assert runtime._get_storage_headers_by_query("ficheros_fisicos")[0] == "DB"
+        assert runtime.engine_spec.queries[0].headers[0] == "DB"
