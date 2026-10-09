@@ -18,6 +18,12 @@ from util_bbdd.metadata._charset_detection import (
 )
 
 
+def _combined_row(fetch_results: list[tuple[object, ...]]) -> tuple[object, ...]:
+    """Fila de la consulta combinada de diagnóstico (v0.39.3) a partir de los 8 resultados de las consultas sueltas."""
+    values = [result[0] for result in fetch_results]
+    return tuple(values + [None] * (8 - len(values)))  # como el relleno (None,) de las consultas sueltas
+
+
 class TestCharsetStateDetector:
     """Tests para CharsetStateDetector.diagnose()."""
 
@@ -38,7 +44,7 @@ class TestCharsetStateDetector:
             (True,),  # can_convert_utf8mb4 (_test_convert_utf8mb4 devuelve True)
             ("utf8mb4",),  # info_schema_charset (_test_info_schema_charset devuelve utf8mb4)
         ]
-        cursor_mock.fetchone.side_effect = fetch_results + [(None,)] * 10
+        cursor_mock.fetchone.side_effect = [_combined_row(fetch_results)] + [(None,)] * 10
         cursor_mock.execute.return_value = None
 
         detector = CharsetStateDetector(conn, "named")
@@ -64,7 +70,7 @@ class TestCharsetStateDetector:
             ("utf8",),  # @@character_set_connection
             ("utf8_general_ci",),  # @@collation_connection
         ]
-        cursor_mock.fetchone.side_effect = fetch_results + [(None,)] * 10
+        cursor_mock.fetchone.side_effect = [_combined_row(fetch_results)] + [(None,)] * 10
         cursor_mock.execute.return_value = None
 
         detector = CharsetStateDetector(conn, "named")
@@ -88,7 +94,7 @@ class TestCharsetStateDetector:
             ("utf8mb4",),  # @@character_set_connection
             ("utf8mb4_unicode_ci",),  # @@collation_connection
         ]
-        cursor_mock.fetchone.side_effect = fetch_results + [(None,)] * 10
+        cursor_mock.fetchone.side_effect = [_combined_row(fetch_results)] + [(None,)] * 10
         cursor_mock.execute.return_value = None
 
         detector = CharsetStateDetector(conn, "named")
@@ -116,7 +122,7 @@ class TestCharsetStateDetector:
             ("test",),  # _test_convert_utf8mb4 ← non-None → True
             (None,),  # _test_info_schema_charset ← None es aceptable
         ]
-        cursor_mock.fetchone.side_effect = fetch_results + [(None,)] * 10
+        cursor_mock.fetchone.side_effect = [_combined_row(fetch_results)] + [(None,)] * 10
         cursor_mock.execute.return_value = None
 
         detector = CharsetStateDetector(conn, "named")
@@ -146,7 +152,7 @@ class TestCharsetStateDetector:
             (True,),  # can_convert_utf8mb4
             ("utf8",),  # info_schema_charset (utf8 = utf8mb3 in MySQL/MariaDB)
         ]
-        cursor_mock.fetchone.side_effect = fetch_results + [(None,)] * 10
+        cursor_mock.fetchone.side_effect = [_combined_row(fetch_results)] + [(None,)] * 10
         cursor_mock.execute.return_value = None
 
         detector = CharsetStateDetector(conn, "named")
@@ -211,7 +217,7 @@ class TestAdaptiveCatalogExecutor:
             (True,),  # can_convert_utf8mb4
             ("utf8mb4",),  # info_schema_charset
         ]
-        cursor_mock.fetchone.side_effect = fetch_results + [(("col1",),)] * 10
+        cursor_mock.fetchone.side_effect = [_combined_row(fetch_results)] + [(("col1",),)] * 10
         cursor_mock.fetchall.return_value = [(("col1",),)]
         cursor_mock.execute.return_value = None
 
@@ -240,7 +246,7 @@ class TestAdaptiveCatalogExecutor:
             (False,),  # can_convert_utf8mb4
             (None,),  # info_schema_charset
         ]
-        cursor_mock.fetchone.side_effect = fetch_results + [(("col1",),)] * 10
+        cursor_mock.fetchone.side_effect = [_combined_row(fetch_results)] + [(("col1",),)] * 10
         cursor_mock.fetchall.return_value = [(("col1",),)]
         cursor_mock.execute.return_value = None
 
@@ -268,7 +274,7 @@ class TestAdaptiveCatalogExecutor:
             (True,),  # can_convert_utf8mb4
             (None,),  # info_schema_charset
         ]
-        cursor_mock.fetchone.side_effect = fetch_results + [(("col1",),)] * 10
+        cursor_mock.fetchone.side_effect = [_combined_row(fetch_results)] + [(("col1",),)] * 10
         cursor_mock.fetchall.return_value = [(("col1",),)]
         cursor_mock.execute.return_value = None
 
@@ -287,7 +293,7 @@ class TestAdaptiveCatalogExecutor:
 
         # Resultados de detección (ignorados porque mode='native')
         fetch_results = [("utf8mb3",)] * 8
-        cursor_mock.fetchone.side_effect = fetch_results + [(("col1",),)] * 10
+        cursor_mock.fetchone.side_effect = [_combined_row(fetch_results)] + [(("col1",),)] * 10
         cursor_mock.fetchall.return_value = [(("col1",),)]
         cursor_mock.execute.return_value = None
 
@@ -304,7 +310,7 @@ class TestAdaptiveCatalogExecutor:
         conn.cursor.return_value = cursor_mock
 
         fetch_results = [("utf8mb4",)] * 8
-        cursor_mock.fetchone.side_effect = fetch_results + [(("col1",),)] * 10
+        cursor_mock.fetchone.side_effect = [_combined_row(fetch_results)] + [(("col1",),)] * 10
         cursor_mock.fetchall.return_value = [(("col1",),)]
         cursor_mock.execute.return_value = None
 
@@ -420,7 +426,7 @@ class TestCharsetDetectionFixes:
             (True,),  # can_convert_utf8mb4
             (None,),  # info_schema_charset
         ]
-        cursor_mock.fetchone.side_effect = fetch_results + [(None,)] * 10
+        cursor_mock.fetchone.side_effect = [_combined_row(fetch_results)] + [(None,)] * 10
         cursor_mock.execute.return_value = None
 
         detector = CharsetStateDetector(conn, "named")
@@ -446,7 +452,7 @@ class TestCharsetDetectionFixes:
             (True,),
             (None,),
         ]
-        cursor_mock.fetchone.side_effect = fetch_results + [(None,)] * 10
+        cursor_mock.fetchone.side_effect = [_combined_row(fetch_results)] + [(None,)] * 10
         cursor_mock.execute.return_value = None
 
         detector = CharsetStateDetector(conn, "named")
@@ -493,3 +499,62 @@ class TestCharsetDetectionFixes:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestCombinedDiagnosisQuery:
+    """v0.39.3 (M5): el diagnóstico es una sola consulta; si falla, se repiten las 8 consultas sueltas."""
+
+    CLEAN = [
+        ("utf8mb4",),
+        ("utf8mb4",),
+        ("utf8mb4",),
+        ("utf8mb4",),
+        ("utf8mb4_unicode_ci",),
+        ("",),
+        ("test",),
+        ("utf8mb4",),
+    ]
+
+    def test_single_query_when_combined_works(self) -> None:
+        conn = mock.MagicMock()
+        cursor_mock = conn.cursor.return_value
+        cursor_mock.fetchone.return_value = _combined_row(self.CLEAN)
+
+        diagnosis = CharsetStateDetector(conn, "named").diagnose()
+
+        assert diagnosis.state == CharsetState.UTF8MB4_CLEAN
+        assert cursor_mock.execute.call_count == 1
+        assert "@@collation_connection" in cursor_mock.execute.call_args.args[0]
+
+    def test_falls_back_to_one_query_per_value_when_combined_fails(self) -> None:
+        """Un comentario que no se puede decodificar (H-32) hace fallar la consulta combinada al leer la fila."""
+        conn = mock.MagicMock()
+        cursor_mock = conn.cursor.return_value
+        cursor_mock.fetchone.side_effect = [UnicodeDecodeError("utf-8", b"\xff", 0, 1, "x"), *self.CLEAN]
+
+        diagnosis = CharsetStateDetector(conn, "named").diagnose()
+
+        assert diagnosis.state == CharsetState.UTF8MB4_CLEAN
+        assert cursor_mock.execute.call_count == 9  # 1 combinada + 8 sueltas
+
+    def test_async_single_query_and_fallback(self) -> None:
+        import asyncio
+
+        from util_bbdd.metadata._charset_detection import adiagnose
+
+        def make_conn(fetch_side_effect: list[object]) -> mock.MagicMock:
+            conn = mock.MagicMock()
+            cursor_mock = mock.MagicMock()
+            cursor_mock.execute = mock.AsyncMock()
+            cursor_mock.fetchone = mock.AsyncMock(side_effect=fetch_side_effect)
+            cursor_mock.close = mock.AsyncMock()
+            conn.cursor = mock.AsyncMock(return_value=cursor_mock)
+            return conn
+
+        single = make_conn([_combined_row(self.CLEAN)])
+        fallback = make_conn([RuntimeError("combinada"), *self.CLEAN])
+
+        assert asyncio.run(adiagnose(single)).state == CharsetState.UTF8MB4_CLEAN
+        assert asyncio.run(adiagnose(fallback)).state == CharsetState.UTF8MB4_CLEAN
+        assert single.cursor.await_count == 1
+        assert fallback.cursor.await_count == 9

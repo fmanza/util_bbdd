@@ -36,6 +36,14 @@ _VARIABLES_SQL: tuple[str, str, str, str, str] = (
 _READ_COMMENTS_SQL = "SELECT TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() LIMIT 1"
 _CONVERT_SQL = "SELECT CONVERT('test' USING utf8mb4)"
 _SCHEMATA_SQL = "SELECT DEFAULT_CHARACTER_SET_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = DATABASE()"
+#: Todo el diagnóstico en un viaje: las 5 variables, el comentario de una tabla, ``CONVERT`` y el charset del schema.
+#: Si falla (p. ej. un comentario que no se puede decodificar, H-32), se repiten las consultas sueltas de arriba para
+#: saber qué parte falla.
+_DIAGNOSIS_SQL = (
+    "SELECT @@character_set_server, @@character_set_database, @@character_set_client, @@character_set_connection, "
+    f"@@collation_connection, ({_READ_COMMENTS_SQL}), CONVERT('test' USING utf8mb4), ({_SCHEMATA_SQL})"
+)
+_DIAGNOSIS_COLUMNS = 8
 
 
 class CharsetState(Enum):
@@ -120,8 +128,44 @@ class CharsetStateDetector:
             logger.debug(f"_fetch_one() failed: {exc}")
             return None
 
+    def _fetch_row(self, sql: str) -> tuple[Any, ...] | None:
+        """Ejecuta una consulta literal y devuelve su primera fila, o None si falla (al ejecutar o al leer)."""
+        try:
+            cursor = self.connection.cursor()
+            try:
+                cursor.execute(sql)
+                row = cursor.fetchone()
+                return tuple(row) if row is not None else None
+            finally:
+                cursor.close()
+        except Exception as exc:
+            logger.debug(f"_fetch_row() failed: {exc}")
+            return None
+
     def diagnose(self) -> CharsetDiagnosis:
-        """Realiza diagnóstico completo de charset sin excepciones."""
+        """Realiza diagnóstico completo de charset sin excepciones: una consulta, o las sueltas si esa falla."""
+        row = self._fetch_row(_DIAGNOSIS_SQL)
+        if row is not None and len(row) == _DIAGNOSIS_COLUMNS:
+            return self.diagnosis_from_row(row)
+        return self._diagnose_one_by_one()
+
+    @classmethod
+    def diagnosis_from_row(cls, row: tuple[Any, ...]) -> CharsetDiagnosis:
+        """``CharsetDiagnosis`` desde la fila de ``_DIAGNOSIS_SQL`` (compartido por :meth:`diagnose` y :func:`adiagnose`)."""
+        server, database, client, connection, collation, comment, converted, schema_charset = row
+        return cls.build_diagnosis(
+            server,
+            database,
+            client,
+            connection,
+            collation,
+            can_read_comments=comment is not None,
+            can_convert_utf8mb4=converted is not None,
+            info_schema_charset=schema_charset,
+        )
+
+    def _diagnose_one_by_one(self) -> CharsetDiagnosis:
+        """Diagnóstico con una consulta por dato (8 viajes): solo si la consulta combinada falla."""
         server, database, client, connection, collation = (self._fetch_one(sql) for sql in _VARIABLES_SQL)
         return self.build_diagnosis(
             server,
@@ -252,8 +296,26 @@ async def _afetch_one(connection: Any, sql: str) -> Any:
         return None
 
 
+async def _afetch_row(connection: Any, sql: str) -> tuple[Any, ...] | None:
+    """Versión async de ``CharsetStateDetector._fetch_row``: primera fila o ``None`` si falla."""
+    try:
+        cursor = await maybe_await(connection.cursor())
+        try:
+            await maybe_await(cursor.execute(sql))
+            row = await maybe_await(cursor.fetchone())
+            return tuple(row) if row is not None else None
+        finally:
+            await maybe_await(cursor.close())
+    except Exception as exc:
+        logger.debug(f"_afetch_row() failed: {exc}")
+        return None
+
+
 async def adiagnose(connection: Any) -> CharsetDiagnosis:
     """Diagnóstico de charset sobre una conexión async (aiomysql); mismas consultas y reglas que ``diagnose()``."""
+    row = await _afetch_row(connection, _DIAGNOSIS_SQL)
+    if row is not None and len(row) == _DIAGNOSIS_COLUMNS:
+        return CharsetStateDetector.diagnosis_from_row(row)
     server, database, client, conn_charset, collation = [await _afetch_one(connection, sql) for sql in _VARIABLES_SQL]
     return CharsetStateDetector.build_diagnosis(
         server,
