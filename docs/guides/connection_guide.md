@@ -126,6 +126,7 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 | `Server has gone away` (MariaDB/MySQL) | Conexión caducada en cargas largas | Obtener el engine con `get_sqlalchemy_engine()` (incluye `pool_pre_ping`) |
 | El `schema` PostgreSQL parece ignorado | `schema` no es un parámetro libpq | La librería lo traduce a `options=-c search_path=<schema>` automáticamente |
 | `UnicodeDecodeError` en MariaDB al generar documentación | Encoding mismatch: servidor `latin1` vs. cliente `utf8mb4` | Usar `init_command` y `catalog_charset_mode="convert"` (ver §6; `encoding_errors` no tiene efecto) |
+| `ValidationError: … init_command admite una sola sentencia` (o, hasta v0.40.1, `You have an error in your SQL syntax … near 'SET NAMES utf8mb4'`) | `init_command` con varias sentencias separadas por `;` | Un solo `SET` con comas: `SET SESSION character_set_server = utf8mb4, NAMES utf8mb4` (ver §6) |
 | `CERT_E_CN_NO_MATCH` (MariaDB sync) o error de conexión TLS (async) con `ssl_ca` | El nombre o la IP de `host` no figura en el certificado del servidor; el conector de MariaDB no permite verificar solo la CA | Conectar con un nombre que esté en el certificado (ver [TLS en MariaDB](#tls-en-mariadb-ssl-ssl_ca-ssl_cert-ssl_key-ssl_verify_cert-desde-v0390)) |
 | WARNING `trust_cert no tiene efecto con pymssql` | pymssql no admite `trust_cert`: la validación del certificado depende de FreeTDS | `sql_server_driver="pyodbc"` (ver [TLS en SQL Server](#tls-en-sql-server-encryption-y-trust_cert)) |
 
@@ -168,6 +169,19 @@ not supported`, comprobado con 1.1.14). El conector tampoco admite el parámetro
 `SET NAMES <charset>`, que impedía conectar con `charset="latin1"`; v0.35.7 lo revierte. En async (aiomysql) el valor
 por defecto no se envía (pisaría `charset`), pero desde v0.39.2 uno propio sí: p. ej.
 `init_command="SET time_zone = '+00:00'"` se aplica en sync, async y pools.
+
+`init_command` admite **una sola sentencia**: MariaDB no ejecuta varias separadas por `;`. Para fijar varias
+variables, usa un solo `SET` con comas:
+
+```python
+conn_params = {"host": "localhost", "user": "app", "password": "pwd", "database": "ventas",
+               # no: "SET SESSION character_set_server = utf8mb4; SET NAMES utf8mb4;"
+               "init_command": "SET SESSION character_set_server = utf8mb4, NAMES utf8mb4"}
+```
+
+Desde v0.40.2, varias sentencias lanzan `ValidationError` al crear el manager. Antes fallaban al conectar con un error
+de sintaxis del servidor («near 'SET NAMES utf8mb4'») que no nombraba el parámetro. Se admiten un `;` final y los `;`
+dentro de comillas.
 Replica el comportamiento de PyMySQL/SQLAlchemy:
 
 - **Sin `init_command`**: El handshake fija `charset='utf8mb4'`, pero solo en `character_set_client` y

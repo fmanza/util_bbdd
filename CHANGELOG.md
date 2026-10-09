@@ -5,6 +5,27 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.40.2] - 2026-10-09
+
+Hotfix tras `/audit-code` de un error de `pruebas_util` al crear un manager MariaDB
+(`.ai/sessions/2026-10-09i-hotfix-init-command/`).
+
+### Fixed
+
+- **connection/mariadb (F2)**: un `init_command` con varias sentencias (`"SET SESSION character_set_server = utf8mb4;
+  SET NAMES utf8mb4;"`) fallaba al conectar con un error de sintaxis del servidor («near 'SET NAMES utf8mb4'») que no
+  nombraba el parámetro: MariaDB ejecuta `init_command` como una sola sentencia. Ahora lanza `ValidationError` al crear
+  el manager e indica la forma válida (`SET SESSION character_set_server = utf8mb4, NAMES utf8mb4`). Se admiten un `;`
+  final y los `;` dentro de comillas.
+- **managers (F1)**: el error inesperado de `SyncDatabaseManager.__init__` (`DatabaseConfigurationError`) guardaba el
+  motor en `operation` y el texto del error en `db_type` (argumentos posicionales): el mensaje salía como
+  `(Operación: mariadb) (BD: <error>)`, con el error duplicado. Ahora `db_type` es el motor; `message` no cambia.
+
+### Documentation
+
+- `docs/guides/connection_guide.md` § 6: `init_command` admite una sola sentencia, con ejemplo; fila en «Problemas
+  frecuentes».
+
 ## [0.40.1] - 2026-10-09
 
 Hotfix de dos hallazgos de `/audit-code` sobre un log de `pruebas_util` (`.ai/sessions/2026-10-09h-hotfix-advisor-dispose/`).

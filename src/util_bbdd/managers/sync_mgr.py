@@ -162,8 +162,9 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             raise ValidationError(str(e), db_type=self.db_type) from e
         except Exception as e:
             self.logger.error(f"❌ Error inesperado inicializando SyncDatabaseManager: {e}")
+            # db_type por nombre: el segundo argumento posicional es operation (el error quedaba en db_type)
             raise DatabaseConfigurationError(
-                f"Error al inicializar SyncDatabaseManager: {str(e)}", self.db_type, str(e)
+                f"Error al inicializar SyncDatabaseManager: {str(e)}", db_type=self.db_type
             ) from e
 
     @property

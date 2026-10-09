@@ -80,6 +80,35 @@ def _catalog_charset_mode(params: dict[str, Any], db_type: str) -> str:
     return mode
 
 
+def _single_statement(sql: str, param: str, db_type: str) -> str:
+    """Rechaza ``sql`` si tiene más de una sentencia: MariaDB ejecuta ``init_command`` como una sola.
+
+    Un ``;`` cuenta si está fuera de comillas (simples, dobles o acento grave; con ``\\`` como escape en las dos
+    primeras) y le sigue algo
+    distinto de espacios o más ``;`` (``"SET NAMES utf8mb4;"`` es válido). Comprobado con Connector/Python 1.1.14 y
+    MariaDB 11.4: ``"SET a = 1; SET b = 2"`` falla con un error de sintaxis que no nombra el parámetro.
+    """
+    quote: str | None = None
+    escaped: bool = False
+    for i, char in enumerate(sql):
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif char == "\\" and quote != "`":
+                escaped = True
+            elif char == quote:
+                quote = None
+        elif char in "'\"`":
+            quote = char
+        elif char == ";" and sql[i + 1 :].strip(" \t\r\n;"):
+            raise ValueError(
+                f"Parametro invalido para {db_type}: {param} admite una sola sentencia; para varias variables use un "
+                f"solo SET separado por comas (p. ej. 'SET SESSION character_set_server = utf8mb4, NAMES utf8mb4'); "
+                f"recibido '{sql}'"
+            )
+    return sql
+
+
 @dataclass(frozen=True)
 class MariaDBConnectionConfig:
     host: str
@@ -116,7 +145,9 @@ class MariaDBConnectionConfig:
             raise ValueError(f"Parametro invalido para {db_type}: charset '{charset}' no es un nombre de charset")
         # MariaDB Connector/Python (sync) solo admite sesiones utf8mb4 ("Character set 'latin1' is not supported"):
         # el SET NAMES por defecto es siempre utf8mb4. ``charset`` lo usa aiomysql (async).
-        init_command = _opt_str(params, "init_command") or "SET NAMES utf8mb4"
+        init_command = _single_statement(
+            _opt_str(params, "init_command") or "SET NAMES utf8mb4", "init_command", db_type
+        )
         encoding_errors = _opt_str(params, "encoding_errors")
         if encoding_errors is not None:
             if encoding_errors not in {"replace", "strict", "ignore"}:
