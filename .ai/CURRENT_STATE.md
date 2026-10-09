@@ -2,7 +2,7 @@
 
 **Generado**: 2026-06-05 (cabecera, «Próximos pasos» y tests actualizados el 2026-10-09 al cerrar `drivers-connections-audit`)  
 **Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.39.1` (la tabla de abajo no recoge todas las versiones intermedias: el detalle está en el CHANGELOG)  
-**Versión**: `v0.40.3` (2026-10-09). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`  
+**Versión**: `v0.40.3` (2026-10-09). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`, `v0.40.3`  
 **Rama activa**: `develop`
 
 ---

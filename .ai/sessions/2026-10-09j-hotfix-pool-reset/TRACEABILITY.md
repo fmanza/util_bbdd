@@ -61,4 +61,4 @@ al charset del servidor (latin1) y no se re-ejecuta init_command → SystemError
 Veredicto: CLOSED
 Pendientes al cierre:
 - El pool nativo de MySQL (`mysql.connector` pooling, `reset_session`) puede tener el mismo patrón; no verificado (fuera de alcance).
-- Push y tag `v0.40.3` pendientes de autorización del usuario.
+- Push y tag `v0.40.3` hechos (2026-10-09).
