@@ -10,14 +10,12 @@ from ._internal_ports import (
 )
 from .ports import (
     DocumentationBackendPort,
-    DocumentationDataProviderPort,
     DocumentationManagerPort,
     DocumentRendererPort,
     OutputPolicyPort,
 )
 
 __all__: list[str] = [
-    "DocumentationDataProviderPort",
     "DocumentationBackendPort",
     "DocumentationManagerPort",
     "DocumentRendererPort",

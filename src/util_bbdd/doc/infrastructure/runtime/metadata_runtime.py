@@ -29,17 +29,20 @@ class DocumentationMetadataRuntime(MetadataRuntimePort):
         operation: Callable[[], Any],
         success_message: str,
         error_message: str,
-        success_level: str = "info",
         error_level: str = "error",
     ) -> Any | None:
-        """Ejecuta una consulta de metadatos opcional con logging homogéneo."""
+        """Ejecuta una consulta de metadatos opcional: ``None`` (y ``error_message`` registrado) si el motor falla.
+
+        ``{result}`` y ``{error}`` se sustituyen literalmente (un nombre de tabla con llaves no rompe el mensaje). A-09:
+        antes los mensajes se ignoraban y se registraba ``Success: …`` en INFO.
+        """
         try:
             result: Any = operation()
-            getattr(self._logger, success_level)(f"Success: {result}")
-            return result
         except DatabaseException as error:
-            getattr(self._logger, error_level)(f"Error: {error}")
+            getattr(self._logger, error_level)(error_message.replace("{error}", str(error)))
             return None
+        self._logger.debug(success_message.replace("{result}", str(result)))
+        return result
 
     def get_database_version_metadata(
         self,
@@ -77,8 +80,7 @@ class DocumentationMetadataRuntime(MetadataRuntimePort):
         result = self._call_optional_metadata(
             operation=lambda: db_manager.get_columns_charset_collation(table_name),
             success_message=f"📋 Charset/Collation de columnas de {table_name} obtenido",
-            error_message=f"⚠️  Error al obtener charset/collation de columnas de {table_name}: {{error}}",
-            success_level="debug",
+            error_message=f"⚠️  Error al obtener charset/collation de columnas de {table_name}: " + "{error}",
             error_level="warning",
         )
         return result if isinstance(result, list) else None

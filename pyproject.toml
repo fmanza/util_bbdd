@@ -56,6 +56,11 @@ migrate = [
 analysis = [
     "graphviz>=0.20",
 ]
+# MatplotlibRelationshipGraph (analysis/matplotlib_graph.py); sin estos paquetes el resto de la librería funciona igual.
+analysis-matplotlib = [
+    "matplotlib>=3.7",
+    "networkx>=3.0",
+]
 doc-svg = [
     "cairosvg>=2.7",
 ]

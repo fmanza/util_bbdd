@@ -7,12 +7,13 @@ import math
 
 from logging import Logger
 from pathlib import Path
-from typing import Any
-
-from matplotlib.axes import Axes
+from typing import TYPE_CHECKING, Any
 
 from .base import DatabaseRelationshipGraphBase, GraphDocument, LevelDirection, TableRelation
 from .contracts import RelationshipGraphSource
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
 
 mpatches: Any | None = None
 plt: Any | None = None

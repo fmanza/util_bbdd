@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 
-from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from ....._core.exceptions import DatabaseException
@@ -63,6 +62,14 @@ class GeneratorRoutineRuntime:
         routine_type: str = str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
         routine_comment: str = str(routine[2]) if len(routine) > 2 and routine[2] is not None else ""
         return routine_name, routine_type.upper() if uppercase_type else routine_type, routine_comment
+
+    @staticmethod
+    def parameter_rows(parameters: list[DbRow]) -> list[list[str]]:
+        """Filas de parámetros ``[modo, nombre, tipo, por defecto, posición]`` como texto (las de ``catalog_rows``)."""
+        return [
+            ["" if index >= len(row) or row[index] is None else str(row[index]) for index in range(5)]
+            for row in parameters
+        ]
 
     @staticmethod
     def split_by_type(routines: list[tuple[Any, ...]]) -> tuple[list[tuple[Any, ...]], list[tuple[Any, ...]]]:
@@ -170,140 +177,20 @@ class GeneratorInventoryRuntime:
 class GeneratorTabularRuntime:
     """Utilidades compartidas para normalizacion de columnas e indices."""
 
-    _DEFAULT_UNIQUE_HEADERS: tuple[str, str] = ("Nombre Restricción", "Campo")
-
     @staticmethod
     def process_indices_data(indices: list[DbRow]) -> list[list[Any]]:
         """Filas de índices ``[índice, columna, Sí/No, método]`` (formato neutro de ``catalog_rows``)."""
         return [[GeneratorTabularRuntime._to_text(value) for value in index] for index in indices]
 
     @staticmethod
-    def normalize_unique_headers(headers: list[Any] | tuple[Any, ...] | None) -> list[str]:
-        """Normaliza cabeceras de UNIQUE al contrato estable de dos columnas."""
-        if headers is None:
-            return list(GeneratorTabularRuntime._DEFAULT_UNIQUE_HEADERS)
-
-        normalized_headers: list[str] = []
-        for header in headers:
-            text = str(header).strip()
-            if text:
-                normalized_headers.append(text)
-
-        if len(normalized_headers) >= 2:
-            return normalized_headers[:2]
-        if len(normalized_headers) == 1:
-            return [normalized_headers[0], GeneratorTabularRuntime._DEFAULT_UNIQUE_HEADERS[1]]
-        return list(GeneratorTabularRuntime._DEFAULT_UNIQUE_HEADERS)
-
-    @staticmethod
     def process_unique_constraints_data(unique_constraints: list[DbRow]) -> list[list[str]]:
-        """Normaliza filas de restricciones únicas a [constraint_name, column_name]."""
-        return [list(GeneratorTabularRuntime._extract_unique_constraint_pair(item)) for item in unique_constraints]
-
-    @staticmethod
-    def _extract_unique_constraint_pair(unique_row: Any) -> tuple[str, str]:
-        """Extrae de forma robusta (constraint_name, column_name)."""
-        row_mapping = GeneratorTabularRuntime._as_mapping(unique_row)
-        if row_mapping is not None:
-            constraint_name = GeneratorTabularRuntime._get_mapping_value_case_insensitive(
-                row_mapping,
-                [
-                    "constraint_name",
-                    "constraint",
-                    "name",
-                    "nombre_restriccion",
-                    "nombre_restricción",
-                ],
-            )
-            column_name = GeneratorTabularRuntime._get_mapping_value_case_insensitive(
-                row_mapping,
-                [
-                    "column_name",
-                    "column",
-                    "field",
-                    "campo",
-                    "columna",
-                ],
-            )
-            return constraint_name, column_name
-
-        if isinstance(unique_row, (list, tuple)):
-            if len(unique_row) >= 2:
-                return (
-                    GeneratorTabularRuntime._to_text(unique_row[0]),
-                    GeneratorTabularRuntime._resolve_unique_column_value(unique_row),
-                )
-            if len(unique_row) == 1:
-                return GeneratorTabularRuntime._to_text(unique_row[0]), ""
-            return "", ""
-
-        if unique_row is None:
-            return "", ""
-        return GeneratorTabularRuntime._to_text(unique_row), ""
+        """Filas de restricciones únicas ``[restricción, columna]`` (formato neutro de ``catalog_rows``)."""
+        return [[GeneratorTabularRuntime._to_text(value) for value in row[:2]] for row in unique_constraints]
 
     @staticmethod
     def _to_text(value: Any) -> str:
         """Convierte valor arbitrario a texto seguro para render tabular."""
         return "" if value is None else str(value)
-
-    @staticmethod
-    def _as_mapping(value: Any) -> Mapping[Any, Any] | None:
-        """Devuelve un mapping uniforme cuando la fila lo soporta."""
-        if isinstance(value, Mapping):
-            return value
-        mapping_attr = getattr(value, "_mapping", None)
-        if isinstance(mapping_attr, Mapping):
-            return mapping_attr
-        return None
-
-    @staticmethod
-    def _get_mapping_value_case_insensitive(mapping: Mapping[Any, Any], keys: list[str]) -> str:
-        """Obtiene un valor de mapping sin depender del casing de la clave."""
-        normalized_keys: dict[str, Any] = {str(raw_key).strip().casefold(): raw_key for raw_key in mapping.keys()}
-        for key in keys:
-            found_key = normalized_keys.get(key.casefold())
-            if found_key is None:
-                continue
-            value = mapping.get(found_key)
-            text = GeneratorTabularRuntime._to_text(value).strip()
-            if text:
-                return text
-        return ""
-
-    @staticmethod
-    def _resolve_unique_column_value(unique_row: list[Any] | tuple[Any, ...]) -> str:
-        """Resuelve el valor de campo/columna en filas posicionales."""
-        candidate = GeneratorTabularRuntime._to_text(unique_row[1]).strip()
-        if GeneratorTabularRuntime._is_likely_column_identifier(candidate):
-            return candidate
-
-        for value in unique_row[2:]:
-            probe = GeneratorTabularRuntime._to_text(value).strip()
-            if GeneratorTabularRuntime._is_likely_column_identifier(probe):
-                return probe
-        return candidate
-
-    @staticmethod
-    def _is_likely_column_identifier(value: str) -> bool:
-        """Heurística ligera para detectar si un valor parece nombre de columna."""
-        if not value:
-            return False
-        lowered = value.casefold()
-        if lowered in {"true", "false"}:
-            return False
-        if value.isdigit():
-            return False
-        return True
-
-    @staticmethod
-    def get_safe_value(row: Any, index: int, *, as_str: bool = False) -> Any:
-        """Lee un valor por indice de forma segura."""
-        if len(row) <= index:
-            return ""
-        value = row[index]
-        if as_str:
-            return str(value) if value is not None else ""
-        return value if value is not None else ""
 
     @staticmethod
     def process_columns_data(columnas: list[DbRow]) -> list[list[Any]]:

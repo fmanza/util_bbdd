@@ -2,24 +2,18 @@
 
 from __future__ import annotations
 
-import logging
-
-from typing import Any, cast
+from typing import Any
 
 from ...application.ports import DocumentationSourcePort
-from ..storage.runtime import (
-    StorageInventoryManagerProtocol,
-    get_storage_inventory_report as get_storage_inventory_report_runtime,
-)
 
 
 class SyncDatabaseManagerAdapter:
     """Adapta ``SyncDatabaseManager`` al contrato ``DocumentationBackendPort``.
 
     Delega en el manager la lectura del catálogo (snapshot por lotes y DDL de tabla), la metadata opcional y las
-    consultas del inventario, y añade ``imprimir_config`` y ``get_storage_inventory_report``, que no forman parte de
-    la API pública del manager pero son requeridos por el runtime documental. Las lecturas por objeto (columnas,
-    claves, índices…) no pasan por aquí: ``DocumentationSession`` las sirve desde el snapshot.
+    consultas del inventario, y añade ``imprimir_config``. Las lecturas por objeto (columnas, claves, índices…) no
+    pasan por aquí: ``DocumentationSession`` las sirve desde el snapshot, y el inventario de almacenamiento lo arma
+    ``StorageInventoryReportService`` con ``get_storage_rows``.
     """
 
     def __init__(self, db_manager: DocumentationSourcePort, imprimir_config: dict[str, Any]) -> None:
@@ -52,17 +46,7 @@ class SyncDatabaseManagerAdapter:
     def get_columns_charset_collation(self, table_name: str, /) -> Any:
         return self._db_manager.get_columns_charset_collation(table_name)
 
-    # --- Métodos de ejecución delegados (requeridos por StorageInventoryManagerProtocol) ---
+    # --- Consultas del inventario de almacenamiento (StorageInventoryManagerProtocol) ---
 
     def get_storage_rows(self, query_name: str, **params: Any) -> Any:
         return self._db_manager.get_storage_rows(query_name, **params)
-
-    # --- Métodos añadidos por el adaptador -------------------------------------
-
-    def get_storage_inventory_report(self) -> dict[str, Any]:
-        """Genera el informe de almacenamiento delegando al runtime especializado."""
-        return get_storage_inventory_report_runtime(
-            db_manager=cast(StorageInventoryManagerProtocol, self._db_manager),
-            logger=logging.getLogger(__name__),
-            print_config=self.imprimir_config,
-        )

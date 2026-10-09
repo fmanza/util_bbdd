@@ -21,10 +21,13 @@ HEADERS_FILE = Path(__file__).resolve().parents[2] / "src/util_bbdd/doc/data/hea
 
 
 class TestMysqlFollowsMariaDBInConsumers:
-    def test_headers_match_mariadb(self) -> None:
+    def test_headers_do_not_depend_on_the_engine(self) -> None:
+        """D1 + A-05: las cabeceras son las mismas para todos los motores (solo ``base``)."""
         runtime = DocumentationHeadersRuntime()
         config: Any = json.loads(HEADERS_FILE.read_text(encoding="utf-8"))
-        assert runtime.build_headers(config, "mysql") == runtime.build_headers(config, "mariadb")
+        assert set(config) == {"headers"}
+        assert all(set(section) == {"base"} for section in config["headers"].values())
+        assert runtime.build_headers(config)["UNIQUE"] == ["Nombre Restricción", "Campo"]
 
     def test_tabular_runtime_does_not_depend_on_the_engine(self) -> None:
         """D1: las filas de la documentación son neutras (``catalog_rows``); los helpers ya no reciben el motor."""

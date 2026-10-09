@@ -83,7 +83,7 @@ class DocumentationBootstrap:
             fichero_salida=resolved_output,
             table_style=str(print_config.get("table_style", "Table Grid")),
             headers_config=headers_config,
-            headers=self._headers_runtime.build_headers(headers_config, self._db_manager.db_type),
+            headers=self._headers_runtime.build_headers(headers_config),
             tablas=catalog.tables(),
             vistas=catalog.views(),
             rutinas=catalog.routines(),

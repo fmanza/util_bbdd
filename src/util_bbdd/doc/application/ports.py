@@ -147,7 +147,6 @@ class DocumentationManagerPort(
 class DocumentationBackendPort(
     OutputNamingContextPort,
     MetadataReaderPort,
-    StorageInventoryPort,
     DocumentationCatalogPort,
     DocumentationQueryPort,
     Protocol,
@@ -168,18 +167,6 @@ class DocumentationSourcePort(
 
     La cumple estructuralmente ``SyncDatabaseManager``; ``doc/`` depende de este contrato y no del manager (Regla #6).
     """
-
-
-class DocumentationDataProviderPort(Protocol):
-    """Contrato mínimo del proveedor de datos consumido por renderers.
-
-    Nota de diseño: el proveedor *contiene* un ``DocumentationManagerPort``
-    como atributo ``db_manager`` pero no hereda de él.  La herencia anterior
-    creaba una circularidad (el port era-un manager Y tenía-un manager).
-    """
-
-    imprimir_config: dict[str, Any]
-    db_manager: DocumentationManagerPort
 
 
 class DocumentRendererPort(Protocol):

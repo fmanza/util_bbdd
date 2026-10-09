@@ -161,21 +161,7 @@ def test_documentation_bootstrap_builds_initial_state(tmp_path: Path) -> None:
 
     headers_file = tmp_path / "headers.json"
     headers_file.write_text(
-        json.dumps(
-            {
-                "headers": {
-                    "tables": {"base": ["name"], "postgresql": ["owner"]},
-                },
-                "labels": {
-                    "tables": {
-                        "postgresql": {
-                            "name": "Nombre",
-                            "owner": "Propietario",
-                        }
-                    }
-                },
-            }
-        ),
+        json.dumps({"headers": {"tables": {"base": ["Nombre", "Propietario"]}}}),
         encoding="utf-8",
     )
 
@@ -198,7 +184,7 @@ def test_documentation_bootstrap_builds_initial_state(tmp_path: Path) -> None:
     assert state.directorio_salida == tmp_path
     assert state.fichero_salida == Path("report")
     assert state.table_style == "Light Grid"
-    assert state.headers_config["headers"]["tables"]["base"] == ["name"]
+    assert state.headers_config["headers"]["tables"]["base"] == ["Nombre", "Propietario"]
     assert state.headers == {"tables": ["Nombre", "Propietario"]}
     # D1: filas neutras desde el snapshot (nombre, comentario[, collation | tipo])
     assert state.tablas == [("users", "usuarios", "")]

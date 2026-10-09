@@ -24,21 +24,6 @@ from ....metadata.model import ColumnMeta, Kind, RoutineMeta, SchemaSnapshot, Vi
 
 Row = tuple[Any, ...]
 
-#: Lo que lee la documentación del catálogo; cada tipo se carga la primera vez que se pide.
-DOC_KINDS: frozenset[Kind] = frozenset(
-    {
-        Kind.TABLES,
-        Kind.VIEWS,
-        Kind.COLUMNS,
-        Kind.PRIMARY_KEYS,
-        Kind.FOREIGN_KEYS,
-        Kind.UNIQUES,
-        Kind.INDEXES,
-        Kind.ROUTINES,
-        Kind.ROUTINE_PARAMETERS,
-    }
-)
-
 
 def _text(value: Any) -> str:
     return "" if value is None else str(value)
@@ -158,4 +143,4 @@ class CatalogRows:
         ]
 
 
-__all__: list[str] = ["DOC_KINDS", "CatalogRows"]
+__all__: list[str] = ["CatalogRows"]

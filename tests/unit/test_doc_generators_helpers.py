@@ -81,8 +81,8 @@ class TestSanitizeTableFilename:
         assert safe_file_stem("...") != ""
 
 
-def test_html_generator_normalizes_unique_constraints_rows_and_headers() -> None:
-    generator = HtmlGenerator(database="db", headers={"UNIQUE": ["Nombre Restricción"]})
+def test_html_generator_unique_constraint_rows_follow_catalog_rows() -> None:
+    generator = HtmlGenerator(database="db", headers={})
 
     class _Provider:
         db_type = "oracle"
@@ -94,13 +94,7 @@ def test_html_generator_normalizes_unique_constraints_rows_and_headers() -> None
             return []
 
         def get_unique_constraints(self, table_name: str) -> list[Any]:
-            return [
-                ("UQ_USERS_EMAIL", "EMAIL"),
-                {"CONSTRAINT_NAME": "UQ_USERS_ALIAS", "COLUMN_NAME": "ALIAS"},
-                ("UQ_USERS_LOGIN", 1, "LOGIN"),
-                ("UQ_USERS_NAME",),
-                "UQ_LEGACY",
-            ]
+            return [("UQ_USERS_EMAIL", "EMAIL"), ("UQ_USERS_FULL", "FIRST"), ("UQ_USERS_FULL", None)]
 
         def get_indices(self, table_name: str) -> list[Any]:
             return []
@@ -114,13 +108,7 @@ def test_html_generator_normalizes_unique_constraints_rows_and_headers() -> None
     )
 
     assert generator.headers["UNIQUE"] == ["Nombre Restricción", "Campo"]
-    assert payload["unicas"] == [
-        ["UQ_USERS_EMAIL", "EMAIL"],
-        ["UQ_USERS_ALIAS", "ALIAS"],
-        ["UQ_USERS_LOGIN", "LOGIN"],
-        ["UQ_USERS_NAME", ""],
-        ["UQ_LEGACY", ""],
-    ]
+    assert payload["unicas"] == [["UQ_USERS_EMAIL", "EMAIL"], ["UQ_USERS_FULL", "FIRST"], ["UQ_USERS_FULL", ""]]
 
 
 def test_html_generator_routine_helpers_default_path_and_entity_decode() -> None:
@@ -134,7 +122,7 @@ def test_html_generator_routine_helpers_default_path_and_entity_decode() -> None
         routines_index=[],
         storage_entries=[],
     )
-    normalized = generator._normalize_routine_entry(("sp_users", "procedure", None))
+    normalized = GeneratorRoutineRuntime.normalize_entry(("sp_users", "procedure", None))
     key = generator._build_routine_key(("sp_users", "procedure", ""))
     decoded = generator._decode_html_entities("&amp;amp;lt;h1&amp;amp;gt;Hi&amp;amp;lt;/h1&amp;amp;gt;")
 
@@ -399,18 +387,14 @@ def test_excel_generator_style_normalization_split_and_numeric_conversion() -> N
     assert fallback._convert_to_numeric(None) == ""
 
 
-def test_word_generator_normalizes_unique_constraints_rows_and_headers(monkeypatch: pytest.MonkeyPatch) -> None:
-    generator = WordGenerator(database="db", headers={"UNIQUE": []})
+def test_word_generator_unique_constraint_rows_follow_catalog_rows(monkeypatch: pytest.MonkeyPatch) -> None:
+    headers: dict[str, Any] = {}
+    generator = WordGenerator(database="db", headers=headers)
     captured: dict[str, Any] = {}
 
     class _Provider:
         def get_unique_constraints(self, table_name: str) -> list[Any]:
-            return [
-                ("UQ_USERS_EMAIL", "EMAIL"),
-                {"constraint_name": "UQ_USERS_ALIAS", "campo": "ALIAS"},
-                ("UQ_USERS_LOGIN", 2, "LOGIN"),
-                "UQ_LEGACY",
-            ]
+            return [("UQ_USERS_EMAIL", "EMAIL"), ("UQ_USERS_FULL", "FIRST")]
 
     def _capture_table(
         document: Any,
@@ -434,12 +418,8 @@ def test_word_generator_normalizes_unique_constraints_rows_and_headers(monkeypat
 
     assert captured["title"] == "Restricciones Únicas"
     assert captured["headers"] == ["Nombre Restricción", "Campo"]
-    assert captured["data"] == [
-        ["UQ_USERS_EMAIL", "EMAIL"],
-        ["UQ_USERS_ALIAS", "ALIAS"],
-        ["UQ_USERS_LOGIN", "LOGIN"],
-        ["UQ_LEGACY", ""],
-    ]
+    assert captured["data"] == [["UQ_USERS_EMAIL", "EMAIL"], ["UQ_USERS_FULL", "FIRST"]]
+    assert headers == {}  # A-12: el renderer no modifica las cabeceras compartidas de la sesión
 
 
 def test_excel_and_word_inventory_summary_helpers_use_storage_totals() -> None:
@@ -460,7 +440,7 @@ def test_word_generator_chunking_output_file_and_routine_split() -> None:
     chunks = generator._chunk_tables(tables=tables, tables_per_document=0)
     single_output = generator._build_output_file_for_chunk(Path("report.docx"), chunk_index=1, total_chunks=1)
     multi_output = generator._build_output_file_for_chunk(Path("report.docx"), chunk_index=2, total_chunks=3)
-    normalized = generator._normalize_routine_entry((None, None, None))
+    normalized = GeneratorRoutineRuntime.normalize_entry((None, None, None))
     procedures, functions = GeneratorRoutineRuntime.split_by_type(
         [("p_sync", "procedure", ""), ("f_total", "FUNCTION", ""), ("x", "TRIGGER", "")]
     )

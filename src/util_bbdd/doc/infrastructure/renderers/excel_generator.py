@@ -655,7 +655,7 @@ class ExcelGenerator:
             return fila + 3
 
         for row in parameters:
-            ws.append(self._process_routine_parameters_row(row))
+            ws.append(GeneratorRoutineRuntime.parameter_rows([row])[0])
 
         if create_excel_table:
             self._apply_table_style_to_range(
@@ -675,14 +675,6 @@ class ExcelGenerator:
             )
 
         return int(ws.max_row) + 2
-
-    def _process_routine_parameters_row(self, row: tuple) -> list[str]:
-        """Normaliza una fila de parámetros de rutina para Excel."""
-        result: list[str] = []
-        for idx in range(5):
-            value = row[idx] if len(row) > idx else ""
-            result.append(str(value) if value is not None else "")
-        return result
 
     def _process_view(
         self,

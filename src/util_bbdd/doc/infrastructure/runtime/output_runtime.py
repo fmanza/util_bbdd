@@ -30,16 +30,6 @@ class DocumentationOutputRuntime(OutputPolicyPort):
         self._supported_output_formats: set[str] = set(supported_output_formats or _DEFAULT_SUPPORTED_OUTPUT_FORMATS)
         self._format_folder_map: dict[str, str] = dict(format_folder_map or _DEFAULT_FORMAT_FOLDER_MAP)
 
-    @property
-    def supported_output_formats(self) -> set[str]:
-        """Devuelve los formatos de salida soportados."""
-        return set(self._supported_output_formats)
-
-    @property
-    def format_folder_map(self) -> dict[str, str]:
-        """Devuelve el mapeo formato -> carpeta de salida."""
-        return dict(self._format_folder_map)
-
     def normalize_sqlite_identifier(self, identifier: str) -> str:
         """Normaliza un identificador SQLite extrayendo el nombre de fichero."""
         normalized_identifier: str = identifier.replace("\\", "/")

@@ -41,14 +41,7 @@
         "Tipo",
         "Valor por defecto",
         "Posición"
-      ],
-      "mariadb": [],
-      "mysql": [],
-      "oracle": [],
-      "postgresql": [],
-      "hsqldb": [],
-      "sqlite": [],
-      "sqlserver": []
+      ]
     },
     "RUTINAS": {
       "base": [
@@ -57,14 +50,7 @@
         "Comentario",
         "DDL",
         "Parámetros"
-      ],
-      "mariadb": [],
-      "mysql": [],
-      "oracle": [],
-      "postgresql": [],
-      "hsqldb": [],
-      "sqlite": [],
-      "sqlserver": []
+      ]
     },
     "FLAT": {
       "base": [
@@ -81,6 +67,5 @@
         "Comentario Columna"
       ]
     }
-  },
-  "labels": {}
+  }
 }

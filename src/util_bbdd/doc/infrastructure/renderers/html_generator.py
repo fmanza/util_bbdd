@@ -43,8 +43,8 @@ class HtmlGenerator:
     def __init__(self, database: str, headers: HeadersConfig, template_file: Path | None = None):
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.database: str = database
-        self.headers: HeadersConfig = headers
-        self.headers["UNIQUE"] = GeneratorTabularRuntime.normalize_unique_headers(self.headers.get("UNIQUE"))
+        self.headers: HeadersConfig = dict(headers)  # copia: la sesión comparte el suyo entre formatos (A-12)
+        self.headers.setdefault("UNIQUE", ["Nombre Restricción", "Campo"])
         self._doc_root: Path = Path(__file__).resolve().parents[2]
         self.templates_root: Path = self._doc_root / "templates"
         self.default_template_file: Path = self.templates_root / "pages" / "detail.html.j2"
@@ -374,7 +374,7 @@ class HtmlGenerator:
         routines_index: list[dict[str, str]] = []
 
         for routine in routines:
-            routine_name, routine_type, routine_comment = self._normalize_routine_entry(routine)
+            routine_name, routine_type, routine_comment = GeneratorRoutineRuntime.normalize_entry(routine)
             routine_key: str = self._build_routine_key(routine)
             routine_payload: dict[str, Any] = self._build_routine_payload(
                 routine_name=routine_name,
@@ -961,7 +961,7 @@ class HtmlGenerator:
             detail_path: str = str(item.get("path", ""))
             try:
                 parameters = data_provider.get_routine_parameters(routine_name, routine_type)
-                normalized_parameters = self._process_routine_parameters_data(parameters)
+                normalized_parameters = GeneratorRoutineRuntime.parameter_rows(parameters)
             except DatabaseException as error:
                 self.logger.warning(
                     f"⚠️ No se pudo construir dataset HTML global para rutina {routine_type}:{routine_name}: {error}"
@@ -1045,13 +1045,9 @@ class HtmlGenerator:
             slug_map[name] = self._build_unique_slug(name, used_slugs)
         return slug_map
 
-    def _normalize_routine_entry(self, routine: tuple) -> tuple[str, str, str]:
-        """Normaliza una fila de rutina a (nombre, tipo, comentario)."""
-        return GeneratorRoutineRuntime.normalize_entry(routine, uppercase_type=True)
-
     def _build_routine_key(self, routine: tuple) -> str:
         """Construye clave estable para slugs de rutina."""
-        routine_name, routine_type, _ = self._normalize_routine_entry(routine)
+        routine_name, routine_type, _ = GeneratorRoutineRuntime.normalize_entry(routine)
         return f"{routine_type}:{routine_name}"
 
     def _render_detail_page(
@@ -1476,22 +1472,11 @@ class HtmlGenerator:
 
         try:
             parametros = data_provider.get_routine_parameters(routine_name, routine_type)
-            payload["parametros"]["rows"] = self._process_routine_parameters_data(parametros)
+            payload["parametros"]["rows"] = GeneratorRoutineRuntime.parameter_rows(parametros)
         except DatabaseException:
             payload["parametros"]["rows"] = []
 
         return payload
-
-    def _process_routine_parameters_data(self, parametros: list) -> list:
-        """Normaliza datos de parámetros de rutina para HTML."""
-        rows: list[list[str]] = []
-        for row in parametros:
-            values: list[str] = []
-            for idx in range(5):
-                value = row[idx] if len(row) > idx else ""
-                values.append(str(value) if value is not None else "")
-            rows.append(values)
-        return rows
 
     def _build_diagram_tab_payload(
         self,

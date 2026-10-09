@@ -28,20 +28,10 @@ class DocumentationHeadersRuntime(HeadersRuntimePort):
         except json.JSONDecodeError as error:
             raise ValueError(f"Error al leer fichero JSON de headers: {error}") from error
 
-    def build_headers(self, headers_config: HeadersConfig, db_type: str) -> dict[str, list[str]]:
-        """Construye cabeceras legibles combinando base y overrides por motor."""
-        headers: dict[str, list[str]] = {}
+    def build_headers(self, headers_config: HeadersConfig) -> dict[str, list[str]]:
+        """Cabeceras de cada sección (``headers.<SECCIÓN>.base``): iguales en todos los motores desde D1 (ADR-003)."""
         headers_cfg = cast(dict[str, dict[str, Any]], headers_config["headers"])
-        labels_cfg = cast(dict[str, dict[str, dict[str, str]]], headers_config["labels"])
-
-        for section, config in headers_cfg.items():
-            base_headers: list[str] = list(config["base"])
-            db_specific_headers: list[str] = list(config.get(db_type, []))
-            labels: dict[str, str] = labels_cfg.get(section, {}).get(db_type, {})
-            header_list: list[str] = base_headers + db_specific_headers
-            headers[section] = [labels.get(header, header) for header in header_list]
-
-        return headers
+        return {section: [str(header) for header in config["base"]] for section, config in headers_cfg.items()}
 
 
 __all__: list[str] = [

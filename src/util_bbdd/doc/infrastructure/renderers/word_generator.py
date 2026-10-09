@@ -107,8 +107,8 @@ class WordGenerator:
     def __init__(self, database: str, headers: HeadersConfig, table_style: str = "Table Grid"):
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.database: str = database
-        self.headers = headers
-        self.headers["UNIQUE"] = GeneratorTabularRuntime.normalize_unique_headers(self.headers.get("UNIQUE"))
+        self.headers: HeadersConfig = dict(headers)  # copia: la sesión comparte el suyo entre formatos (A-12)
+        self.headers.setdefault("UNIQUE", ["Nombre Restricción", "Campo"])
         self.table_style: str = table_style
         # (documento, estilo resuelto): el estilo de tabla se resuelve una vez por documento (P-02)
         self._table_style_cache: tuple[Document, str | None] | None = None
@@ -388,7 +388,7 @@ class WordGenerator:
                 )
             document.add_heading("Tablas", level=1)
             for row in table_chunk:
-                tabla, comentario, charset_collation = self._extract_table_row_data(row)
+                tabla, comentario, charset_collation = GeneratorTableRuntime.extract_table_row_data(row)
                 self._add_table_section(
                     document=document,
                     tabla=tabla,
@@ -401,17 +401,6 @@ class WordGenerator:
                     diagram_options=diagram_options,
                     include_columns_charset=include_columns_charset,
                 )
-
-    def _extract_table_row_data(self, row: tuple) -> tuple[str, str, str | None]:
-        """Extrae tabla, comentario y charset_collation de una fila de tabla.
-
-        Args:
-            row: Tupla con datos de tabla (tabla, comentario, [charset/collation])
-
-        Returns:
-            Tupla con (tabla, comentario, charset_collation)
-        """
-        return GeneratorTableRuntime.extract_table_row_data(row)
 
     def _add_views_content(
         self,
@@ -829,10 +818,6 @@ class WordGenerator:
             except DatabaseException:
                 document.add_paragraph("⚠️ No se pudieron obtener las columnas de la vista")
 
-    def _normalize_routine_entry(self, routine: tuple) -> tuple[str, str, str]:
-        """Normaliza una fila de rutina al formato (nombre, tipo, comentario)."""
-        return GeneratorRoutineRuntime.normalize_entry(routine, uppercase_type=True)
-
     def _add_routines_sections(
         self,
         document: Document,
@@ -881,7 +866,7 @@ class WordGenerator:
         """Agrega rutinas de un tipo específico (Procedures o Funciones)."""
         document.add_heading(safe_text(routine_type), level=1)
         for routine in routines:
-            routine_name, routine_type_normalized, routine_comment = self._normalize_routine_entry(routine)
+            routine_name, routine_type_normalized, routine_comment = GeneratorRoutineRuntime.normalize_entry(routine)
             self._add_routine_section(
                 document=document,
                 routine_name=routine_name,
@@ -900,7 +885,7 @@ class WordGenerator:
     ) -> None:
         """Procesa rutinas que no son PROCEDURE ni FUNCTION."""
         for routine in routines:
-            routine_name, routine_type, routine_comment = self._normalize_routine_entry(routine)
+            routine_name, routine_type, routine_comment = GeneratorRoutineRuntime.normalize_entry(routine)
             if routine_type in {"PROCEDURE", "FUNCTION"}:
                 continue
             self._add_routine_section(
@@ -971,19 +956,8 @@ class WordGenerator:
             return
 
         headers = self.headers.get("PARAMETROS_RUTINA", ["Modo", "Parámetro", "Tipo", "Valor por defecto", "Posición"])
-        rows = self._process_routine_parameters(parameters)
+        rows = GeneratorRoutineRuntime.parameter_rows(parameters)
         self._add_table(document, self.SECTION_PARAMETROS, headers, rows)
-
-    def _process_routine_parameters(self, parameters: list[Any]) -> list[list[str]]:
-        """Normaliza filas de parámetros de rutina para impresión."""
-        rows: list[list[str]] = []
-        for row in parameters:
-            values: list[str] = []
-            for idx in range(5):
-                value = row[idx] if len(row) > idx else ""
-                values.append(str(value) if value is not None else "")
-            rows.append(values)
-        return rows
 
     def _add_ddl_section(
         self, document: Document, tabla: str, data_provider: DocumentationManagerPort, is_view: bool = False
