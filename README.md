@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, MySQL, Oracle, PostgreSQL, SQLite y SQL Server (sync y async), y HSQLDB (sync).
 
-**Version:** 0.36.0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.36.1 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -1128,7 +1128,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.36.0** (los Engine sync y async siguen la misma política de pool tomada de `conn_params`, con `pool_recycle=3600`; `close_timeout` en la config de pool; cierre común de los pools sync)
+**Current Version: v0.36.1** (el pool async de Oracle vuelve a crearse con python-oracledb 4.0.1)
 
 Roadmap resumido (ver [ROADMAP completo](docs/roadmap.md) y
 [CHANGELOG](CHANGELOG.md) para el detalle):

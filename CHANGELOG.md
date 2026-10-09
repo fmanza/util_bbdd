@@ -5,6 +5,17 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.36.1] - 2026-10-09
+
+Hotfix (`.ai/sessions/2026-10-09-hotfix-oracle-async-pool/`).
+
+### Fixed
+
+- **connection/oracle**: el pool async de Oracle (`AsyncDatabaseManager("oracle", use_pool=True)`) fallaba al crearse
+  con `TypeError: 'AsyncConnectionPool' object can't be awaited`: en python-oracledb 4.0.1 `create_pool_async` es una
+  función normal que devuelve el pool, y se esperaba como corrutina. Presente desde la primera versión del módulo; los
+  tests la simulaban como corrutina. Validado contra Oracle Free (banco).
+
 ## [0.36.0] - 2026-10-09
 
 Bloque B3 (pools) de la FASE 4 de `drivers-connections-audit` (`.ai/sessions/2026-10-09-refactor-drivers-b3/`).

@@ -203,3 +203,31 @@ def test_async_oracle_pool_forced_close_on_timeout(monkeypatch):
         assert hanging_pool.closed is True
 
     asyncio.run(_run())
+
+
+def test_async_oracle_pool_with_sync_create_pool_async(monkeypatch):
+    """Hotfix v0.36.1: en python-oracledb 4.x ``create_pool_async`` no es corrutina, devuelve el pool directamente.
+
+    El doble anterior lo simulaba como corrutina y ocultaba ``TypeError: 'AsyncConnectionPool' object can't be
+    awaited`` contra un servidor real.
+    """
+    fake_mod = _install_fake_oracledb(monkeypatch)
+    calls: list[dict] = []
+
+    def create_pool_async(**kwargs):  # firma real: función normal
+        calls.append(kwargs)
+        return fake_mod.pool
+
+    monkeypatch.setattr(fake_mod, "create_pool_async", create_pool_async, raising=False)
+
+    async def _run() -> None:
+        pool = await AsyncOraclePool.create(
+            {"user": "scott", "password": "tiger", "host": "localhost", "port": 1521, "service_name": "XE"}  # noqa: S105
+        )
+        conn = await pool.acquire()
+        await pool.release(conn)
+        await pool.close()
+        assert fake_mod.pool.closed is True
+
+    asyncio.run(_run())
+    assert len(calls) == 1

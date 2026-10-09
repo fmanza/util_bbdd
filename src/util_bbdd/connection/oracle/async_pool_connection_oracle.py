@@ -67,7 +67,8 @@ class AsyncOraclePool:
                 )
 
             cls.logger.debug("🔗 Creando pool Oracle async")
-            pool: Any = await create_pool_async(**create_params)
+            # python-oracledb 4.0.1 (verificado): create_pool_async es una función normal que devuelve el pool (no una corrutina).
+            pool: Any = await maybe_await(create_pool_async(**create_params))
             cls.logger.info("✅ Pool Oracle async creado")
             return cls(pool, close_timeout_seconds=close_timeout_seconds)
         except ImportError as err:
