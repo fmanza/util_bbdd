@@ -272,6 +272,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-09-30-migrate-d1-extract-batching | **refactor** D1: extractores de `migrate` con una consulta por schema (823 → 8 consultas; `plan()` −87 % a −98 %); **hotfix** FK compuestas de Oracle | develop | refactor + hotfix | CLOSED | `2026-09-30-migrate-d1-extract-batching/TRACEABILITY.md` |
 | 2026-09-29d-migrate-audit | **audit** `migrate/` completo (RECHAZADO: A1–A9, verificados en el banco); **hotfix** A1 `MigrationPlan.execute` fallaba en PG/SS/MariaDB/Oracle | develop | audit-code + hotfix | CLOSED | `2026-09-29d-migrate-audit/TRACEABILITY.md` |
 | 2026-09-29c-migrate-views | **plan** transpilar las vistas de `migrate` con `sqlglot` (opcional, `view_strategy="auto"`), V0–V3; **hotfix** H7 vistas de SQL Server con cabecera y truncadas a 4000 | develop | new-feature + hotfix | CLOSED | `2026-09-29c-migrate-views/TRACEABILITY.md` |
+| 2026-10-09k-doc-architecture-audit | **documentation-architecture-audit de `doc/` + `analysis/`** (6 fases): diagramas Graphviz por lotes (`prefetch`, `dot -O`; HTML 12,6×), un generador por documentación (B-02), almacenamiento declarativo por motor (B-01), API `util_bbdd.doc` mínima con errores propios; v0.41.0 READY_FOR_RELEASE (sin tag) | develop | documentation-architecture-audit | CLOSED | `2026-10-09k-doc-architecture-audit/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 

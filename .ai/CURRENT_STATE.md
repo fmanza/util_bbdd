@@ -2,7 +2,7 @@
 
 **Generado**: 2026-06-05 (cabecera, «Próximos pasos» y tests actualizados el 2026-10-09 al cerrar `drivers-connections-audit`)  
 **Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.39.1` (la tabla de abajo no recoge todas las versiones intermedias: el detalle está en el CHANGELOG)  
-**Versión**: `v0.40.3` (2026-10-09). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`, `v0.40.3`  
+**Versión**: `v0.41.0` en `develop` (2026-10-09, **sin tag**: pendiente de `/version-closure`). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`, `v0.40.3`  
 **Rama activa**: `develop`
 
 ---
@@ -91,6 +91,7 @@ mismo `mkdocs.yml`; el CI publica con Zensical. Ver `ZENICAL.md`.
 
 ## Próximos pasos
 
+00000000. `v0.41.0` (2026-10-09, sin tag): **documentation-architecture-audit de `doc/` + `analysis/`** (`.ai/sessions/2026-10-09k-doc-architecture-audit/`): diagramas Graphviz por lotes (`GraphvizRelationshipGraphExt.prefetch`, `dot -O`; HTML con diagramas 75,7 s → 6,0 s con 120 tablas), un generador de grafos por documentación (el .docx ya no depende de los demás formatos), inventario de almacenamiento declarativo por motor (SQL Server sin aviso falso), API `util_bbdd.doc` = `DatabaseDocumentation` + `DocumentationResult` con `DocumentationConfigError`/`DocumentationRenderError` (rompe API). Pendientes: tag, B-04 (`metadata/ddl.py`: DDL de HSQLDB con `LISTAGG`), S-02.
 0000000. `v0.40.3` (2026-10-09): **hotfix reset del pool MariaDB** (`.ai/sessions/2026-10-09j-hotfix-pool-reset/`): el pool nativo reaplica `init_command` en cada `get_connection()`; el reset de sesión de `mariadb.ConnectionPool` lo deshacía y, con el servidor en `latin1`, el catálogo fallaba con `SystemError … fetchrows`.
 000000. `v0.40.2` (2026-10-09): **hotfix `init_command`** (`.ai/sessions/2026-10-09i-hotfix-init-command/`): `init_command` de MariaDB con varias sentencias da `ValidationError` (antes, error de sintaxis del servidor sin nombrar el parámetro); `DatabaseConfigurationError` del manager sync con `db_type` correcto.
 00000. `v0.40.1` (2026-10-09): **hotfix tras `/audit-code` de un log de `pruebas_util`** (`.ai/sessions/2026-10-09h-hotfix-advisor-dispose/`): el informe de `EngineReadinessAdvisor` no presenta valores por defecto como leídos (H1); sin cierre de conexiones del Engine sync en la finalización del intérprete (H2). H3 log DEBUG de inicio en cada operación de `bulk`. Tests: 5433 passed, 507 skipped; mypy sin errores (332 ficheros).

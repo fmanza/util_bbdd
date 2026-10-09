@@ -261,3 +261,19 @@ configuración de forma distinta; la duplicidad medida (pools 32 %) no justifica
 **Impacto actual**: v0.35.9–v0.39.1 (cambios incompatibles en v0.36.0 y v0.37.0, documentados en el CHANGELOG).
 Detalle en `docs/adr/ADR-005-conexiones-multimotor.md`; deuda en `docs/roadmap.md`. Sesiones `2026-10-09-*`.
 
+---
+
+## 2026-10-09 — Documentación (`doc/` + `analysis/`): sin paquetes por motor, diagramas por lotes y API mínima (v0.41.0)
+
+**Decisión**: Mantener la arquitectura hexagonal de `doc/` y consolidar dentro de ella: inventario de almacenamiento
+declarativo por motor (`doc/infrastructure/storage/engines.py`), un generador de grafos por documentación, renders de
+Graphviz por lotes (`GraphvizRelationshipGraphExt.prefetch`, `dot -O`) y fachada pública reducida a
+`DatabaseDocumentation` + `DocumentationResult`, con `DocumentationConfigError`/`DocumentationRenderError`.
+
+**Alternativas descartadas**: paquetes `doc/motors/<motor>/` (el código por motor es el 8 % y ya estaba en `storage/`);
+un proceso `dot` por grafo en un pool de hilos (escala 4,4× con 8 hilos, porque el coste es arrancar `dot`); mantener la
+caché SVG entre Word y HTML (hacía que el .docx dependiera de los demás formatos pedidos).
+**Razón**: auditoría `documentation-architecture-audit`: 26 hallazgos; el 89 % del HTML con diagramas era esperar a
+`dot` en serie.
+**Impacto actual**: HTML con diagramas 12,6× más rápido (120 tablas: 75,7 s → 6,0 s); cobertura de `doc/`+`analysis/`
+61 % → 81 %; ruptura de API documentada en el CHANGELOG 0.41.0. Sesión `2026-10-09k-doc-architecture-audit`.

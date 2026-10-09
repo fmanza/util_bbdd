@@ -60,6 +60,7 @@ Auditoría y refactor de la arquitectura de `doc/` y `analysis/` (`/documentatio
 - **doc** (A-02): el generador de grafos compartido por Word y HTML respeta `grafo.show_columns` y el DPI configurado.
 - **doc** (S-04): los SVG de HTML y los ficheros de `GraphvizRelationshipGraphExt.generate_*` usan el nombre de tabla
   saneado: un nombre entrecomillado con `/` o `..` ya no escribe fuera del directorio de salida.
+- **doc/html** (S-03): los enlaces de los diagramas SVG (`target="_blank"`) llevan `rel="noopener noreferrer"`.
 - **doc/excel** (A-11): el `table_style` por defecto («Table Grid», de Word) ya no produce un aviso en cada ejecución.
 - **analysis** (A-10): `analysis.matplotlib_graph` se importa sin matplotlib instalado; nuevo extra
   `util_bbdd[analysis-matplotlib]` (`matplotlib`, `networkx`).
