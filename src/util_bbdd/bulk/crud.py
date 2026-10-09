@@ -932,7 +932,7 @@ class BulkCrud:
         """Template Method para operaciones bulk con estrategia por operación."""
         # Sin este log, el tiempo de la operación se atribuía en el log a la línea anterior (p. ej. el informe del advisor)
         self.logger.debug(
-            f"▶️ bulk {strategy_key.upper()} iniciado: {len(df)} filas → {tabla_destino} "
+            f"▶️  bulk {strategy_key.upper()} iniciado: {len(df)} filas → {tabla_destino} "
             f"({'solo SQL' if generar_sql else 'en BD'}, {self.db_info})."
         )
         if generar_sql:
