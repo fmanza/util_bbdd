@@ -20,6 +20,21 @@ es la vista panorámica.
 Ver la sección `[Unreleased]` del
 [CHANGELOG](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md) para el estado al día.
 
+### Deuda registrada — conexiones multimotor (auditoría `drivers-connections-audit`, v0.39.1)
+
+Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md). Pendiente, sin fecha:
+
+- **TLS MariaDB**: no hay `ssl_verify_identity` para verificar la CA sin comprobar el hostname (MySQL sí lo tiene);
+  conectar por IP con un certificado sin esa IP en el SAN fallaría (sin comprobar con una CA propia).
+- **TLS async**: el aviso de «TLS sin verificar» se emite en cada conexión nueva del AsyncEngine (ruido en el log).
+- **factory**: los `_build_*_connection_string` sync y async divergen en casos límite (`host=None`, `database=None`,
+  SQL Server sin `database`, Oracle `service_name=""`); en los motores con `creator` la URL solo elige el dialecto.
+- **charset MariaDB/MySQL**: el diagnóstico de `catalog_charset_mode="auto"` sigue haciendo 8 consultas (una vez por
+  gestor) y da «mezcla» con un schema sin tablas.
+- **HSQLDB**: la conexión nativa no se ha validado contra un servidor real.
+- **MariaDB async**: un `init_command` personalizado no se aplica (aiomysql recibe `charset`).
+- **SQL Server**: `trust_cert` no tiene equivalente con pymssql (usar pyodbc/aioodbc para TLS real).
+
 ## Entregado
 
 ### Serie 0.7 – 0.10 — Rendimiento y cobertura de tipos

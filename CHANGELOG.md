@@ -20,6 +20,12 @@ Hotfix de los hallazgos F1 y F2 de la FASE 5 de `drivers-connections-audit`
 
 - **managers (F2)**: test de que `SyncDatabaseManager` pasa `catalog_charset_mode` al ejecutor de catálogo.
 
+### Documentation
+
+- Cierre de `drivers-connections-audit` (FASE 6, solo documentación, después del tag): `docs/adr/ADR-005-conexiones-multimotor.md`
+  (validación única desde las configs, política de pool de los Engine, `catalog_charset_mode`, TLS en MariaDB) y deuda
+  residual en `docs/roadmap.md` § «Deuda registrada — conexiones multimotor».
+
 ## [0.39.0] - 2026-10-09
 
 Bloque B2 de la FASE 4 de `drivers-connections-audit` (`.ai/sessions/2026-10-09-feature-mariadb-tls/`). Cierra la

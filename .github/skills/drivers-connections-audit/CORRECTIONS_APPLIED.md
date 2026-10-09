@@ -373,3 +373,14 @@ descartada); § 3.2 con las decisiones de FASE 3 (validación async con `Validat
 usuario); aviso en FASE 4 que mapea las sub-fases 4.1–4.4 a los bloques.
 
 *Changelog: 2026-10-09 | Premisas corregidas: 6 | Version: 1.0.4*
+
+---
+
+# v1.0.4 → v1.0.5: cierre de la auditoría (FASE 6)
+
+**Fecha**: 2026-10-09. Sin premisas nuevas corregidas. Estado final en la cabecera de `SKILL.md`; decisiones en
+`docs/adr/ADR-005-conexiones-multimotor.md`; deuda residual en `docs/roadmap.md` § «Deuda registrada — conexiones
+multimotor». Premisas refutadas durante la ejecución que no estaban en la skill: `_translate_sql` sí tenía llamador
+(B6); `create_pool_async` de python-oracledb 4.x no es corrutina (hotfix v0.36.1).
+
+*Changelog: 2026-10-09 | Version: 1.0.5*

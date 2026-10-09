@@ -7,10 +7,10 @@ scope: "workspace"
 applies_to: "src/util_bbdd/connection/**,src/util_bbdd/_drivers/**,src/util_bbdd/metadata/**,src/util_bbdd/managers/**"
 requires_context: ".github/SHARED_INSTRUCTIONS.md, pyproject.toml"
 tags: ["drivers", "connections", "architecture", "database-engines", "refactor", "charsets", "api-breaking"]
-version: "1.0.4"
+version: "1.0.5"
 created: "2026-10-08"
 updated: "2026-10-09"
-status: "FASE 1 y FASE 2-3 ejecutadas (/audit-code); decisiones de FASE 3 resueltas (GO_CONDICIONAL); premisas corregidas contra el código real (v0.35.8)"
+status: "CERRADA: FASES 1-6 ejecutadas (2026-10-08/09); FASE 4 en v0.35.9-v0.39.1; FASE 5 APROBADO CON CONDICIONES; decisiones en docs/adr/ADR-005-conexiones-multimotor.md"
 ---
 
 # Drivers & Connections Architecture Audit — util_bbdd
@@ -22,6 +22,12 @@ status: "FASE 1 y FASE 2-3 ejecutadas (/audit-code); decisiones de FASE 3 resuel
 **Entrega**: Informe AUDIT → PLAN por motor → Propuestas de organización → Resoluciones específicas (charset genérico, etc.).
 
 ---
+
+> **Estado final (2026-10-09): auditoría cerrada.** FASE 1 (v0.35.4, RECHAZADO) → fixes v0.35.5–v0.35.8 → FASE 2-3
+> (Opción B acotada, GO_CONDICIONAL) → FASE 4 en v0.35.9–v0.39.0 (B6, B5, B4, B3, hotfix Oracle async, B1, CS, B2) →
+> FASE 5 (APROBADO CON CONDICIONES; F1/F2 corregidos en v0.39.1) → FASE 6 (ADR-005 y deuda en `docs/roadmap.md`).
+> Sesiones: `.ai/sessions/2026-10-08*` y `.ai/sessions/2026-10-09-*`. Esta skill queda como plantilla reutilizable:
+> antes de volver a ejecutarla, contrastar sus premisas con el código (ver `CORRECTIONS_APPLIED.md`).
 
 ## FASE 1: RECONNAISSANCE (Lectura)
 
@@ -962,4 +968,4 @@ Entregar: hallazgos de seguridad, rendimiento, bugs, charset strategy aplicable
 
 ---
 
-*Skill version: 1.0.4 | Last updated: 2026-10-09 | Premisas corregidas tras FASE 1 y FASE 2 | Approved for breaking changes*
+*Skill version: 1.0.5 | Last updated: 2026-10-09 | Auditoría cerrada (FASES 1-6) | Decisiones: ADR-005*
