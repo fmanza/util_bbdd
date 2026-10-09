@@ -182,6 +182,10 @@ class PrintConfigManager:
             graph.get("dpi", PrintConfigManager.DEFAULT_GRAPH["dpi"]),
             fallback=int(PrintConfigManager.DEFAULT_GRAPH["dpi"]),
         )
+        # Procesos dot simultáneos; None = los núcleos hasta 8 (GraphvizRelationshipGraphExt.prefetch)
+        graph["workers"] = (
+            None if graph.get("workers") is None else PrintConfigManager._to_positive_int(graph["workers"], fallback=1)
+        )
         graph["columns"] = columns_cfg
         graph["cardinality"] = cardinality_cfg
         graph["summary"] = summary_cfg
@@ -294,6 +298,7 @@ class PrintConfigManager:
                 fallback=word_default_max_subnodes,
             ),
             "dpi": PrintConfigManager._to_positive_int(graph_cfg.get("dpi", 150), fallback=150),
+            "workers": graph_cfg.get("workers"),
             "columns": dict(graph_cfg.get("columns", {})),
             "cardinality": dict(graph_cfg.get("cardinality", {})),
             "summary": dict(graph_cfg.get("summary", {})),
@@ -362,6 +367,8 @@ class PrintConfigManager:
             ),
             "images_paginated": bool(graph_cfg.get("images_paginated", True)),
             "max_subnodes": PrintConfigManager._to_positive_int(graph_cfg.get("max_subnodes", 10), fallback=10),
+            "dpi": PrintConfigManager._to_positive_int(graph_cfg.get("dpi", 150), fallback=150),
+            "workers": graph_cfg.get("workers"),
             "columns": dict(graph_cfg.get("columns", {})),
             "cardinality": dict(graph_cfg.get("cardinality", {})),
             "summary": dict(graph_cfg.get("summary", {})),

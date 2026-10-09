@@ -13,16 +13,11 @@ def test_build_diagram_tab_payload_groups_tabs_by_direction_and_level(tmp_path: 
     output_dir = tmp_path / "site"
     graph_dir = output_dir / "graphs"
     graph_dir.mkdir(parents=True)
-
-    outgoing_svg = graph_dir / "users_outgoing_level1.svg"
-    incoming_svg = graph_dir / "users_incoming_level2.svg"
-    svg_content = '<svg xmlns="http://www.w3.org/2000/svg"><g class="node"><title>users</title></g></svg>'
-    outgoing_svg.write_text(svg_content, encoding="utf-8")
-    incoming_svg.write_text(svg_content, encoding="utf-8")
+    svg_content = b'<svg xmlns="http://www.w3.org/2000/svg"><g class="node"><title>users</title></g></svg>'
 
     tabs, flat_paths, summary = generator._build_diagram_tab_payload(
         table_name="users",
-        generated_groups={
+        piped={
             "summary": {
                 "max_depth": 3,
                 "total_outgoing_levels": 1,
@@ -30,11 +25,13 @@ def test_build_diagram_tab_payload_groups_tabs_by_direction_and_level(tmp_path: 
                 "hidden_outgoing_levels": 0,
                 "hidden_incoming_levels": 1,
             },
-            "outgoing": [{"depth": 1, "path": outgoing_svg, "title": "Nivel 1"}],
-            "incoming": [{"depth": 2, "path": incoming_svg, "title": "Nivel 2"}],
+            "outgoing": [{"depth": 1, "bytes": svg_content, "title": "Nivel 1"}],
+            "incoming": [{"depth": 2, "bytes": svg_content, "title": "Nivel 2"}],
         },
+        graph_output_dir=graph_dir,
         output_dir=output_dir,
         navigation_links={"users": "../tables/users.html"},
+        file_stem="users",
     )
 
     assert len(tabs) == 2
@@ -47,7 +44,14 @@ def test_build_diagram_tab_payload_groups_tabs_by_direction_and_level(tmp_path: 
     assert tabs[1]["hidden_levels"] == 1
     assert tabs[1]["has_hidden_levels"] is True
     assert tabs[1]["items"][0]["aria_label"] == "Entrada Nivel 2 de users"
-    assert flat_paths == ["graphs/users_outgoing_level1.svg", "graphs/users_incoming_level2.svg"]
+    assert flat_paths == [
+        "graphs/graphviz_ext_users_outgoing_level1.svg",
+        "graphs/graphviz_ext_users_incoming_level2.svg",
+    ]
+    # Un solo SVG por nivel: con los enlaces en disco y el mismo markup incrustado en la página
+    written = (graph_dir / "graphviz_ext_users_outgoing_level1.svg").read_text(encoding="utf-8")
+    assert "../tables/users.html" in written
+    assert written == tabs[0]["items"][0]["inline_svg"]
     assert summary["max_depth"] == 3
     assert summary["visible_outgoing_levels"] == 1
     assert summary["visible_incoming_levels"] == 1
@@ -60,16 +64,11 @@ def test_build_diagram_tab_payload_normalizes_incoming_order_and_labels(tmp_path
     output_dir = tmp_path / "site"
     graph_dir = output_dir / "graphs"
     graph_dir.mkdir(parents=True)
-
-    incoming_level_1 = graph_dir / "users_incoming_level1.svg"
-    incoming_level_2 = graph_dir / "users_incoming_level2.svg"
-    svg_content = '<svg xmlns="http://www.w3.org/2000/svg"><g class="node"><title>users</title></g></svg>'
-    incoming_level_1.write_text(svg_content, encoding="utf-8")
-    incoming_level_2.write_text(svg_content, encoding="utf-8")
+    svg_content = b'<svg xmlns="http://www.w3.org/2000/svg"><g class="node"><title>users</title></g></svg>'
 
     tabs, flat_paths, _ = generator._build_diagram_tab_payload(
         table_name="users",
-        generated_groups={
+        piped={
             "summary": {
                 "max_depth": 5,
                 "total_outgoing_levels": 0,
@@ -79,12 +78,14 @@ def test_build_diagram_tab_payload_normalizes_incoming_order_and_labels(tmp_path
             },
             "outgoing": [],
             "incoming": [
-                {"depth": 2, "path": incoming_level_2, "title": "Nivel 1"},
-                {"depth": 1, "path": incoming_level_1, "title": "Nivel 1"},
+                {"depth": 2, "bytes": svg_content, "title": "Nivel 1"},
+                {"depth": 1, "bytes": svg_content, "title": "Nivel 1"},
             ],
         },
+        graph_output_dir=graph_dir,
         output_dir=output_dir,
         navigation_links={"users": "../tables/users.html"},
+        file_stem="users",
     )
 
     assert len(tabs) == 1
@@ -96,7 +97,10 @@ def test_build_diagram_tab_payload_normalizes_incoming_order_and_labels(tmp_path
         "Entrada Nivel 1 de users",
         "Entrada Nivel 2 de users",
     ]
-    assert flat_paths == ["graphs/users_incoming_level1.svg", "graphs/users_incoming_level2.svg"]
+    assert flat_paths == [
+        "graphs/graphviz_ext_users_incoming_level1.svg",
+        "graphs/graphviz_ext_users_incoming_level2.svg",
+    ]
 
 
 def test_build_diagram_legend_payload_matches_current_contract() -> None:
@@ -300,14 +304,9 @@ def test_build_table_payload_includes_tabbed_diagram_metadata(tmp_path: Path) ->
             return {}
 
     class _GraphGenerator:
-        def generate_graphviz_level_graphs_ext(self, **kwargs: Any) -> dict[str, Any]:
-            graph_dir = Path(kwargs["output_dir"])
-            graph_dir.mkdir(parents=True, exist_ok=True)
-            outgoing = graph_dir / "users_outgoing_level1.svg"
-            outgoing.write_text(
-                '<svg xmlns="http://www.w3.org/2000/svg"><g class="node"><title>users</title></g></svg>',
-                encoding="utf-8",
-            )
+        def pipe_level_graphs_ext(self, **kwargs: Any) -> dict[str, Any]:
+            assert kwargs == {"table_name": "users", "format": "svg", "max_depth": 2, "direction": "both"}
+            outgoing = b'<svg xmlns="http://www.w3.org/2000/svg"><g class="node"><title>users</title></g></svg>'
             return {
                 "summary": {
                     "max_depth": 2,
@@ -316,7 +315,7 @@ def test_build_table_payload_includes_tabbed_diagram_metadata(tmp_path: Path) ->
                     "hidden_outgoing_levels": 0,
                     "hidden_incoming_levels": 0,
                 },
-                "outgoing": [{"depth": 1, "path": outgoing, "title": "Nivel 1"}],
+                "outgoing": [{"depth": 1, "bytes": outgoing, "title": "Nivel 1"}],
                 "incoming": [],
             }
 
@@ -343,7 +342,7 @@ def test_build_table_payload_includes_tabbed_diagram_metadata(tmp_path: Path) ->
     )
     assert payload["diagram_legend"]["table_type_items"][1]["label"] == "Asociación"
     assert payload["diagram_legend"]["relation_type_items"][0]["label"] == "FK"
-    assert payload["diagram_tabs"][0]["items"][0]["path"] == "graphs/users_outgoing_level1.svg"
+    assert payload["diagram_tabs"][0]["items"][0]["path"] == "graphs/graphviz_ext_users_outgoing_level1.svg"
 
 
 def test_render_detail_page_writes_tabbed_diagram_markup(tmp_path: Path) -> None:

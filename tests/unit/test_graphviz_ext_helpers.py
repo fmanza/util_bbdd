@@ -305,12 +305,8 @@ def test_generate_graphviz_level_graphs_ext_resolves_depth_by_group_direction(tm
         },
     )
 
-    def _fake_generate(**kwargs: object) -> Path:
-        output_file = kwargs["output_file"]
-        assert isinstance(output_file, Path)
-        return output_file.with_suffix(".svg")
-
-    graph._generate_graphviz_graph_internal_ext = _fake_generate  # type: ignore[method-assign]
+    graph.include_columns = True
+    graph._pipe_graph_internal_ext = lambda **kwargs: b"<svg/>"  # type: ignore[method-assign]
 
     results = graph.generate_graphviz_level_graphs_ext(table_name="users", output_dir=tmp_path, format="svg")
 
@@ -319,3 +315,4 @@ def test_generate_graphviz_level_graphs_ext_resolves_depth_by_group_direction(tm
     assert results["incoming"][0]["depth"] == 2
     assert str(results["incoming"][0]["path"]).endswith("graphviz_ext_users_incoming_level2.svg")
     assert results["incoming"][0]["title"] == "Nivel 2"
+    assert Path(results["incoming"][0]["path"]).read_bytes() == b"<svg/>"

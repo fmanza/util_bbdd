@@ -19,32 +19,6 @@ if TYPE_CHECKING:
 DbRow = tuple[Any, ...]
 
 
-def sanitize_table_filename(raw_name: str) -> str:
-    """Sanea un nombre de tabla/vista para usarlo como nombre de fichero.
-
-    DOC-03 (AUDIT_CODE 2026-09-22): los fallbacks a disco de word_generator.py
-    y html_generator.py insertaban el nombre de tabla directamente en un
-    ``Path`` (p.ej. ``f"{tabla}.{fmt}"``) sin sanear. Un nombre de tabla con
-    identificador entrecomillado (Oracle/PostgreSQL permiten casi cualquier
-    carácter, incluido ``/`` o ``..``) podía escribir fuera de ``output_dir``
-    o fallar por caracteres inválidos en el sistema de ficheros.
-
-    Mismo criterio de saneado que ``HtmlDocumentGenerator._build_unique_slug``
-    (minúsculas, alfanumérico + guiones), sin la fase de unicidad: aquí cada
-    llamada genera un único fichero intermedio para una tabla, no un mapa de
-    páginas navegables donde las colisiones deban resolverse con sufijo.
-
-    Args:
-        raw_name: Nombre de tabla/vista tal como viene del motor origen.
-
-    Returns:
-        Nombre saneado, apto como componente de ``Path`` (nunca vacío).
-    """
-    normalized = "".join(char.lower() if char.isalnum() else "-" for char in raw_name)
-    normalized = "-".join(part for part in normalized.split("-") if part)
-    return normalized or "item"
-
-
 class GeneratorTableRuntime:
     """Utilidades compartidas para parseo de filas de tablas."""
 
@@ -530,35 +504,33 @@ class GeneratorDatabaseInfoRuntime:
         return [query.sql] if query is not None else []
 
 
-def build_graph_generator_from_options(
-    data_provider: Any,
-    options: dict[str, Any],
-    *,
-    render_dpi: int | None = None,
-) -> GraphvizRelationshipGraphExt:
-    """Crea un ``GraphvizRelationshipGraphExt`` a partir del config unificado.
+def build_graph_generator_from_options(source: Any, options: dict[str, Any]) -> GraphvizRelationshipGraphExt:
+    """Crea el ``GraphvizRelationshipGraphExt`` de la documentación a partir del bloque ``grafo`` de ``imprimir``.
 
-    Compartido por Word y HTML para evitar duplicar la lógica de construcción.
+    Único punto de construcción (lo usan el orquestador y, si no reciben uno, Word y HTML), para que todos los
+    formatos dibujen con las mismas opciones (A-02: antes el generador compartido ignoraba ``show_columns``).
 
     Args:
-        data_provider: Proveedor de metadatos (necesita ``db_manager``).
-        options: Sub-diccionario ``grafo`` de ``print_config``.
-        render_dpi: DPI para render bitmap (Word). ``None`` omite el kwarg.
+        source: Fuente de metadatos (``RelationshipGraphSource``), p. ej. el manager adaptado de la sesión.
+        options: Sub-diccionario ``grafo`` de ``print_config`` normalizado.
+
+    Example:
+        >>> gen = build_graph_generator_from_options(session.db_manager, {"max_depth": 2, "workers": 4})
     """
     from .....analysis.graphviz_ext import GraphvizRelationshipGraphExt as _Ext
 
     columns_options: dict[str, Any] = options.get("columns", {})
     cardinality_options: dict[str, Any] = options.get("cardinality", {})
-    kwargs: dict[str, Any] = {
-        "db_manager": data_provider.db_manager,
-        "show_columns": bool(options.get("show_columns", True)),
-        "column_mode": str(columns_options.get("mode", "relations")),
-        "max_columns": int(columns_options.get("max_items", 8)),
-        "show_data_types": bool(columns_options.get("show_data_types", False)),
-        "max_depth": int(options.get("max_depth", 1)),
-        "direction": str(options.get("direction", "both")),
-        "show_constraint_name": bool(cardinality_options.get("show_constraint_name", False)),
-    }
-    if render_dpi is not None:
-        kwargs["render_dpi"] = render_dpi
-    return _Ext(**kwargs)
+    workers: Any = options.get("workers")
+    return _Ext(
+        db_manager=source,
+        show_columns=bool(options.get("show_columns", True)),
+        column_mode=str(columns_options.get("mode", "relations")),
+        max_columns=int(columns_options.get("max_items", 8)),
+        show_data_types=bool(columns_options.get("show_data_types", False)),
+        max_depth=int(options.get("max_depth", 1)),
+        direction=str(options.get("direction", "both")),
+        show_constraint_name=bool(cardinality_options.get("show_constraint_name", False)),
+        render_dpi=int(options.get("dpi", 150)),
+        render_workers=None if workers is None else int(workers),
+    )

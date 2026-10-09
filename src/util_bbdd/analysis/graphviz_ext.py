@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import html
 import logging
+import os
+import subprocess
+import tempfile
 
+from collections.abc import Callable, Iterable
+from concurrent.futures import Future, ThreadPoolExecutor
 from logging import Logger
 from pathlib import Path
 from typing import Any
-
-from util_bbdd.analysis.base import GraphEdge
 
 try:
     import graphviz
@@ -20,12 +23,14 @@ except ImportError:
     GRAPHVIZ_AVAILABLE = False
 
 from .._core.exceptions import DatabaseException
+from .._core.filenames import safe_file_stem
 from ..metadata.model import Kind
 from .base import (
     CardinalityEndMarker,
     ColumnVisualizationMode,
     DatabaseRelationshipGraphBase,
     GraphDocument,
+    GraphEdge,
     LevelDirection,
     TableRelation,
     TableVisualType,
@@ -33,6 +38,12 @@ from .base import (
 from .contracts import RelationshipGraphSource
 
 GRAPHVIZ_MISSING_MSG: str = "Graphviz no disponible. Instale: pip install graphviz"
+_MAX_DEFAULT_RENDER_WORKERS: int = 8
+# Grafos por proceso ``dot -O`` (acota la línea de comandos; arrancar dot cuesta ~0,25 s y renderizar ~0,01 s)
+_MAX_GRAPHS_PER_DOT_PROCESS: int = 200
+
+# (formato, motor, fuente DOT): identifica un render; dos llamadas con la misma clave producen los mismos bytes
+_PipeKey = tuple[str, str, str]
 
 
 class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
@@ -71,7 +82,14 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         orthogonal_nodesep: float = 0.75,
         orthogonal_ranksep: float = 0.9,
         render_dpi: int = 300,
+        render_workers: int | None = None,
     ):
+        """Configura el generador.
+
+        Args:
+            render_workers: Procesos ``dot`` simultáneos de :meth:`prefetch` (por defecto, los núcleos hasta 8;
+                con ``1`` los lotes se renderizan de uno en uno).
+        """
         super().__init__(db_manager)
         self.logger: Logger = logging.getLogger(__name__)
 
@@ -92,6 +110,15 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         self.orthogonal_nodesep: float = orthogonal_nodesep
         self.orthogonal_ranksep: float = orthogonal_ranksep
         self.render_dpi: int = render_dpi
+        self.render_workers: int = (
+            max(1, int(render_workers))
+            if render_workers is not None
+            else min(_MAX_DEFAULT_RENDER_WORKERS, os.cpu_count() or 1)
+        )
+        # Renders lanzados por prefetch(); los recoge la llamada real con la misma clave
+        self._prefetched: dict[_PipeKey, Future[bytes]] = {}
+        # Durante prefetch(): los dot que se habrían lanzado, en lugar de lanzarlos
+        self._captured: dict[_PipeKey, Any] | None = None
 
         # Sin cachés locales: columnas, PK y UNIQUE salen del snapshot del manager, que ya está cacheado por schema
         # (una caché por nombre de tabla mezclaría tablas homónimas de schemas distintos, MDC-02).
@@ -472,60 +499,33 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         direction: LevelDirection | str | None = None,
         document: GraphDocument | None = None,
     ) -> dict[str, Any]:
-        """Genera un diagrama independiente por nivel y por sentido."""
-        include_columns: bool = self.include_columns if show_columns is None else bool(show_columns)
-        document, grouped_documents = self._build_level_documents(
+        """Genera un diagrama independiente por nivel y por sentido (:meth:`pipe_level_graphs_ext` escrito a disco).
+
+        Returns:
+            La estructura de :meth:`pipe_level_graphs_ext` con ``"path"`` en lugar de ``"bytes"`` en cada nivel.
+        """
+        piped: dict[str, Any] = self.pipe_level_graphs_ext(
             table_name=table_name,
+            format=format,
+            show_columns=show_columns,
             max_depth=max_depth,
             direction=direction,
             document=document,
         )
-
         output_dir = Path(output_dir).resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
-
-        results: dict[str, Any] = {
-            "summary": {
-                "root_table": document.root_table,
-                "max_depth": document.max_depth,
-                "total_outgoing_levels": document.total_outgoing_levels,
-                "total_incoming_levels": document.total_incoming_levels,
-                "hidden_outgoing_levels": document.hidden_levels.outgoing_hidden_levels,
-                "hidden_incoming_levels": document.hidden_levels.incoming_hidden_levels,
-            },
-            "outgoing": [],
-            "incoming": [],
-        }
-
-        for group_direction, direction_key in (
-            (LevelDirection.OUTGOING, "outgoing"),
-            (LevelDirection.INCOMING, "incoming"),
-        ):
-            for level_document in grouped_documents[group_direction]:
-                if not level_document.levels:
-                    continue
-                level_depth_candidates: list[int] = [
-                    level.depth for level in level_document.levels if level.direction == group_direction
-                ]
-                level_depth: int = (
-                    min(level_depth_candidates) if level_depth_candidates else level_document.levels[0].depth
-                )
-                output_file: Path = output_dir / f"graphviz_ext_{table_name}_{direction_key}_level{level_depth}"
-                generated_path: Path = self._generate_graphviz_graph_internal_ext(
-                    table_name=table_name,
-                    output_file=output_file,
-                    format=format,
-                    document=level_document,
-                    show_columns=include_columns,
-                )
+        results: dict[str, Any] = {"summary": piped["summary"], "outgoing": [], "incoming": []}
+        stem: str = safe_file_stem(table_name)
+        for direction_key in ("outgoing", "incoming"):
+            for item in piped[direction_key]:
+                output_file: Path = output_dir / f"graphviz_ext_{stem}_{direction_key}_level{item['depth']}"
                 results[direction_key].append(
                     {
-                        "depth": level_depth,
-                        "path": generated_path,
-                        "title": f"Nivel {level_depth}",
+                        "depth": item["depth"],
+                        "path": self._write_graph(item["bytes"], output_file, format),
+                        "title": item["title"],
                     }
                 )
-
         return results
 
     def generate_graphviz_graph_paginated_ext(
@@ -552,106 +552,49 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         Returns:
             Lista de Paths de archivos generados
         """
-        include_columns = self.include_columns if show_columns is None else bool(show_columns)
-        effective_depth = self.max_depth if max_depth is None else max(1, int(max_depth))
-        effective_direction = self.direction if direction is None else self._normalize_direction(direction)
-
-        self.logger.info(
-            f"Iniciando generación paginada extendida de Graphviz para {table_name} "
-            f"(max {max_subnodes} nodos por página)"
+        pages: list[bytes] = self.pipe_paginated_graph_ext(
+            table_name=table_name,
+            format=format,
+            max_subnodes=max_subnodes,
+            show_columns=show_columns,
+            max_depth=max_depth,
+            direction=direction,
+            document=document,
         )
-        if document is None:
-            document = self.build_graph_document(
-                table_name=table_name,
-                max_depth=effective_depth,
-                direction=effective_direction,
-            )
-        relations: list[TableRelation] = list(document.relations)
-        self.logger.info(f"📈 Relaciones analizadas para {table_name}: {len(relations)}")
-        split_relations: list[list[TableRelation]] = self._split_relations_for_visualization(relations, max_subnodes)
-        self.logger.debug(f"Tabla {table_name} dividida en {len(split_relations)} página(s)")
-
         output_dir = Path(output_dir).resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
+        stem: str = f"graphviz_ext_{safe_file_stem(table_name)}"
+        return [
+            self._write_graph(page_bytes, output_dir / (f"{stem}_page{page_num}" if len(pages) > 1 else stem), format)
+            for page_num, page_bytes in enumerate(pages, 1)
+        ]
 
-        generated_files: list[Path] = []
-
-        for page_num, page_relations in enumerate(split_relations, 1):
-            # Crear nombre de archivo descriptivo
-            if len(split_relations) > 1:
-                file_name: str = f"graphviz_ext_{table_name}_page{page_num}"
-            else:
-                file_name = f"graphviz_ext_{table_name}"
-
-            output_path: Path = output_dir / file_name
-
-            # Generar gráfico para esta página
-            page_document: GraphDocument = self._build_subset_document(document, page_relations)
-            generated_file: Path = self._generate_graphviz_graph_internal_ext(
-                table_name=table_name,
-                output_file=output_path,
-                format=format,
-                document=page_document,
-                show_columns=include_columns,
-            )
-            self.logger.info(
-                f"🖼️  Página Graphviz {page_num}/{len(split_relations)} de {table_name} generada "
-                f"con {len(page_relations)} relaciones"
-            )
-            generated_files.append(generated_file)
-
-        return generated_files
-
-    def _generate_graphviz_graph_internal_ext(
-        self,
-        table_name: str,
-        output_file: Path,
-        format: str,
-        document: GraphDocument,
-        show_columns: bool = True,
-    ) -> Path:
-        """
-        Genera un gráfico Graphviz interno extendido con detalles de columnas y cardinalidad
-
-        Args:
-            table_name: Tabla central
-            output_file: Ruta de salida
-            format: Formato
-            relations: Relaciones a incluir en el gráfico
-            show_columns: Si mostrar columnas en nodos
-
-        Returns:
-            Path del archivo generado
-        """
+    def _build_dot(self, table_name: str, format: str, document: GraphDocument, show_columns: bool) -> Any:
+        """El grafo Graphviz de ``document`` listo para renderizar: layout, pie, nodos y aristas."""
         if not GRAPHVIZ_AVAILABLE or graphviz is None:
             raise ImportError(GRAPHVIZ_MISSING_MSG)
+        dot, is_raster_format, edge_label_font_size = self._create_configured_graph(
+            table_name=table_name,
+            format=format,
+            show_columns=show_columns,
+        )
+        self._add_graph_footer(dot=dot, document=document)
+        self._add_nodes_to_graph(
+            dot=dot,
+            document=document,
+            show_columns=show_columns,
+            is_raster_format=is_raster_format,
+        )
+        self._add_edges_to_graph(dot=dot, document=document, edge_label_font_size=edge_label_font_size)
+        return dot
 
-        try:
-            output_file = Path(output_file).resolve()
-            output_file.parent.mkdir(parents=True, exist_ok=True)
-
-            dot, is_raster_format, edge_label_font_size = self._create_configured_graph(
-                table_name=table_name,
-                format=format,
-                show_columns=show_columns,
-            )
-            self._add_graph_footer(dot=dot, document=document)
-
-            self._add_nodes_to_graph(
-                dot=dot,
-                document=document,
-                show_columns=show_columns,
-                is_raster_format=is_raster_format,
-            )
-            self._add_edges_to_graph(dot=dot, document=document, edge_label_font_size=edge_label_font_size)
-
-            return self._render_graph(dot=dot, output_file=output_file, format=format, table_name=table_name)
-        except (OSError, RuntimeError) as e:
-            self.logger.error(
-                f"Error al generar gráfico Graphviz extendido para tabla {table_name}: {str(e)}",
-                exc_info=True,
-            )
-            raise
+    @staticmethod
+    def _write_graph(content: bytes, output_file: Path, format: str) -> Path:
+        """Escribe un render en ``<output_file>.<format>`` (el nombre que daba ``dot.render``)."""
+        target: Path = Path(f"{Path(output_file).resolve()}.{format}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+        return target
 
     def _add_graph_footer(self, dot: Any, document: GraphDocument) -> None:
         """Agrega metadatos del recorrido al pie del grafo."""
@@ -803,36 +746,101 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             "color": edge_color,
         }
 
-    def _render_graph(self, dot: Any, output_file: Path, format: str, table_name: str) -> Path:
-        """
-        Renderiza el grafo y valida que el archivo de salida exista.
+    def clear_cache(self) -> None:
+        """Invalida las cachés del grafo (ver la clase base) y los renders precargados por :meth:`prefetch`."""
+        super().clear_cache()
+        self._prefetched.clear()
+
+    def prefetch(self, render: Callable[[str], object], table_names: Iterable[str]) -> int:
+        """Renderiza por lotes y en paralelo lo que ``render(tabla)`` va a pedir después para cada tabla.
+
+        Llama a ``render`` por cada tabla sin lanzar ``dot`` (solo construye los grafos) y renderiza todos los grafos
+        resultantes con pocos procesos ``dot -O`` (uno por lote, ``render_workers`` lotes a la vez): casi todo el coste
+        de ``dot`` es arrancar (~0,25 s por proceso frente a ~0,01 s por grafo), así que lanzar un proceso por grafo
+        era lo que hacía lenta la documentación con diagramas. Las llamadas reales posteriores con los mismos argumentos
+        recogen el resultado en lugar de lanzar ``dot``; un grafo que falla en el lote se renderiza aparte, y su
+        llamada real recibe la misma excepción que habría recibido sin precarga. Cada llamada sustituye lo precargado
+        por la anterior.
 
         Args:
-            dot: Grafo Graphviz
-            output_file: Ruta de salida sin extensión
-            format: Formato de salida
-            table_name: Tabla principal
+            render: La misma llamada que hará el renderer, p. ej.
+                ``lambda t: gen.pipe_level_graphs_ext(table_name=t, format="svg")``.
+            table_names: Tablas a precargar.
 
         Returns:
-            Ruta del archivo generado
+            Número de grafos renderizados.
 
-        Raises:
-            FileNotFoundError: Si Graphviz no genera el archivo esperado
+        Example:
+            >>> gen.prefetch(lambda t: gen.pipe_single_table_graph_ext(table_name=t, format="png"), ["a", "b"])
+            >>> png = gen.pipe_single_table_graph_ext(table_name="a", format="png")  # ya renderizado
         """
-        output_path_str: str = str(output_file)
-        self.logger.info(f"🎨 Renderizando Graphviz para {table_name}: formato={format}, archivo={output_path_str}")
-        dot.render(output_path_str, cleanup=True)
-        self.logger.info(f"🎨 Render Graphviz completado para {table_name}")
+        self._prefetched.clear()
+        self._captured = {}
+        try:
+            for table_name in table_names:
+                try:
+                    render(table_name)
+                except (DatabaseException, OSError, RuntimeError, ValueError, KeyError) as error:
+                    # La llamada real repetirá el error y lo tratará como siempre
+                    self.logger.debug(f"Precarga de grafo omitida para {table_name}: {error}")
+        finally:
+            captured, self._captured = self._captured, None
+        if not captured:
+            return 0
 
-        expected_file = Path(f"{output_path_str}.{format}")
-        if expected_file.exists():
-            self.logger.info(f"Gráfico Graphviz extendido generado exitosamente para {table_name}")
-            return expected_file
+        batches: list[list[tuple[_PipeKey, Any]]] = []
+        by_command: dict[tuple[str, str], list[tuple[_PipeKey, Any]]] = {}
+        for key, dot in captured.items():
+            self._prefetched[key] = Future()
+            by_command.setdefault((key[0], key[1]), []).append((key, dot))
+        for items in by_command.values():
+            parts: int = max(min(self.render_workers, len(items)), -(-len(items) // _MAX_GRAPHS_PER_DOT_PROCESS))
+            batches.extend(items[index::parts] for index in range(parts))
+        with ThreadPoolExecutor(max_workers=min(self.render_workers, len(batches))) as executor:
+            list(executor.map(self._render_batch, batches))
+        self.logger.info(
+            f"🎨 Precargados {len(captured)} grafos Graphviz en {len(batches)} procesos dot "
+            f"({self.render_workers} a la vez)"
+        )
+        return len(captured)
 
-        raise FileNotFoundError(f"Archivo no encontrado: {expected_file}")
+    def _render_batch(self, items: list[tuple[_PipeKey, Any]]) -> None:
+        """Renderiza un lote con un solo ``dot -K<motor> -T<formato> -O`` y resuelve el ``Future`` de cada grafo.
+
+        Los grafos sin salida (error de sintaxis, ``dot`` ausente…) se renderizan uno a uno con ``dot.pipe`` para que su
+        ``Future`` guarde el resultado o la excepción exacta de una llamada sin precarga.
+        """
+        format_, engine = items[0][0][0], items[0][0][1]
+        rendered: dict[_PipeKey, bytes] = {}
+        try:
+            with tempfile.TemporaryDirectory(prefix="util_bbdd_dot_") as work_dir:
+                names: list[str] = []
+                for index, (_, dot) in enumerate(items):
+                    name = f"{index}.gv"
+                    Path(work_dir, name).write_text(dot.source, encoding=dot.encoding or "utf-8")
+                    names.append(name)
+                command: list[str] = [str(graphviz.DOT_BINARY), f"-K{engine}", f"-T{format_}", "-O", *names]
+                subprocess.run(command, cwd=work_dir, capture_output=True, check=False)
+                for (key, _), name in zip(items, names, strict=True):
+                    output = Path(work_dir, f"{name}.{format_}")
+                    if output.is_file() and output.stat().st_size > 0:
+                        rendered[key] = output.read_bytes()
+        except OSError as error:
+            self.logger.debug(f"Lote dot no disponible ({error}); se renderiza grafo a grafo")
+        for key, dot in items:
+            future: Future[bytes] = self._prefetched[key]
+            if key in rendered:
+                future.set_result(rendered[key])
+                continue
+            try:
+                future.set_result(dot.pipe(format=format_))
+            except Exception as error:  # noqa: BLE001 - se entrega tal cual a la llamada real
+                future.set_exception(error)
 
     def _pipe_graph_bytes(self, dot: Any, format: str, table_name: str) -> bytes:
         """Renderiza el grafo en memoria y devuelve los bytes sin escribir a disco.
+
+        Si :meth:`prefetch` ya lanzó este mismo render (mismo formato y fuente DOT), devuelve su resultado.
 
         Args:
             dot: Grafo Graphviz configurado y con nodos/aristas ya añadidos
@@ -840,7 +848,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             table_name: Tabla principal (solo para logging)
 
         Returns:
-            bytes: Contenido del gráfico renderizado en el formato indicado
+            bytes: Contenido del gráfico renderizado en el formato indicado (vacío durante la captura de prefetch)
 
         Raises:
             OSError: Si el ejecutable dot no está disponible o falla durante el pipe
@@ -851,9 +859,16 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             >>> len(png_bytes) > 0
             True
         """
-        self.logger.info(f"🎨 Pipe Graphviz para {table_name}: formato={format}")
+        key: _PipeKey = (format, str(dot.engine), dot.source)
+        if self._captured is not None:
+            self._captured[key] = dot
+            return b""
+        prefetched: Future[bytes] | None = self._prefetched.get(key)
+        if prefetched is not None:
+            return prefetched.result()
+        self.logger.debug(f"🎨 Pipe Graphviz para {table_name}: formato={format}")
         result: bytes = dot.pipe(format=format)
-        self.logger.info(f"🎨 Pipe Graphviz completado para {table_name} ({len(result)} bytes)")
+        self.logger.debug(f"🎨 Pipe Graphviz completado para {table_name} ({len(result)} bytes)")
         return result
 
     def pipe_single_table_graph_ext(
@@ -907,28 +922,9 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 max_depth=effective_depth,
                 direction=effective_direction,
             )
-
-        try:
-            dot, is_raster_format, edge_label_font_size = self._create_configured_graph(
-                table_name=table_name,
-                format=format,
-                show_columns=include_columns,
-            )
-            self._add_graph_footer(dot=dot, document=document)
-            self._add_nodes_to_graph(
-                dot=dot,
-                document=document,
-                show_columns=include_columns,
-                is_raster_format=is_raster_format,
-            )
-            self._add_edges_to_graph(dot=dot, document=document, edge_label_font_size=edge_label_font_size)
-            return self._pipe_graph_bytes(dot=dot, format=format, table_name=table_name)
-        except (OSError, RuntimeError) as e:
-            self.logger.error(
-                f"Error al generar gráfico en memoria para tabla {table_name}: {str(e)}",
-                exc_info=True,
-            )
-            raise
+        return self._pipe_graph_internal_ext(
+            table_name=table_name, format=format, document=document, show_columns=include_columns
+        )
 
     def _pipe_graph_internal_ext(
         self,
@@ -961,22 +957,8 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             >>> len(svg_bytes) > 0
             True
         """
-        if not GRAPHVIZ_AVAILABLE or graphviz is None:
-            raise ImportError(GRAPHVIZ_MISSING_MSG)
         try:
-            dot, is_raster_format, edge_label_font_size = self._create_configured_graph(
-                table_name=table_name,
-                format=format,
-                show_columns=show_columns,
-            )
-            self._add_graph_footer(dot=dot, document=document)
-            self._add_nodes_to_graph(
-                dot=dot,
-                document=document,
-                show_columns=show_columns,
-                is_raster_format=is_raster_format,
-            )
-            self._add_edges_to_graph(dot=dot, document=document, edge_label_font_size=edge_label_font_size)
+            dot = self._build_dot(table_name=table_name, format=format, document=document, show_columns=show_columns)
             return self._pipe_graph_bytes(dot=dot, format=format, table_name=table_name)
         except (OSError, RuntimeError) as e:
             self.logger.error(
@@ -1231,25 +1213,14 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             show_columns: Si mostrar columnas
 
         Returns:
-            Path del archivo generado
+            Path del archivo generado (``<output_file>.<format>``)
         """
-        include_columns: bool = self.include_columns if show_columns is None else bool(show_columns)
-        effective_depth: int = self.max_depth if max_depth is None else max(1, int(max_depth))
-        effective_direction: LevelDirection = (
-            self.direction if direction is None else self._normalize_direction(direction)
-        )
-        self.logger.info(f"Generando gráfico extendido simple para tabla: {table_name}")
-        if document is None:
-            document = self.build_graph_document(
-                table_name=table_name,
-                max_depth=effective_depth,
-                direction=effective_direction,
-            )
-
-        return self._generate_graphviz_graph_internal_ext(
+        content: bytes = self.pipe_single_table_graph_ext(
             table_name=table_name,
-            output_file=output_file,
             format=format,
+            show_columns=show_columns,
+            max_depth=max_depth,
+            direction=direction,
             document=document,
-            show_columns=include_columns,
         )
+        return self._write_graph(content, output_file, format)

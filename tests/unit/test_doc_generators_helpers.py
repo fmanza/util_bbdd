@@ -25,11 +25,11 @@ from util_bbdd.doc.infrastructure.renderers.shared.diagram_summary import (
     build_diagram_summary_line,
     build_diagram_summary_payload,
 )
+from util_bbdd._core.filenames import safe_file_stem
 from util_bbdd.doc.infrastructure.renderers.shared.generator_shared import (
     GeneratorRoutineRuntime,
     GeneratorTableRuntime,
     GeneratorTabularRuntime,
-    sanitize_table_filename,
 )
 from util_bbdd.doc.infrastructure.renderers.word_generator import WordGenerator
 from util_bbdd.doc.infrastructure.storage.runtime import StorageInventoryRuntime
@@ -54,28 +54,28 @@ class TestSanitizeTableFilename:
     sanear, permitiendo path traversal o caracteres inválidos de filesystem."""
 
     def test_plain_name_lowercased_unchanged_shape(self) -> None:
-        assert sanitize_table_filename("Users") == "users"
+        assert safe_file_stem("Users") == "users"
 
     def test_path_traversal_sequence_stripped(self) -> None:
-        result = sanitize_table_filename("../../etc/passwd")
+        result = safe_file_stem("../../etc/passwd")
         assert "/" not in result
         assert ".." not in result
         assert result == "etc-passwd"
 
     def test_windows_invalid_characters_stripped(self) -> None:
-        result = sanitize_table_filename('weird:name*with?"invalid<chars>|')
+        result = safe_file_stem('weird:name*with?"invalid<chars>|')
         for char in ':*?"<>|':
             assert char not in result
 
     def test_spaces_and_punctuation_become_hyphens(self) -> None:
-        assert sanitize_table_filename("My Table (v2)") == "my-table-v2"
+        assert safe_file_stem("My Table (v2)") == "my-table-v2"
 
     def test_empty_or_fully_stripped_name_falls_back_to_item(self) -> None:
-        assert sanitize_table_filename("") == "item"
-        assert sanitize_table_filename("///") == "item"
+        assert safe_file_stem("") == "item"
+        assert safe_file_stem("///") == "item"
 
     def test_result_never_empty(self) -> None:
-        assert sanitize_table_filename("...") != ""
+        assert safe_file_stem("...") != ""
 
 
 def test_html_generator_normalizes_unique_constraints_rows_and_headers() -> None:

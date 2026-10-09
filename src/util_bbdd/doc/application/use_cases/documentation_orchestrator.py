@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from ....analysis.graphviz_ext import GraphvizRelationshipGraphExt
@@ -136,8 +136,6 @@ class DocumentationSession:
     _database_charset_collation_cache: dict[str, Any] | None | object = _UNSET_DATABASE_CHARSET_COLLATION
     _columns_charset_collation_cache: dict[str, list[tuple[str, str | None, str | None]] | None] | None = None
     _storage_inventory_report_cache: dict[str, Any] | None = None
-    _svg_bytes_cache: dict[tuple[str, int, str], bytes] | None = None
-    _svg_level_groups_cache: dict[tuple[str, int, str], dict[str, Any]] | None = None
 
     @classmethod
     def from_documentation(
@@ -178,8 +176,6 @@ class DocumentationSession:
             _ddl_cache={},
             _list_cache={},
             _columns_charset_collation_cache={},
-            _svg_bytes_cache={},
-            _svg_level_groups_cache={},
         )
 
     @property
@@ -292,108 +288,6 @@ class DocumentationSession:
             )
         return self._storage_inventory_report_cache
 
-    def get_cached_svg_bytes(self, table_name: str, max_depth: int, direction: str) -> bytes | None:
-        """Devuelve los bytes SVG cacheados para la tabla, o None si no están en caché.
-
-        La clave incluye los parámetros que afectan el contenido del diagrama.
-        Solo válido cuando Word y HTML comparten el mismo graph_generator.
-
-        Args:
-            table_name: Nombre de la tabla
-            max_depth: Profundidad máxima usada en la generación
-            direction: Dirección de relaciones usada ('both', 'outgoing', 'incoming')
-
-        Returns:
-            bytes | None: Bytes SVG si están cacheados, None en caso contrario
-
-        Example:
-            >>> cached = session.get_cached_svg_bytes("orders", 1, "both")
-            >>> cached is None or len(cached) > 0
-            True
-        """
-        if self._svg_bytes_cache is None:
-            return None
-        return self._svg_bytes_cache.get((table_name, max_depth, direction))
-
-    def cache_svg_bytes(self, table_name: str, max_depth: int, direction: str, svg_bytes: bytes) -> None:
-        """Almacena bytes SVG en caché para reutilización entre renderers.
-
-        Muta el estado interno de la sesión (_svg_bytes_cache). El caché es efímero:
-        vive solo durante la sesión documental activa y no se persiste en disco.
-
-        Args:
-            table_name: Nombre de la tabla
-            max_depth: Profundidad máxima usada en la generación
-            direction: Dirección de relaciones usada ('both', 'outgoing', 'incoming')
-            svg_bytes: Contenido SVG a cachear (bytes completos del archivo)
-
-        Returns:
-            None
-
-        Example:
-            >>> session.cache_svg_bytes("orders", 1, "both", b"<svg>...</svg>")
-            >>> session.get_cached_svg_bytes("orders", 1, "both") is not None
-            True
-        """
-        if self._svg_bytes_cache is None:
-            self._svg_bytes_cache = {}
-        self._svg_bytes_cache[(table_name, max_depth, direction)] = svg_bytes
-
-    def get_cached_level_groups(self, table_name: str, max_depth: int, direction: str) -> dict[str, Any] | None:
-        """Devuelve los grupos de nivel SVG cacheados para la tabla, o None si no están.
-
-        Los level groups contienen los bytes SVG de cada nivel (outgoing/incoming)
-        generados por pipe_level_graphs_ext. Word paginated los usa para convertir
-        SVG→PNG en memoria sin llamar a Graphviz de nuevo.
-
-        Args:
-            table_name: Nombre de la tabla
-            max_depth: Profundidad máxima usada en la generación HTML
-            direction: Dirección de relaciones usada ('both', 'outgoing', 'incoming')
-
-        Returns:
-            dict[str, Any] | None: Resultado de pipe_level_graphs_ext si cacheado,
-                None en caso contrario. Estructura::
-
-                    {
-                        "summary": {...},
-                        "outgoing": [{"depth": int, "bytes": bytes, "title": str}],
-                        "incoming": [{"depth": int, "bytes": bytes, "title": str}],
-                    }
-
-        Example:
-            >>> groups = session.get_cached_level_groups("orders", 1, "both")
-            >>> groups is None or "outgoing" in groups
-            True
-        """
-        if self._svg_level_groups_cache is None:
-            return None
-        return self._svg_level_groups_cache.get((table_name, max_depth, direction))
-
-    def cache_level_groups(self, table_name: str, max_depth: int, direction: str, level_groups: dict[str, Any]) -> None:
-        """Almacena los grupos de nivel SVG en caché para reutilización en Word paginated.
-
-        Muta el estado interno de la sesión. El caché es efímero: vive solo durante
-        la sesión documental activa y no se persiste a disco.
-
-        Args:
-            table_name: Nombre de la tabla
-            max_depth: Profundidad máxima usada en la generación
-            direction: Dirección de relaciones usada ('both', 'outgoing', 'incoming')
-            level_groups: Resultado de pipe_level_graphs_ext (summary + bytes por nivel)
-
-        Returns:
-            None
-
-        Example:
-            >>> session.cache_level_groups("orders", 1, "both", piped_groups)
-            >>> session.get_cached_level_groups("orders", 1, "both") is not None
-            True
-        """
-        if self._svg_level_groups_cache is None:
-            self._svg_level_groups_cache = {}
-        self._svg_level_groups_cache[(table_name, max_depth, direction)] = level_groups
-
     def _get_cached_scalar(self, cache_key: tuple[str, str, str], loader: Callable[[], str]) -> str:
         """Resuelve un valor escalar con cache local por sesión."""
         if self._ddl_cache is None:
@@ -447,12 +341,16 @@ class DocumentationOutputPlanner:
             )
         return plans
 
-    def should_share_graph_generator(self) -> bool:
-        """Indica si Word y HTML pueden reutilizar un único generador de grafos."""
-        return DocumentationGraphDomainService.should_share_graph_generator(
+    def needs_graph_generator(self) -> bool:
+        """Si algún formato pedido dibuja diagramas y ``grafo.enabled`` está activo."""
+        return DocumentationGraphDomainService.needs_graph_generator(
             formatos=self._session.formatos,
             print_config=self._session.print_config,
         )
+
+
+#: Construye el generador de grafos de la sesión a partir de la fuente y del bloque ``grafo`` (lo inyecta la fachada).
+GraphGeneratorFactory = Callable[[DocumentationBackendPort, dict[str, Any]], Any]
 
 
 class DocumentationOrchestrator:
@@ -464,115 +362,27 @@ class DocumentationOrchestrator:
         session: DocumentationSession,
         planner: DocumentationOutputPlanner,
         renderer_registry: RendererRegistryPort,
-        graph_generator_cls: type[Any],
+        graph_generator_factory: GraphGeneratorFactory,
     ) -> None:
         self._session = session
         self._planner = planner
         self._renderer_registry = renderer_registry
-        self._graph_generator_cls = graph_generator_cls
-
-    @classmethod
-    def from_documentation(
-        cls,
-        documentation: DocumentationFacade,
-        *,
-        output_policy: OutputPolicyPort,
-        metadata_runtime_factory: MetadataRuntimeFactoryPort,
-        storage_report_service: StorageReportServicePort,
-        renderer_registry: RendererRegistryPort,
-        graph_generator_cls: type[Any],
-    ) -> DocumentationOrchestrator:
-        """Construye el orquestador interno a partir de la fachada pública."""
-        session = DocumentationSession.from_documentation(
-            documentation,
-            output_policy=output_policy,
-            metadata_runtime_factory=metadata_runtime_factory,
-            storage_report_service=storage_report_service,
-        )
-        planner = DocumentationOutputPlanner(session, renderer_registry)
-        return cls(
-            session=session,
-            planner=planner,
-            renderer_registry=renderer_registry,
-            graph_generator_cls=graph_generator_cls,
-        )
+        self._graph_generator_factory = graph_generator_factory
 
     def generate_documents(self) -> None:
-        """Ejecuta la generación documental completa para la sesión activa."""
-        shared_graph_generator: GraphvizRelationshipGraphExt | None = self._build_shared_graph_generator()
-        should_share_graph: bool = self._planner.should_share_graph_generator()
-        plans = self._sort_plans_for_svg_cache(self._planner.build_plans(), should_share_graph=should_share_graph)
-        for plan in plans:
-            self._dispatch_plan(plan, shared_graph_generator)
+        """Ejecuta la generación documental completa para la sesión activa.
 
-    def _sort_plans_for_svg_cache(
-        self, plans: list[DocumentationFormatPlan], should_share_graph: bool = False
-    ) -> list[DocumentationFormatPlan]:
-        """Reordena planes para que HTML siempre preceda a Word cuando ambos están presentes.
-
-        HTML popula el caché SVG (level groups + single SVG) que Word consume.
-        Sin este reordenamiento, formatos=['word','html'] ejecutaría Word primero
-        con caché vacío, anulando la optimización de reutilización entre renderers.
-
-        El reordenamiento es transparente: todos los formatos solicitados se generan;
-        solo cambia el orden de escritura a disco.
-
-        Solo reordena si SOLO hay Word+HTML (sin otros formatos como Excel).
-        Si hay otros formatos, se preserva el orden del usuario.
-
-        Args:
-            plans: Lista de planes en el orden original de session.formatos
-            should_share_graph: Si True, reordena para optimizar caché SVG; si False, preserva orden original
-
-        Returns:
-            list[DocumentationFormatPlan]: Si should_share_graph=True y SOLO hay html+word, retorna
-                [html, word]; si no, retorna plans sin cambios.
-
-        Example:
-            >>> sorted_plans = orchestrator._sort_plans_for_svg_cache(plans, should_share_graph=True)
-            >>> sorted_plans[0].output_format if any(p.output_format == "html" for p in plans) else ...
-            'html'
+        Un único generador de grafos para todos los formatos: comparte el índice de relaciones y los renders
+        precargados, y cada formato produce lo mismo pida o no los demás (B-02).
         """
-        # Solo reordenar si realmente hay reutilización de grafos entre Word y HTML
-        # Y solo hay estos dos formatos (sin Excel u otros)
-        if not should_share_graph:
-            return plans
-
-        formats = {p.output_format for p in plans}
-        # Solo reordenar si exactamente tenemos HTML y Word, sin otros formatos
-        if formats != {"html", "word"}:
-            return plans
-
-        html_plans = [p for p in plans if p.output_format == "html"]
-        word_plans = [p for p in plans if p.output_format == "word"]
-        reordered = html_plans + word_plans
-        if reordered != plans:
-            self._session.logger.debug(f"🔀 Reordenando planes para caché SVG: {[p.output_format for p in reordered]}")
-        return reordered
-
-    def _build_shared_graph_generator(self) -> GraphvizRelationshipGraphExt | None:
-        """Construye un generador de grafos compartido cuando Word y HTML lo requieren."""
-        if not self._planner.should_share_graph_generator():
-            return None
-
-        graph_cfg: dict[str, Any] = self._session.print_config.get("grafo", {})
-        columns_options: dict[str, Any] = dict(graph_cfg.get("columns", {}))
-        cardinality_options: dict[str, Any] = dict(graph_cfg.get("cardinality", {}))
-
-        self._session.logger.debug("🟢 Inicializando generador de grafos compartido para Word y HTML")
-        return cast(
-            "GraphvizRelationshipGraphExt",
-            self._graph_generator_cls(
-                db_manager=self._session.db_manager,
-                column_mode=str(columns_options.get("mode", "relations")),
-                max_columns=int(columns_options.get("max_items", 8)),
-                show_data_types=bool(columns_options.get("show_data_types", False)),
-                max_depth=int(graph_cfg.get("max_depth", 1)),
-                direction=str(graph_cfg.get("direction", "both")),
-                show_constraint_name=bool(cardinality_options.get("show_constraint_name", False)),
-                render_dpi=int(graph_cfg.get("dpi", 150)),
-            ),
-        )
+        graph_generator: GraphvizRelationshipGraphExt | None = None
+        if self._planner.needs_graph_generator():
+            self._session.logger.debug("🟢 Inicializando generador de grafos de la documentación")
+            graph_generator = self._graph_generator_factory(
+                self._session.db_manager, dict(self._session.print_config.get("grafo", {}))
+            )
+        for plan in self._planner.build_plans():
+            self._dispatch_plan(plan, graph_generator)
 
     def _dispatch_plan(
         self, plan: DocumentationFormatPlan, shared_graph_generator: GraphvizRelationshipGraphExt | None

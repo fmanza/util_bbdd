@@ -8,8 +8,6 @@ import logging
 from pathlib import Path
 from typing import Any, ClassVar
 
-# Importar módulos modulares
-from ..analysis.graphviz_ext import GraphvizRelationshipGraphExt
 from .application.ports import (
     DocumentationBackendPort,
     DocumentationSourcePort,
@@ -26,6 +24,7 @@ from .infrastructure.adapters.sync_database_manager_adapter import SyncDatabaseM
 from .infrastructure.renderers.excel_generator import ExcelGenerator
 from .infrastructure.renderers.html_generator import HtmlGenerator
 from .infrastructure.renderers.registry import DocumentationRendererRegistry, build_default_renderer_registry
+from .infrastructure.renderers.shared.generator_shared import build_graph_generator_from_options
 from .infrastructure.renderers.shared.print_config_manager import PrintConfigManager
 from .infrastructure.renderers.word_generator import WordGenerator
 from .infrastructure.runtime.headers_runtime import DocumentationHeadersRuntime
@@ -160,5 +159,5 @@ class DatabaseDocumentation:
             session=self._documentation_session,
             planner=DocumentationOutputPlanner(self._documentation_session, self._renderer_registry),
             renderer_registry=self._renderer_registry,
-            graph_generator_cls=GraphvizRelationshipGraphExt,
+            graph_generator_factory=build_graph_generator_from_options,
         ).generate_documents()

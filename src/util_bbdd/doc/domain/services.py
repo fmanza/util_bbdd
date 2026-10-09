@@ -38,12 +38,14 @@ class DocumentationContextDomainService:
 
 
 class DocumentationGraphDomainService:
-    """Reglas de dominio para reutilización de generador de grafos."""
+    """Reglas de dominio del generador de grafos de la documentación."""
+
+    GRAPH_FORMATS: frozenset[str] = frozenset({"word", "html"})
 
     @staticmethod
-    def should_share_graph_generator(*, formatos: list[str], print_config: dict[str, Any]) -> bool:
-        """Indica si Word y HTML pueden reutilizar un único generador de grafos."""
-        if not {"word", "html"}.issubset(set(formatos)):
+    def needs_graph_generator(*, formatos: list[str], print_config: dict[str, Any]) -> bool:
+        """Si hay que crear el generador: ``grafo.enabled`` y algún formato que dibuja diagramas (Word, HTML)."""
+        if not DocumentationGraphDomainService.GRAPH_FORMATS.intersection(formatos):
             return False
         graph_cfg: dict[str, Any] = print_config.get("grafo", {})
         return bool(graph_cfg.get("enabled", False))
