@@ -32,6 +32,12 @@ Respuestas del usuario (2 rondas): alcance completo (mantenimiento, deuda peque�
 - **[estado/PRs]**: sin `gh` en el equipo, comprobar si una PR está integrada con `git merge-base --is-ancestor <commit> origin/develop` y `git log --merges --all | grep '#<n>'`.
 
 ## Veredicto final
-Veredicto: GO_CONDICIONAL (plan); P0 CLOSED
-Pendientes al cierre:
-- P1 (v0.39.2) a P5 según el plan.
+Veredicto: CLOSED (plan completado el 2026-10-09)
+Resultado por bloque:
+- P0 mantenimiento: hecho (`cd0b3950`).
+- P1 → v0.39.2 (`.ai/sessions/2026-10-09c-hotfix-p1-pendientes/`).
+- P2 → v0.39.3 (`.ai/sessions/2026-10-09d-charset-diagnosis/`).
+- P3 → v0.40.0 con excepción de Oracle acordada (`.ai/sessions/2026-10-09e-engine-url-parity/`).
+- P4 → sin cambio de código: F3 cerrado como límite del driver; premisa de rutas absolutas refutada; exención de `localhost` del conector sync comprobada (`.ai/sessions/2026-10-09f-mariadb-tls-own-ca/`).
+- P5 → H1 cerrado con HSQLDB en red (`.ai/sessions/2026-10-09g-hsqldb-server/`).
+Pendientes: push de `develop` y tag `v0.40.0`; publicar el issue del ORA-03106 (usuario).
