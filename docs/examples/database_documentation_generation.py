@@ -124,7 +124,7 @@ print(f"   - Grafos: profundidad={imprimir_config['grafo']['max_depth']}")
 
 print("\nGenerando documentación...")
 
-# Crear instancia de DatabaseDocumentation (configura y carga metadatos iniciales)
+# Crear instancia de DatabaseDocumentation (solo valida la configuración; no consulta la base de datos)
 documentation = DatabaseDocumentation(
     db_manager=db_manager,
     directorio_salida=output_dir,
@@ -133,9 +133,9 @@ documentation = DatabaseDocumentation(
     formatos=["html", "word", "excel"],  # Generar en estos formatos
 )
 
-# Ejecutar la generación explícitamente
+# Ejecutar la generación: lee el catálogo, escribe los ficheros y devuelve un DocumentationResult
 try:
-    documentation.generate()
+    result = documentation.generate()
 finally:
     db_manager.close()
 
@@ -145,17 +145,14 @@ print("Documentación generada correctamente.\n")
 # 4. INFORMACIÓN SOBRE ARCHIVOS GENERADOS
 # ============================================================================
 
-base_name = documentation.fichero_salida.name if documentation.fichero_salida.suffix else str(documentation.fichero_salida)
-execution_root = output_dir / base_name
-print(f"Archivos generados en: {execution_root.absolute()}")
-print(f"   HTML:  {execution_root / 'HTML'}/")
-print(f"   Word:  {execution_root / 'WORD' / base_name}.docx")
-print(f"   Excel: {execution_root / 'EXCEL' / base_name}.xlsx")
+print("Archivos generados:")
+for formato, ruta in result.outputs.items():
+    print(f"   {formato:<5}: {ruta.absolute()}")
 
 print("\nResumen de documentación:")
-print(f"   Tablas documentadas:  {len(documentation.tablas)}")
-print(f"   Vistas documentadas:  {len(documentation.vistas)}")
-print(f"   Rutinas documentadas: {len(documentation.rutinas)}")
+print(f"   Tablas documentadas:  {result.tables}")
+print(f"   Vistas documentadas:  {result.views}")
+print(f"   Rutinas documentadas: {result.routines}")
 
 # ============================================================================
 # 5. CASOS DE USO ADICIONALES (Comentados)

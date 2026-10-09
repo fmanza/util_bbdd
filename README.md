@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, MySQL, Oracle, PostgreSQL, SQLite y SQL Server (sync y async), y HSQLDB (sync).
 
-**Version:** 0.40.3 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.41.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -67,7 +67,7 @@ Librería Python especializada en **operaciones de base de datos** para MariaDB,
 
 ## Documentar una base de datos
 
-`DatabaseDocumentation` genera documentación HTML, Word o Excel desde un `SyncDatabaseManager` síncrono. El constructor prepara la configuración y carga metadatos iniciales; la escritura de ficheros ocurre al llamar explícitamente a `generate()`.
+`DatabaseDocumentation` genera documentación HTML, Word o Excel desde un `SyncDatabaseManager` síncrono. El constructor solo valida la configuración (no consulta la base de datos); `generate()` lee el catálogo, escribe los ficheros y devuelve un `DocumentationResult` con la ruta de cada formato.
 
 ```python
 from pathlib import Path
@@ -92,7 +92,8 @@ documentation = DatabaseDocumentation(
     },
     formatos=["html"],
 )
-documentation.generate()
+result = documentation.generate()
+print(result.outputs["html"], result.tables)
 manager.close()
 ```
 
@@ -1128,7 +1129,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.40.3** (hotfix: el pool nativo de MariaDB reaplica `init_command` en cada `get_connection()`; el reset de sesión del pool lo deshacía)
+**Current Version: v0.41.0** (refactor de `doc/` y `analysis/`: diagramas Graphviz por lotes, `DatabaseDocumentation.generate()` devuelve `DocumentationResult`, errores `DocumentationConfigError`/`DocumentationRenderError`; rompe la API de `util_bbdd.doc`, ver CHANGELOG)
 
 Roadmap resumido (ver [ROADMAP completo](docs/roadmap.md) y
 [CHANGELOG](CHANGELOG.md) para el detalle):

@@ -1,15 +1,16 @@
 # Generador de Documentación de BD (DatabaseDocumentation)
 
-Fachada pública que orquesta la generación de documentación de bases de datos en múltiples formatos mediante una arquitectura interna de bootstrap, sesión, planner y renderers. El constructor prepara metadatos iniciales; `generate()` dispara la escritura de ficheros.
+Fachada pública que orquesta la generación de documentación de bases de datos en múltiples formatos mediante una arquitectura interna de bootstrap, sesión, planner y renderers. El constructor solo valida la configuración (no consulta la base de datos); `generate()` lee el catálogo, escribe los ficheros y devuelve un `DocumentationResult`.
 
 ## 1. Arquitectura y Diseño
 
 ```mermaid
 flowchart TD
-    A["DatabaseDocumentation()"] --> B["DocumentationBootstrap.build()"]
-    B --> C[SyncDatabaseManagerAdapter]
-    B --> D[DocumentationSession]
+    A["DatabaseDocumentation()"] --> S["DocumentationBootstrap.settings()<br/>(valida, sin BD)"]
     A --> E["generate()"]
+    E --> B["DocumentationBootstrap.build()<br/>(lee el catálogo)"]
+    B --> C[SyncDatabaseManagerAdapter]
+    E --> D[DocumentationSession]
     E --> F[DocumentationOrchestrator]
     F --> G[DocumentationOutputPlanner]
     G --> H{Formatos}
@@ -21,8 +22,8 @@ flowchart TD
     I --> N[Fichero .docx]
     J --> O[Fichero .xlsx]
     K --> P[Ficheros .html]
-    E --> Q{Grafos?}
-    Q -->|Si| R[GraphvizRelationshipGraphExt]
+    F --> Q{grafo.enabled?}
+    Q -->|Sí| R["GraphvizRelationshipGraphExt<br/>(uno para Word y HTML; prefetch por lotes)"]
     R --> N & P
 ```
 
@@ -32,8 +33,12 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `DatabaseDocumentation` | `(db_manager, directorio_salida?, fichero_salida?, imprimir?, formatos?, headers_file?)` | Configura estado y carga metadatos iniciales | `DatabaseDocumentation` |
-| `generate` | `()` | Genera documentación para todos los formatos configurados | `None` |
+| `DatabaseDocumentation` | `(db_manager, directorio_salida?, fichero_salida?, imprimir?, formatos?, headers_file?)` | Valida la configuración (no consulta la BD) | `DatabaseDocumentation` |
+| `generate` | `()` | Lee el catálogo y genera todos los formatos configurados | `DocumentationResult` |
+
+Ambas se importan de `util_bbdd.doc` (`from util_bbdd.doc import DatabaseDocumentation, DocumentationResult`). Desde
+0.41.0 los generadores por formato (`WordGenerator`, `ExcelGenerator`, `HtmlGenerator`) ya no se exportan: se eligen
+con `formatos=[...]`.
 
 ### Contrato de entrada
 
@@ -43,32 +48,45 @@ flowchart TD
 | `directorio_salida` | `Path` | Directorio base donde escribir ficheros | Se crean subdirectorios por ejecución y formato |
 | `fichero_salida` | `Path \| None` | Nombre base sin extensión | `None` genera automáticamente con timestamp y clave de BD |
 | `imprimir` | `dict[str, Any] \| None` | Configuración de secciones, estilos y grafos | `None` usa valores por defecto |
-| `formatos` | `list[str] \| None` | `["word"]`, `["excel"]`, `["html"]` o combinaciones | `None` usa `["word"]`; valores inválidos lanzan `ValueError` |
+| `formatos` | `list[str] \| None` | `["word"]`, `["excel"]`, `["html"]` o combinaciones | `None` usa `["word"]`; valores inválidos lanzan `DocumentationConfigError` |
+| `headers_file` | `Path` | JSON de cabeceras: `{"headers": {"COLUMNAS": {"base": [...]}, ...}}` | Desde 0.41.0 solo `base` por sección (las cabeceras son iguales en todos los motores) |
+
+Opciones de `imprimir["grafo"]` relevantes para el rendimiento:
+
+| Clave | Por defecto | Efecto |
+|---|---|---|
+| `enabled` | `False` | Diagramas de relaciones en Word y HTML (necesita Graphviz) |
+| `workers` | núcleos, hasta 8 | Procesos `dot` simultáneos. Los diagramas se precargan por lotes (`dot -O`, un proceso por lote): arrancar `dot` cuesta ~0,25 s y renderizar ~0,01 s por grafo |
+| `images_paginated` / `max_subnodes` | `True` / `10` (5 en Word) | Diagramas de Word partidos en varias imágenes |
 
 ### Contrato de salida
 
-- `generate()` retorna `None`; los ficheros se escriben en `directorio_salida`.
+- `generate()` retorna un `DocumentationResult`: `outputs` (ruta de cada formato), `tables`, `views` y `routines`.
+- Los ficheros se escriben en `directorio_salida/<fichero_salida>/<FORMATO>/`.
 - **Word** → fichero `.docx` bajo `WORD/`.
 - **Excel** → fichero `.xlsx` bajo `EXCEL/`.
 - **HTML** → sitio HTML bajo `HTML/`.
-- Los grafos se insertan como imágenes generadas por Graphviz en Word y HTML cuando están configurados.
+- Los grafos se insertan como imágenes generadas por Graphviz en Word y HTML cuando están configurados. Cada formato
+  produce lo mismo con independencia de los demás formatos pedidos en la misma llamada.
 
 ### Errores y casos especiales
 
 | Error | Cuándo ocurre |
 |---|---|
-| Error de `SyncDatabaseManager` | Conexión caída o permisos insuficientes durante la consulta de metadatos |
-| `ValueError` | `formatos` contiene valores inválidos o queda vacío |
-| `FileNotFoundError` | Plantilla Word o fichero de headers inexistente cuando se configure explícitamente |
+| `DocumentationConfigError` (también `ValueError`) | Al crear la instancia: formato no soportado, `imprimir` que no es un diccionario, fichero de cabeceras inexistente o mal formado, plantilla Word que no existe (solo si se pide Word) |
+| `DocumentationRenderError` | En `generate()`: falla la escritura de un formato; la causa queda en `__cause__` |
+| Error de `SyncDatabaseManager` (`DatabaseException`) | En `generate()`: conexión caída o permisos insuficientes al leer el catálogo; no se envuelve |
 
 ## 3. Componentes y Clases
 
 | Clase | Responsabilidad |
 |---|---|
 | `DatabaseDocumentation` | Fachada pública; separa configuración (`__init__`) de ejecución (`generate()`) |
-| `DocumentationBootstrap` | Preparación del adaptador y sesión de documentación |
-| `DocumentationOrchestrator` | Coordinación del flujo de generación por formato |
-| `HtmlGenerator` / `ExcelGenerator` / `WordGenerator` | Renderers específicos por formato de salida |
+| `DocumentationResult` | Resultado de `generate()`: salidas por formato y recuentos |
+| `DocumentationBootstrap` | `settings()` valida la configuración; `build()` resuelve la salida y lee el inventario del catálogo |
+| `DocumentationOrchestrator` | Un generador de grafos para todos los formatos y despacho por formato; traduce los fallos de renderer a `DocumentationRenderError` |
+| `HtmlGenerator` / `ExcelGenerator` / `WordGenerator` | Renderers internos por formato de salida |
+| `storage/engines.py` | Inventario de almacenamiento: una entrada por motor (consultas, cabeceras, tratamiento) |
 
 ## 4. Dependencias y Requisitos
 

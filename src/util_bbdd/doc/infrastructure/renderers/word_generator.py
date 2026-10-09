@@ -23,7 +23,7 @@ from docx.table import Table, _Row
 from docx.text.paragraph import Paragraph
 from docx.text.run import Run
 
-from ...._core.exceptions import DatabaseException
+from ...._core.exceptions import DatabaseException, DocumentationConfigError
 from ...._core.export_safety import safe_text
 from ....analysis.graphviz_ext import GraphvizRelationshipGraphExt
 from ...application.ports import DocumentationManagerPort, HeadersConfig
@@ -213,9 +213,8 @@ class WordGenerator:
                 )
 
             self.logger.info(f"✅ Generación Word finalizada: {total_chunks} documento(s)")
-        except Exception as error:
-            self.logger.exception(f"❌ Error en generate_document para Word: {error}")
-            raise
+        finally:
+            self._table_style_cache = None
 
     def _generate_single_document_chunk(
         self,
@@ -308,7 +307,7 @@ class WordGenerator:
             document.save(str(target_file))
             self.logger.info(f"✅ Documento Word generado: {target_file}")
         except Exception as chunk_error:
-            self.logger.exception(f"❌ Error generando documento Word {idx}/{total_chunks}: {chunk_error}")
+            chunk_error.add_note(f"Documento Word {idx}/{total_chunks}")
             raise
 
     def _add_inventory_overview(
@@ -448,30 +447,22 @@ class WordGenerator:
             )
 
     def _initialize_document(self, template_path: Path | None) -> Document:
-        """Inicializa el documento desde plantilla o en blanco con control de errores y logging."""
-        try:
-            if template_path is None:
-                self.logger.debug("🟢 Inicializando documento Word sin plantilla")
-                return load_document()
+        """Documento en blanco o desde la plantilla Word configurada.
 
-            resolved_template_path: Path = template_path.expanduser().resolve()
-            if not resolved_template_path.exists():
-                error_msg: str = f"Plantilla no encontrada: {resolved_template_path}"
-                self.logger.error(f"❌ {error_msg}")
-                raise FileNotFoundError(error_msg)
+        Raises:
+            DocumentationConfigError: La plantilla no existe o no es un fichero.
+        """
+        if template_path is None:
+            self.logger.debug("🟢 Inicializando documento Word sin plantilla")
+            return load_document()
 
-            if not resolved_template_path.is_file():
-                error_msg = f"La plantilla no es un archivo válido: {resolved_template_path}"
-                self.logger.error(f"❌ {error_msg}")
-                raise FileNotFoundError(error_msg)
-
-            self.logger.info(f"📄 Cargando plantilla Word: {resolved_template_path}")
-            return load_document(str(resolved_template_path))
-        except FileNotFoundError:
-            raise
-        except Exception as error:
-            self.logger.exception(f"❌ Error inicializando documento Word: {error}")
-            raise
+        resolved_template_path: Path = template_path.expanduser().resolve()
+        if not resolved_template_path.is_file():
+            raise DocumentationConfigError(
+                f"Plantilla Word no encontrada o no es un fichero: {resolved_template_path}", operation="DOCUMENTATION"
+            )
+        self.logger.info(f"📄 Cargando plantilla Word: {resolved_template_path}")
+        return load_document(str(resolved_template_path))
 
     def _chunk_tables(self, tables: list[tuple], tables_per_document: int) -> list[list[tuple]]:
         """Divide tablas en lotes para crear múltiples documentos."""

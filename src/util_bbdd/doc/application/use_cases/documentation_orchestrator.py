@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ....analysis.graphviz_ext import GraphvizRelationshipGraphExt
 
-from ...domain.models import DocumentationBootstrapState, DocumentationFormatPlan
+from ...._core.exceptions import DatabaseException, DocumentationConfigError, DocumentationRenderError
+from ...domain.models import DocumentationBootstrapState, DocumentationFormatPlan, DocumentationSettings
 from ...domain.services import DocumentationGraphDomainService
 from .._internal_ports import (
     HeadersRuntimePort,
@@ -32,7 +34,11 @@ _UNSET_DATABASE_CHARSET_COLLATION: object = object()
 
 
 class DocumentationBootstrap:
-    """Construye el estado interno inicial antes de delegar en la fachada pública."""
+    """Resuelve la configuración de una documentación y, al generar, su estado inicial.
+
+    :meth:`settings` no consulta la base de datos (valida ``imprimir``, formatos, cabeceras y plantilla Word);
+    :meth:`build` resuelve el nombre de salida y lee el inventario del catálogo.
+    """
 
     def __init__(
         self,
@@ -48,6 +54,7 @@ class DocumentationBootstrap:
         print_config_policy: PrintConfigPolicyPort,
         headers_runtime: HeadersRuntimePort,
         output_policy: OutputPolicyPort,
+        output_lock: AbstractContextManager[Any] | None = None,
     ) -> None:
         self._db_manager = db_manager
         self._directorio_salida = directorio_salida
@@ -60,30 +67,49 @@ class DocumentationBootstrap:
         self._print_config_policy = print_config_policy
         self._headers_runtime = headers_runtime
         self._output_policy = output_policy
+        self._output_lock: AbstractContextManager[Any] = output_lock or nullcontext()
 
-    def build(self) -> DocumentationBootstrapState:
-        """Resuelve toda la configuración y metadatos iniciales del documento."""
-        print_config = self._print_config_policy.normalize(self._imprimir)
-        resolved_formatos = self._output_policy.normalize_output_formats(self._formatos)
-        resolved_output = self._output_policy.resolve_document_output_filename(
-            fichero_salida=self._fichero_salida,
-            db_manager=self._db_manager,
-            output_dir=self._directorio_salida,
-            output_cache=self._output_cache,
-            batch_window_seconds=self._batch_window_seconds,
+    def settings(self) -> DocumentationSettings:
+        """Valida y normaliza la configuración.
+
+        Raises:
+            DocumentationConfigError: ``imprimir`` no es un diccionario, un formato no está soportado, el fichero de
+                cabeceras no existe o está mal formado, o la plantilla Word indicada no es un fichero.
+        """
+        try:
+            print_config = self._print_config_policy.normalize(self._imprimir)
+            formatos = self._output_policy.normalize_output_formats(self._formatos)
+            headers_config = self._headers_runtime.load_headers_config(self._headers_file)
+            headers = self._headers_runtime.build_headers(headers_config)
+        except (TypeError, ValueError, KeyError, OSError) as error:
+            raise DocumentationConfigError(str(error), operation="DOCUMENTATION") from error
+        template: Any = print_config.get("plantilla_word")
+        if "word" in formatos and template is not None and not Path(template).expanduser().is_file():
+            raise DocumentationConfigError(f"Plantilla Word no encontrada: {template}", operation="DOCUMENTATION")
+        return DocumentationSettings(
+            print_config=print_config,
+            formatos=formatos,
+            headers_config=headers_config,
+            headers=headers,
+            table_style=str(print_config.get("table_style", "Table Grid")),
         )
-        headers_config = self._headers_runtime.load_headers_config(self._headers_file)
+
+    def build(self, settings: DocumentationSettings) -> DocumentationBootstrapState:
+        """Nombre de salida (reutilizado entre generaciones seguidas) e inventario del catálogo (lee la BD)."""
+        with self._output_lock:
+            resolved_output = self._output_policy.resolve_document_output_filename(
+                fichero_salida=self._fichero_salida,
+                db_manager=self._db_manager,
+                output_dir=self._directorio_salida,
+                output_cache=self._output_cache,
+                batch_window_seconds=self._batch_window_seconds,
+            )
         # D1 (ADR-003): el catálogo se lee por lotes, una consulta por tipo de objeto y no por tabla
         catalog = CatalogRows(lambda kinds: self._db_manager.get_schema_metadata(kinds=kinds))
-
         return DocumentationBootstrapState(
-            print_config=print_config,
-            formatos=resolved_formatos,
+            settings=settings,
             directorio_salida=self._directorio_salida,
             fichero_salida=resolved_output,
-            table_style=str(print_config.get("table_style", "Table Grid")),
-            headers_config=headers_config,
-            headers=self._headers_runtime.build_headers(headers_config),
             tablas=catalog.tables(),
             vistas=catalog.views(),
             rutinas=catalog.routines(),
@@ -91,32 +117,13 @@ class DocumentationBootstrap:
         )
 
 
-class DocumentationFacade(Protocol):
-    """Contrato mínimo de la fachada pública consumido por la orquestación interna."""
-
-    logger: LoggerProtocol
-    db_manager: DocumentationBackendPort
-    imprimir_config: dict[str, Any]
-    formatos: list[str]
-    directorio_salida: Path
-    fichero_salida: Path
-    headers: dict[str, list[str]]
-    table_style: str
-    tablas: list[Any]
-    vistas: list[Any]
-    rutinas: list[Any]
-    catalog: CatalogRows
-
-
 @dataclass(slots=True)
 class DocumentationSession:
-    """Estado efímero requerido para una ejecución documental."""
+    """Estado efímero de una generación: lo que ven los renderers como ``data_provider``."""
 
-    data_provider: DocumentationFacade
     logger: LoggerProtocol
     db_manager: DocumentationBackendPort
     database: str
-    print_config: dict[str, Any]
     imprimir_config: dict[str, Any]
     formatos: list[str]
     directorio_salida: Path
@@ -131,50 +138,49 @@ class DocumentationSession:
     storage_report_service: StorageReportServicePort
     catalog: CatalogRows | None = None
     _ddl_cache: dict[tuple[str, str, str], str] | None = None
-    _list_cache: dict[tuple[str, str, str], list[Any]] | None = None
     _database_version_cache: str | None = ""
     _database_charset_collation_cache: dict[str, Any] | None | object = _UNSET_DATABASE_CHARSET_COLLATION
     _columns_charset_collation_cache: dict[str, list[tuple[str, str | None, str | None]] | None] | None = None
     _storage_inventory_report_cache: dict[str, Any] | None = None
 
     @classmethod
-    def from_documentation(
+    def from_state(
         cls,
-        documentation: DocumentationFacade,
+        state: DocumentationBootstrapState,
         *,
+        db_manager: DocumentationBackendPort,
+        logger: LoggerProtocol,
         output_policy: OutputPolicyPort,
         metadata_runtime_factory: MetadataRuntimeFactoryPort,
         storage_report_service: StorageReportServicePort,
     ) -> DocumentationSession:
-        """Construye una sesión interna a partir de la fachada pública."""
-        query_context_database = documentation.db_manager.get_query_context_database()
+        """Construye la sesión de una generación a partir de su estado inicial."""
+        query_context_database = db_manager.get_query_context_database()
         resolved_database = output_policy.resolve_generator_database_context(
-            db_type=documentation.db_manager.db_type,
-            database=documentation.db_manager.database,
-            conn_params=documentation.db_manager.conn_params or {},
+            db_type=db_manager.db_type,
+            database=db_manager.database,
+            conn_params=db_manager.conn_params or {},
             query_context_database=str(query_context_database or "").strip(),
         )
+        settings: DocumentationSettings = state.settings
         return cls(
-            data_provider=documentation,
-            logger=documentation.logger,
-            db_manager=documentation.db_manager,
+            logger=logger,
+            db_manager=db_manager,
             database=resolved_database,
-            print_config=documentation.imprimir_config,
-            imprimir_config=documentation.imprimir_config,
-            formatos=list(documentation.formatos),
-            directorio_salida=documentation.directorio_salida,
-            fichero_salida=documentation.fichero_salida,
-            headers=documentation.headers,
-            table_style=documentation.table_style,
-            tablas=documentation.tablas,
-            vistas=documentation.vistas,
-            rutinas=documentation.rutinas,
+            imprimir_config=settings.print_config,
+            formatos=list(settings.formatos),
+            directorio_salida=state.directorio_salida,
+            fichero_salida=state.fichero_salida,
+            headers=settings.headers,
+            table_style=settings.table_style,
+            tablas=state.tablas,
+            vistas=state.vistas,
+            rutinas=state.rutinas,
             output_policy=output_policy,
-            metadata_runtime=metadata_runtime_factory.create(logger=documentation.logger),
+            metadata_runtime=metadata_runtime_factory.create(logger=logger),
             storage_report_service=storage_report_service,
-            catalog=getattr(documentation, "catalog", None),
+            catalog=state.catalog,
             _ddl_cache={},
-            _list_cache={},
             _columns_charset_collation_cache={},
         )
 
@@ -284,7 +290,7 @@ class DocumentationSession:
             self._storage_inventory_report_cache = self.storage_report_service.get_storage_inventory_report(
                 db_manager=self.db_manager,
                 logger=self.logger,
-                print_config=self.print_config,
+                print_config=self.imprimir_config,
             )
         return self._storage_inventory_report_cache
 
@@ -295,14 +301,6 @@ class DocumentationSession:
         if cache_key not in self._ddl_cache:
             self._ddl_cache[cache_key] = loader()
         return self._ddl_cache[cache_key]
-
-    def _get_cached_list(self, cache_key: tuple[str, str, str], loader: Callable[[], list[Any]]) -> list[Any]:
-        """Resuelve una lista con cache local por sesión."""
-        if self._list_cache is None:
-            self._list_cache = {}
-        if cache_key not in self._list_cache:
-            self._list_cache[cache_key] = loader()
-        return self._list_cache[cache_key]
 
     def resolve_output_path(self, output_format: str, extension: str | None = None) -> Path:
         """Resuelve el directorio o fichero de salida para un formato."""
@@ -331,7 +329,7 @@ class DocumentationOutputPlanner:
         for output_format in self._session.formatos:
             registration = self._renderer_registry.get(output_format)
             if registration is None:
-                raise ValueError(f"Formato no soportado para documentación: {output_format}")
+                raise DocumentationConfigError(f"Formato no soportado para documentación: {output_format}")
             plans.append(
                 DocumentationFormatPlan(
                     output_format=output_format,
@@ -345,7 +343,7 @@ class DocumentationOutputPlanner:
         """Si algún formato pedido dibuja diagramas y ``grafo.enabled`` está activo."""
         return DocumentationGraphDomainService.needs_graph_generator(
             formatos=self._session.formatos,
-            print_config=self._session.print_config,
+            print_config=self._session.imprimir_config,
         )
 
 
@@ -369,8 +367,8 @@ class DocumentationOrchestrator:
         self._renderer_registry = renderer_registry
         self._graph_generator_factory = graph_generator_factory
 
-    def generate_documents(self) -> None:
-        """Ejecuta la generación documental completa para la sesión activa.
+    def generate_documents(self) -> dict[str, Path]:
+        """Ejecuta la generación documental completa para la sesión activa y devuelve la salida de cada formato.
 
         Un único generador de grafos para todos los formatos: comparte el índice de relaciones y los renders
         precargados, y cada formato produce lo mismo pida o no los demás (B-02).
@@ -379,10 +377,13 @@ class DocumentationOrchestrator:
         if self._planner.needs_graph_generator():
             self._session.logger.debug("🟢 Inicializando generador de grafos de la documentación")
             graph_generator = self._graph_generator_factory(
-                self._session.db_manager, dict(self._session.print_config.get("grafo", {}))
+                self._session.db_manager, dict(self._session.imprimir_config.get("grafo", {}))
             )
+        outputs: dict[str, Path] = {}
         for plan in self._planner.build_plans():
             self._dispatch_plan(plan, graph_generator)
+            outputs[plan.output_format] = plan.output_path
+        return outputs
 
     def _dispatch_plan(
         self, plan: DocumentationFormatPlan, shared_graph_generator: GraphvizRelationshipGraphExt | None
@@ -390,7 +391,7 @@ class DocumentationOrchestrator:
         """Despacha la ejecución del plan de salida correspondiente."""
         registration = self._renderer_registry.get(plan.output_format)
         if registration is None:
-            raise ValueError(f"Formato no soportado para documentación: {plan.output_format}")
+            raise DocumentationConfigError(f"Formato no soportado para documentación: {plan.output_format}")
 
         renderer = registration.factory(
             database=self._session.database,
@@ -398,25 +399,33 @@ class DocumentationOrchestrator:
             table_style=self._session.table_style,
         )
         renderer_kwargs: dict[str, Any] = {
-            "print_config": self._session.print_config,
+            "print_config": self._session.imprimir_config,
         }
         if registration.accepts_graph_generator:
             renderer_kwargs["graph_generator"] = shared_graph_generator if plan.include_graph_generator else None
 
-        renderer.generate_document(
-            self._session.tablas,
-            self._session.vistas,
-            self._session.rutinas,
-            self._session,
-            plan.output_path,
-            **renderer_kwargs,
-        )
+        try:
+            renderer.generate_document(
+                self._session.tablas,
+                self._session.vistas,
+                self._session.rutinas,
+                self._session,
+                plan.output_path,
+                **renderer_kwargs,
+            )
+        except DatabaseException:
+            raise  # errores de la base de datos (o ya documentales): con su propia clase
+        except Exception as error:  # noqa: BLE001 - frontera del renderer: se traduce a la jerarquía de la librería
+            self._session.logger.error(f"❌ Error generando la documentación {plan.output_format}", exc_info=True)
+            raise DocumentationRenderError(
+                f"Error generando la documentación {plan.output_format} en {plan.output_path}: {error}",
+                operation="DOCUMENTATION",
+            ) from error
 
 
 __all__: list[str] = [
     "DocumentationBootstrap",
     "DocumentationBootstrapState",
-    "DocumentationFacade",
     "DocumentationFormatPlan",
     "DocumentationOrchestrator",
     "DocumentationOutputPlanner",

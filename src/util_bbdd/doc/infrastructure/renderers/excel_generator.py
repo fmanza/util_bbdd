@@ -76,45 +76,41 @@ class ExcelGenerator:
         _ = graph_generator
         self.logger.info(f"🟢 Iniciando generación de documentación Excel para base de datos: {self.database}")
         self._validate_required_headers()
-        try:
-            routines = routines or []
-            output_target.parent.mkdir(parents=True, exist_ok=True)
+        routines = routines or []
+        output_target.parent.mkdir(parents=True, exist_ok=True)
 
-            # SafeWorkbook: comentarios y DDL del catálogo sin caracteres de control ni fórmulas.
-            wb = SafeWorkbook()
-            ws1 = wb.active
-            if not ws1:
-                return
+        # SafeWorkbook: comentarios y DDL del catálogo sin caracteres de control ni fórmulas.
+        wb = SafeWorkbook()
+        ws1 = wb.active
+        if not ws1:
+            return
 
-            ws1.title = "Documentación"
-            fila = 1
+        ws1.title = "Documentación"
+        fila = 1
 
-            config = self._resolve_print_config(print_config, data_provider)
-            fila = self._create_main_header(ws1, fila)
-            fila = self._add_inventory_summary(
-                ws=ws1,
-                fila=fila,
-                tables=tables if config["include_tables"] else [],
-                views=views if config["include_views"] else [],
-                routines=GeneratorRoutineRuntime.filter_by_flags(
-                    routines,
-                    include_procedures=config["include_procedures"],
-                    include_functions=config["include_functions"],
-                    include_non_procedure_as_function=True,
-                ),
-                include_storage=config["include_storage"],
-                data_provider=data_provider,
-            )
+        config = self._resolve_print_config(print_config, data_provider)
+        fila = self._create_main_header(ws1, fila)
+        fila = self._add_inventory_summary(
+            ws=ws1,
+            fila=fila,
+            tables=tables if config["include_tables"] else [],
+            views=views if config["include_views"] else [],
+            routines=GeneratorRoutineRuntime.filter_by_flags(
+                routines,
+                include_procedures=config["include_procedures"],
+                include_functions=config["include_functions"],
+                include_non_procedure_as_function=True,
+            ),
+            include_storage=config["include_storage"],
+            data_provider=data_provider,
+        )
 
-            data_flat: list[list[Any]] = []
-            fila = self._build_overview_sections(ws1, fila, tables, views, routines, data_provider, data_flat, config)
-            self._create_supplementary_sheets(wb, data_flat, tables, routines, data_provider, config)
+        data_flat: list[list[Any]] = []
+        fila = self._build_overview_sections(ws1, fila, tables, views, routines, data_provider, data_flat, config)
+        self._create_supplementary_sheets(wb, data_flat, tables, routines, data_provider, config)
 
-            wb.save(str(output_target))
-            self.logger.info(f"✅ Documento Excel generado: {output_target}")
-        except Exception as error:
-            self.logger.exception(f"❌ Error generando documentación Excel: {error}")
-            raise
+        wb.save(str(output_target))
+        self.logger.info(f"✅ Documento Excel generado: {output_target}")
 
     def _resolve_print_config(
         self, print_config: dict[str, Any] | None, data_provider: DocumentationManagerPort

@@ -324,16 +324,18 @@ class DocumentationError(DatabaseException):
     pass
 
 
-class DocumentationConfigError(DocumentationError):
+class DocumentationConfigError(DocumentationError, ValueError):
     """Error en configuración del generador documental.
 
     Cubre:
     - Formato de salida no soportado
+    - ``imprimir`` que no es un diccionario
+    - Fichero de cabeceras inexistente o mal formado
     - Ruta de plantilla Word inválida o inexistente
-    - Parámetros de configuración incoherentes
-    """
 
-    pass
+    Hereda también de ``ValueError`` (como :class:`AuditConfigError`): hasta 0.40 ``DatabaseDocumentation`` lanzaba
+    ``ValueError`` por estos casos y quien lo capturaba así sigue funcionando.
+    """
 
 
 class DocumentationRenderError(DocumentationError):
@@ -341,11 +343,11 @@ class DocumentationRenderError(DocumentationError):
 
     Cubre:
     - WordGenerator / ExcelGenerator / HtmlGenerator falla al escribir
-    - Renderer no registrado para el formato solicitado
     - I/O error escribiendo archivo de salida
-    """
 
-    pass
+    La excepción original queda en ``__cause__``. Los errores de base de datos (leer el catálogo) no se envuelven:
+    llegan con su propia clase (``DatabaseOperationError``…).
+    """
 
 
 # ============================================================================

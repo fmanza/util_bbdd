@@ -5,6 +5,74 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.41.0] - 2026-10-09
+
+Auditoría y refactor de la arquitectura de `doc/` y `analysis/` (`/documentation-architecture-audit`;
+`.ai/sessions/2026-10-09k-doc-architecture-audit/`). Rompe la API de `util_bbdd.doc` (ver «Migración»).
+
+### Cambios que pueden afectarte
+
+- **doc**: `util_bbdd.doc` exporta solo `DatabaseDocumentation` y `DocumentationResult`. `WordGenerator`,
+  `ExcelGenerator` y `HtmlGenerator` pasan a ser internos (necesitaban la sesión interna como `data_provider`).
+- **doc**: `DatabaseDocumentation(...)` ya no consulta la base de datos: solo valida la configuración. El catálogo se
+  lee en `generate()`, que ahora devuelve un `DocumentationResult` (`outputs` por formato, `tables`, `views`,
+  `routines`) en lugar de `None`.
+- **doc**: los atributos de estado de la fachada (`tablas`, `vistas`, `rutinas`, `catalog`, `headers`,
+  `headers_config`, `imprimir_config`, `table_style`, `db_manager`, `formatos`, `directorio_salida`, `fichero_salida`)
+  son privados.
+- **doc**: la configuración inválida lanza `DocumentationConfigError` (que también es `ValueError`) al crear la
+  instancia: formato no soportado (antes `ValueError`/`TypeError`), `imprimir` que no es un diccionario (antes
+  `TypeError`), fichero de cabeceras inexistente o mal formado (antes `FileNotFoundError`/`ValueError`), plantilla Word
+  inexistente cuando se pide Word (antes `FileNotFoundError`, y solo al generar). Un fallo al escribir un formato lanza
+  `DocumentationRenderError` con la causa en `__cause__`; los errores de base de datos no se envuelven.
+- **doc**: `headers_config.json` solo admite `base` por sección; los bloques por motor y `labels` (vacíos desde D1)
+  se ignoran.
+- **doc**: con Word y HTML en la misma llamada, el `.docx` es el mismo que con Word solo (B-02). Antes, en modo
+  paginado, Word tomaba las páginas por nivel del HTML («Salida - Nivel 1») en lugar de paginar por `max_subnodes`
+  («Página N»), y convertía el SVG del HTML con cairosvg en lugar de usar el render PNG de Graphviz.
+
+### Migración
+
+| Antes (≤ 0.40) | Desde 0.41.0 |
+|---|---|
+| `from util_bbdd.doc import WordGenerator` (y Excel/HTML) | `DatabaseDocumentation(manager, salida, formatos=["word"]).generate()` |
+| `doc = DatabaseDocumentation(...)`; `len(doc.tablas)` | `result = doc.generate()`; `result.tables` |
+| `doc.fichero_salida` para localizar la salida | `result.outputs["word"]`, `result.outputs["html"]`… |
+| `except (ValueError, TypeError, FileNotFoundError)` alrededor del constructor | `except DocumentationConfigError` (o `ValueError`) |
+| `except Exception` alrededor de `generate()` | `except DocumentationError` (y `DatabaseException` para la BD) |
+| `headers.json` con `{"COLUMNAS": {"base": [...], "mariadb": [...]}, "labels": {...}}` | `{"COLUMNAS": {"base": [...]}}` |
+
+### Performance
+
+- **analysis/doc**: los diagramas Graphviz se renderizan por lotes (`GraphvizRelationshipGraphExt.prefetch`, un proceso
+  `dot -O` por lote y `render_workers` a la vez; `imprimir.grafo.workers`). Casi todo el coste de `dot` era arrancar
+  (~0,25 s por proceso frente a ~0,01 s por grafo). 120 tablas en SQLite (Windows, Graphviz 14.1.2): HTML con diagramas
+  75,7 s → 6,2 s; Word 68,3 s → 17,3 s; Word+HTML 127,8 s → 30,8 s.
+- **doc/word**: el estilo de tabla se resuelve una vez por documento (era el 43 % del tiempo de Word sin diagramas):
+  Word+Excel+HTML sin diagramas 26,4 s → 16,7 s.
+- **doc/html**: cada SVG se escribe una vez con sus enlaces (antes, 4 lecturas/escrituras por SVG).
+
+### Fixed
+
+- **doc/storage** (B-01): los documentos de SQL Server ya no muestran el aviso de «estrategia de almacenamiento
+  genérica» (tiene sus consultas y cabeceras); el aviso queda para motores sin consultas de almacenamiento (HSQLDB).
+- **doc/storage** (B-03): la columna «Nombre lógico» de SQL Server ya no se toma por una columna de tamaño («MB»).
+- **doc** (A-02): el generador de grafos compartido por Word y HTML respeta `grafo.show_columns` y el DPI configurado.
+- **doc** (S-04): los SVG de HTML y los ficheros de `GraphvizRelationshipGraphExt.generate_*` usan el nombre de tabla
+  saneado: un nombre entrecomillado con `/` o `..` ya no escribe fuera del directorio de salida.
+- **doc/excel** (A-11): el `table_style` por defecto («Table Grid», de Word) ya no produce un aviso en cada ejecución.
+- **analysis** (A-10): `analysis.matplotlib_graph` se importa sin matplotlib instalado; nuevo extra
+  `util_bbdd[analysis-matplotlib]` (`matplotlib`, `networkx`).
+
+### Changed
+
+- **doc/storage** (A-01): el inventario de almacenamiento es una tabla declarativa por motor (`storage/engines.py`);
+  fuera las estrategias que llamaban a métodos privados del runtime y 15 delegadores sin uso.
+- **analysis** (A-13): un único montaje del grafo (`_build_dot`); las variantes en disco son `pipe_*` + escritura.
+- **doc** (A-04, A-05, A-06, A-09, A-12): un helper para las filas de parámetros de rutina; UNIQUE leído como
+  `(restricción, columna)` sin la tolerancia previa a D1; fuera código sin uso; la metadata opcional registra sus
+  mensajes en DEBUG; los renderers no modifican las cabeceras compartidas.
+
 ## [0.40.3] - 2026-10-09
 
 Hotfix de un error de `pruebas_util` al documentar una BD MariaDB con `use_pool=True`

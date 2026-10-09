@@ -2,7 +2,6 @@
 
 from .documentation_orchestrator import (
     DocumentationBootstrap,
-    DocumentationFacade,
     DocumentationOrchestrator,
     DocumentationOutputPlanner,
     DocumentationSession,
@@ -10,7 +9,6 @@ from .documentation_orchestrator import (
 
 __all__: list[str] = [
     "DocumentationBootstrap",
-    "DocumentationFacade",
     "DocumentationOrchestrator",
     "DocumentationOutputPlanner",
     "DocumentationSession",

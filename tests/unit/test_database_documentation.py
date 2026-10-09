@@ -1,340 +1,217 @@
-"""Tests del flujo multi-formato de DatabaseDocumentation."""
+"""Tests de la fachada pública DatabaseDocumentation (configuración, flujo multi-formato, errores; WP5)."""
 
 from __future__ import annotations
 
-import logging
-
+from collections.abc import Collection
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
+import pytest
+
+import util_bbdd.doc as doc_package
 import util_bbdd.doc.database_documentation as database_documentation_module
 
+from util_bbdd._core.exceptions import (
+    DatabaseOperationError,
+    DocumentationConfigError,
+    DocumentationError,
+    DocumentationRenderError,
+)
+from util_bbdd.doc import DatabaseDocumentation, DocumentationResult
 from util_bbdd.doc.application.use_cases.documentation_orchestrator import DocumentationSession
-from util_bbdd.doc.database_documentation import DatabaseDocumentation
-from util_bbdd.doc.infrastructure.renderers.registry import build_default_renderer_registry
-from util_bbdd.doc.infrastructure.renderers.shared.print_config_manager import PrintConfigManager
-from util_bbdd.doc.infrastructure.runtime.metadata_runtime import DocumentationMetadataRuntimeFactory
-from util_bbdd.doc.infrastructure.runtime.output_runtime import DocumentationOutputRuntime
-from util_bbdd.doc.infrastructure.storage.runtime import StorageInventoryReportService
+from util_bbdd.metadata.model import ALL_KINDS, Kind, RoutineMeta, SchemaSnapshot, TableMeta, ViewMeta
 
 
 class _FakeDbManager:
+    """``DocumentationSourcePort`` mínimo: cuenta las lecturas para comprobar cuándo se consulta la BD."""
+
     db_type = "postgresql"
     database = "demo"
     conn_params: dict[str, Any] = {}
 
+    def __init__(self, *, fail: bool = False) -> None:
+        self.reads: list[str] = []
+        self._fail = fail
+
     def get_query_context_database(self) -> str:
+        self.reads.append("context")
         return "demo"
 
-
-def _refresh_documentation_session(doc: DatabaseDocumentation) -> None:
-    doc._bind_documentation_session(
-        DocumentationSession.from_documentation(
-            doc,
-            output_policy=doc._output_policy,
-            metadata_runtime_factory=doc._metadata_runtime_factory,
-            storage_report_service=doc._storage_report_service,
-        )
-    )
-
-
-def _build_documentation_stub(
-    *,
-    formatos: list[str],
-    normalized_config: dict[str, Any],
-    output_dir: Path,
-) -> DatabaseDocumentation:
-    doc: DatabaseDocumentation = DatabaseDocumentation.__new__(DatabaseDocumentation)
-    doc.logger = logging.getLogger(__name__)
-    doc.db_manager = cast(Any, _FakeDbManager())
-    doc.imprimir_config = normalized_config
-    doc.formatos = formatos
-    doc.directorio_salida = output_dir
-    doc.fichero_salida = Path("report")
-    doc.headers = {}
-    doc.table_style = "Table Grid"
-    doc.tablas = []
-    doc.vistas = []
-    doc.rutinas = []
-    doc._output_policy = DocumentationOutputRuntime()
-    doc._metadata_runtime_factory = DocumentationMetadataRuntimeFactory()
-    doc._storage_report_service = StorageInventoryReportService()
-    doc._renderer_registry = build_default_renderer_registry(
-        word_generator_cls=database_documentation_module.WordGenerator,
-        excel_generator_cls=database_documentation_module.ExcelGenerator,
-        html_generator_cls=database_documentation_module.HtmlGenerator,
-    )
-    _refresh_documentation_session(doc)
-    return doc
-
-
-def test_database_documentation_shares_graph_generator_between_word_and_html(monkeypatch: Any, tmp_path: Path) -> None:
-    normalized = PrintConfigManager.normalize(
-        {
-            "grafo": {
-                "enabled": True,
-                "max_depth": 2,
-                "direction": "incoming",
-                "dpi": 180,
-                "columns": {
-                    "mode": "compact",
-                    "max_items": 4,
-                    "show_data_types": True,
-                },
-                "cardinality": {
-                    "show_constraint_name": True,
-                },
-            }
+    def get_schema_metadata(self, schema: str | None = None, *, kinds: Collection[Kind] = ALL_KINDS) -> SchemaSnapshot:
+        self.reads.append("snapshot")
+        if self._fail:
+            raise DatabaseOperationError("sin conexión")
+        data: dict[Kind, tuple[Any, ...]] = {
+            Kind.TABLES: (TableMeta("users"), TableMeta("orders")),
+            Kind.VIEWS: (ViewMeta("v_users", "SELECT 1"),),
+            Kind.ROUTINES: (RoutineMeta("refresh", "PROCEDURE"),),
         }
-    )
-    doc = _build_documentation_stub(formatos=["word", "html"], normalized_config=normalized, output_dir=tmp_path)
+        return SchemaSnapshot("postgresql", "demo", {kind: data.get(kind, ()) for kind in kinds})
 
-    init_calls: list[tuple[Any, dict[str, Any]]] = []
-    captured: dict[str, Any] = {}
-    word_calls: list[Path] = []
+
+def _documentation(tmp_path: Path, formatos: list[str], imprimir: dict[str, Any] | None = None) -> Any:
+    manager = _FakeDbManager()
+    return manager, DatabaseDocumentation(
+        manager, directorio_salida=tmp_path, fichero_salida=Path("report"), imprimir=imprimir, formatos=formatos
+    )
+
+
+def _capture_renderers(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, Path, Any, Any]]:
+    calls: list[tuple[str, Path, Any, Any]] = []
+
+    def _fake(name: str) -> Any:
+        def generate_document(self: Any, tables: list[Any], views: list[Any], routines: list[Any], data_provider: Any,
+                              output_target: Path, print_config: Any = None, graph_generator: Any = None) -> None:  # fmt: skip
+            assert isinstance(data_provider, DocumentationSession)
+            calls.append((name, output_target, graph_generator, data_provider))
+
+        return generate_document
+
+    for name, cls in (
+        ("word", database_documentation_module.WordGenerator),
+        ("excel", database_documentation_module.ExcelGenerator),
+        ("html", database_documentation_module.HtmlGenerator),
+    ):
+        monkeypatch.setattr(cls, "generate_document", _fake(name))
+    return calls
+
+
+# ── API pública ──────────────────────────────────────────────────────────────
+
+
+def test_public_api_is_the_facade_and_its_result() -> None:
+    assert doc_package.__all__ == ["DatabaseDocumentation", "DocumentationResult"]
+    assert not hasattr(doc_package, "WordGenerator")
+
+
+def test_constructor_validates_without_reading_the_database(tmp_path: Path) -> None:
+    manager, documentation = _documentation(tmp_path, ["word", "excel"])
+
+    assert manager.reads == []
+    for member in ("tablas", "vistas", "rutinas", "catalog", "headers", "imprimir_config", "db_manager", "get_ddl"):
+        assert not hasattr(documentation, member)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"formatos": ["pdf"]},
+        {"formatos": "word"},
+        {"imprimir": "todo"},
+        {"headers_file": Path("no_existe.json")},
+        {"imprimir": {"plantilla_word": "no_existe.docx"}},
+    ],
+)
+def test_invalid_configuration_raises_documentation_config_error(tmp_path: Path, kwargs: dict[str, Any]) -> None:
+    with pytest.raises(DocumentationConfigError) as raised:
+        DatabaseDocumentation(_FakeDbManager(), directorio_salida=tmp_path, **kwargs)
+
+    assert isinstance(raised.value, ValueError)  # compatibilidad con quien capturaba ValueError
+    assert isinstance(raised.value, DocumentationError)
+
+
+def test_missing_word_template_is_ignored_when_word_is_not_requested(tmp_path: Path) -> None:
+    DatabaseDocumentation(
+        _FakeDbManager(), directorio_salida=tmp_path, imprimir={"plantilla_word": "no_existe.docx"}, formatos=["html"]
+    )
+
+
+def test_malformed_headers_file_raises_config_error(tmp_path: Path) -> None:
+    headers_file = tmp_path / "headers.json"
+    headers_file.write_text('{"headers": {"COLUMNAS": {"sin_base": []}}}', encoding="utf-8")
+
+    with pytest.raises(DocumentationConfigError):
+        DatabaseDocumentation(_FakeDbManager(), directorio_salida=tmp_path, headers_file=headers_file)
+
+
+# ── Generación ───────────────────────────────────────────────────────────────
+
+
+def test_generate_reads_the_catalog_and_returns_outputs_and_counts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = _capture_renderers(monkeypatch)
+    manager, documentation = _documentation(tmp_path, ["word", "excel", "html"])
+
+    result = documentation.generate()
+
+    assert isinstance(result, DocumentationResult)
+    assert [call[0] for call in calls] == ["word", "excel", "html"]
+    assert result.outputs == {
+        "word": tmp_path / "report" / "WORD" / "report.docx",
+        "excel": tmp_path / "report" / "EXCEL" / "report.xlsx",
+        "html": tmp_path / "report" / "HTML",
+    }
+    assert (result.tables, result.views, result.routines) == (2, 1, 1)
+    assert calls[0][3] is calls[1][3] is calls[2][3]  # una sesión para todos los formatos
+    assert "snapshot" in manager.reads
+
+
+def test_one_graph_generator_is_shared_by_word_and_html(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    calls = _capture_renderers(monkeypatch)
+    factory_calls: list[tuple[Any, dict[str, Any]]] = []
 
     def _fake_factory(source: Any, options: dict[str, Any]) -> object:
-        init_calls.append((source, options))
+        factory_calls.append((source, options))
         return object()
 
-    def _fake_word_generate_document(
-        self: Any,
-        tables: list[tuple],
-        views: list[tuple],
-        routines: list[tuple],
-        data_provider: Any,
-        output_file: Path,
-        print_config: dict[str, Any] | None = None,
-        graph_generator: Any = None,
-    ) -> None:
-        assert isinstance(data_provider, DocumentationSession)
-        assert data_provider.data_provider is doc
-        captured["word"] = graph_generator
-        word_calls.append(output_file)
-
-    def _fake_html_generate_document(
-        self: Any,
-        tables: list[tuple],
-        views: list[tuple],
-        routines: list[tuple],
-        data_provider: Any,
-        output_dir: Path,
-        print_config: dict[str, Any] | None = None,
-        graph_generator: Any = None,
-    ) -> None:
-        assert isinstance(data_provider, DocumentationSession)
-        assert data_provider.data_provider is doc
-        captured["html"] = graph_generator
-
     monkeypatch.setattr(database_documentation_module, "build_graph_generator_from_options", _fake_factory)
-    monkeypatch.setattr(
-        database_documentation_module.WordGenerator,
-        "generate_document",
-        _fake_word_generate_document,
-    )
-    monkeypatch.setattr(
-        database_documentation_module.HtmlGenerator,
-        "generate_document",
-        _fake_html_generate_document,
-    )
+    imprimir = {
+        "grafo": {
+            "enabled": True,
+            "max_depth": 2,
+            "direction": "incoming",
+            "dpi": 180,
+            "workers": 3,
+            "columns": {"mode": "compact", "max_items": 4, "show_data_types": True},
+            "cardinality": {"show_constraint_name": True},
+        }
+    }
+    _, documentation = _documentation(tmp_path, ["word", "excel", "html"], imprimir)
 
-    doc.generate()
+    documentation.generate()
 
-    assert len(init_calls) == 1
-    assert len(word_calls) == 1
-    assert captured["word"] is captured["html"]
-    source, options = init_calls[0]
-    assert source is doc.db_manager
+    assert len(factory_calls) == 1
+    by_format = {call[0]: call[2] for call in calls}
+    assert by_format["word"] is by_format["html"] is not None
+    assert by_format["excel"] is None
+    source, options = factory_calls[0]
+    assert source is calls[0][3].db_manager
     assert options["columns"] == {"mode": "compact", "max_items": 4, "show_data_types": True}
-    assert options["max_depth"] == 2
-    assert options["direction"] == "incoming"
+    assert (options["max_depth"], options["direction"], options["dpi"], options["workers"]) == (2, "incoming", 180, 3)
     assert options["cardinality"]["show_constraint_name"] is True
-    assert options["dpi"] == 180
 
 
-def test_database_documentation_builds_the_graph_generator_for_a_single_format(monkeypatch: Any, tmp_path: Path) -> None:
-    normalized = PrintConfigManager.normalize({"grafo": {"enabled": True}})
-    doc = _build_documentation_stub(formatos=["word"], normalized_config=normalized, output_dir=tmp_path)
-    captured: dict[str, Any] = {}
-    generator = object()
-
-    def _fake_word_generate_document(
-        self: Any,
-        tables: list[tuple],
-        views: list[tuple],
-        routines: list[tuple],
-        data_provider: Any,
-        output_file: Path,
-        print_config: dict[str, Any] | None = None,
-        graph_generator: Any = None,
-    ) -> None:
-        assert isinstance(data_provider, DocumentationSession)
-        assert data_provider.data_provider is doc
-        captured["word"] = graph_generator
-
-    monkeypatch.setattr(database_documentation_module, "build_graph_generator_from_options", lambda *_: generator)
-    monkeypatch.setattr(
-        database_documentation_module.WordGenerator,
-        "generate_document",
-        _fake_word_generate_document,
-    )
-
-    doc.generate()
-
-    assert captured["word"] is generator
-
-
-def test_database_documentation_builds_no_graph_generator_when_graphs_are_disabled(
-    monkeypatch: Any, tmp_path: Path
+def test_graph_generator_for_a_single_format_and_none_when_disabled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    doc = _build_documentation_stub(
-        formatos=["word", "html"], normalized_config=PrintConfigManager.normalize({}), output_dir=tmp_path
-    )
-    captured: dict[str, Any] = {}
+    calls = _capture_renderers(monkeypatch)
+    generator = object()
+    monkeypatch.setattr(database_documentation_module, "build_graph_generator_from_options", lambda *_: generator)
 
-    def _forbidden_factory(*_: Any) -> object:
-        raise AssertionError("Sin grafo.enabled no se construye el generador")
+    _documentation(tmp_path, ["word"], {"grafo": {"enabled": True}})[1].generate()
+    _documentation(tmp_path, ["word", "html"], {})[1].generate()
 
-    def _fake_generate_document(self: Any, *args: Any, graph_generator: Any = None, **kwargs: Any) -> None:
-        captured[type(self).__name__] = graph_generator
-
-    monkeypatch.setattr(database_documentation_module, "build_graph_generator_from_options", _forbidden_factory)
-    monkeypatch.setattr(database_documentation_module.WordGenerator, "generate_document", _fake_generate_document)
-    monkeypatch.setattr(database_documentation_module.HtmlGenerator, "generate_document", _fake_generate_document)
-
-    doc.generate()
-
-    assert captured == {"WordGenerator": None, "HtmlGenerator": None}
+    assert [call[2] for call in calls] == [generator, None, None]
 
 
-def test_database_documentation_generates_excel_without_graph_generator_kwarg(monkeypatch: Any, tmp_path: Path) -> None:
-    doc = _build_documentation_stub(
-        formatos=["excel"],
-        normalized_config=PrintConfigManager.normalize({}),
-        output_dir=tmp_path,
-    )
-    captured: dict[str, Any] = {}
+def test_renderer_failure_is_wrapped_in_documentation_render_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def _broken(self: Any, *args: Any, **kwargs: Any) -> None:
+        raise OSError("disco lleno")
 
-    def _fake_excel_generate_document(
-        self: Any,
-        tables: list[tuple],
-        views: list[tuple],
-        routines: list[tuple],
-        data_provider: Any,
-        output_file: Path,
-        print_config: dict[str, Any] | None = None,
-    ) -> None:
-        assert isinstance(data_provider, DocumentationSession)
-        assert data_provider.data_provider is doc
-        captured["output_file"] = output_file
-        captured["print_config"] = print_config
+    monkeypatch.setattr(database_documentation_module.ExcelGenerator, "generate_document", _broken)
+    _, documentation = _documentation(tmp_path, ["excel"])
 
-    monkeypatch.setattr(
-        database_documentation_module.ExcelGenerator,
-        "generate_document",
-        _fake_excel_generate_document,
-    )
+    with pytest.raises(DocumentationRenderError, match="excel") as raised:
+        documentation.generate()
 
-    doc.generate()
-
-    assert captured["output_file"] == tmp_path / "report" / "EXCEL" / "report.xlsx"
-    assert captured["print_config"] == doc.imprimir_config
+    assert isinstance(raised.value.__cause__, OSError)
 
 
-def test_database_documentation_creates_requested_formats_in_order(monkeypatch: Any, tmp_path: Path) -> None:
-    normalized = PrintConfigManager.normalize({"grafo": {"enabled": True}})
-    doc = _build_documentation_stub(
-        formatos=["word", "excel", "html"], normalized_config=normalized, output_dir=tmp_path
-    )
-    generator_calls: list[tuple[str, Path, Any, DocumentationSession]] = []
+def test_database_errors_are_not_wrapped(tmp_path: Path) -> None:
+    documentation = DatabaseDocumentation(_FakeDbManager(fail=True), directorio_salida=tmp_path, formatos=["excel"])
 
-    class _FakeGraphGenerator:
-        pass
-
-    def _fake_word_generate_document(
-        self: Any,
-        tables: list[tuple],
-        views: list[tuple],
-        routines: list[tuple],
-        data_provider: Any,
-        output_file: Path,
-        print_config: dict[str, Any] | None = None,
-        graph_generator: Any = None,
-    ) -> None:
-        assert isinstance(data_provider, DocumentationSession)
-        assert data_provider.data_provider is doc
-        generator_calls.append(("word", output_file, graph_generator, data_provider))
-
-    def _fake_excel_generate_document(
-        self: Any,
-        tables: list[tuple],
-        views: list[tuple],
-        routines: list[tuple],
-        data_provider: Any,
-        output_file: Path,
-        print_config: dict[str, Any] | None = None,
-    ) -> None:
-        assert isinstance(data_provider, DocumentationSession)
-        assert data_provider.data_provider is doc
-        generator_calls.append(("excel", output_file, None, data_provider))
-
-    def _fake_html_generate_document(
-        self: Any,
-        tables: list[tuple],
-        views: list[tuple],
-        routines: list[tuple],
-        data_provider: Any,
-        output_dir: Path,
-        print_config: dict[str, Any] | None = None,
-        graph_generator: Any = None,
-    ) -> None:
-        assert isinstance(data_provider, DocumentationSession)
-        assert data_provider.data_provider is doc
-        generator_calls.append(("html", output_dir, graph_generator, data_provider))
-
-    monkeypatch.setattr(
-        database_documentation_module, "build_graph_generator_from_options", lambda *_: _FakeGraphGenerator()
-    )
-    monkeypatch.setattr(database_documentation_module.WordGenerator, "generate_document", _fake_word_generate_document)
-    monkeypatch.setattr(
-        database_documentation_module.ExcelGenerator, "generate_document", _fake_excel_generate_document
-    )
-    monkeypatch.setattr(database_documentation_module.HtmlGenerator, "generate_document", _fake_html_generate_document)
-
-    doc.generate()
-
-    assert [call[0] for call in generator_calls] == ["word", "excel", "html"]
-    assert generator_calls[0][1] == tmp_path / "report" / "WORD" / "report.docx"
-    assert generator_calls[1][1] == tmp_path / "report" / "EXCEL" / "report.xlsx"
-    assert generator_calls[2][1] == tmp_path / "report" / "HTML"
-    assert generator_calls[0][2] is generator_calls[2][2]
-    assert isinstance(generator_calls[0][2], _FakeGraphGenerator)
-    assert generator_calls[1][2] is None
-    assert generator_calls[0][3] is generator_calls[1][3] is generator_calls[2][3]
-
-
-def test_database_documentation_no_longer_exposes_legacy_metadata_api(tmp_path: Path) -> None:
-    doc = _build_documentation_stub(
-        formatos=["word"],
-        normalized_config=PrintConfigManager.normalize({}),
-        output_dir=tmp_path,
-    )
-
-    for member_name in (
-        "db_type",
-        "database",
-        "get_ddl",
-        "get_view_ddl",
-        "get_columns",
-        "get_routine_ddl",
-        "get_routine_parameters",
-        "get_primary_keys",
-        "get_foreign_keys",
-        "get_unique_constraints",
-        "get_indices",
-        "get_database_version",
-        "get_database_charset_collation",
-        "get_columns_charset_collation",
-        "get_storage_inventory_report",
-    ):
-        assert not hasattr(doc, member_name)
+    with pytest.raises(DatabaseOperationError):
+        documentation.generate()

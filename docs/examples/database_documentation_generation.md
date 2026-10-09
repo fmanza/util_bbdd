@@ -16,7 +16,7 @@ El caso principal usa SQLite para evitar credenciales reales. Resuelve la necesi
 
 Aspectos críticos:
 
-- **Separación constructor / `generate()`**: el constructor carga los metadatos iniciales (tablas, vistas, rutinas) pero no escribe ficheros. `generate()` dispara la escritura. Esto permite configurar y verificar antes de ejecutar I/O.
+- **Separación constructor / `generate()`**: el constructor solo valida la configuración (lanza `DocumentationConfigError` si un formato, el fichero de cabeceras o la plantilla Word no son válidos) y no consulta la base de datos. `generate()` lee el catálogo, escribe los ficheros y devuelve un `DocumentationResult` con la ruta de cada formato y el número de tablas, vistas y rutinas.
 - **`imprimir_config`**: diccionario que controla qué documentar y cómo presentarlo. Las claves `tablas`, `vistas` y `rutinas` controlan las secciones; la clave `grafo` configura los diagramas de relaciones.
 - **Fragmentación Word automática**: con `tablas_por_documento=50` (default), esquemas grandes se dividen en múltiples ficheros `.docx` numerados automáticamente.
 - **Dependencia `util-bbdd[doc]`**: la generación de Word, Excel y HTML requiere el extra `doc` instalado.

@@ -17,6 +17,7 @@ from util_bbdd.doc.application.use_cases.documentation_orchestrator import (
     DocumentationOutputPlanner,
     DocumentationSession,
 )
+from util_bbdd.doc.domain.models import DocumentationBootstrapState, DocumentationSettings
 from util_bbdd.doc.infrastructure.renderers.registry import build_default_renderer_registry
 from util_bbdd.doc.infrastructure.renderers.shared.print_config_manager import PrintConfigManager
 from util_bbdd.doc.infrastructure.runtime.headers_runtime import DocumentationHeadersRuntime
@@ -24,6 +25,34 @@ from util_bbdd.doc.infrastructure.runtime.metadata_runtime import DocumentationM
 from util_bbdd.doc.infrastructure.runtime.output_runtime import DocumentationOutputRuntime
 from util_bbdd.doc.infrastructure.storage.runtime import StorageInventoryReportService, StorageInventoryRuntime
 from util_bbdd.metadata.model import ColumnMeta, Kind, PrimaryKeyMeta, RoutineMeta, SchemaSnapshot, TableMeta, ViewMeta
+
+
+def _session(manager: Any, tmp_path: Path, formatos: list[str] | None = None) -> DocumentationSession:
+    """Sesión de una generación sobre ``manager`` (lo que hace ``DatabaseDocumentation.generate``)."""
+    settings = DocumentationSettings(
+        print_config=PrintConfigManager.normalize({}),
+        formatos=formatos or ["word"],
+        headers_config={"headers": {}},
+        headers={},
+        table_style="Table Grid",
+    )
+    state = DocumentationBootstrapState(
+        settings=settings,
+        directorio_salida=tmp_path,
+        fichero_salida=Path("report"),
+        tablas=[],
+        vistas=[],
+        rutinas=[],
+        catalog=None,
+    )
+    return DocumentationSession.from_state(
+        state,
+        db_manager=cast(Any, manager),
+        logger=logging.getLogger(__name__),
+        output_policy=DocumentationOutputRuntime(),
+        metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
+        storage_report_service=StorageInventoryReportService(),
+    )
 
 
 def test_normalize_output_formats_without_duplicates() -> None:
@@ -112,29 +141,7 @@ def test_documentation_output_planner_builds_ordered_paths(tmp_path: Path) -> No
         def get_query_context_database(self) -> str:
             return "demo"
 
-    class _DocumentationStub:
-        logger = logging.getLogger(__name__)
-        db_manager = cast(Any, _ManagerStub())
-        imprimir_config = {"grafo": {"enabled": True}}
-        formatos = ["word", "excel", "html"]
-        directorio_salida = tmp_path
-        fichero_salida = Path("report")
-        headers: dict[str, list[str]] = {}
-        table_style = "Table Grid"
-        tablas: list[Any] = []
-        vistas: list[Any] = []
-        rutinas: list[Any] = []
-
-        @property
-        def database(self) -> str:
-            return "demo"
-
-    session = DocumentationSession.from_documentation(
-        cast(Any, _DocumentationStub()),
-        output_policy=DocumentationOutputRuntime(),
-        metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
-        storage_report_service=StorageInventoryReportService(),
-    )
+    session = _session(_ManagerStub(), tmp_path, formatos=["word", "excel", "html"])
     plans = DocumentationOutputPlanner(session, build_default_renderer_registry()).build_plans()
 
     assert [(plan.output_format, plan.output_path) for plan in plans] == [
@@ -165,7 +172,7 @@ def test_documentation_bootstrap_builds_initial_state(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    state = DocumentationBootstrap(
+    bootstrap = DocumentationBootstrap(
         db_manager=cast(Any, _DbManager()),
         directorio_salida=tmp_path,
         fichero_salida=Path("report"),
@@ -177,15 +184,20 @@ def test_documentation_bootstrap_builds_initial_state(tmp_path: Path) -> None:
         print_config_policy=PrintConfigManager(),
         headers_runtime=DocumentationHeadersRuntime(),
         output_policy=DocumentationOutputRuntime(),
-    ).build()
+    )
+    settings = bootstrap.settings()
+    state = bootstrap.build(settings)
 
-    assert state.print_config == PrintConfigManager.normalize({"table_style": "Light Grid", "grafo": {"enabled": True}})
-    assert state.formatos == ["word", "html"]
+    assert settings.print_config == PrintConfigManager.normalize(
+        {"table_style": "Light Grid", "grafo": {"enabled": True}}
+    )
+    assert settings.formatos == ["word", "html"]
+    assert settings.table_style == "Light Grid"
+    assert settings.headers_config["headers"]["tables"]["base"] == ["Nombre", "Propietario"]
+    assert settings.headers == {"tables": ["Nombre", "Propietario"]}
+    assert state.settings is settings
     assert state.directorio_salida == tmp_path
     assert state.fichero_salida == Path("report")
-    assert state.table_style == "Light Grid"
-    assert state.headers_config["headers"]["tables"]["base"] == ["Nombre", "Propietario"]
-    assert state.headers == {"tables": ["Nombre", "Propietario"]}
     # D1: filas neutras desde el snapshot (nombre, comentario[, collation | tipo])
     assert state.tablas == [("users", "usuarios", "")]
     assert state.vistas == [("active_users", "")]
@@ -220,29 +232,7 @@ def test_documentation_session_caches_manager_metadata_calls(tmp_path: Path) -> 
 
     manager = _DbManager()
 
-    class _DocumentationStub:
-        logger = logging.getLogger(__name__)
-        db_manager = cast(Any, manager)
-        imprimir_config = PrintConfigManager.normalize({})
-        formatos = ["word"]
-        directorio_salida = tmp_path
-        fichero_salida = Path("report")
-        headers: dict[str, list[str]] = {}
-        table_style = "Table Grid"
-        tablas = ["users"]
-        vistas: list[Any] = []
-        rutinas: list[Any] = []
-
-        @property
-        def database(self) -> str:
-            return "legacy-demo"
-
-    session = DocumentationSession.from_documentation(
-        cast(Any, _DocumentationStub()),
-        output_policy=DocumentationOutputRuntime(),
-        metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
-        storage_report_service=StorageInventoryReportService(),
-    )
+    session = _session(manager, tmp_path)
 
     assert session.database == "demo"
     assert session.get_ddl("users") == "DDL users"
@@ -276,25 +266,7 @@ def test_documentation_session_metadata_helpers_delegate_successfully(tmp_path: 
             assert tabla == "users"
             return [("name", "UTF8", "en_US.UTF-8")]
 
-    class _DocumentationStub:
-        logger = logging.getLogger(__name__)
-        db_manager = cast(Any, _MetadataDbManager())
-        imprimir_config = PrintConfigManager.normalize({})
-        formatos = ["word"]
-        directorio_salida = tmp_path
-        fichero_salida = Path("report")
-        headers: dict[str, list[str]] = {}
-        table_style = "Table Grid"
-        tablas: list[Any] = []
-        vistas: list[Any] = []
-        rutinas: list[Any] = []
-
-    session = DocumentationSession.from_documentation(
-        cast(Any, _DocumentationStub()),
-        output_policy=DocumentationOutputRuntime(),
-        metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
-        storage_report_service=StorageInventoryReportService(),
-    )
+    session = _session(_MetadataDbManager(), tmp_path)
 
     assert session.get_database_version() == "15.2"
     assert session.get_database_charset_collation() == {"charset": "UTF8", "collation": "en_US.UTF-8"}
@@ -319,25 +291,7 @@ def test_documentation_session_metadata_helpers_return_none_on_error(tmp_path: P
         def get_columns_charset_collation(self, _tabla: str) -> list[tuple[str, str | None, str | None]]:
             raise DatabaseOperationError("columns boom")
 
-    class _DocumentationStub:
-        logger = logging.getLogger(__name__)
-        db_manager = cast(Any, _BrokenMetadataDbManager())
-        imprimir_config = PrintConfigManager.normalize({})
-        formatos = ["word"]
-        directorio_salida = tmp_path
-        fichero_salida = Path("report")
-        headers: dict[str, list[str]] = {}
-        table_style = "Table Grid"
-        tablas: list[Any] = []
-        vistas: list[Any] = []
-        rutinas: list[Any] = []
-
-    session = DocumentationSession.from_documentation(
-        cast(Any, _DocumentationStub()),
-        output_policy=DocumentationOutputRuntime(),
-        metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
-        storage_report_service=StorageInventoryReportService(),
-    )
+    session = _session(_BrokenMetadataDbManager(), tmp_path)
 
     assert session.get_database_version() is None
     assert session.get_database_charset_collation() is None
@@ -353,25 +307,7 @@ def test_documentation_session_falls_back_to_schema_context_when_query_context_i
         def get_query_context_database(self) -> str:
             return ""
 
-    class _DocumentationStub:
-        logger = logging.getLogger(__name__)
-        db_manager = cast(Any, _SchemaDbManager())
-        imprimir_config = PrintConfigManager.normalize({})
-        formatos = ["word"]
-        directorio_salida = tmp_path
-        fichero_salida = Path("report")
-        headers: dict[str, list[str]] = {}
-        table_style = "Table Grid"
-        tablas: list[Any] = []
-        vistas: list[Any] = []
-        rutinas: list[Any] = []
-
-    session = DocumentationSession.from_documentation(
-        cast(Any, _DocumentationStub()),
-        output_policy=DocumentationOutputRuntime(),
-        metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
-        storage_report_service=StorageInventoryReportService(),
-    )
+    session = _session(_SchemaDbManager(), tmp_path)
 
     assert session.database == "analytics"
 
@@ -398,25 +334,7 @@ def test_documentation_session_caches_database_version_calls(tmp_path: Path) -> 
 
     manager = _VersionDbManager()
 
-    class _DocumentationStub:
-        logger = logging.getLogger(__name__)
-        db_manager = cast(Any, manager)
-        imprimir_config = PrintConfigManager.normalize({})
-        formatos = ["word"]
-        directorio_salida = tmp_path
-        fichero_salida = Path("report")
-        headers: dict[str, list[str]] = {}
-        table_style = "Table Grid"
-        tablas: list[Any] = []
-        vistas: list[Any] = []
-        rutinas: list[Any] = []
-
-    session = DocumentationSession.from_documentation(
-        cast(Any, _DocumentationStub()),
-        output_policy=DocumentationOutputRuntime(),
-        metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
-        storage_report_service=StorageInventoryReportService(),
-    )
+    session = _session(manager, tmp_path)
 
     assert session.get_database_version() == "15.2"
     assert session.get_database_version() == "15.2"
@@ -441,25 +359,7 @@ def test_documentation_session_storage_inventory_report_returns_runtime_output(t
             assert kwargs["schema"] == "demo"
             return [("innodb_temp_data_file_path", "ibtmp1:12M:autoextend:max:5G")]
 
-    class _DocumentationStub:
-        logger = logging.getLogger(__name__)
-        db_manager = cast(Any, _MariadbStorageManager())
-        imprimir_config = PrintConfigManager.normalize({})
-        formatos = ["word"]
-        directorio_salida = tmp_path
-        fichero_salida = Path("report")
-        headers: dict[str, list[str]] = {}
-        table_style = "Table Grid"
-        tablas: list[Any] = []
-        vistas: list[Any] = []
-        rutinas: list[Any] = []
-
-    session = DocumentationSession.from_documentation(
-        cast(Any, _DocumentationStub()),
-        output_policy=DocumentationOutputRuntime(),
-        metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
-        storage_report_service=StorageInventoryReportService(),
-    )
+    session = _session(_MariadbStorageManager(), tmp_path)
     report = session.get_storage_inventory_report()
 
     assert report["db_type"] == "mariadb"
