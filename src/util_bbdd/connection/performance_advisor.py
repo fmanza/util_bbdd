@@ -53,6 +53,13 @@ class EngineReadinessAdvisor:
     _reported_engines: ClassVar[weakref.WeakSet[Engine]] = weakref.WeakSet()
     _reported_lock: ClassVar[threading.Lock] = threading.Lock()
 
+    #: Checks estáticos de MariaDB/MySQL con mínimo: (parámetro, mínimo, unidad, recomendación si queda por debajo).
+    _MYSQL_MINIMUMS: ClassVar[tuple[tuple[str, int, str, str], ...]] = (
+        ("pool_size", 5, "", "Mínimo 5 para cargas concurrentes"),
+        ("write_timeout", 30, "s", "Recomendado ≥60 s en cargas masivas para evitar 'Lost connection'"),
+        ("read_timeout", 30, "s", "Recomendado ≥30 s"),
+    )
+
     def check(
         self,
         db_type: str,
@@ -222,65 +229,20 @@ class EngineReadinessAdvisor:
         # Checks estáticos de pool/config: solo los parámetros presentes. report_once() no conoce autocommit ni los
         # timeouts del driver (no están en engine.url) y un valor por defecto no debe presentarse como leído.
         if "autocommit" in conn_params:
-            if bool(conn_params["autocommit"]):
-                findings.append(
-                    AdvisoryFinding(
-                        level="WARNING",
-                        param="autocommit",
-                        current="True",
-                        recommendation="autocommit=True confirma cada INSERT individualmente; usar transacciones para bulk",
-                    )
+            autocommit: bool = bool(conn_params["autocommit"])
+            findings.append(
+                AdvisoryFinding(
+                    level="WARNING" if autocommit else "OK",
+                    param="autocommit",
+                    current=str(autocommit),
+                    recommendation="autocommit=True confirma cada INSERT individualmente; usar transacciones para bulk"
+                    if autocommit
+                    else "",
                 )
-            else:
-                findings.append(AdvisoryFinding(level="OK", param="autocommit", current="False", recommendation=""))
-
-        if "pool_size" in conn_params:
-            pool_size: int = int(conn_params["pool_size"])
-            if pool_size < 5:
-                findings.append(
-                    AdvisoryFinding(
-                        level="WARNING",
-                        param="pool_size",
-                        current=str(pool_size),
-                        recommendation="Mínimo 5 para cargas concurrentes",
-                    )
-                )
-            else:
-                findings.append(
-                    AdvisoryFinding(level="OK", param="pool_size", current=str(pool_size), recommendation="")
-                )
-
-        if "write_timeout" in conn_params:
-            write_timeout: int = int(conn_params["write_timeout"])
-            if write_timeout < 30:
-                findings.append(
-                    AdvisoryFinding(
-                        level="WARNING",
-                        param="write_timeout",
-                        current=f"{write_timeout}s",
-                        recommendation="Recomendado ≥60 s en cargas masivas para evitar 'Lost connection'",
-                    )
-                )
-            else:
-                findings.append(
-                    AdvisoryFinding(level="OK", param="write_timeout", current=f"{write_timeout}s", recommendation="")
-                )
-
-        if "read_timeout" in conn_params:
-            read_timeout: int = int(conn_params["read_timeout"])
-            if read_timeout < 30:
-                findings.append(
-                    AdvisoryFinding(
-                        level="WARNING",
-                        param="read_timeout",
-                        current=f"{read_timeout}s",
-                        recommendation="Recomendado ≥30 s",
-                    )
-                )
-            else:
-                findings.append(
-                    AdvisoryFinding(level="OK", param="read_timeout", current=f"{read_timeout}s", recommendation="")
-                )
+            )
+        for param, minimum, unit, recommendation in self._MYSQL_MINIMUMS:
+            if param in conn_params:
+                findings.append(self._minimum_finding(param, int(conn_params[param]), minimum, unit, recommendation))
 
         pool_timeout: int = int(conn_params.get("pool_timeout", 30))
         if pool_timeout < 10:
@@ -298,6 +260,15 @@ class EngineReadinessAdvisor:
             findings.extend(self._check_mysql_dynamic(connection))
 
         return findings
+
+    @staticmethod
+    def _minimum_finding(param: str, value: int, minimum: int, unit: str, recommendation: str) -> AdvisoryFinding:
+        """WARNING con ``recommendation`` si ``value`` queda por debajo de ``minimum``; OK en otro caso."""
+        if value < minimum:
+            return AdvisoryFinding(
+                level="WARNING", param=param, current=f"{value}{unit}", recommendation=recommendation
+            )
+        return AdvisoryFinding(level="OK", param=param, current=f"{value}{unit}", recommendation="")
 
     def _check_mysql_dynamic(self, connection: Any) -> list[AdvisoryFinding]:
         """Usa MySQLVariableValidator para leer variables del servidor."""
