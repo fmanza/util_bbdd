@@ -32,4 +32,10 @@ foreach ($prefix in 'BENCH', 'TEST') {
         Set-Item -Path "env:UTIL_BBDD_${prefix}_${engine}_URL" -Value $benchUrls[$engine]
     }
 }
-Remove-Variable benchPw, benchHost, benchUrls
+# Opcional: HSQLDB en red (docker-compose.bench-hsqldb.yml) y su jar de cliente; solo si el jar está descargado.
+$hsqldbJar = Join-Path (Get-Location) 'build/bench_hsqldb/hsqldb-2.7.4.jar'
+if (Test-Path $hsqldbJar) {
+    if (-not $env:UTIL_BBDD_TEST_HSQLDB_JAR) { $env:UTIL_BBDD_TEST_HSQLDB_JAR = $hsqldbJar }
+    $env:UTIL_BBDD_TEST_HSQLDB_SERVER_URL = "jdbc:hsqldb:hsql://${benchHost}:$(Get-BenchPort 'UTIL_BBDD_BENCH_HSQLDB_PORT' 59001)/bench"
+}
+Remove-Variable benchPw, benchHost, benchUrls, hsqldbJar

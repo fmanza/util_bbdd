@@ -1,0 +1,33 @@
+# Opcional: servidor HSQLDB en red para el banco (conexión nativa de la librería por JDBC, jaydebeapi).
+#
+#   curl -sSfL -o build/bench_hsqldb/hsqldb-2.7.4.jar \
+#     https://repo1.maven.org/maven2/org/hsqldb/hsqldb/2.7.4/hsqldb-2.7.4.jar   # verificar con su .sha1
+#   docker compose -f docker-compose.bench.yml -f docker-compose.bench-hsqldb.yml up -d --wait hsqldb
+#
+# Base de datos en memoria «bench» (usuario SA sin contraseña) en jdbc:hsqldb:hsql://127.0.0.1:59001/bench. Los datos
+# se pierden al parar el contenedor. El cliente necesita el mismo jar (UTIL_BBDD_TEST_HSQLDB_JAR) y Java.
+name: util_bbdd_bench
+
+services:
+  hsqldb:
+    image: eclipse-temurin:21-jre
+    container_name: util_bbdd_bench_hsqldb
+    command:
+      - java
+      - -cp
+      - /opt/hsqldb/hsqldb-2.7.4.jar
+      - org.hsqldb.server.Server
+      - --database.0
+      - mem:bench
+      - --dbname.0
+      - bench
+      - --port
+      - "9001"
+    volumes:
+      - ./build/bench_hsqldb:/opt/hsqldb:ro
+    ports:
+      - "127.0.0.1:${UTIL_BBDD_BENCH_HSQLDB_PORT:-59001}:9001"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/9001"]
+      interval: 5s
+      retries: 30

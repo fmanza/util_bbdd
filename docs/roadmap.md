@@ -26,7 +26,6 @@ Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md). Pendiente, sin fe
 
 - **TLS MariaDB** (límite del driver, no se corrige): MariaDB Connector/Python no permite verificar la CA sin comprobar
   el hostname (no hay equivalente a `ssl_verify_identity`); el hostname de conexión debe estar en el certificado.
-- **HSQLDB**: la conexión nativa se validó en memoria (`jdbc:hsqldb:mem:`, 2026-10-09); falta probarla contra un servidor HSQLDB en red.
 - **SQL Server**: `trust_cert` no tiene equivalente con pymssql (usar pyodbc/aioodbc para TLS real); desde v0.39.2 se avisa una vez.
 
 ## Entregado
