@@ -59,4 +59,4 @@ Usuario: «continua» tras el veredicto APROBADO CON CONDICIONES.
 Veredicto: CLOSED
 Pendientes al cierre:
 - `param_pruebas_util.toml` conserva comentadas líneas `#init_command = "...; ..."` (inactivas; no se tocaron).
-- Push y tag `v0.40.2`, a confirmar con el usuario.
+- Push y tag `v0.40.2` hechos (2026-10-09).
