@@ -170,6 +170,25 @@ with SyncDatabaseManager(db_type="mariadb", conn_params=conn_params) as db:
     docs = db.get_database_documentation()  # Sin errores de encoding
 ```
 
+#### **`catalog_charset_mode`** (MariaDB y MySQL, default `"auto"`, desde v0.38.0)
+
+Cómo leen los managers el catálogo (`information_schema`) en MariaDB y MySQL, sync y async:
+
+| Valor | Qué hace | Cuándo usarlo |
+|---|---|---|
+| `"auto"` | Diagnostica el charset del servidor (8 consultas, una vez por manager) y lee sin `CONVERT` si todo está en utf8mb4, o con `CONVERT` si detecta mezcla o servidores antiguos | Por defecto |
+| `"native"` | Lee sin `CONVERT` y sin diagnóstico | Servidores en utf8mb4: ahorra el diagnóstico. Con comentarios guardados en latin1 puede fallar con `UnicodeDecodeError` |
+| `"convert"` | Aplica siempre `CONVERT(CAST(... AS BINARY) USING utf8mb4)` a los campos de texto del catálogo, sin diagnóstico | Servidores con charset mezclado o heredado |
+
+Otro valor lanza `ValidationError` al crear el manager. No afecta a la conexión ni a los datos, solo a las consultas de
+metadatos de los managers (el Engine de SQLAlchemy de bulk/dump no lo usa). Con un schema sin tablas, `"auto"`
+diagnostica mezcla y usa `CONVERT` aunque el servidor esté en utf8mb4; el resultado es el mismo.
+
+```python
+conn_params = {"host": "localhost", "user": "app", "password": "pwd", "database": "ventas",
+               "catalog_charset_mode": "native"}
+```
+
 #### **`encoding_errors`** (obsoleto, sin efecto)
 
 Ningún driver de MariaDB lo admite: MariaDB Connector/Python 1.1.14 (la última versión) rechaza `encoding_errors`

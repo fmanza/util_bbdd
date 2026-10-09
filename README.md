@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, MySQL, Oracle, PostgreSQL, SQLite y SQL Server (sync y async), y HSQLDB (sync).
 
-**Version:** 0.37.0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.38.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -1128,7 +1128,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.37.0** (`AsyncDatabaseManager` valida `conn_params` como el sync; defaults de `conn_params` en una sola fuente, las configs de `connection/config.py`)
+**Current Version: v0.38.0** (`catalog_charset_mode` en MariaDB/MySQL: lectura del catálogo `auto`, `native` o `convert`)
 
 Roadmap resumido (ver [ROADMAP completo](docs/roadmap.md) y
 [CHANGELOG](CHANGELOG.md) para el detalle):

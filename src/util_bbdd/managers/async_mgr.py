@@ -473,7 +473,11 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         if source is None:
             source = AsyncCatalogSource(
                 get_catalog_dialect(self.db_type),
-                AsyncManagerCatalogExecutor(self.get_connection, self.release_connection),
+                AsyncManagerCatalogExecutor(
+                    self.get_connection,
+                    self.release_connection,
+                    charset_mode=str(self.conn_params.get("catalog_charset_mode") or "auto").lower(),
+                ),
                 source_id=self._catalog_source_id(),
                 cache=self._catalog_cache(),
                 default_schema=self._catalog_default_schema(),

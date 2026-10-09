@@ -104,7 +104,8 @@ class AdaptiveCatalogExecutor:
             - "convert": Siempre usa CONVERT() (más lento pero seguro)
 
     Attributes:
-        diagnosis: CharsetDiagnosis del servidor (cacheado después de detectar una sola vez)
+        diagnosis: CharsetDiagnosis del servidor (cacheado después de detectar una sola vez; ``None`` con
+            ``mode`` ``native``/``convert``, que no diagnostican)
         strategy: Strategy elegida ("native", "convert", "failfast")
     """
 
@@ -117,8 +118,8 @@ class AdaptiveCatalogExecutor:
 
     def fetch_all(self, sql: str, params: Mapping[str, Any]) -> list[tuple[Any, ...]]:
         """Ejecuta query de catálogo con fallback automático según charset_state."""
-        # Lazy-detect charset state (una sola vez)
-        if self.diagnosis is None:
+        # Lazy-detect charset state (una sola vez; con mode native/convert no hay diagnóstico)
+        if self.strategy == "unknown":
             self._detect_charset_state()
 
         # Seleccionar estrategia según diagnosis
@@ -130,7 +131,13 @@ class AdaptiveCatalogExecutor:
             return self._fetch_failfast(sql, dict(params))
 
     def _detect_charset_state(self) -> None:
-        """Detecta charset_state y elige estrategia; se ejecuta una sola vez."""
+        """Detecta charset_state y elige estrategia; se ejecuta una sola vez.
+
+        Con ``mode`` ``native`` o ``convert`` la estrategia es el propio modo y no se lanza el diagnóstico.
+        """
+        if self.mode in ("native", "convert"):
+            self.strategy = self.mode  # diagnosis queda en None: no se ha diagnosticado
+            return
         detector = CharsetStateDetector(self.connection, self.paramstyle)
         self.diagnosis = detector.diagnose()
         self.strategy = select_strategy(self.diagnosis, self.mode)

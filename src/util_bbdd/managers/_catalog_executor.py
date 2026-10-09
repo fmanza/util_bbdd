@@ -206,6 +206,7 @@ class ManagerCatalogExecutor:
         provider: Devuelve una conexión DB-API del manager (del pool o la única).
         releaser: La devuelve al pool (o no hace nada con la conexión única).
         max_retries: Número máximo de reintentos en caso de SystemError. Default: 2 (sin fallback).
+        charset_mode: ``catalog_charset_mode`` de MariaDB/MySQL (``auto`` | ``native`` | ``convert``); el resto lo ignora.
     """
 
     def __init__(
@@ -214,10 +215,13 @@ class ManagerCatalogExecutor:
         releaser: Callable[[Any], None],
         max_retries: int = 2,
         connection_params: dict[str, Any] | None = None,
+        *,
+        charset_mode: str = "auto",
     ) -> None:
         self._provider = provider
         self._releaser = releaser
         self._max_retries = max_retries
+        self._charset_mode = charset_mode
         self._adaptive: AdaptiveCatalogExecutor | None = None
         # connection_params is accepted for backward compatibility but not used (no fallback strategy)
 
@@ -226,7 +230,7 @@ class ManagerCatalogExecutor:
         if _driver_root(connection) not in _ADAPTIVE_DRIVERS:
             return DbapiCatalogExecutor(connection, driver_paramstyle(connection))
         if self._adaptive is None:
-            self._adaptive = AdaptiveCatalogExecutor(connection, driver_paramstyle(connection))
+            self._adaptive = AdaptiveCatalogExecutor(connection, driver_paramstyle(connection), mode=self._charset_mode)
         else:
             self._adaptive.connection = connection
         return self._adaptive
@@ -295,6 +299,7 @@ class AsyncManagerCatalogExecutor:
         provider: Devuelve una conexión DB-API del manager (async).
         releaser: La devuelve al pool (async).
         max_retries: Número máximo de reintentos en caso de SystemError. Default: 2.
+        charset_mode: ``catalog_charset_mode`` de MariaDB/MySQL (``auto`` | ``native`` | ``convert``); el resto lo ignora.
     """
 
     def __init__(
@@ -302,12 +307,15 @@ class AsyncManagerCatalogExecutor:
         provider: Callable[[], Awaitable[Any]],
         releaser: Callable[[Any], Awaitable[None]],
         max_retries: int = 2,
+        *,
+        charset_mode: str = "auto",
     ) -> None:
         self._provider = provider
         self._releaser = releaser
         self._max_retries = max_retries
-        # Estrategia de charset (aiomysql): se diagnostica una vez con la primera conexión, como el ejecutor sync.
-        self._charset_strategy: str | None = None
+        # Estrategia de charset (aiomysql): con ``auto`` se diagnostica una vez con la primera conexión, como el
+        # ejecutor sync; ``native``/``convert`` la fijan sin diagnóstico (``catalog_charset_mode``).
+        self._charset_strategy: str | None = charset_mode if charset_mode in ("native", "convert") else None
 
     async def _charset_safe_sql(self, connection: Any, sql: str) -> str:
         """``sql`` con CONVERT en los campos de texto del catálogo si el diagnóstico de charset lo pide (aiomysql)."""

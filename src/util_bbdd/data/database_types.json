@@ -100,6 +100,17 @@
             "type": "integer",
             "default": 3600,
             "description": "Segundos tras los que el pool async (aiomysql) recicla una conexión; -1 desactiva"
+          },
+          {
+            "name": "catalog_charset_mode",
+            "type": "string",
+            "default": "auto",
+            "options": [
+              "auto",
+              "native",
+              "convert"
+            ],
+            "description": "Lectura del catálogo: 'auto' diagnostica el charset (8 consultas) y elige; 'native' lee sin CONVERT; 'convert' aplica siempre CONVERT(... USING utf8mb4). 'native' y 'convert' no diagnostican"
           }
         ]
       },
@@ -234,6 +245,17 @@
             "type": "float",
             "default": 10,
             "description": "Segundos de espera al cerrar la conexión o el pool en close(); <= 0 desactiva el límite"
+          },
+          {
+            "name": "catalog_charset_mode",
+            "type": "string",
+            "default": "auto",
+            "options": [
+              "auto",
+              "native",
+              "convert"
+            ],
+            "description": "Lectura del catálogo: 'auto' diagnostica el charset (8 consultas) y elige; 'native' lee sin CONVERT; 'convert' aplica siempre CONVERT(... USING utf8mb4). 'native' y 'convert' no diagnostican"
           }
         ]
       },

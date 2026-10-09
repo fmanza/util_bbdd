@@ -64,6 +64,22 @@ def _close_timeout(params: dict[str, Any]) -> float | None:
     return parse_close_timeout(params.get("close_timeout", DEFAULT_CLOSE_TIMEOUT_SECONDS))
 
 
+#: Estrategias de lectura del catálogo de MariaDB/MySQL (``catalog_charset_mode``). ``auto``: diagnóstico de charset
+#: (8 consultas, una vez por ejecutor) y estrategia según el resultado; ``native``: sin ``CONVERT``; ``convert``: siempre
+#: ``CONVERT(CAST(... AS BINARY) USING utf8mb4)``. ``native`` y ``convert`` no diagnostican.
+CATALOG_CHARSET_MODES: frozenset[str] = frozenset({"auto", "native", "convert"})
+
+
+def _catalog_charset_mode(params: dict[str, Any], db_type: str) -> str:
+    mode: str = (_opt_str(params, "catalog_charset_mode") or "auto").lower()
+    if mode not in CATALOG_CHARSET_MODES:
+        raise ValueError(
+            f"Parametro invalido para {db_type}: catalog_charset_mode debe ser 'auto', 'native' o 'convert'; "
+            f"recibido '{mode}'"
+        )
+    return mode
+
+
 @dataclass(frozen=True)
 class MariaDBConnectionConfig:
     host: str
@@ -81,6 +97,8 @@ class MariaDBConnectionConfig:
     #: compatibilidad; ``from_params`` avisa con ``FutureWarning`` y ``to_driver_kwargs`` no lo envía.
     encoding_errors: str | None = None
     init_command: str = "SET NAMES utf8mb4"
+    #: Estrategia de lectura del catálogo (``auto`` | ``native`` | ``convert``); no se envía al driver.
+    catalog_charset_mode: str = "auto"
 
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> MariaDBConnectionConfig:
@@ -118,6 +136,7 @@ class MariaDBConnectionConfig:
             charset=charset,
             encoding_errors=encoding_errors,
             init_command=init_command,
+            catalog_charset_mode=_catalog_charset_mode(params, db_type),
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:
@@ -196,6 +215,8 @@ class MySQLConnectionConfig:
     ssl_key: str | None = None
     ssl_verify_cert: bool | None = None
     ssl_verify_identity: bool | None = None
+    #: Estrategia de lectura del catálogo (``auto`` | ``native`` | ``convert``); no se envía al driver.
+    catalog_charset_mode: str = "auto"
 
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> MySQLConnectionConfig:
@@ -221,6 +242,7 @@ class MySQLConnectionConfig:
             ssl_verify_identity=None
             if ssl_verify_identity is None
             else _to_bool(ssl_verify_identity, "ssl_verify_identity", db_type),
+            catalog_charset_mode=_catalog_charset_mode(params, db_type),
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:

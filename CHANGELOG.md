@@ -5,6 +5,25 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.38.0] - 2026-10-09
+
+Bloque CS de la FASE 4 de `drivers-connections-audit` (`.ai/sessions/2026-10-09-feature-catalog-charset-mode/`).
+
+### Added
+
+- **connection / metadata / managers**: parámetro `catalog_charset_mode` (`"auto"` | `"native"` | `"convert"`, por
+  defecto `"auto"`) en MariaDB y MySQL, para los managers sync y async. `"auto"` mantiene el comportamiento anterior
+  (diagnóstico de charset de 8 consultas y estrategia según el resultado); `"native"` lee el catálogo sin `CONVERT` y
+  `"convert"` siempre con `CONVERT(CAST(... AS BINARY) USING utf8mb4)`, ambos sin diagnóstico. Campo de
+  `MariaDBConnectionConfig`/`MySQLConnectionConfig` (no se envía al driver); otro valor lanza `ValidationError`.
+  `ManagerCatalogExecutor` y `AsyncManagerCatalogExecutor` aceptan `charset_mode`. No afecta al camino Engine
+  (`SqlAlchemyCatalogExecutor`). Ver `docs/guides/connection_guide.md` § 6.
+
+### Fixed
+
+- **metadata**: `AdaptiveCatalogExecutor(mode="native"|"convert")` lanzaba igualmente las 8 consultas de diagnóstico
+  (el modo solo se aplicaba después); ahora no diagnostica.
+
 ## [0.37.0] - 2026-10-09
 
 Bloque B1 (validación única de `conn_params`) de la FASE 4 de `drivers-connections-audit`
