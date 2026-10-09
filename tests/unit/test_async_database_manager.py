@@ -20,7 +20,7 @@ class TestAsyncDatabaseManagerInit:
 
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"host": "localhost", "user": "root"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=True,
             connection_factory=conn_factory,
             pool_factory=pool_factory,
@@ -36,7 +36,7 @@ class TestAsyncDatabaseManagerInit:
 
         manager = AsyncDatabaseManager(
             db_type="postgresql",
-            conn_params={"host": "localhost"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
             connection_factory=conn_factory,
         )
@@ -50,7 +50,7 @@ class TestAsyncDatabaseManagerInit:
         AsyncDatabaseManager implementa su propio ciclo de vida directamente."""
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"host": "localhost", "user": "root"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=True,
             connection_factory=AsyncMock(),
             pool_factory=AsyncMock(),
@@ -63,7 +63,7 @@ class TestAsyncDatabaseManagerInit:
         """AsyncDatabaseManager normalizes db_type to lowercase"""
         manager = AsyncDatabaseManager(
             db_type="MARIADB",
-            conn_params={"host": "localhost"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
 
@@ -84,7 +84,7 @@ class TestAsyncDatabaseManagerLifecycle:
 
         async with AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"host": "localhost"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
             connection_factory=fake_conn_factory,
         ) as manager:
@@ -102,7 +102,7 @@ class TestAsyncDatabaseManagerLifecycle:
 
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"host": "localhost"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=True,
             pool_factory=fake_pool_factory,
         )
@@ -126,7 +126,7 @@ class TestAsyncDatabaseManagerLifecycle:
 
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"host": "localhost"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
             connection_factory=fake_conn_factory,
         )
@@ -144,7 +144,7 @@ class TestAsyncDatabaseManagerLifecycle:
 
         manager = AsyncDatabaseManager(
             db_type="postgresql",
-            conn_params={"host": "localhost"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=True,
         )
         manager.pool_connection = mock_pool_conn
@@ -172,7 +172,7 @@ class TestAsyncDatabaseManagerConnectionHandling:
 
         manager = AsyncDatabaseManager(
             db_type="postgresql",
-            conn_params={"host": "localhost"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=True,
             pool_factory=fake_pool_factory,
         )
@@ -217,7 +217,7 @@ class TestAsyncDatabaseManagerConnectionHandling:
 
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"host": "localhost"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=True,
         )
 
@@ -253,7 +253,7 @@ class TestAsyncDatabaseManagerQueryExecution:
 
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"host": "localhost"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
 
@@ -270,7 +270,7 @@ class TestAsyncDatabaseManagerQueryExecution:
         """execute_custom_many raises domain error when executor not initialized"""
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"host": "localhost"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
 
@@ -289,7 +289,7 @@ class TestAsyncDatabaseManagerQueryExecution:
 
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"host": "localhost"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
 
@@ -309,7 +309,7 @@ class TestAsyncDatabaseManagerQueryExecution:
 
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"host": "localhost"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
 
@@ -344,7 +344,7 @@ class TestAsyncDatabaseManagerIntegration:
         ):
             async with AsyncDatabaseManager(
                 db_type="mariadb",
-                conn_params={"host": "localhost"},
+                conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
                 use_pool=True,
                 pool_factory=fake_pool_factory,
             ) as manager:
@@ -366,7 +366,7 @@ class TestAsyncDatabaseManagerIntegration:
 
         async with AsyncDatabaseManager(
             db_type="postgresql",
-            conn_params={"host": "localhost"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
             connection_factory=fake_conn_factory,
         ) as manager:
@@ -391,7 +391,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
 
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"database": "db"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
         manager.query_executor = mock_executor
@@ -413,7 +413,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
 
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"database": "db"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
         manager.query_executor = mock_executor
@@ -433,7 +433,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         with pytest.raises(Exception) as exc_info:
             AsyncDatabaseManager(
                 db_type="db_inexistente",
-                conn_params={"database": "db"},
+                conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
                 use_pool=False,
             )
 
@@ -442,7 +442,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
     def test_get_database_type_description_uses_validator(self):
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"database": "db"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
 
@@ -454,7 +454,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
     def test_get_database_type_info_uses_validator(self):
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"database": "db"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
 
@@ -466,7 +466,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
     def test_get_database_type_name_uses_validator(self):
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"database": "db"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
 
@@ -478,7 +478,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
     def test_get_database_type_features_uses_validator(self):
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"database": "db"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
 
@@ -489,7 +489,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
     def test_get_database_type_driver_info_uses_validator(self):
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"database": "db"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
 
@@ -500,7 +500,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
     def test_get_required_and_optional_params_use_validator(self):
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"database": "db"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
 
@@ -513,7 +513,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
     def test_get_database_type_examples_uses_validator(self):
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"database": "db"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
 
@@ -524,7 +524,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
     def test_get_default_port_uses_validator(self):
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"database": "db"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
 
@@ -540,7 +540,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
 
         manager = AsyncDatabaseManager(
             db_type="mariadb",
-            conn_params={"database": "db"},
+            conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
             use_pool=False,
         )
         manager.query_executor = mock_executor
@@ -577,11 +577,12 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         manager = AsyncDatabaseManager(
             db_type="postgresql",
             conn_params={
+                "host": "localhost",
+                "user": "u",
+                "password": "p",
                 "database": "db",
                 "pool_size": 7,
-                "max_overflow": 11,
                 "pool_timeout": 25,
-                "pool_recycle": 900,
             },
             use_pool=True,
         )

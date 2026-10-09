@@ -288,7 +288,8 @@ class PostgreSQLConnectionConfig:
     password: str = field(repr=False)  # fuera de repr: tracebacks, depuradores, Sentry
     database: str
     port: int = 5432
-    schema: str | None = None
+    #: ``search_path`` de la sesión (``options=-c search_path=...``). Por defecto ``public`` en todos los caminos.
+    schema: str | None = "public"
     dbname: str | None = None
     sslmode: str | None = None
     connect_timeout: int = 10
@@ -309,7 +310,7 @@ class PostgreSQLConnectionConfig:
             valid: set[str] = {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"}
             if sslmode not in valid:
                 raise ValueError(f"Parametro invalido para {db_type}: sslmode={sslmode}")
-        schema: str | None = _opt_str(params, "schema")
+        schema: str | None = _opt_str(params, "schema") or "public"
         # schema va a ``options=-c search_path=<schema>``, que libpq separa por espacios: un valor con espacios
         # añadiría otros ``-c``. Solo nombres sin comillas (letras, dígitos, _ y $), separados por comas.
         if schema is not None and not re.fullmatch(r"[A-Za-z0-9_$]+(,[A-Za-z0-9_$]+)*", schema):
@@ -529,6 +530,8 @@ class SQLServerConnectionConfig:
     use_mars: bool = True
     sql_server_driver: str = "pymssql"
     driver_name: str = "ODBC Driver 17 for SQL Server"
+    #: Schema por defecto de los metadatos; no se envía al driver.
+    schema: str = "dbo"
 
     @classmethod
     def from_params(cls, params: dict[str, Any], driver: str | None = None) -> SQLServerConnectionConfig:
@@ -554,6 +557,7 @@ class SQLServerConnectionConfig:
             use_mars=_to_bool(params.get("use_mars", True), "use_mars", db_type),
             sql_server_driver=selected_driver,
             driver_name=str(params.get("driver_name", "ODBC Driver 17 for SQL Server")),
+            schema=_opt_str(params, "schema") or "dbo",
         )
 
     def to_driver_kwargs(self, driver: str | None = None) -> dict[str, Any]:
@@ -669,6 +673,8 @@ class HSQLDBConnectionConfig:
     password: str = field(default="", repr=False)
     jdbc_driver: str = "org.hsqldb.jdbcDriver"
     connection_properties: dict[str, Any] | None = None
+    #: Schema por defecto de los metadatos; no se envía al driver.
+    schema: str = "PUBLIC"
 
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> HSQLDBConnectionConfig:
@@ -691,6 +697,7 @@ class HSQLDBConnectionConfig:
             jdbc_url=_require_str(params, "jdbc_url", db_type),
             jdbc_jar=_require_str(params, "jdbc_jar", db_type),
             connection_properties=connection_properties,
+            schema=_opt_str(params, "schema") or "PUBLIC",
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:

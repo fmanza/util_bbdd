@@ -77,3 +77,53 @@ def test_json_whitelist_covers_every_config_field(db_type: str) -> None:
     }
 
     assert fields - whitelist == set()
+
+
+# --- B1 de drivers-connections-audit (v0.37.0): *Config es la fuente única; el JSON es documentación verificada ----
+
+
+def _config_defaults(db_type: str) -> dict[str, Any]:
+    defaults: dict[str, Any] = {}
+    for config_cls in CONFIGS[db_type]:
+        if config_cls is None:
+            continue
+        for f in dataclasses.fields(config_cls):
+            if f.name != "connection" and f.default is not dataclasses.MISSING:
+                defaults[f.name] = f.default
+    return defaults
+
+
+@pytest.mark.parametrize("db_type", sorted(CONFIGS))
+def test_json_keys_equal_allowed_keys(db_type: str) -> None:
+    """Las claves del JSON son exactamente las que acepta ``prepare_and_validate`` (derivadas de ``*Config``)."""
+    validator = get_database_validator()
+    json_keys = set(validator.get_required_params(db_type)) | {
+        str(p["name"]) for p in validator.get_optional_params(db_type)
+    }
+
+    assert json_keys == set(ConnectionParamsManager.allowed_keys(db_type))
+
+
+@pytest.mark.parametrize("db_type", sorted(CONFIGS))
+def test_json_defaults_match_config_defaults(db_type: str) -> None:
+    """Un ``default`` documentado en el JSON es el que aplica ``*Config``; si la config no tiene default, el JSON
+    tampoco lo declara (antes: MySQL ``charset`` y PostgreSQL ``sslmode``)."""
+    from util_bbdd.connection.close import DEFAULT_CLOSE_TIMEOUT_SECONDS
+
+    config_defaults = _config_defaults(db_type)
+    config_defaults.setdefault("close_timeout", DEFAULT_CLOSE_TIMEOUT_SECONDS)
+    mismatches: dict[str, tuple[Any, Any]] = {}
+    for param in get_database_validator().get_optional_params(db_type):
+        if "default" not in param:
+            continue
+        name = str(param["name"])
+        if config_defaults.get(name) != param["default"]:
+            mismatches[name] = (param["default"], config_defaults.get(name))
+
+    assert mismatches == {}
+
+
+@pytest.mark.parametrize("db_type", sorted(CONFIGS))
+def test_prepare_and_validate_rejects_unknown_key(db_type: str) -> None:
+    with pytest.raises(ValueError, match="no_existe"):
+        ConnectionParamsManager.prepare_and_validate(db_type, {**BASE[db_type], "no_existe": 1})

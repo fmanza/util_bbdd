@@ -1,7 +1,31 @@
 """Helpers para construir conn_params de SyncDatabaseManager por motor."""
 
+import dataclasses
+
 from collections.abc import Callable
 from typing import Any
+
+from .config import (
+    HSQLDBConnectionConfig,
+    MariaDBConnectionConfig,
+    MariaDBPoolConfig,
+    OracleConnectionConfig,
+    OraclePoolConfig,
+    PostgreSQLConnectionConfig,
+    PostgreSQLPoolConfig,
+    SQLiteConnectionConfig,
+    SQLitePoolConfig,
+    SQLServerConnectionConfig,
+    SQLServerPoolConfig,
+)
+
+
+def _default(config_cls: type, name: str) -> Any:
+    """Valor por defecto del campo ``name`` de una ``*Config``: los defaults viven solo en las configs."""
+    for config_field in dataclasses.fields(config_cls):
+        if config_field.name == name and config_field.default is not dataclasses.MISSING:
+            return config_field.default
+    raise KeyError(f"{config_cls.__name__}.{name} no tiene valor por defecto")
 
 
 def build_conn_params(db_type: str, **kwargs: Any) -> dict[str, Any]:
@@ -52,8 +76,8 @@ def _build_mariadb_params(kwargs: dict[str, Any], db_type: str) -> dict[str, Any
         "user": kwargs["user"],
         "password": kwargs["password"],
         "database": kwargs["database"],
-        "port": kwargs.get("port", 3306),
-        "pool_size": kwargs.get("pool_size", 5),
+        "port": kwargs.get("port", _default(MariaDBConnectionConfig, "port")),
+        "pool_size": kwargs.get("pool_size", _default(MariaDBPoolConfig, "pool_size")),
     }
 
     if "charset" in kwargs:
@@ -79,8 +103,8 @@ def _build_oracle_params(kwargs: dict[str, Any], db_type: str) -> dict[str, Any]
     conn_params: dict[str, Any] = {
         "user": kwargs["user"],
         "password": kwargs["password"],
-        "pool_size": kwargs.get("pool_size", 5),
-        "max_lifetime": kwargs.get("max_lifetime", 3600),
+        "pool_size": kwargs.get("pool_size", _default(OraclePoolConfig, "pool_size")),
+        "max_lifetime": kwargs.get("max_lifetime", _default(OraclePoolConfig, "max_lifetime")),
     }
 
     if kwargs.get("oracle_client_path"):
@@ -89,8 +113,8 @@ def _build_oracle_params(kwargs: dict[str, Any], db_type: str) -> dict[str, Any]
     if has_dsn:
         conn_params["dsn"] = kwargs["dsn"]
     else:
-        conn_params["host"] = kwargs.get("host", "localhost")
-        conn_params["port"] = kwargs.get("port", 1521)
+        conn_params["host"] = kwargs.get("host", _default(OracleConnectionConfig, "host"))
+        conn_params["port"] = kwargs.get("port", _default(OracleConnectionConfig, "port"))
         if has_service:
             conn_params["service_name"] = kwargs["service_name"]
         if has_sid:
@@ -110,10 +134,10 @@ def _build_postgresql_params(kwargs: dict[str, Any], db_type: str) -> dict[str, 
         "user": kwargs["user"],
         "password": kwargs["password"],
         "database": kwargs["database"],
-        "port": kwargs.get("port", 5432),
-        "schema": kwargs.get("schema", "public"),
-        "pool_size": kwargs.get("pool_size", 5),
-        "pool_timeout": kwargs.get("pool_timeout", 30),
+        "port": kwargs.get("port", _default(PostgreSQLConnectionConfig, "port")),
+        "schema": kwargs.get("schema", _default(PostgreSQLConnectionConfig, "schema")),
+        "pool_size": kwargs.get("pool_size", _default(PostgreSQLPoolConfig, "pool_size")),
+        "pool_timeout": kwargs.get("pool_timeout", _default(PostgreSQLPoolConfig, "pool_timeout")),
     }
 
 
@@ -123,11 +147,11 @@ def _build_hsqldb_params(kwargs: dict[str, Any], db_type: str) -> dict[str, Any]
     _validate_required(required, kwargs, db_type)
     return {
         "user": kwargs["user"],
-        "password": kwargs.get("password", ""),
+        "password": kwargs.get("password", _default(HSQLDBConnectionConfig, "password")),
         "jdbc_url": kwargs["jdbc_url"],
         "jdbc_jar": kwargs["jdbc_jar"],
-        "jdbc_driver": kwargs.get("jdbc_driver", "org.hsqldb.jdbcDriver"),
-        "schema": kwargs.get("schema", "PUBLIC"),
+        "jdbc_driver": kwargs.get("jdbc_driver", _default(HSQLDBConnectionConfig, "jdbc_driver")),
+        "schema": kwargs.get("schema", _default(HSQLDBConnectionConfig, "schema")),
     }
 
 
@@ -140,13 +164,13 @@ def _build_sqlserver_params(kwargs: dict[str, Any], db_type: str) -> dict[str, A
         "user": kwargs["user"],
         "password": kwargs["password"],
         "database": kwargs["database"],
-        "port": kwargs.get("port", 1433),
-        "schema": kwargs.get("schema", "dbo"),
-        "sql_server_driver": kwargs.get("sql_server_driver", "pymssql"),
-        "driver_name": kwargs.get("driver_name", "ODBC Driver 17 for SQL Server"),
-        "pool_size": kwargs.get("pool_size", 5),
-        "max_overflow": kwargs.get("max_overflow", 10),
-        "pool_timeout": kwargs.get("pool_timeout", 30),
+        "port": kwargs.get("port", _default(SQLServerConnectionConfig, "port")),
+        "schema": kwargs.get("schema", _default(SQLServerConnectionConfig, "schema")),
+        "sql_server_driver": kwargs.get("sql_server_driver", _default(SQLServerConnectionConfig, "sql_server_driver")),
+        "driver_name": kwargs.get("driver_name", _default(SQLServerConnectionConfig, "driver_name")),
+        "pool_size": kwargs.get("pool_size", _default(SQLServerPoolConfig, "pool_size")),
+        "max_overflow": kwargs.get("max_overflow", _default(SQLServerPoolConfig, "max_overflow")),
+        "pool_timeout": kwargs.get("pool_timeout", _default(SQLServerPoolConfig, "pool_timeout")),
     }
 
 
@@ -156,9 +180,9 @@ def _build_sqlite_params(kwargs: dict[str, Any], db_type: str) -> dict[str, Any]
     _validate_required(required, kwargs, db_type)
     return {
         "database": kwargs["database"],
-        "timeout": kwargs.get("timeout", 5),
-        "check_same_thread": kwargs.get("check_same_thread", False),
-        "isolation_level": kwargs.get("isolation_level", ""),
-        "cached_statements": kwargs.get("cached_statements", 100),
-        "pool_size": kwargs.get("pool_size", 1),
+        "timeout": kwargs.get("timeout", _default(SQLiteConnectionConfig, "timeout")),
+        "check_same_thread": kwargs.get("check_same_thread", _default(SQLiteConnectionConfig, "check_same_thread")),
+        "isolation_level": kwargs.get("isolation_level", _default(SQLiteConnectionConfig, "isolation_level")),
+        "cached_statements": kwargs.get("cached_statements", _default(SQLiteConnectionConfig, "cached_statements")),
+        "pool_size": kwargs.get("pool_size", _default(SQLitePoolConfig, "pool_size")),
     }

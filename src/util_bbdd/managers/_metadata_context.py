@@ -4,6 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..connection.config import HSQLDBConnectionConfig, PostgreSQLConnectionConfig, SQLServerConnectionConfig
+
+#: Schema de metadatos cuando ``conn_params`` no trae ``schema``: el default de cada ``*Config``.
+_DEFAULT_SCHEMA: dict[str, str] = {
+    "postgresql": str(PostgreSQLConnectionConfig.schema),
+    "sqlserver": SQLServerConnectionConfig.schema,
+    "hsqldb": HSQLDBConnectionConfig.schema,
+}
+
 
 class MetadataContextResolver:
     """Resuelve contextos (schema/database) para queries de metadata según BD type.
@@ -39,15 +48,11 @@ class MetadataContextResolver:
             else:
                 oracle_user = oracle_user.upper()
             context_database = oracle_user or context_database
-        elif db_type == "postgresql":
-            explicit_context: str = str(conn_params.get("schema", "")).strip()
-            context_database = explicit_context or context_database or "public"
-        elif db_type == "hsqldb":
-            explicit_context = str(conn_params.get("schema", "")).strip()
-            context_database = explicit_context or context_database or "PUBLIC"
-        elif db_type == "sqlserver":
-            explicit_context = str(conn_params.get("schema", "")).strip()
-            context_database = explicit_context or context_database or "dbo"
+        elif db_type in _DEFAULT_SCHEMA:
+            # Sin ``schema`` explícito, el schema por defecto de ``*Config`` (no el nombre de la BD): igual en sync,
+            # donde el builder ya lo inyectaba, y en async (drivers-connections-audit B1, v0.37.0).
+            explicit_context: str = str(conn_params.get("schema") or "").strip()
+            context_database = explicit_context or _DEFAULT_SCHEMA[db_type]
 
         return context_database
 

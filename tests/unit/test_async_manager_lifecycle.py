@@ -9,6 +9,17 @@ import pytest
 from util_bbdd import AsyncDatabaseManager, DatabaseOperationError
 from util_bbdd.managers._manager_lifecycle import close_async_resources
 
+#: conn_params mínimos válidos por motor: desde v0.37.0 AsyncDatabaseManager los valida como el sync.
+_MIN_PARAMS: dict[str, dict] = {
+    "mariadb": {"host": "localhost", "user": "u", "password": "p", "database": "db"},
+    "mysql": {"host": "localhost", "user": "u", "password": "p", "database": "db"},
+    "postgresql": {"host": "localhost", "user": "u", "password": "p", "database": "db"},
+    "sqlserver": {"host": "localhost", "user": "u", "password": "p", "database": "db"},
+    "oracle": {"user": "u", "password": "p", "service_name": "XE"},
+    "sqlite": {"database": ":memory:"},
+    "hsqldb": {"user": "u", "jdbc_url": "jdbc:hsqldb:mem:x", "jdbc_jar": "x.jar"},
+}
+
 
 class FakeConnection:
     def __init__(self) -> None:
@@ -66,7 +77,7 @@ def test_async_manager_direct_lifecycle() -> None:
     async def _run() -> None:
         manager = AsyncDatabaseManager(
             db_type=db_type,
-            conn_params={},
+            conn_params=dict(_MIN_PARAMS[db_type]),
             use_pool=False,
             connection_factory=builder,
         )
@@ -91,7 +102,7 @@ def test_async_manager_pool_lifecycle() -> None:
     async def _run() -> None:
         manager = AsyncDatabaseManager(
             db_type=db_type,
-            conn_params={},
+            conn_params=dict(_MIN_PARAMS[db_type]),
             use_pool=True,
             pool_factory=pool_builder,
         )
@@ -207,7 +218,7 @@ def test_async_database_manager_close_propagates_database_operation_error_on_poo
     async def _run() -> None:
         manager = AsyncDatabaseManager(
             db_type="postgresql",
-            conn_params={},
+            conn_params=dict(_MIN_PARAMS["postgresql"]),
             use_pool=True,
         )
         manager.pool_connection = pool

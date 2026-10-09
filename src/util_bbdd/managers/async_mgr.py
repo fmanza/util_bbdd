@@ -10,11 +10,12 @@ from typing import Any, cast
 
 from util_bbdd._drivers.validator import DatabaseTypeValidator
 
-from .._core.exceptions import DatabaseOperationError, QueryError
+from .._core.exceptions import DatabaseOperationError, QueryError, ValidationError
 from .._drivers import get_database_validator, get_db_type_info, get_supported_db_types
 from ..async_utils import maybe_await
 from ..connection.close import AsyncCloseMode, normalize_close_mode
 from ..connection.factory import ConnectionFactory
+from ..connection.params import ConnectionParamsManager
 from ..executors.async_query_executor import AsyncQueryExecutor
 from ..factory.async_sqlalchemy_engine_factory import AsyncSQLAlchemyEngineFactory
 from ..factory.pool_factory import PoolFactory
@@ -60,7 +61,21 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         validator.validate_db_type(normalized_db_type)
 
         self.db_type: str = normalized_db_type
-        self.conn_params: dict[str, Any] = conn_params
+        # Misma validación que el manager sync (claves, requeridos y valores), sin inyectar los defaults del camino sync
+        # (``sql_server_driver="pymssql"``…): las configs los aplican al conectar. No se comprueban los drivers sync
+        # (``DriverValidator``): el async usa otros (aiomysql, asyncpg, aioodbc…) y su ausencia falla al conectar.
+        try:
+            self.conn_params: dict[str, Any] = ConnectionParamsManager.prepare_and_validate(
+                normalized_db_type,
+                conn_params,
+                validator,
+                inject_defaults=False,
+            )
+        except ValidationError:
+            raise
+        except Exception as e:
+            self.logger.error(f"❌ Error validando parámetros: {e}")
+            raise ValidationError(str(e), db_type=normalized_db_type) from e
         self.database: str = str(conn_params.get("database", "") or "").strip()
         self.use_pool: bool = use_pool
 

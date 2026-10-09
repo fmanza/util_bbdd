@@ -94,7 +94,11 @@ def test_database_manager_execute_custom_many_wraps_unexpected_errors_with_cause
 
 @pytest.mark.asyncio
 async def test_async_database_manager_execute_custom_many_and_one() -> None:
-    manager = AsyncDatabaseManager(db_type="mariadb", conn_params={"database": "db"}, use_pool=False)
+    manager = AsyncDatabaseManager(
+        db_type="mariadb",
+        conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
+        use_pool=False,
+    )
     manager._initialized = True
     manager.query_executor = AsyncMock()
     manager.query_executor.execute_custom_many = AsyncMock(return_value=[("a",)])
@@ -117,7 +121,11 @@ async def test_async_database_manager_execute_custom_many_and_one() -> None:
 
 @pytest.mark.asyncio
 async def test_async_database_manager_execute_custom_many_propagates_query_error() -> None:
-    manager = AsyncDatabaseManager(db_type="mariadb", conn_params={"database": "db"}, use_pool=False)
+    manager = AsyncDatabaseManager(
+        db_type="mariadb",
+        conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
+        use_pool=False,
+    )
     manager._initialized = True
     manager.query_executor = AsyncMock()
     manager.query_executor.execute_custom_many = AsyncMock(side_effect=QueryNotFoundError("custom missing"))
@@ -133,7 +141,11 @@ async def test_async_database_manager_execute_custom_many_propagates_query_error
 
 @pytest.mark.asyncio
 async def test_async_database_manager_execute_custom_many_wraps_unexpected_errors_with_cause() -> None:
-    manager = AsyncDatabaseManager(db_type="mariadb", conn_params={"database": "db"}, use_pool=False)
+    manager = AsyncDatabaseManager(
+        db_type="mariadb",
+        conn_params={"host": "localhost", "user": "u", "password": "p", "database": "db"},
+        use_pool=False,
+    )
     manager._initialized = True
     manager.query_executor = AsyncMock()
     manager.query_executor.execute_custom_many = AsyncMock(side_effect=RuntimeError("async custom driver broke"))

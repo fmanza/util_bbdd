@@ -154,8 +154,7 @@
           {
             "name": "charset",
             "type": "string",
-            "default": "utf8mb4",
-            "description": "Conjunto de caracteres para la conexión"
+            "description": "Conjunto de caracteres de la conexión; sin indicarlo, el default de PyMySQL/aiomysql (utf8mb4)"
           },
           {
             "name": "autocommit",
@@ -413,7 +412,6 @@
           {
             "name": "sslmode",
             "type": "string",
-            "default": "prefer",
             "options": [
               "disable",
               "allow",
@@ -422,7 +420,7 @@
               "verify-ca",
               "verify-full"
             ],
-            "description": "Modo de conexión SSL"
+            "description": "Modo de conexión SSL; sin indicarlo, el default de libpq/asyncpg (prefer)"
           },
           {
             "name": "connect_timeout",

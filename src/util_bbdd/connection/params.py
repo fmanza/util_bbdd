@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 
 from typing import Any, cast
@@ -25,11 +26,59 @@ from ..connection.config import (
     SQLServerPoolConfig,
 )
 
+#: Configs de conexión y de pool por motor: fuente única de las claves aceptadas en ``conn_params`` y de sus defaults.
+_CONFIG_CLASSES: dict[str, tuple[type, type | None]] = {
+    "mariadb": (MariaDBConnectionConfig, MariaDBPoolConfig),
+    "mysql": (MySQLConnectionConfig, MySQLPoolConfig),
+    "oracle": (OracleConnectionConfig, OraclePoolConfig),
+    "postgresql": (PostgreSQLConnectionConfig, PostgreSQLPoolConfig),
+    "hsqldb": (HSQLDBConnectionConfig, None),
+    "sqlserver": (SQLServerConnectionConfig, SQLServerPoolConfig),
+    "sqlite": (SQLiteConnectionConfig, SQLitePoolConfig),
+}
+
+#: Claves aceptadas que no son campo de ninguna config: ``close_timeout`` lo usa el manager aunque no haya pool;
+#: ``encoding`` (Oracle) se acepta y se ignora (python-oracledb trabaja siempre en UTF-8).
+_EXTRA_KEYS: dict[str, frozenset[str]] = {
+    "*": frozenset({"close_timeout"}),
+    "oracle": frozenset({"encoding"}),
+}
+
 
 class ConnectionParamsManager:
     """Centraliza validación, construcción y filtrado de `conn_params` por motor."""
 
     logger: logging.Logger = logging.getLogger(__name__)
+
+    @staticmethod
+    def allowed_keys(db_type: str) -> frozenset[str]:
+        """Claves aceptadas en ``conn_params`` para ``db_type``: campos de su config de conexión y de pool + extras.
+
+        Raises:
+            InvalidDatabaseType: Si el motor no tiene configuración.
+        """
+        normalized_type: str = db_type.lower().strip()
+        if normalized_type not in _CONFIG_CLASSES:
+            raise InvalidDatabaseType(
+                message=f"Tipo de base de datos no soportado para configuración de conexión: {db_type}",
+                db_type=db_type,
+            )
+        keys: set[str] = set(_EXTRA_KEYS["*"]) | set(_EXTRA_KEYS.get(normalized_type, frozenset()))
+        for config_cls in _CONFIG_CLASSES[normalized_type]:
+            if config_cls is not None:
+                keys.update(f.name for f in dataclasses.fields(config_cls) if f.name != "connection")
+        return frozenset(keys)
+
+    @staticmethod
+    def _validate_keys(db_type: str, conn_params: dict[str, Any]) -> None:
+        """Rechaza claves que ninguna config del motor admite (mismo mensaje que la lista blanca del JSON)."""
+        valid_params: frozenset[str] = ConnectionParamsManager.allowed_keys(db_type)
+        extra_params: list[str] = [p for p in conn_params if p not in valid_params]
+        if extra_params:
+            raise ValueError(
+                f"Parámetros no válidos para {db_type}: {', '.join(extra_params)}. "
+                f"Parámetros válidos: {', '.join(sorted(valid_params))}"
+            )
 
     _BUILD_SUPPORTED_TYPES: set[str] = {
         "mariadb",
@@ -61,8 +110,23 @@ class ConnectionParamsManager:
         db_type: str,
         conn_params: dict[str, Any],
         db_validator: DatabaseTypeValidator | None = None,
+        *,
+        inject_defaults: bool = True,
     ) -> dict[str, Any]:
-        """Construye y valida los `conn_params` de entrada para un motor."""
+        """Construye y valida los `conn_params` de entrada para un motor.
+
+        Args:
+            db_type: Motor.
+            conn_params: Parámetros de entrada (se admiten alias, p. ej. ``filepath`` en SQLite).
+            db_validator: Validador de tipos de BD (por defecto, el singleton).
+            inject_defaults: Si es ``True`` (manager sync), el resultado incluye los defaults de ``build_conn_params``.
+                El manager async usa ``False``: valida igual, pero sus ``conn_params`` no reciben defaults pensados
+                para el camino sync (p. ej. ``sql_server_driver="pymssql"``); las configs los aplican al conectar.
+
+        Raises:
+            ValueError: Si faltan requeridos, hay claves no admitidas o valores inválidos.
+            InvalidDatabaseType: Si el motor no está soportado.
+        """
         normalized_type: str = db_type.lower().strip()
         input_params: dict[str, Any] = ConnectionParamsManager._normalize_input_aliases(
             normalized_type,
@@ -71,11 +135,13 @@ class ConnectionParamsManager:
 
         if normalized_type in ConnectionParamsManager._BUILD_SUPPORTED_TYPES:
             built_params: dict[str, Any] = build_conn_params(normalized_type, **input_params)
-            # Preservar parámetros opcionales válidos aportados por el usuario.
-            input_params = {**built_params, **input_params}
+            if inject_defaults:
+                # Preservar parámetros opcionales válidos aportados por el usuario.
+                input_params = {**built_params, **input_params}
 
         validator: DatabaseTypeValidator = db_validator or get_database_validator()
-        validator.validate_connection_params(normalized_type, input_params)
+        validator.validate_db_type(normalized_type)
+        ConnectionParamsManager._validate_keys(normalized_type, input_params)
         ConnectionParamsManager.get_connection_config(normalized_type, input_params)
         if normalized_type in {"mariadb", "mysql", "oracle", "postgresql", "sqlserver", "sqlite"}:
             ConnectionParamsManager.get_pool_config(normalized_type, input_params)

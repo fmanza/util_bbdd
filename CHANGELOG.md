@@ -5,6 +5,40 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.37.0] - 2026-10-09
+
+Bloque B1 (validación única de `conn_params`) de la FASE 4 de `drivers-connections-audit`
+(`.ai/sessions/2026-10-09-refactor-drivers-b1/`).
+
+### Cambios que pueden afectarte
+
+- **managers (BC1)**: `AsyncDatabaseManager(...)` valida `conn_params` en el constructor igual que
+  `SyncDatabaseManager` y lanza `ValidationError` si hay claves que el motor no admite, faltan requeridos o un valor
+  es inválido. Antes las claves desconocidas se descartaban sin aviso y los requeridos solo fallaban al conectar.
+  Migración: quita las claves que el error señala (el mensaje lista las válidas) y completa los requeridos
+  (`host`, `user`, `password`, `database` en MariaDB/MySQL/PostgreSQL/SQL Server; `user`, `password` y
+  `service_name`/`sid`/`dsn`/`database` en Oracle; `database` en SQLite).
+- **connection (BC2a)**: sin `schema`, PostgreSQL usa `search_path=public` también en el manager async y en
+  `ConnectionFactory`/`PoolFactory` directos (el manager sync ya lo hacía). Antes, en esos caminos, valía el
+  `search_path` por defecto del servidor (`"$user", public`). Para conservarlo, indica `schema` explícito.
+- **managers (BC2b)**: sin `schema`, el gestor async lee los metadatos de `public` (PostgreSQL), `dbo` (SQL Server) o
+  `PUBLIC` (HSQLDB), como el sync. Antes usaba el nombre de la base de datos como schema, que normalmente no existe
+  (snapshot vacío).
+
+### Changed
+
+- **connection**: las configs de `connection/config.py` son la fuente única de las claves aceptadas y de sus
+  defaults: `ConnectionParamsManager.allowed_keys(db_type)` = campos de la config de conexión y de pool + extras
+  declarados (`close_timeout`; `encoding` en Oracle). `prepare_and_validate` ya no usa la lista del JSON y admite
+  `inject_defaults=False` (lo usa el manager async: valida sin añadir defaults del camino sync como
+  `sql_server_driver="pymssql"`).
+- **connection**: `schema` es campo de `PostgreSQLConnectionConfig` (default `"public"`), `SQLServerConnectionConfig`
+  (`"dbo"`) y `HSQLDBConnectionConfig` (`"PUBLIC"`); los dos últimos no lo envían al driver.
+- **connection**: `build_conn_params` toma sus defaults de las configs; su salida no cambia.
+- **data**: `database_types.json` es documentación verificada por test (claves iguales a `allowed_keys` y defaults
+  iguales a los de las configs); sin default en MySQL `charset` y PostgreSQL `sslmode` (los pone el driver).
+- **managers**: el contexto de metadatos sin `schema` usa el default de la config, no el nombre de la base de datos.
+
 ## [0.36.1] - 2026-10-09
 
 Hotfix (`.ai/sessions/2026-10-09-hotfix-oracle-async-pool/`).

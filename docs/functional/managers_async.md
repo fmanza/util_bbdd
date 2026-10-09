@@ -22,7 +22,8 @@ Es el punto de entrada recomendado para servicios web de alta concurrencia y pip
 | Pool con fallback | Si el motor no soporta pool async, cae silenciosamente a conexión directa | El comportamiento es correcto pero sin pool la concurrencia no se beneficia del pool |
 | Caché de metadatos por sesión | Los metadatos de esquema se cachean en memoria desde la primera consulta | Cambios de esquema durante la sesión no se reflejan hasta reiniciar el gestor |
 | Cierre explícito recomendado | Usar cierre explícito o context manager async garantiza liberación de recursos del pool | Sin cierre, el pool puede quedarse abierto hasta que el recolector de basura lo recoja |
-| Parámetro `database` obligatorio | Debe estar presente en los parámetros de conexión para todos los motores | Error de validación en construcción si falta |
+| Validación de `conn_params` en el constructor | Desde v0.37.0, igual que el gestor sync: rechaza claves que el motor no admite, exige los parámetros requeridos de cada motor (p. ej. `host`, `user`, `password` y `database` en MariaDB, MySQL, PostgreSQL y SQL Server) y valida los valores (`schema`, `charset`, `sslmode`…) | `ValidationError` al construir el gestor; antes las claves desconocidas se descartaban sin aviso |
+| `schema` por defecto | Sin `schema`, PostgreSQL usa `public` (también como `search_path` de la sesión), SQL Server `dbo` y HSQLDB `PUBLIC`, igual que el gestor sync | Antes de v0.37.0 el gestor async leía los metadatos del schema con el nombre de la base de datos |
 
 ## 3. Casos de Uso
 

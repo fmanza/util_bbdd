@@ -115,7 +115,9 @@ class TestAsyncConnectionAppliesServerSettings:
 
         assert captured["connect_kwargs"]["server_settings"]["application_name"] == "my_app"
 
-    def test_no_schema_or_application_name_omits_server_settings(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_schema_uses_default_public_search_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """v0.37.0 (B1, BC2a): sin ``schema`` se aplica el default de ``PostgreSQLConnectionConfig`` (``public``), igual
+        que en el manager sync; antes el async no fijaba ``search_path``."""
         captured: dict = {}
         _install_fake_asyncpg(monkeypatch, captured)
 
@@ -132,7 +134,7 @@ class TestAsyncConnectionAppliesServerSettings:
 
         asyncio.run(_run())
 
-        assert "server_settings" not in captured["connect_kwargs"]
+        assert captured["connect_kwargs"]["server_settings"] == {"search_path": "public"}
 
 
 class TestAsyncPoolAppliesServerSettings:
