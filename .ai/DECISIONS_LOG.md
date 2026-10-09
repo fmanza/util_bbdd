@@ -243,3 +243,21 @@ objeto, y había cuatro caminos de lectura para el mismo dato.
 **Impacto actual**: guardas `tests/unit/test_architecture_metadata_rules.py` (pendientes en cero) y
 `tests/unit/metadata/test_query_counts.py` (sin `xfail`). La `MetadataCachePort` de la decisión de capas ya no existe.
 Sesión `2026-10-03-metadata-centralization`.
+
+---
+
+## 2026-10-09 — Conexiones multimotor: validación única, pool de los Engine, charset del catálogo y TLS en MariaDB (ADR-005)
+
+**Decisión**: Opción B acotada de `drivers-connections-audit` (consolidar sin mover ficheros). Las `*Config` de
+`connection/config.py` son la fuente única de claves y defaults de `conn_params` (`ConnectionParamsManager.allowed_keys`);
+`AsyncDatabaseManager` valida como el sync (`ValidationError`, sin inyectar defaults del camino sync). Los Engine sync y
+async siguen una política de pool común (`factory/_pool_policy.py`). `catalog_charset_mode` (`auto`/`native`/`convert`)
+solo en MariaDB/MySQL. TLS en MariaDB con `ssl`, `ssl_ca`, `ssl_cert`, `ssl_key`, `ssl_verify_cert`.
+
+**Alternativas descartadas**: Opción A (reorganizar por capas: rompía imports de 91 ficheros de tests por el mismo
+ahorro); JSON como fuente única; estrategia de charset para todos los motores; exigir `ssl_ca` en TLS async.
+**Razón**: la FASE 1 encontró que los dos caminos de conexión (nativo y Engine) y los dos managers aplicaban la
+configuración de forma distinta; la duplicidad medida (pools 32 %) no justificaba una reorganización.
+**Impacto actual**: v0.35.9–v0.39.1 (cambios incompatibles en v0.36.0 y v0.37.0, documentados en el CHANGELOG).
+Detalle en `docs/adr/ADR-005-conexiones-multimotor.md`; deuda en `docs/roadmap.md`. Sesiones `2026-10-09-*`.
+

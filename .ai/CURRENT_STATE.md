@@ -1,8 +1,8 @@
 # CURRENT STATE — util_bbdd
 
-**Generado**: 2026-06-05 (cabecera, tabla de versiones y tests actualizados el 2026-09-29 en los cierres de `v0.18.0` a `v0.18.4`)  
-**Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.18.4`  
-**Versión**: `v0.18.4` (liberada 2026-09-29). Tags de git: `v0.17.4`, `v0.18.0`, `v0.18.1`, `v0.18.2`, `v0.18.3`, `v0.18.4`  
+**Generado**: 2026-06-05 (cabecera, «Próximos pasos» y tests actualizados el 2026-10-09 al cerrar `drivers-connections-audit`)  
+**Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.39.1` (la tabla de abajo no recoge todas las versiones intermedias: el detalle está en el CHANGELOG)  
+**Versión**: `v0.39.1` (liberada 2026-10-09). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0`, `v0.39.1`  
 **Rama activa**: `develop`
 
 ---
@@ -46,12 +46,19 @@
 | `v0.27.0` | Liberado 2026-10-01 — `isolate` en Oracle con `batcherrors` (10 malas 1,22× → 1,08×; aísla ORA-12899/01400/01438; UPDATE con LOB por bisección por ORA-03106), `ParallelBulkLoader(on_error="isolate")` (columna `particion`, sin reintento con rechazos, `max_rejects` por partición), `DumpConfig(on_error="isolate")` (tabla `success` con `rows_rejected`, columna «Filas Rechazadas»); escalado de `ParallelBulkLoader` re-medido (PostgreSQL con psycopg 3 1,05×, no 2,6×) | Estable |
 | `v0.26.0` | Liberado 2026-10-01 — `BulkCrud(prefetch_blocks)` (SQL Server INSERT −10,6 %, MySQL/MariaDB −2 % a −6 %) y `BulkCrud(on_error="isolate", rejects_csv_path, max_rejects)` (SAVEPOINT + bisección; 1M limpio 1,00–1,02×, 10 malas 1,13–1,23×, PG 1,65×) con su audit-code (M-1, B-1, B-3, B-4); P-1: filtro de OPENJSON por columna (DELETE 1M SQL Server 2,47 → 2,17 s) | Estable |
 | `v0.25.1` | Liberado 2026-10-01 — deuda A3–A5 del audit-code: `*_from_chunks` dentro de un `bulk_session` abierto → `RuntimeError` (antes `database is locked` en SQLite o sesión externa sin conexión); nota «se ejecutó; falló el COMMIT periódico posterior»; `__batch_note` tipado | Estable |
+| `v0.35.5`–`v0.35.8` | Liberados 2026-10-08 — correcciones P0–P2 de la FASE 1 de `drivers-connections-audit`: credenciales escapadas en las URL de los Engine, Engine con TLS/charset de `conn_params` (`creator`), lista blanca de `conn_params`, thick mode de Oracle, TLS de aiomysql y cifrado de SQL Server, DSN de Oracle único, HSQLDB nativo corregido, contraseñas fuera de `repr` (sesiones `2026-10-08b` a `2026-10-08e`) | ✅ |
+| `v0.35.9`–`v0.35.11` | Liberados 2026-10-09 — FASE 4 sin cambios funcionales: código muerto fuera (B6), helpers de URL de los Engine compartidos (B5), una sola traducción a aiomysql (B4) | ✅ |
+| `v0.36.0` | Liberado 2026-10-09 — política de pool común de los Engine sync/async desde `conn_params` (`pool_recycle` 3600), `close_timeout` en `*PoolConfig`, `SyncPoolCloseMixin` (B3; **cambia el pool del Engine sync**) | ✅ |
+| `v0.36.1` | Liberado 2026-10-09 — hotfix: el pool async de Oracle no se podía crear (python-oracledb 4.x) | ✅ |
+| `v0.37.0` | Liberado 2026-10-09 — validación única de `conn_params` desde las configs; **`AsyncDatabaseManager` lanza `ValidationError`** como el sync; `schema` por defecto (`public`/`dbo`/`PUBLIC`) en todos los caminos (B1; incompatible) | ✅ |
+| `v0.38.0` | Liberado 2026-10-09 — `catalog_charset_mode` (`auto`/`native`/`convert`) en MariaDB/MySQL (CS) | ✅ |
+| `v0.39.0`–`v0.39.1` | Liberados 2026-10-09 — **TLS en MariaDB** (`ssl`, `ssl_ca`, `ssl_cert`, `ssl_key`, `ssl_verify_cert`) en sync, async, pools y Engine (B2); hotfix F1/F2 de la FASE 5. Decisiones en ADR-005; auditoría `drivers-connections-audit` cerrada | ✅ |
 | Zenical | Pendiente, sin versión asignada — merge `migrate/zenical-pure` (+80% perf doc builds) cuando Zenical esté instalable |
 
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
 PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical v0.0.44 esté en crates.io (o instalación manual de binario).
 
-**Tests actuales**: 5049 passed, 496 skipped con `pytest` completo sin URLs de servidor y el entorno de referencia `pip install -e ".[dev,docs]"` (v0.31.0, 2026-10-04); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 551 passed, 10 skipped en 5 servidores (menos que en v0.30.0: se retiraron los tests de los módulos eliminados). mypy sin errores (320 ficheros). Sin las dependencias del extra `dev` los recuentos bajan (módulos que se saltan enteros) y `tests/conftest.py` lo avisa: ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`.
+**Tests actuales** (v0.39.1, 2026-10-09): 5397 passed, 497 skipped; `tests/integration` 552 passed, 10 skipped en 5 servidores; mypy sin errores (332 ficheros). Medición anterior: 5049 passed, 496 skipped con `pytest` completo sin URLs de servidor y el entorno de referencia `pip install -e ".[dev,docs]"` (v0.31.0, 2026-10-04); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 551 passed, 10 skipped en 5 servidores (menos que en v0.30.0: se retiraron los tests de los módulos eliminados). mypy sin errores (320 ficheros). Sin las dependencias del extra `dev` los recuentos bajan (módulos que se saltan enteros) y `tests/conftest.py` lo avisa: ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`.
 
 ---
 
@@ -94,7 +101,8 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-00. `v0.35.8` (2026-10-08): todos los P0–P2 de la FASE 1 de `drivers-connections-audit` cerrados (v0.35.5–v0.35.8; última sesión `.ai/sessions/2026-10-08e-fix-drivers-p2b/`). Suite: 5281 passed, 497 skipped; `tests/integration`: 552 passed, 10 skipped; `zensical build --strict` OK. Siguiente: push + tag `v0.35.8`; FASE 2 de la skill; validar HSQLDB contra un servidor real.
+000. `v0.39.1` (2026-10-09): **`drivers-connections-audit` cerrada** (FASES 1–6; v0.35.5–v0.39.1; sesiones `.ai/sessions/2026-10-08*` y `2026-10-09-*`; decisiones en `docs/adr/ADR-005-conexiones-multimotor.md`). Suite: 5397 passed, 497 skipped; `tests/integration`: 552 passed, 10 skipped; `zensical build --strict` OK. Deuda residual (TLS MariaDB sin `ssl_verify_identity`, WARNING repetido en TLS async, builders de URL, diagnóstico de 8 consultas, HSQLDB sin servidor en red, `init_command` en MariaDB async, `trust_cert` en pymssql) en `docs/roadmap.md` § «Deuda registrada — conexiones multimotor».
+00. `v0.35.8` (2026-10-08): todos los P0–P2 de la FASE 1 de `drivers-connections-audit` cerrados (v0.35.5–v0.35.8; última sesión `.ai/sessions/2026-10-08e-fix-drivers-p2b/`). Suite: 5281 passed, 497 skipped; `tests/integration`: 552 passed, 10 skipped; `zensical build --strict` OK. HSQLDB nativo validado en memoria (2026-10-09). FASE 2 hecha (ver 000).
 0. `v0.31.0` cerrada (2026-10-04; centralización de metadatos, `.ai/sessions/2026-10-03-metadata-centralization/`, ADR-003). Pendiente: push de `develop` y tag; teardown de los schemas `zz_*` del banco; hallazgos no bloqueantes F3–F5, F7, H1–H2 del audit-code (en el TRACEABILITY de la sesión). Pendiente externo: issue del ORA-03106 (`.ai/sessions/2026-10-01y-ora03106-repro/ISSUE_DRAFT.md`). S-1 sigue NO_GO.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
@@ -108,7 +116,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 | Motor | Como fuente | Como destino | Notas |
 |-------|-------------|--------------|-------|
 | Oracle | ✅ | ✅ | SEQUENCE+TRIGGER; identity mode opcional |
-| MariaDB | ✅ | ✅ | Default collation: `utf8mb4_uca1400_ai_ci` (≥10.10); driver sync MariaDB Connector/Python |
+| MariaDB | ✅ | ✅ | Default collation: `utf8mb4_uca1400_ai_ci` (≥10.10); driver sync MariaDB Connector/Python; TLS opcional desde v0.39.0; banco validado: 11.4 |
 | MySQL | ✅ | ✅ | `db_type="mysql"` (PyMySQL/aiomysql); collation destino `utf8mb4_0900_ai_ci` |
 | PostgreSQL | ✅ | ✅ | SERIAL/BIGSERIAL/SMALLSERIAL; `PostgresCopyStrategy` |
 | SQL Server | ✅ | ✅ | IDENTITY(1,1); `fast_executemany` |

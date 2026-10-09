@@ -49,7 +49,10 @@
 │    ├── factory.py                  # ConnectFactory
 │    ├── builder.py                  # build_conn_params()
 │    ├── protocols.py
-│    ├── close.py
+│    ├── close.py                    # cierre común; SyncPoolCloseMixin (pools sync)
+│    ├── config.py                   # *Config/*PoolConfig: fuente única de claves y defaults de conn_params (ADR-005)
+│    ├── params.py                   # ConnectionParamsManager.allowed_keys / prepare_and_validate (sync y async)
+│    ├── _aiomysql.py                # traducción única config → aiomysql.connect (MariaDB y MySQL, TLS)
 │    └── <motor>/                    # mariadb (Connector/Python + aiomysql), mysql (PyMySQL + QueuePool + aiomysql),
 │                                    # postgresql, oracle, sqlite, hsqldb, sqlserver
 │
@@ -78,7 +81,9 @@
 │    └── types.py, normalizer.py
 │
 │    factory/                        🏭 SQLAlchemy engines
-│    └── pool_factory.py, sqlalchemy_engine_factory.py, async_sqlalchemy_engine_factory.py
+│    ├── pool_factory.py, sqlalchemy_engine_factory.py, async_sqlalchemy_engine_factory.py
+│    ├── _url.py                     # URL con credenciales escapadas, redacción para logs, test query
+│    └── _pool_policy.py             # política de pool común de los Engine sync/async (ADR-005)
 │
 │    validators/                     ✓ Validadores de queries
 │
@@ -235,7 +240,8 @@ from util_bbdd import DatabaseException, ConnectionError, QueryError, Validation
 | D6 | utf8mb4_uca1400_ai_ci por defecto (MariaDB ≥10.10) | Mejora de UCA 1400; utf8mb4_unicode_ci sigue siendo opción válida para versiones anteriores |
 | D7 | PKSequenceSyncer post-bulk | Evitar errores de PK duplicada tras INSERT masivo sin IDENTITY/SERIAL |
 | D8 | MigrationPlanner pass-through v1 para rutinas | Las rutinas se extraen con su DDL original; transformación semántica es revisión manual |
+| D9 | Conexiones multimotor (ADR-005): `conn_params` validados desde las `*Config` en sync y async; política de pool común de los Engine; `catalog_charset_mode`; TLS en MariaDB | Una sola definición por parámetro y el mismo comportamiento en los dos caminos de conexión (nativo y Engine) |
 
 ---
 
-*Documento actualizado: Junio 2026 - alineado a v0.10.0*
+*Documento actualizado: Junio 2026 - alineado a v0.10.0; `connection/` y `factory/` revisados el 2026-10-09 (v0.39.1)*

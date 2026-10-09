@@ -28,7 +28,7 @@ Problemas de prioridad 2 de FASE 1 aún abiertos: M5–M7, P2–P6, Q2–Q3, L1,
 - L1: `cached_statements` en el pool SQLite. H1: firma de `jaydebeapi.connect` corregida (bug grave: la conexión nativa no podía funcionar) + `connection_properties` + URL sin `password=` en log. H2: `create_engine("hsqldb")` → `ConnectionError` claro; builder roto eliminado (como SVC-04 en async).
 - O2: `connection/oracle/_dsn.py::build_oracle_dsn` (sustituye 4 copias) con `protocol` `tcp`/`tcps`; `encoding` aceptado e ignorado.
 - Test-first: 30 tests fallaban antes del fix. `ruff`, `mypy` OK; `pytest` 5281 passed, 497 skipped (`build/logs/fix_drivers_p2b_suite.txt`); `tests/integration` 552 passed, 10 skipped (`build/logs/fix_drivers_p2b_integration.txt`); `zensical build --strict` OK.
-- Banco: asyncpg `prefer` conecta y `require` falla (servidor sin TLS; antes `prefer` → `True` fallaba); pool PG agotado → `DatabaseOperationError ← PoolTimeoutError ← PoolTimeout`; Oracle TCP. HSQLDB sin validación real (no hay servidor ni jar en el banco; Java 25 y JPype 1.6 sí están instalados).
+- Banco: asyncpg `prefer` conecta y `require` falla (servidor sin TLS; antes `prefer` → `True` fallaba); pool PG agotado → `DatabaseOperationError ← PoolTimeoutError ← PoolTimeout`; Oracle TCP. HSQLDB validado después (2026-10-09) con `hsqldb-2.7.4.jar` y `jdbc:hsqldb:mem:` (sin servidor): v0.35.8 conecta y aplica `connection_properties` (`SELECT 1 FROM DUAL` con `sql.syntax_ora=true`); v0.35.7 fallaba con `Class org.hsqldb.jdbc.JDBCDriver is not found` (el jar llegaba como `libs`).
 
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
@@ -43,7 +43,7 @@ Problemas de prioridad 2 de FASE 1 aún abiertos: M5–M7, P2–P6, Q2–Q3, L1,
 | VERSION | `CHANGELOG.md` [0.35.8] + campos de versión | completado |
 
 ## Directrices para Futuras IAs
-- **[HSQLDB]**: `jaydebeapi.connect(jclassname, url, driver_args, jars)`; `driver_args` es un dict de propiedades JDBC (`user`, `password`, …). Antes de v0.35.8 la llamada estaba mal y la conexión nativa no podía funcionar: no hay test real porque el banco no tiene HSQLDB.
+- **[HSQLDB]**: `jaydebeapi.connect(jclassname, url, driver_args, jars)`; `driver_args` es un dict de propiedades JDBC (`user`, `password`, …). Antes de v0.35.8 la llamada estaba mal y la conexión nativa no podía funcionar. Validación sin servidor: `jdbc:hsqldb:mem:<nombre>` + jar de HSQLDB + `JAVA_HOME` apuntando a un JDK (JPype necesita `jvm.dll`).
 - **[Oracle/DSN]**: única fuente del DSN: `connection/oracle/_dsn.py::build_oracle_dsn` (dsn > service_name > sid > database; `protocol=tcps` reescribe el `PROTOCOL` del descriptor de `makedsn`).
 - **[asyncpg]**: `ssl` acepta el `sslmode` de libpq como cadena; no convertirlo a booleano. `timeout` es el connect timeout.
 - **[pools]**: los pools de MySQL, PostgreSQL y SQL Server lanzan `PoolTimeoutError` al agotarse; `PoolFactory.SUPPORTED_POOL_TYPES` es la lista de motores con pool.
@@ -53,7 +53,7 @@ Problemas de prioridad 2 de FASE 1 aún abiertos: M5–M7, P2–P6, Q2–Q3, L1,
 ## Veredicto final
 Veredicto: CLOSED
 Pendientes al cierre:
-- H1 sin validación contra un servidor HSQLDB real.
-- M5: diagnóstico de 8 consultas (una vez por ejecutor) sin combinar.
-- FASE 2 de la skill `drivers-connections-audit`.
-- Commit propuesto, no ejecutado; push y tag `v0.35.8` pendientes.
+- M5: diagnóstico de 8 consultas (una vez por ejecutor) sin combinar. Mitigado en v0.38.0: `catalog_charset_mode="native"|"convert"` evita el diagnóstico; con `auto` sigue igual (deuda en `docs/roadmap.md`).
+- ~~FASE 2 de la skill `drivers-connections-audit`~~: hecha el 2026-10-09 junto con las FASES 3–6 (`.ai/sessions/2026-10-09-*`; auditoría cerrada, ADR-005).
+- ~~Commit propuesto, no ejecutado; push y tag `v0.35.8` pendientes~~: commit `310cf30a`, push y tag `v0.35.8` hechos.
+- H1: validado el 2026-10-09 con HSQLDB en memoria (ver «AI output summary»); queda sin probar contra un servidor HSQLDB en red.

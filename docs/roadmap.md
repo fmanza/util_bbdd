@@ -31,7 +31,7 @@ Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md). Pendiente, sin fe
   SQL Server sin `database`, Oracle `service_name=""`); en los motores con `creator` la URL solo elige el dialecto.
 - **charset MariaDB/MySQL**: el diagnóstico de `catalog_charset_mode="auto"` sigue haciendo 8 consultas (una vez por
   gestor) y da «mezcla» con un schema sin tablas.
-- **HSQLDB**: la conexión nativa no se ha validado contra un servidor real.
+- **HSQLDB**: la conexión nativa se validó en memoria (`jdbc:hsqldb:mem:`, 2026-10-09); falta probarla contra un servidor HSQLDB en red.
 - **MariaDB async**: un `init_command` personalizado no se aplica (aiomysql recibe `charset`).
 - **SQL Server**: `trust_cert` no tiene equivalente con pymssql (usar pyodbc/aioodbc para TLS real).
 
