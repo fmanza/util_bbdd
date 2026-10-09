@@ -5,6 +5,24 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.40.3] - 2026-10-09
+
+Hotfix de un error de `pruebas_util` al documentar una BD MariaDB con `use_pool=True`
+(`.ai/sessions/2026-10-09j-hotfix-pool-reset/`).
+
+### Fixed
+
+- **connection/mariadb**: `mariadb.ConnectionPool` reinicia la sesión al reutilizar una conexión
+  (`pool_reset_connection=True` por defecto) y no repite `init_command`: la sesión volvía al charset del servidor.
+  Con `character_set_server=latin1` (MariaDB 10.3.10, driver 1.1.14), la segunda lectura del catálogo por una conexión
+  del pool fallaba con `MetadataError` (`SystemError … fetchrows`, `UnicodeDecodeError` subyacente) aunque el
+  diagnóstico dijera `utf8mb4_clean`. Ahora el pool ejecuta `init_command` en cada `get_connection()`.
+
+### Documentation
+
+- `docs/guides/connection_guide.md` § 6: `init_command` se reaplica en cada entrega del pool; fila en «Problemas
+  frecuentes».
+
 ## [0.40.2] - 2026-10-09
 
 Hotfix tras `/audit-code` de un error de `pruebas_util` al crear un manager MariaDB

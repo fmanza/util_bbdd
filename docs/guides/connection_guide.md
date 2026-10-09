@@ -126,6 +126,7 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 | `Server has gone away` (MariaDB/MySQL) | Conexión caducada en cargas largas | Obtener el engine con `get_sqlalchemy_engine()` (incluye `pool_pre_ping`) |
 | El `schema` PostgreSQL parece ignorado | `schema` no es un parámetro libpq | La librería lo traduce a `options=-c search_path=<schema>` automáticamente |
 | `UnicodeDecodeError` en MariaDB al generar documentación | Encoding mismatch: servidor `latin1` vs. cliente `utf8mb4` | Usar `init_command` y `catalog_charset_mode="convert"` (ver §6; `encoding_errors` no tiene efecto) |
+| `MetadataError: … SystemError del driver mariadb … fetchrows` con `use_pool=True` y servidor en `latin1` (hasta v0.40.2; el diagnóstico dice `utf8mb4_clean`) | El reset de sesión del pool nativo deshacía `init_command` | Actualizar a v0.40.3 o, en versiones anteriores, `use_pool=False` (ver §6) |
 | `ValidationError: … init_command admite una sola sentencia` (o, hasta v0.40.1, `You have an error in your SQL syntax … near 'SET NAMES utf8mb4'`) | `init_command` con varias sentencias separadas por `;` | Un solo `SET` con comas: `SET SESSION character_set_server = utf8mb4, NAMES utf8mb4` (ver §6) |
 | `CERT_E_CN_NO_MATCH` (MariaDB sync) o error de conexión TLS (async) con `ssl_ca` | El nombre o la IP de `host` no figura en el certificado del servidor; el conector de MariaDB no permite verificar solo la CA | Conectar con un nombre que esté en el certificado (ver [TLS en MariaDB](#tls-en-mariadb-ssl-ssl_ca-ssl_cert-ssl_key-ssl_verify_cert-desde-v0390)) |
 | WARNING `trust_cert no tiene efecto con pymssql` | pymssql no admite `trust_cert`: la validación del certificado depende de FreeTDS | `sql_server_driver="pyodbc"` (ver [TLS en SQL Server](#tls-en-sql-server-encryption-y-trust_cert)) |
@@ -182,6 +183,11 @@ conn_params = {"host": "localhost", "user": "app", "password": "pwd", "database"
 Desde v0.40.2, varias sentencias lanzan `ValidationError` al crear el manager. Antes fallaban al conectar con un error
 de sintaxis del servidor («near 'SET NAMES utf8mb4'») que no nombraba el parámetro. Se admiten un `;` final y los `;`
 dentro de comillas.
+
+Con `use_pool=True` (pool nativo `mariadb.ConnectionPool`), desde v0.40.3 `init_command` se ejecuta en **cada**
+`get_connection()`: el pool reinicia la sesión al reutilizar una conexión y la devuelve al charset del servidor. Hasta
+v0.40.2, con el servidor en `latin1`, la segunda lectura del catálogo por la misma conexión fallaba con
+`SystemError … fetchrows`.
 Replica el comportamiento de PyMySQL/SQLAlchemy:
 
 - **Sin `init_command`**: El handshake fija `charset='utf8mb4'`, pero solo en `character_set_client` y

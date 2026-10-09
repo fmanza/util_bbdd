@@ -184,11 +184,11 @@ class TestMariaDBNativePoolFallback:
         assert len(executed_commands) == 1
         assert "SET NAMES" in executed_commands[0]
 
-    def test_pool_no_pending_init_command_when_pool_accepts_it(
+    def test_pool_reapplies_init_command_when_pool_accepts_it(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Fix A: si el pool acepta init_command, _pending_init_command es None."""
+        """v0.40.3: aunque el pool acepte init_command, se reaplica en cada get_connection (el reset del pool lo deshace)."""
 
         def fake_connection_pool(**kwargs: Any) -> Any:
             pool = MagicMock()
@@ -200,5 +200,5 @@ class TestMariaDBNativePoolFallback:
         monkeypatch.setattr(pool_connection_mariadb, "mariadb", fake_mariadb)
 
         pool = pool_connection_mariadb.PoolConnection({**BASE, "pool_name": "test_pool"})
-        assert pool._pending_init_command is None
+        assert pool._pending_init_command == "SET NAMES utf8mb4"
         pool.close()

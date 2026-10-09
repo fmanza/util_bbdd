@@ -2,7 +2,7 @@
 
 **Generado**: 2026-06-05 (cabecera, «Próximos pasos» y tests actualizados el 2026-10-09 al cerrar `drivers-connections-audit`)  
 **Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.39.1` (la tabla de abajo no recoge todas las versiones intermedias: el detalle está en el CHANGELOG)  
-**Versión**: `v0.40.2` (2026-10-09). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`  
+**Versión**: `v0.40.3` (2026-10-09). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`  
 **Rama activa**: `develop`
 
 ---
@@ -91,6 +91,7 @@ mismo `mkdocs.yml`; el CI publica con Zensical. Ver `ZENICAL.md`.
 
 ## Próximos pasos
 
+0000000. `v0.40.3` (2026-10-09): **hotfix reset del pool MariaDB** (`.ai/sessions/2026-10-09j-hotfix-pool-reset/`): el pool nativo reaplica `init_command` en cada `get_connection()`; el reset de sesión de `mariadb.ConnectionPool` lo deshacía y, con el servidor en `latin1`, el catálogo fallaba con `SystemError … fetchrows`.
 000000. `v0.40.2` (2026-10-09): **hotfix `init_command`** (`.ai/sessions/2026-10-09i-hotfix-init-command/`): `init_command` de MariaDB con varias sentencias da `ValidationError` (antes, error de sintaxis del servidor sin nombrar el parámetro); `DatabaseConfigurationError` del manager sync con `db_type` correcto.
 00000. `v0.40.1` (2026-10-09): **hotfix tras `/audit-code` de un log de `pruebas_util`** (`.ai/sessions/2026-10-09h-hotfix-advisor-dispose/`): el informe de `EngineReadinessAdvisor` no presenta valores por defecto como leídos (H1); sin cierre de conexiones del Engine sync en la finalización del intérprete (H2). H3 log DEBUG de inicio en cada operación de `bulk`. Tests: 5433 passed, 507 skipped; mypy sin errores (332 ficheros).
 0000. `v0.40.0` (2026-10-09): **plan de pendientes cerrado** (`.ai/sessions/2026-10-09b-plan-pendientes/`): P0 mantenimiento; P1 `init_command` propio en MariaDB async y avisos una vez (v0.39.2); P2 diagnóstico de charset en una consulta y sin falso MIXED (v0.39.3); P3 URL de los Engine sync/async con la misma semántica (v0.40.0); P4 TLS de MariaDB con CA propia en el banco (F3 cerrado como límite del driver; `docker-compose.bench-tls.yml`); P5 HSQLDB en red (`docker-compose.bench-hsqldb.yml`). Tests: 5422 passed; `tests/integration` 564 passed, 8 skipped. Deuda abierta en `docs/roadmap.md`: solo la limitación del driver MariaDB (sin `ssl_verify_identity`) y `trust_cert` con pymssql. Externo: issue del ORA-03106.

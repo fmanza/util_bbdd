@@ -139,6 +139,11 @@ class PoolConnection(SyncPoolCloseMixin):
             else:
                 raise RuntimeError("No se pudo crear el pool de MariaDB; parámetros opcionales agotados")
 
+            # El pool reinicia la sesión al reutilizar una conexión (pool_reset_connection) sin repetir init_command:
+            # la sesión volvería al charset del servidor (p. ej. latin1). Se reaplica en cada get_connection().
+            if self._pending_init_command is None:
+                self._pending_init_command = str(pool_params.get("init_command") or "") or None
+
             self.logger.info(
                 f"✅ Pool MariaDB creado: {sanitized_conn_params.get('pool_size', 5)} conexiones (pool {pool_name})"
             )
@@ -149,11 +154,13 @@ class PoolConnection(SyncPoolCloseMixin):
     def get_connection(self) -> Any:
         """Obtiene conexión del pool.
 
+        Ejecuta ``init_command`` en cada entrega: el reset de sesión del pool nativo lo deshace al reutilizar la conexión.
+
         Returns:
             Conexión MariaDB lista para usar.
 
         Raises:
-            Exception: Si no hay conexiones disponibles o falla el ``init_command`` manual (la conexión vuelve al
+            Exception: Si no hay conexiones disponibles o falla el ``init_command`` (la conexión vuelve al
                 pool: entregarla dejaría la sesión sin configurar, p. ej. sin ``SET NAMES utf8mb4``).
         """
         if self._closed:
@@ -169,7 +176,7 @@ class PoolConnection(SyncPoolCloseMixin):
                 finally:
                     cursor.close()
             except Exception as exc:
-                self.logger.error(f"❌ init_command manual falló; la conexión vuelve al pool: {exc}")
+                self.logger.error(f"❌ init_command falló; la conexión vuelve al pool: {exc}")
                 conn.close()
                 raise
         return conn
