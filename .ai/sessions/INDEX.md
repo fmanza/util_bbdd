@@ -273,6 +273,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-09-29d-migrate-audit | **audit** `migrate/` completo (RECHAZADO: A1–A9, verificados en el banco); **hotfix** A1 `MigrationPlan.execute` fallaba en PG/SS/MariaDB/Oracle | develop | audit-code + hotfix | CLOSED | `2026-09-29d-migrate-audit/TRACEABILITY.md` |
 | 2026-09-29c-migrate-views | **plan** transpilar las vistas de `migrate` con `sqlglot` (opcional, `view_strategy="auto"`), V0–V3; **hotfix** H7 vistas de SQL Server con cabecera y truncadas a 4000 | develop | new-feature + hotfix | CLOSED | `2026-09-29c-migrate-views/TRACEABILITY.md` |
 | 2026-10-09k-doc-architecture-audit | **documentation-architecture-audit de `doc/` + `analysis/`** (6 fases): diagramas Graphviz por lotes (`prefetch`, `dot -O`; HTML 12,6×), un generador por documentación (B-02), almacenamiento declarativo por motor (B-01), API `util_bbdd.doc` mínima con errores propios; v0.41.0 READY_FOR_RELEASE (sin tag) | develop | documentation-architecture-audit | CLOSED | `2026-10-09k-doc-architecture-audit/TRACEABILITY.md` |
+| 2026-10-09l-plan-pendientes-doc | **PLAN + AUDIT_PLAN de los pendientes de la auditoría de `doc/`**: B-04 (DDL de HSQLDB: `LISTAGG`, rama de vistas y relleno), S-02 confirmado (ningún motor devuelve entidades), orden del inventario, docstrings, dorado de Oracle, `mypy --strict`, matplotlib; GO_CONDICIONAL (D1–D5) | develop | plan | CLOSED | `2026-10-09l-plan-pendientes-doc/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 
