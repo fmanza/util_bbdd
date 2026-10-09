@@ -5,6 +5,22 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.39.3] - 2026-10-09
+
+P2 del plan de pendientes tras `drivers-connections-audit` (`.ai/sessions/2026-10-09d-charset-diagnosis/`).
+
+### Changed
+
+- **metadata (M5)**: el diagnóstico de charset de MariaDB/MySQL (`catalog_charset_mode="auto"`, sync y async) es una
+  sola consulta en lugar de 8; si falla (p. ej. un comentario que no se puede decodificar), repite las consultas
+  sueltas. Mismas reglas y mismo resultado (comprobado en MariaDB 11.4 y MySQL 8.4).
+
+### Fixed
+
+- **metadata**: con un schema sin tablas, el diagnóstico daba «mezcla» (`utf8mb4_mixed`) y la lectura del catálogo usaba
+  `CONVERT` aunque el servidor estuviera en utf8mb4: «sin filas» se trataba como «error al leer comentarios». Ahora es
+  `utf8mb4_clean`. Los metadatos devueltos no cambian.
+
 ## [0.39.2] - 2026-10-09
 
 Hotfix P1 del plan de pendientes tras `drivers-connections-audit` (`.ai/sessions/2026-10-09c-hotfix-p1-pendientes/`).

@@ -178,13 +178,13 @@ Cómo leen los managers el catálogo (`information_schema`) en MariaDB y MySQL, 
 
 | Valor | Qué hace | Cuándo usarlo |
 |---|---|---|
-| `"auto"` | Diagnostica el charset del servidor (8 consultas, una vez por manager) y lee sin `CONVERT` si todo está en utf8mb4, o con `CONVERT` si detecta mezcla o servidores antiguos | Por defecto |
+| `"auto"` | Diagnostica el charset del servidor (una consulta, una vez por manager; desde v0.39.3) y lee sin `CONVERT` si todo está en utf8mb4, o con `CONVERT` si detecta mezcla o servidores antiguos | Por defecto |
 | `"native"` | Lee sin `CONVERT` y sin diagnóstico | Servidores en utf8mb4: ahorra el diagnóstico. Con comentarios guardados en latin1 puede fallar con `UnicodeDecodeError` |
 | `"convert"` | Aplica siempre `CONVERT(CAST(... AS BINARY) USING utf8mb4)` a los campos de texto del catálogo, sin diagnóstico | Servidores con charset mezclado o heredado |
 
 Otro valor lanza `ValidationError` al crear el manager. No afecta a la conexión ni a los datos, solo a las consultas de
-metadatos de los managers (el Engine de SQLAlchemy de bulk/dump no lo usa). Con un schema sin tablas, `"auto"`
-diagnostica mezcla y usa `CONVERT` aunque el servidor esté en utf8mb4; el resultado es el mismo.
+metadatos de los managers (el Engine de SQLAlchemy de bulk/dump no lo usa). Hasta v0.39.2, con un schema sin tablas
+`"auto"` diagnosticaba mezcla y usaba `CONVERT` aunque el servidor estuviera en utf8mb4 (mismo resultado).
 
 ```python
 conn_params = {"host": "localhost", "user": "app", "password": "pwd", "database": "ventas",

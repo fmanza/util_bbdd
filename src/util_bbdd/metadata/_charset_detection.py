@@ -152,14 +152,15 @@ class CharsetStateDetector:
     @classmethod
     def diagnosis_from_row(cls, row: tuple[Any, ...]) -> CharsetDiagnosis:
         """``CharsetDiagnosis`` desde la fila de ``_DIAGNOSIS_SQL`` (compartido por :meth:`diagnose` y :func:`adiagnose`)."""
-        server, database, client, connection, collation, comment, converted, schema_charset = row
+        server, database, client, connection, collation, _comment, converted, schema_charset = row
         return cls.build_diagnosis(
             server,
             database,
             client,
             connection,
             collation,
-            can_read_comments=comment is not None,
+            # La consulta se leyó sin error: los comentarios se pueden leer aunque el schema no tenga tablas (NULL).
+            can_read_comments=True,
             can_convert_utf8mb4=converted is not None,
             info_schema_charset=schema_charset,
         )
@@ -214,10 +215,18 @@ class CharsetStateDetector:
         )
 
     def _test_read_comments(self) -> bool:
-        """¿Se pueden leer comentarios de tabla sin error?"""
-        # _fetch_one() captura excepciones internamente; retorna None si falla
-        result = self._fetch_one(_READ_COMMENTS_SQL)
-        return result is not None
+        """¿Se pueden leer comentarios de tabla sin error? Un schema sin tablas (sin filas) cuenta como legible."""
+        try:
+            cursor = self.connection.cursor()
+            try:
+                cursor.execute(_READ_COMMENTS_SQL)
+                cursor.fetchone()
+                return True
+            finally:
+                cursor.close()
+        except Exception as exc:
+            logger.debug(f"_test_read_comments() failed: {exc}")
+            return False
 
     def _test_convert_utf8mb4(self) -> bool:
         """¿La función CONVERT() está disponible y funciona?"""
@@ -311,6 +320,21 @@ async def _afetch_row(connection: Any, sql: str) -> tuple[Any, ...] | None:
         return None
 
 
+async def _aquery_reads(connection: Any, sql: str) -> bool:
+    """¿Se ejecuta y lee ``sql`` sin error? (sin filas cuenta como legible)."""
+    try:
+        cursor = await maybe_await(connection.cursor())
+        try:
+            await maybe_await(cursor.execute(sql))
+            await maybe_await(cursor.fetchone())
+            return True
+        finally:
+            await maybe_await(cursor.close())
+    except Exception as exc:
+        logger.debug(f"_aquery_reads() failed: {exc}")
+        return False
+
+
 async def adiagnose(connection: Any) -> CharsetDiagnosis:
     """Diagnóstico de charset sobre una conexión async (aiomysql); mismas consultas y reglas que ``diagnose()``."""
     row = await _afetch_row(connection, _DIAGNOSIS_SQL)
@@ -323,7 +347,7 @@ async def adiagnose(connection: Any) -> CharsetDiagnosis:
         client,
         conn_charset,
         collation,
-        can_read_comments=await _afetch_one(connection, _READ_COMMENTS_SQL) is not None,
+        can_read_comments=await _aquery_reads(connection, _READ_COMMENTS_SQL),
         can_convert_utf8mb4=await _afetch_one(connection, _CONVERT_SQL) is not None,
         info_schema_charset=await _afetch_one(connection, _SCHEMATA_SQL),
     )

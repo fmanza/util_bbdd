@@ -558,3 +558,47 @@ class TestCombinedDiagnosisQuery:
         assert asyncio.run(adiagnose(fallback)).state == CharsetState.UTF8MB4_CLEAN
         assert single.cursor.await_count == 1
         assert fallback.cursor.await_count == 9
+
+
+class TestEmptySchemaIsNotMixed:
+    """Hotfix v0.39.3 (P2b): un schema sin tablas no es «mezcla»; can_read_comments = la lectura no dio error."""
+
+    EMPTY = [
+        ("utf8mb4",),
+        ("utf8mb4",),
+        ("utf8mb4",),
+        ("utf8mb4",),
+        ("utf8mb4_unicode_ci",),
+        (None,),
+        ("test",),
+        ("utf8mb4",),
+    ]
+
+    def test_combined_query_with_no_tables_is_clean(self) -> None:
+        conn = mock.MagicMock()
+        conn.cursor.return_value.fetchone.return_value = _combined_row(self.EMPTY)
+
+        diagnosis = CharsetStateDetector(conn, "named").diagnose()
+
+        assert diagnosis.can_read_comments is True
+        assert diagnosis.state == CharsetState.UTF8MB4_CLEAN
+
+    def test_one_by_one_no_rows_is_readable_but_error_is_not(self) -> None:
+        def run(comment_fetch: object) -> CharsetDiagnosis:
+            conn = mock.MagicMock()
+            values = [("utf8mb4",), ("utf8mb4",), ("utf8mb4",), ("utf8mb4",), ("utf8mb4_unicode_ci",)]
+            # combinada falla → 5 variables, comentarios, CONVERT, SCHEMATA
+            conn.cursor.return_value.fetchone.side_effect = [
+                RuntimeError("combinada"),
+                *values,
+                comment_fetch,
+                ("test",),
+                ("utf8mb4",),
+            ]
+            return CharsetStateDetector(conn, "named").diagnose()
+
+        no_rows = run(None)  # fetchone sin filas
+        failed = run(UnicodeDecodeError("utf-8", b"\xff", 0, 1, "x"))
+
+        assert (no_rows.can_read_comments, no_rows.state) == (True, CharsetState.UTF8MB4_CLEAN)
+        assert (failed.can_read_comments, failed.state) == (False, CharsetState.UTF8MB4_MIXED)

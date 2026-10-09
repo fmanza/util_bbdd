@@ -110,7 +110,7 @@
               "native",
               "convert"
             ],
-            "description": "Lectura del catálogo: 'auto' diagnostica el charset (8 consultas) y elige; 'native' lee sin CONVERT; 'convert' aplica siempre CONVERT(... USING utf8mb4). 'native' y 'convert' no diagnostican"
+            "description": "Lectura del catálogo: 'auto' diagnostica el charset (una consulta) y elige; 'native' lee sin CONVERT; 'convert' aplica siempre CONVERT(... USING utf8mb4). 'native' y 'convert' no diagnostican"
           },
           {
             "name": "ssl",
@@ -281,7 +281,7 @@
               "native",
               "convert"
             ],
-            "description": "Lectura del catálogo: 'auto' diagnostica el charset (8 consultas) y elige; 'native' lee sin CONVERT; 'convert' aplica siempre CONVERT(... USING utf8mb4). 'native' y 'convert' no diagnostican"
+            "description": "Lectura del catálogo: 'auto' diagnostica el charset (una consulta) y elige; 'native' lee sin CONVERT; 'convert' aplica siempre CONVERT(... USING utf8mb4). 'native' y 'convert' no diagnostican"
           }
         ]
       },
