@@ -178,6 +178,46 @@ enviaba por defecto (`"replace"`) y el reintento defensivo lo quitaba en cada co
 aplicarse** (ni como red de seguridad ni sustituyendo bytes). Desde v0.35.7 no se envía; si aparece en `conn_params`
 se acepta por compatibilidad y emite un `FutureWarning`.
 
+### 7. Pools: `pool_size`, `close_timeout` y el pool del Engine
+
+#### Qué significa `pool_size` en cada motor
+
+Cada motor envuelve un pool nativo distinto, así que `pool_size` no se comporta igual en todos:
+
+| Motor | Pool sync | Qué hace `pool_size` |
+|---|---|---|
+| MariaDB | `mariadb.ConnectionPool` | tamaño fijo del pool |
+| MySQL | `QueuePool` de SQLAlchemy sobre PyMySQL | conexiones base; se suman hasta `max_overflow` (10) |
+| Oracle | `oracledb.create_pool` | máximo de un pool que crece de 1 en 1 desde 1 conexión |
+| PostgreSQL | `psycopg_pool.ConnectionPool` | mínimo y máximo: abre las `pool_size` conexiones al crearse |
+| SQL Server | pool propio | abre `pool_size` conexiones al crearse; se suman hasta `max_overflow` |
+| SQLite | conexión única | se ignora (siempre 1) |
+
+#### `close_timeout`
+
+Segundos que espera el cierre del pool (por defecto `10`). Un valor `<= 0` lo desactiva (espera sin límite) y un valor
+no numérico vale `10`. Desde v0.36.0 forma parte de la config de pool de cada motor (`<Motor>PoolConfig.close_timeout`)
+y lo usan igual los pools sync y async.
+
+#### El Engine tiene su propio pool
+
+`get_sqlalchemy_engine()` (lo usan bulk, dump y comparar) devuelve un Engine cuyo pool es **independiente** del pool
+nativo del manager: abre sus conexiones con el driver nativo, pero no las toma del pool del manager. Un manager con
+`pool_size=N` que entrega su Engine puede llegar a mantener `N` conexiones nativas más `N + max_overflow` del Engine.
+Tenlo en cuenta al dimensionar `max_connections` del servidor.
+
+Desde v0.36.0 los Engine sync y async siguen la misma política, tomada de `conn_params`:
+
+| Parámetro | Por defecto | Notas |
+|---|---|---|
+| `pool_size` | 5 | |
+| `max_overflow` | 10 | |
+| `pool_timeout` | 30 | segundos de espera por una conexión libre |
+| `pool_recycle` | 3600 | antes: solo MariaDB/MySQL en sync (3600) y 1800 en async |
+
+SQLite no usa estos parámetros (SQLAlchemy le asigna su propio pool). Con `use_pool=False`, el AsyncEngine no usa pool
+(`NullPool`); el Engine sync sigue usando el suyo.
+
 Para el detalle de drivers PostgreSQL (psycopg2 vs asyncpg, pooling), ver la
 [guía de drivers PostgreSQL](postgresql_driver_guide.md). Para el contrato completo de los managers,
 ver [Gestión de Conexiones (Sync)](../functional/managers_sync.md) y

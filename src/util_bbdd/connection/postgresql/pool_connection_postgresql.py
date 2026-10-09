@@ -6,7 +6,7 @@ import sys
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from ..._core.exceptions import PoolConnectionError, PoolTimeoutError
-from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
+from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, SyncPoolCloseMixin, run_close_operation_sync
 from ..params import ConnectionParamsManager
 from ._libpq import to_libpq_params
 
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from psycopg_pool import ConnectionPool as PsycopgConnectionPool
 
 
-class PoolConnection:
+class PoolConnection(SyncPoolCloseMixin):
     """Pool de conexiones nativo para PostgreSQL (psycopg 3).
 
     Extrae configuración del pool desde conn_params:
@@ -76,21 +76,14 @@ class PoolConnection:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.pool: PsycopgConnectionPool | None = None
         self._closed: bool = False
-        self._close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
         pool_config = ConnectionParamsManager.get_pool_config("postgresql", conn_params)
+        self._close_timeout_seconds: float | None = pool_config.close_timeout
         self.pool_size: int = pool_config.pool_size
         self.pool_timeout: int = pool_config.pool_timeout
         self.max_idle: int = pool_config.max_idle
         self.conn_params: dict[str, str | int | bool] = pool_config.to_driver_kwargs()
 
         self.__create_pool()
-
-    def __del__(self) -> None:
-        """Limpia recursos al destruir el objeto."""
-        try:
-            self.close(timeout_seconds=self._close_timeout_seconds, force=True)
-        except Exception:
-            pass  # No propagar excepciones desde destructor
 
     def __create_pool(self) -> None:
         """Crea pool nativo de psycopg 3.
@@ -177,20 +170,8 @@ class PoolConnection:
                 db_type="postgresql",
             ) from err
 
-    def close_connection(self, connection) -> None:
-        """Devuelve conexión al pool.
-
-        Args:
-            connection: Conexión a devolver.
-        """
-        if not connection:
-            return
-        if self._closed:
-            try:
-                connection.close()
-            except Exception:
-                pass
-            return
+    def _return_to_pool(self, connection: Any) -> None:
+        """Devuelve la conexión al pool nativo."""
         if self.pool:
             self.pool.putconn(connection)
 

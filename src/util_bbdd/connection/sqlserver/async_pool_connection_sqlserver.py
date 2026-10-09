@@ -14,7 +14,6 @@ from ..close import (
     FORCE_CLOSE_TIMEOUT_SECONDS,
     AsyncCloseMode,
     normalize_close_mode,
-    parse_close_timeout,
     run_close_operation_async,
 )
 from ..params import ConnectionParamsManager
@@ -39,7 +38,7 @@ class AsyncSQLServerPool:
 
             pool_config = ConnectionParamsManager.get_pool_config("sqlserver", conn_params)
             sanitized_pool_params: dict[str, Any] = pool_config.to_driver_kwargs()
-            close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
+            close_timeout_seconds: float | None = pool_config.close_timeout
 
             dsn: str = AsyncSQLServerConnection._build_dsn(sanitized_pool_params)
             pool_size: int = int(sanitized_pool_params.get("pool_size", 5))

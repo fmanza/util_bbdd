@@ -11,9 +11,9 @@ from ..close import (
     FORCE_CLOSE_TIMEOUT_SECONDS,
     AsyncCloseMode,
     normalize_close_mode,
-    parse_close_timeout,
     run_close_operation_async,
 )
+from ..params import ConnectionParamsManager
 from .async_connection_sqlite import AsyncSQLiteConnection
 
 
@@ -31,9 +31,11 @@ class AsyncSQLitePool:
     @classmethod
     async def create(cls, conn_params: dict[str, Any]) -> AsyncSQLitePool:
         """Crea el pool simple de SQLite con conexión única."""
+        close_timeout_seconds: float | None = ConnectionParamsManager.get_pool_config(
+            "sqlite", conn_params
+        ).close_timeout
         conn: Any = await AsyncSQLiteConnection.connect(conn_params)
         cls.logger.info("✅ Pool SQLite async creado (conexión única)")
-        close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
         return cls(conn, close_timeout_seconds=close_timeout_seconds)
 
     async def acquire(self) -> Any:

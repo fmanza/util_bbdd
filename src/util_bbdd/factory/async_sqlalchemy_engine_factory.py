@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine
 
 from .._core.exceptions import ConnectionError, ValidationError
+from ._pool_policy import engine_pool_kwargs
 from ._url import get_test_query, render_url, sanitize_conn_str, sqlite_url
 
 
@@ -55,13 +56,17 @@ class AsyncSQLAlchemyEngineFactory:
         conn_params: dict[str, Any],
         database: str | None = None,
         use_pool: bool = True,
-        pool_size: int = 5,
-        max_overflow: int = 10,
-        pool_timeout: int = 30,
-        pool_recycle: int = 1800,
+        pool_size: int | None = None,
+        max_overflow: int | None = None,
+        pool_timeout: int | None = None,
+        pool_recycle: int | None = None,
         sql_server_driver: str = "aioodbc",
     ) -> AsyncEngine:
-        """Crea un AsyncEngine de SQLAlchemy basado en el tipo de base de datos."""
+        """Crea un AsyncEngine de SQLAlchemy basado en el tipo de base de datos.
+
+        Los parámetros de pool que no se indiquen se toman de ``conn_params`` y, si faltan, de
+        :data:`~util_bbdd.factory._pool_policy.ENGINE_POOL_DEFAULTS` (misma política que el Engine sync).
+        """
         normalized_type: str = db_type.lower().strip()
         AsyncSQLAlchemyEngineFactory.logger.debug(f"🔧 Creando AsyncEngine de SQLAlchemy para {normalized_type}")
 
@@ -128,15 +133,16 @@ class AsyncSQLAlchemyEngineFactory:
                 "echo": False,
             }
             if use_pool:
-                if normalized_type != "sqlite":
-                    engine_kwargs.update(
-                        {
-                            "pool_size": int(pool_size),
-                            "max_overflow": int(max_overflow),
-                            "pool_timeout": int(pool_timeout),
-                            "pool_recycle": int(pool_recycle),
-                        }
+                engine_kwargs.update(
+                    engine_pool_kwargs(
+                        normalized_type,
+                        conn_params,
+                        pool_size=pool_size,
+                        max_overflow=max_overflow,
+                        pool_timeout=pool_timeout,
+                        pool_recycle=pool_recycle,
                     )
+                )
             else:
                 engine_kwargs["poolclass"] = NullPool
 

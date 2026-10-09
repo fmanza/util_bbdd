@@ -8,6 +8,8 @@ import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
+from .close import DEFAULT_CLOSE_TIMEOUT_SECONDS, parse_close_timeout
+
 
 def _require_str(params: dict[str, Any], key: str, db_type: str) -> str:
     value: Any = params.get(key)
@@ -55,6 +57,11 @@ def _to_bool(value: Any, key: str, db_type: str) -> bool:
         if normalized in {"0", "false", "no", "n", "off", ""}:
             return False
     raise ValueError(f"Parametro invalido para {db_type}: {key} debe ser booleano")
+
+
+def _close_timeout(params: dict[str, Any]) -> float | None:
+    """``close_timeout`` del pool: segundos de espera al cerrar; ``<= 0`` lo desactiva y un valor inválido vale 10."""
+    return parse_close_timeout(params.get("close_timeout", DEFAULT_CLOSE_TIMEOUT_SECONDS))
 
 
 @dataclass(frozen=True)
@@ -141,6 +148,8 @@ class MariaDBPoolConfig:
     #: Segundos tras los que el pool async (aiomysql) recicla una conexión, como el de MySQL. ``mariadb.ConnectionPool``
     #: no tiene este parámetro (valida las conexiones él mismo): no va en ``to_driver_kwargs``.
     pool_recycle: int = 3600
+    #: Segundos de espera al cerrar el pool (``None``: sin límite). No se envía al driver.
+    close_timeout: float | None = DEFAULT_CLOSE_TIMEOUT_SECONDS
 
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> MariaDBPoolConfig:
@@ -152,6 +161,7 @@ class MariaDBPoolConfig:
             pool_size=_to_int(params.get("pool_size", 5), "pool_size", db_type, min_value=1),
             pool_name=pool_name,
             pool_recycle=_to_int(params.get("pool_recycle", 3600), "pool_recycle", db_type, min_value=-1),
+            close_timeout=_close_timeout(params),
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:
@@ -247,6 +257,8 @@ class MySQLPoolConfig:
     max_overflow: int = 10
     pool_timeout: int = 30
     pool_recycle: int = 3600
+    #: Segundos de espera al cerrar el pool (``None``: sin límite). No se envía al driver.
+    close_timeout: float | None = DEFAULT_CLOSE_TIMEOUT_SECONDS
 
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> MySQLPoolConfig:
@@ -257,6 +269,7 @@ class MySQLPoolConfig:
             max_overflow=_to_int(params.get("max_overflow", 10), "max_overflow", db_type, min_value=0),
             pool_timeout=_to_int(params.get("pool_timeout", 30), "pool_timeout", db_type, min_value=0),
             pool_recycle=_to_int(params.get("pool_recycle", 3600), "pool_recycle", db_type, min_value=-1),
+            close_timeout=_close_timeout(params),
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:
@@ -383,6 +396,8 @@ class PostgreSQLPoolConfig:
     pool_size: int = 5
     pool_timeout: int = 30
     max_idle: int = 300
+    #: Segundos de espera al cerrar el pool (``None``: sin límite). No se envía al driver.
+    close_timeout: float | None = DEFAULT_CLOSE_TIMEOUT_SECONDS
 
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> PostgreSQLPoolConfig:
@@ -392,6 +407,7 @@ class PostgreSQLPoolConfig:
             pool_size=_to_int(params.get("pool_size", 5), "pool_size", db_type, min_value=1),
             pool_timeout=_to_int(params.get("pool_timeout", 30), "pool_timeout", db_type, min_value=0),
             max_idle=_to_int(params.get("max_idle", 300), "max_idle", db_type, min_value=0),
+            close_timeout=_close_timeout(params),
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:
@@ -478,6 +494,8 @@ class OraclePoolConfig:
     connection: OracleConnectionConfig
     pool_size: int = 5
     max_lifetime: int = 3600
+    #: Segundos de espera al cerrar el pool (``None``: sin límite). No se envía al driver.
+    close_timeout: float | None = DEFAULT_CLOSE_TIMEOUT_SECONDS
 
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> OraclePoolConfig:
@@ -486,6 +504,7 @@ class OraclePoolConfig:
             connection=OracleConnectionConfig.from_params(params),
             pool_size=_to_int(params.get("pool_size", 5), "pool_size", db_type, min_value=1),
             max_lifetime=_to_int(params.get("max_lifetime", 3600), "max_lifetime", db_type, min_value=1),
+            close_timeout=_close_timeout(params),
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:
@@ -565,6 +584,8 @@ class SQLServerPoolConfig:
     pool_size: int = 5
     max_overflow: int = 10
     pool_timeout: int = 30
+    #: Segundos de espera al cerrar el pool (``None``: sin límite). No se envía al driver.
+    close_timeout: float | None = DEFAULT_CLOSE_TIMEOUT_SECONDS
 
     @classmethod
     def from_params(cls, params: dict[str, Any], driver: str | None = None) -> SQLServerPoolConfig:
@@ -574,6 +595,7 @@ class SQLServerPoolConfig:
             pool_size=_to_int(params.get("pool_size", 5), "pool_size", db_type, min_value=1),
             max_overflow=_to_int(params.get("max_overflow", 10), "max_overflow", db_type, min_value=0),
             pool_timeout=_to_int(params.get("pool_timeout", 30), "pool_timeout", db_type, min_value=0),
+            close_timeout=_close_timeout(params),
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:
@@ -624,10 +646,14 @@ class SQLiteConnectionConfig:
 class SQLitePoolConfig:
     connection: SQLiteConnectionConfig
     pool_size: int = 1
+    #: Segundos de espera al cerrar el pool (``None``: sin límite). No se envía al driver.
+    close_timeout: float | None = DEFAULT_CLOSE_TIMEOUT_SECONDS
 
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> SQLitePoolConfig:
-        return cls(connection=SQLiteConnectionConfig.from_params(params), pool_size=1)
+        return cls(
+            connection=SQLiteConnectionConfig.from_params(params), pool_size=1, close_timeout=_close_timeout(params)
+        )
 
     def to_driver_kwargs(self) -> dict[str, Any]:
         payload: dict[str, Any] = self.connection.to_driver_kwargs()

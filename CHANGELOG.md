@@ -5,6 +5,39 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.36.0] - 2026-10-09
+
+Bloque B3 (pools) de la FASE 4 de `drivers-connections-audit` (`.ai/sessions/2026-10-09-refactor-drivers-b3/`).
+Primera versión de la serie con cambios de comportamiento (ver «Cambios que pueden afectarte»).
+
+### Cambios que pueden afectarte
+
+- **factory (BC3a)**: el Engine sync (`SyncDatabaseManager.get_sqlalchemy_engine()`, usado por bulk, dump y comparar)
+  respeta `pool_size`, `max_overflow` y `pool_timeout` de `conn_params`. Antes los ignoraba y usaba siempre 5/10/30;
+  con los valores por defecto no cambia nada, pero un `pool_size=20` pensado para el pool nativo ahora también
+  dimensiona el Engine (hasta 20 + 10 conexiones más). Ver `docs/guides/connection_guide.md` § 7.
+- **factory (BC3b)**: el Engine sync recicla las conexiones cada 3600 s también en PostgreSQL, Oracle y SQL Server
+  (antes solo MariaDB/MySQL). Configurable con `pool_recycle` en `conn_params`.
+- **factory (BC3c)**: el AsyncEngine recicla cada 3600 s en lugar de 1800 s, como los pools nativos.
+  `AsyncSQLAlchemyEngineFactory.create_engine` acepta `pool_size`/`max_overflow`/`pool_timeout`/`pool_recycle`
+  como `None` (por defecto): se toman de `conn_params`.
+
+### Changed
+
+- **factory**: nuevo `factory/_pool_policy.py` (`engine_pool_kwargs`, `ENGINE_POOL_DEFAULTS`) con la política de pool
+  común de los dos Engine. `AsyncDatabaseManager.get_sqlalchemy_engine` deja de pasar sus propios valores.
+- **connection**: `close_timeout` es un campo de las seis `<Motor>PoolConfig` (misma semántica que
+  `parse_close_timeout`: `<= 0` sin límite, inválido = 10; no se envía al driver). Los 11 pools sync y async lo leen de
+  su config en vez de `conn_params`.
+- **connection**: `SyncPoolCloseMixin` (`connection/close.py`) aporta el `__del__` y la plantilla de
+  `close_connection` que estaban copiados en los pools sync; cada pool define `_return_to_pool` (y SQL Server
+  `_forget_connection`). Oracle conserva su `__del__` (apagado del intérprete) y SQLite su `close_connection` vacío.
+
+### Documentation
+
+- `docs/guides/connection_guide.md` § 7: semántica de `pool_size` por motor, `close_timeout` y pool propio del Engine
+  (doble pool).
+
 ## [0.35.11] - 2026-10-09
 
 Bloque B4 (mapeo aiomysql) de la FASE 4 de `drivers-connections-audit` (`.ai/sessions/2026-10-09-refactor-drivers-b4/`).

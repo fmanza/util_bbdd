@@ -15,7 +15,6 @@ from ..close import (
     FORCE_CLOSE_TIMEOUT_SECONDS,
     AsyncCloseMode,
     normalize_close_mode,
-    parse_close_timeout,
     run_close_operation_async,
 )
 from ..params import ConnectionParamsManager
@@ -44,7 +43,7 @@ class AsyncMariaDBPool:
                 aiomysql.connect,
                 exclude=MARIADB_AIOMYSQL_EXCLUDE,
             )
-            close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
+            close_timeout_seconds: float | None = pool_config.close_timeout
 
             cls.logger.debug(f"🔗 Creando pool MariaDB async (min=max={pool_config.pool_size})")
             # Sin pool_recycle, las conexiones ociosas más allá de wait_timeout se entregaban muertas.

@@ -13,7 +13,6 @@ from ..close import (
     FORCE_CLOSE_TIMEOUT_SECONDS,
     AsyncCloseMode,
     normalize_close_mode,
-    parse_close_timeout,
     run_close_operation_async,
 )
 from ..params import ConnectionParamsManager
@@ -76,7 +75,7 @@ class AsyncPostgreSQLPool:
             pool_config = ConnectionParamsManager.get_pool_config("postgresql", conn_params)
             sanitized_pool_params: dict[str, Any] = pool_config.to_driver_kwargs()
             conn_kwargs, pool_kwargs = cls._split_pool_kwargs(sanitized_pool_params)
-            close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
+            close_timeout_seconds: float | None = pool_config.close_timeout
 
             cls.logger.debug(
                 f"🔗 Creando pool PostgreSQL async (min={pool_kwargs['min_size']}, max={pool_kwargs['max_size']})"

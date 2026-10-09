@@ -198,3 +198,52 @@ def run_close_operation_sync(
             db_type=db_type,
             details=repr(err),
         )
+
+
+class SyncPoolCloseMixin:
+    """``__del__`` y ``close_connection`` comunes de los pools sync (antes copiados en cada ``pool_connection_*``).
+
+    La clase que lo use define ``_closed``, ``_close_timeout_seconds``, ``close(timeout_seconds, force)`` y
+    ``_return_to_pool(connection)``; ``_forget_connection`` es opcional (registro de conexiones prestadas).
+    """
+
+    _closed: bool
+    _close_timeout_seconds: float | None
+
+    def close(self, timeout_seconds: float | None = None, force: bool = False) -> None:  # pragma: no cover - contrato
+        raise NotImplementedError
+
+    def __del__(self) -> None:
+        """Cierra el pool al destruir el objeto sin propagar excepciones.
+
+        Si ``__init__`` falló antes de fijar el estado de cierre no hay nada que cerrar.
+        """
+        if "_close_timeout_seconds" not in self.__dict__:
+            return
+        try:
+            self.close(timeout_seconds=self._close_timeout_seconds, force=True)
+        except Exception:
+            pass  # No propagar excepciones desde destructor
+
+    def close_connection(self, connection: Any) -> None:
+        """Devuelve la conexión al pool, o la cierra (sin propagar errores) si el pool ya está cerrado.
+
+        Args:
+            connection: Conexión a devolver.
+        """
+        if not connection:
+            return
+        self._forget_connection(connection)
+        if self._closed:
+            try:
+                connection.close()
+            except Exception:
+                pass
+            return
+        self._return_to_pool(connection)
+
+    def _forget_connection(self, connection: Any) -> None:
+        """Enganche previo a devolver la conexión (sin efecto por defecto)."""
+
+    def _return_to_pool(self, connection: Any) -> None:  # pragma: no cover - contrato
+        raise NotImplementedError

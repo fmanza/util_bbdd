@@ -490,10 +490,6 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
             self.conn_params,
             self.database,
             use_pool=self.use_pool,
-            pool_size=int(self.conn_params.get("pool_size", 5)),
-            max_overflow=int(self.conn_params.get("max_overflow", 10)),
-            pool_timeout=int(self.conn_params.get("pool_timeout", 30)),
-            pool_recycle=int(self.conn_params.get("pool_recycle", 1800)),
             sql_server_driver=str(self.conn_params.get("sql_server_driver", "aioodbc")),
         )
         self._sqlalchemy_engine = engine

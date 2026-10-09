@@ -15,14 +15,19 @@ except ImportError:
     HAS_MARIADB = False
 
 from ..._core.exceptions import PoolConnectionError, PoolTimeoutError
-from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
+from ..close import (
+    DEFAULT_CLOSE_TIMEOUT_SECONDS,
+    FORCE_CLOSE_TIMEOUT_SECONDS,
+    SyncPoolCloseMixin,
+    run_close_operation_sync,
+)
 from ..params import ConnectionParamsManager
 
 # Parámetros que el pool puede rechazar según versión del driver; se eliminan uno a uno si procede.
 _OPTIONAL_POOL_PARAMS: frozenset[str] = frozenset({"init_command"})
 
 
-class PoolConnection:
+class PoolConnection(SyncPoolCloseMixin):
     """Pool de conexiones nativo para MariaDB.
 
     Extrae configuración del pool desde conn_params:
@@ -67,16 +72,10 @@ class PoolConnection:
         self.pool: Any | None = None
         self._closed: bool = False
         self._pending_init_command: str | None = None
-        self._close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
+        # Valor provisional hasta validar la config en __create_pool (lo usa __del__ si la creación falla).
+        self._close_timeout_seconds: float | None = DEFAULT_CLOSE_TIMEOUT_SECONDS
 
         self.__create_pool(conn_params)
-
-    def __del__(self) -> None:
-        """Limpia recursos al destruir el objeto."""
-        try:
-            self.close(timeout_seconds=self._close_timeout_seconds, force=True)
-        except Exception:
-            pass  # No propagar excepciones desde destructor
 
     def __create_pool(self, conn_params: dict[str, str | int]) -> None:
         """Crea pool nativo de MariaDB.
@@ -93,7 +92,8 @@ class PoolConnection:
             raise ImportError("Módulo 'mariadb' no está instalado. Instale con: pip install mariadb")
 
         try:
-            ConnectionParamsManager.get_pool_config("mariadb", conn_params)
+            pool_config = ConnectionParamsManager.get_pool_config("mariadb", conn_params)
+            self._close_timeout_seconds = pool_config.close_timeout
             sanitized_conn_params: dict[str, str | int] = ConnectionParamsManager.sanitize_for_pool(
                 "mariadb",
                 conn_params,
@@ -174,22 +174,9 @@ class PoolConnection:
                 raise
         return conn
 
-    def close_connection(self, connection: Any) -> None:
-        """Devuelve conexión al pool.
-
-        Args:
-            connection: Conexión a devolver.
-        """
-        if not connection:
-            return
-        if self._closed:
-            try:
-                connection.close()
-            except Exception:
-                pass
-            return
-        if connection:
-            connection.close()
+    def _return_to_pool(self, connection: Any) -> None:
+        """Devuelve la conexión al pool nativo."""
+        connection.close()
 
     def close(self, timeout_seconds: float | None = None, force: bool = False) -> None:
         """Cierra todas las conexiones del pool con timeout/forzado explícitos."""

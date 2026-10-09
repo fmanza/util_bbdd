@@ -10,7 +10,6 @@ from typing import Any
 
 from util_bbdd._core.exceptions import ConnectionError
 
-from ..close import parse_close_timeout
 from ..mariadb.async_pool_connection_mariadb import AsyncMariaDBPool
 from ..params import ConnectionParamsManager
 from .async_connection_mysql import build_aiomysql_connect_kwargs
@@ -30,7 +29,7 @@ class AsyncMySQLPool(AsyncMariaDBPool):
                 pool_config.connection.to_driver_kwargs(),
                 aiomysql.connect,
             )
-            close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
+            close_timeout_seconds: float | None = pool_config.close_timeout
 
             cls.logger.debug(f"🔗 Creando pool MySQL async (min=max={pool_config.pool_size})")
             pool: Any = await aiomysql.create_pool(

@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from sqlalchemy.engine.base import Engine
 
 from .._core.exceptions import ConnectionError, ValidationError
+from ._pool_policy import engine_pool_kwargs
 from ._url import get_test_query, render_url, sanitize_conn_str, sqlite_url
 
 
@@ -122,12 +123,10 @@ class SQLAlchemyEngineFactory:
             sanitized_conn_str: str = SQLAlchemyEngineFactory._sanitize_conn_str(conn_str)
             SQLAlchemyEngineFactory.logger.debug(f"📝 Connection string construido: {sanitized_conn_str}")
 
-            # pool_pre_ping: valida conexiones antes de usarlas (detecta "Server has gone away")
-            # pool_recycle: fuerza rotación de conexiones cada hora; compensa bugs del
-            #   driver mariadb+mariadbconnector donde ping() puede fallar silenciosamente
+            # pool_pre_ping: valida conexiones antes de usarlas (detecta "Server has gone away").
+            # Tamaño, espera y reciclado del pool: misma política que el AsyncEngine (``factory/_pool_policy.py``).
             pool_kwargs: dict[str, Any] = {"pool_pre_ping": True, "echo": False}
-            if db_type in ("mariadb", "mysql"):
-                pool_kwargs["pool_recycle"] = 3600
+            pool_kwargs.update(engine_pool_kwargs(db_type, conn_params))
             creator = SQLAlchemyEngineFactory._native_creator(db_type, conn_params, database, sql_server_driver)
             if creator is not None:
                 pool_kwargs["creator"] = creator

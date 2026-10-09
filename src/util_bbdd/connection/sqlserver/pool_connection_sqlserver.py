@@ -7,12 +7,12 @@ from threading import Lock
 from typing import Any
 
 from ..._core.exceptions import PoolConnectionError, PoolTimeoutError
-from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
+from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, SyncPoolCloseMixin, run_close_operation_sync
 from ..params import ConnectionParamsManager
 from ..sqlserver.connection_sqlserver import SQLServerConnection
 
 
-class PoolConnection:
+class PoolConnection(SyncPoolCloseMixin):
     """Pool de conexiones nativo para SQL Server (pymssql/pyodbc).
 
     Extrae configuración del pool desde conn_params:
@@ -56,16 +56,9 @@ class PoolConnection:
         self._total_connections: int = 0
         self._leased_connections: dict[int, Any] = {}
         self._closed: bool = False
-        self._close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
+        self._close_timeout_seconds: float | None = pool_config.close_timeout
 
         self.__create_pool()
-
-    def __del__(self) -> None:
-        """Limpia recursos al destruir el objeto."""
-        try:
-            self.close(timeout_seconds=self._close_timeout_seconds, force=True)
-        except Exception:
-            pass  # No propagar excepciones desde destructor
 
     def _create_connection(self) -> Any:
         """Crea una conexión raw SQL Server usando el driver configurado."""
@@ -149,25 +142,13 @@ class PoolConnection:
                 db_type="sqlserver",
             ) from e
 
-    def close_connection(self, connection: Any) -> None:
-        """Devuelve conexión al pool.
-
-        Args:
-            connection: Conexión a devolver.
-        """
-        if not connection:
-            return
-
+    def _forget_connection(self, connection: Any) -> None:
+        """Saca la conexión del registro de prestadas (también si el pool ya está cerrado)."""
         with self._lock:
             self._leased_connections.pop(id(connection), None)
 
-        if self._closed:
-            try:
-                connection.close()
-            except Exception:
-                pass
-            return
-
+    def _return_to_pool(self, connection: Any) -> None:
+        """Devuelve la conexión a la cola, o la cierra si es de desbordamiento."""
         try:
             self._available.put_nowait(connection)
         except Exception:

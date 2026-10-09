@@ -598,9 +598,6 @@ class TestAsyncDatabaseManagerConvenienceMethods:
             manager.conn_params,
             "db",
             use_pool=True,
-            pool_size=7,
-            max_overflow=11,
-            pool_timeout=25,
-            pool_recycle=900,
             sql_server_driver="aioodbc",
         )
+        # Los pool_* ya no los pasa el manager: la factory los toma de conn_params (factory/_pool_policy.py, v0.36.0).

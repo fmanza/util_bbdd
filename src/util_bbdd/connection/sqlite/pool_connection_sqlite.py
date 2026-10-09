@@ -5,11 +5,16 @@ import logging
 from typing import Any, Literal, cast
 
 from ..._core.exceptions import PoolConnectionError, PoolTimeoutError
-from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
+from ..close import (
+    DEFAULT_CLOSE_TIMEOUT_SECONDS,
+    FORCE_CLOSE_TIMEOUT_SECONDS,
+    SyncPoolCloseMixin,
+    run_close_operation_sync,
+)
 from ..params import ConnectionParamsManager
 
 
-class PoolConnection:
+class PoolConnection(SyncPoolCloseMixin):
     """Pool simple de conexiones para SQLite.
 
     SQLite no soporta múltiples conexiones concurrentes de la misma manera que otros
@@ -49,19 +54,13 @@ class PoolConnection:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.connection: Any | None = None
         self._closed: bool = False
-        self._close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
+        # Valor provisional hasta validar la config en __create_pool (lo usa __del__ si la creación falla).
+        self._close_timeout_seconds: float | None = DEFAULT_CLOSE_TIMEOUT_SECONDS
 
         # pool_size se ignora para SQLite (siempre 1 conexión)
         self.pool_size: int = 1
 
         self.__create_pool(conn_params)
-
-    def __del__(self) -> None:
-        """Limpia recursos al destruir el objeto."""
-        try:
-            self.close(timeout_seconds=self._close_timeout_seconds, force=True)
-        except Exception:
-            pass  # No propagar excepciones desde destructor
 
     def __create_pool(self, conn_params: dict[str, str]) -> None:
         """Crea conexión principal para SQLite (pool simple).
@@ -76,6 +75,7 @@ class PoolConnection:
         try:
             import sqlite3
 
+            self._close_timeout_seconds = ConnectionParamsManager.get_pool_config("sqlite", conn_params).close_timeout
             sanitized_conn_params: dict[str, Any] = ConnectionParamsManager.sanitize_for_pool(
                 "sqlite",
                 conn_params,

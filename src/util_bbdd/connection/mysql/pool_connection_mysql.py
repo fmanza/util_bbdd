@@ -15,12 +15,12 @@ from sqlalchemy.dialects.mysql.pymysql import MySQLDialect_pymysql
 from sqlalchemy.pool import QueuePool
 
 from ..._core.exceptions import PoolTimeoutError
-from ..close import parse_close_timeout, run_close_operation_sync
+from ..close import SyncPoolCloseMixin, run_close_operation_sync
 from ..params import ConnectionParamsManager
 from .connection_mysql import build_pymysql_connect_kwargs
 
 
-class PoolConnection:
+class PoolConnection(SyncPoolCloseMixin):
     """Pool de conexiones MySQL (``QueuePool`` de SQLAlchemy).
 
     Extrae configuración del pool desde conn_params:
@@ -59,9 +59,8 @@ class PoolConnection:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.pool: QueuePool | None = None
         self._closed: bool = False
-        self._close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
-
         pool_config = ConnectionParamsManager.get_pool_config("mysql", conn_params)
+        self._close_timeout_seconds: float | None = pool_config.close_timeout
         connect_kwargs: dict[str, Any] = build_pymysql_connect_kwargs(pool_config.connection.to_driver_kwargs())
         self._pool_timeout: int = pool_config.pool_timeout
 
@@ -81,13 +80,6 @@ class PoolConnection:
         self.logger.info(
             f"✅ Pool MySQL creado: {pool_config.pool_size} conexiones (+{pool_config.max_overflow} de desbordamiento)"
         )
-
-    def __del__(self) -> None:
-        """Limpia recursos al destruir el objeto."""
-        try:
-            self.close(timeout_seconds=self._close_timeout_seconds, force=True)
-        except Exception:
-            pass  # No propagar excepciones desde destructor
 
     def get_connection(self) -> Any:
         """Obtiene conexión del pool.
@@ -112,19 +104,9 @@ class PoolConnection:
                 db_type="mysql",
             ) from err
 
-    def close_connection(self, connection: Any) -> None:
-        """Devuelve la conexión al pool (o la cierra si el pool ya está cerrado).
-
-        Args:
-            connection: Conexión a devolver.
-        """
-        if not connection:
-            return
-        try:
-            connection.close()
-        except Exception:
-            if not self._closed:
-                raise
+    def _return_to_pool(self, connection: Any) -> None:
+        """Devuelve la conexión al pool nativo."""
+        connection.close()
 
     def close(self, timeout_seconds: float | None = None, force: bool = False) -> None:
         """Cierra todas las conexiones del pool.

@@ -15,7 +15,7 @@ except ImportError:
     HAS_ORACLEDB = False
 
 from ..._core.exceptions import PoolConnectionError, PoolTimeoutError
-from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
+from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, SyncPoolCloseMixin, run_close_operation_sync
 from ..params import ConnectionParamsManager
 from ._dsn import build_oracle_dsn
 from ._thick_mode import init_oracle_thick_mode
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     import oracledb
 
 
-class PoolConnection:
+class PoolConnection(SyncPoolCloseMixin):
     """Pool de conexiones nativo para Oracle (oracledb).
 
     Extrae configuración del pool desde conn_params:
@@ -69,8 +69,8 @@ class PoolConnection:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.pool: oracledb.ConnectionPool | None = None
         self._closed: bool = False
-        self._close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
         pool_config = ConnectionParamsManager.get_pool_config("oracle", conn_params)
+        self._close_timeout_seconds: float | None = pool_config.close_timeout
         self.pool_size: int = pool_config.pool_size
         self.max_lifetime: int = pool_config.max_lifetime
         self.conn_params: dict[str, Any] = pool_config.to_driver_kwargs()
@@ -157,20 +157,8 @@ class PoolConnection:
             raise RuntimeError("Pool Oracle no inicializado")
         return self.pool.acquire()
 
-    def close_connection(self, connection) -> None:
-        """Devuelve conexión al pool.
-
-        Args:
-            connection: Conexión a devolver.
-        """
-        if not connection:
-            return
-        if self._closed:
-            try:
-                connection.close()
-            except Exception:
-                pass
-            return
+    def _return_to_pool(self, connection: Any) -> None:
+        """Devuelve la conexión al pool nativo."""
         if self.pool:
             self.pool.release(connection)
 
