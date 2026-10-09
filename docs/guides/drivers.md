@@ -107,10 +107,10 @@ schema = await manager.fetch_current_schema()
 Activa thick mode estableciendo `oracle_thick_mode=True` y proporcionando la ruta del cliente:
 
 ```python
-from util_bbdd import DatabaseManager
+from util_bbdd import SyncDatabaseManager
 
 # Uso sincrónico
-manager = DatabaseManager(
+manager = SyncDatabaseManager(
     db_type="oracle",
     conn_params={
         "user": "scott",
@@ -164,11 +164,11 @@ La inicialización de thick mode es **segura para hilos** mediante bloqueo inter
 Ejemplo (multi-hilo):
 ```python
 import threading
-from util_bbdd import DatabaseManager
+from util_bbdd import SyncDatabaseManager
 
 def init_oracle(thread_id):
     try:
-        manager = DatabaseManager(
+        manager = SyncDatabaseManager(
             db_type="oracle",
             conn_params={
                 "user": "scott",
@@ -237,10 +237,10 @@ pip install "util_bbdd[postgresql]"  # psycopg[binary], psycopg-pool y asyncpg
 
 **Configuración:**
 ```python
-from util_bbdd import DatabaseManager
+from util_bbdd import SyncDatabaseManager
 
-manager = DatabaseManager(
-    db_type="postgres",
+manager = SyncDatabaseManager(
+    db_type="postgresql",
     conn_params={
         "user": "postgres",
         "password": "contraseña",
@@ -253,20 +253,23 @@ manager = DatabaseManager(
 
 ### MySQL / MariaDB
 
-**Driver:** `mysql-connector-python` o `PyMySQL`
+Desde v0.19.0 son dos motores distintos, con las mismas claves de `conn_params`:
 
-**Instalación:**
-```bash
-pip install mysql-connector-python
-# o
-pip install PyMySQL
-```
+| `db_type` | Driver sync | Driver async | Instalación |
+|---|---|---|---|
+| `mariadb` | `mariadb` (MariaDB Connector/Python) | `aiomysql` | `pip install "util_bbdd[mariadb]"` |
+| `mysql` | `pymysql` | `aiomysql` | `pip install "util_bbdd[mysql]"` |
+
+**Limitación del driver (MariaDB):** MariaDB Connector/Python no tiene `ssl_verify_identity`. Con `ssl_ca` verifica
+la CA y el hostname a la vez, sin forma de verificar solo la CA: el nombre o la IP con que conectas debe figurar en el
+certificado del servidor. Ver [TLS en MariaDB](connection_guide.md#tls-en-mariadb-ssl-ssl_ca-ssl_cert-ssl_key-ssl_verify_cert-desde-v0390).
+Con `db_type="mysql"` (PyMySQL) sí existe `ssl_verify_identity`.
 
 **Configuración:**
 ```python
-from util_bbdd import DatabaseManager
+from util_bbdd import SyncDatabaseManager
 
-manager = DatabaseManager(
+manager = SyncDatabaseManager(
     db_type="mysql",
     conn_params={
         "user": "root",
@@ -280,31 +283,39 @@ manager = DatabaseManager(
 
 ### SQL Server
 
-**Driver:** `pyodbc` o `pymssql`
+**Driver:** `pymssql` (sync, por defecto) o `pyodbc` (sync, con `sql_server_driver="pyodbc"`); `aioodbc` en async.
+pyodbc y aioodbc necesitan el [Microsoft ODBC Driver for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server)
+del sistema operativo.
 
 **Instalación:**
 ```bash
-pip install pyodbc
-# o
+pip install pyodbc aioodbc
+# o, solo sync
 pip install pymssql
 ```
 
 **Configuración:**
 ```python
-from util_bbdd import DatabaseManager
+from util_bbdd import SyncDatabaseManager
 
-manager = DatabaseManager(
-    db_type="mssql",
+manager = SyncDatabaseManager(
+    db_type="sqlserver",
     conn_params={
         "user": "sa",
         "password": "contraseña",
-        "server": "localhost",
+        "host": "localhost",
         "port": 1433,
         "database": "mibd",
-        "driver": "ODBC Driver 17 for SQL Server",  # Para pyodbc
+        "sql_server_driver": "pyodbc",
+        "driver_name": "ODBC Driver 17 for SQL Server",  # solo pyodbc
     },
 )
 ```
+
+**Limitación del driver (pymssql):** `trust_cert` no tiene efecto con pymssql, porque la validación del certificado
+depende de FreeTDS (`freetds.conf`) y no de la conexión. Desde v0.39.2 la librería avisa con un WARNING una vez por
+servidor y proceso. Para controlarla por conexión, usa pyodbc o aioodbc. Ver
+[TLS en SQL Server](connection_guide.md#tls-en-sql-server-encryption-y-trust_cert).
 
 ### SQLite
 
@@ -312,9 +323,9 @@ manager = DatabaseManager(
 
 **Configuración:**
 ```python
-from util_bbdd import DatabaseManager
+from util_bbdd import SyncDatabaseManager
 
-manager = DatabaseManager(
+manager = SyncDatabaseManager(
     db_type="sqlite",
     conn_params={
         "database": "/ruta/a/base_de_datos.db",

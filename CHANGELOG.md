@@ -27,6 +27,16 @@ incompletos (desde los managers los `conn_params` ya llegan validados, v0.37.0):
   las dos factories; los `_build_*_connection_string` quedan como envoltorios con su driver. 43 200 combinaciones
   comparadas con v0.39.3: las 6 696 diferencias se explican por las reglas de arriba.
 
+### Documentation
+
+- Revisión tras el cierre del plan de pendientes (solo documentación, después del tag): `docs/roadmap.md` deja como
+  únicas anotaciones las dos limitaciones de los drivers que no se pueden corregir desde la librería (MariaDB
+  Connector/Python sin `ssl_verify_identity`; `trust_cert` sin efecto con pymssql, que avisa desde v0.39.2) y completa
+  las entregas de v0.11.0 a v0.40.0. `docs/guides/connection_guide.md` añade «TLS en SQL Server» y quita
+  `encoding_errors` (sin efecto desde v0.35.7) de la referencia de MariaDB; `docs/guides/drivers.md` corrige ejemplos
+  heredados (`DatabaseManager`, `db_type="postgres"`/`"mssql"`, claves `server`/`driver`); `troubleshooting.md` y
+  ADR-005 recogen las dos limitaciones.
+
 ## [0.39.3] - 2026-10-09
 
 P2 del plan de pendientes tras `drivers-connections-audit` (`.ai/sessions/2026-10-09d-charset-diagnosis/`).

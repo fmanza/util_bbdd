@@ -9,26 +9,36 @@ es la vista panorámica.
 
 > **Versión vigente: v0.40.0.** Las series `0.x` siguen siendo pre-estables: la API se mantiene
 > mayormente compatible, pero puede haber cambios acotados entre minors. La estabilización formal
-> llega con `v1.0.0`. Las versiones posteriores a `v0.10.0` aún no están en la tabla de abajo: su
-> detalle está en el CHANGELOG.
+> llega con `v1.0.0`.
 
-## En curso (`develop` / Unreleased)
+## En curso (`develop`)
 
-- **bulk** — Guía de tuning de `commit_every_n_chunks` para cargas masivas en MariaDB/MySQL
-  (evita la degradación exponencial del undo log). _En documentación._
+Sin trabajo abierto tras v0.40.0: el plan de pendientes de la auditoría de conexiones
+(`drivers-connections-audit`) quedó cerrado. Lo que se añada a `develop` antes del próximo tag
+aparecerá en el [CHANGELOG](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md).
 
-Ver la sección `[Unreleased]` del
-[CHANGELOG](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md) para el estado al día.
+### Limitaciones conocidas de los drivers
 
-### Deuda registrada — conexiones multimotor (auditoría `drivers-connections-audit`, v0.39.1)
+Solo quedan anotadas dos limitaciones, y ninguna se puede corregir desde la librería porque están
+en el driver. Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md).
 
-Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md). Pendiente, sin fecha:
-
-- **TLS MariaDB** (límite del driver, no se corrige): MariaDB Connector/Python no permite verificar la CA sin comprobar
-  el hostname (no hay equivalente a `ssl_verify_identity`); el hostname de conexión debe estar en el certificado.
-- **SQL Server**: `trust_cert` no tiene equivalente con pymssql (usar pyodbc/aioodbc para TLS real); desde v0.39.2 se avisa una vez.
+| Motor | Limitación | Qué hace la librería | Alternativa |
+|---|---|---|---|
+| MariaDB | MariaDB Connector/Python no tiene `ssl_verify_identity`: con `ssl_ca` verifica la CA **y** el hostname a la vez, sin forma de verificar solo la CA (comprobado el 2026-10-09 con CA propia). | Activa `ssl_verify_cert` cuando hay `ssl_ca`. | Conectar con un nombre o IP que figure en el certificado del servidor. Ver [TLS en MariaDB](guides/connection_guide.md#tls-en-mariadb-ssl-ssl_ca-ssl_cert-ssl_key-ssl_verify_cert-desde-v0390). |
+| SQL Server | `trust_cert` no tiene efecto con pymssql: la validación del certificado depende de FreeTDS (`freetds.conf`), no de la conexión. | Desde v0.39.2 avisa una vez por servidor y proceso (WARNING en el logger). | `sql_server_driver="pyodbc"` (sync) o `aioodbc` (async), que envían `TrustServerCertificate`. Ver [TLS en SQL Server](guides/connection_guide.md#tls-en-sql-server-encryption-y-trust_cert). |
 
 ## Entregado
+
+### Serie 0.11 – 0.40 — Auditorías, rendimiento con banco real y conexiones
+
+| Versiones | Fechas | Hito |
+|---|---|---|
+| `v0.36.0 – v0.40.0` | 2026-10-09 | Auditoría de conexiones multimotor (`drivers-connections-audit`, [ADR-005](adr/ADR-005-conexiones-multimotor.md)): pools con política común, validación única de `conn_params` también en async, `catalog_charset_mode`, TLS en MariaDB, avisos una sola vez y URL de los Engine sync/async con la misma semántica. |
+| `v0.31.0 – v0.35.x` | 2026-10-04 – 2026-10-07 | Extracción de metadatos centralizada en `metadata/` (ADR-003), soporte de Oracle 11g con resolución perezosa de versión (ADR-004) y detección de charset de MariaDB/MySQL. |
+| `v0.29.0 – v0.30.0` | 2026-10-02 – 2026-10-03 | Módulo de auditoría común `util_bbdd.audit` (ADR-002) y comparación de esquemas fiable entre motores y schemas. |
+| `v0.24.0 – v0.28.0` | 2026-10-01 – 2026-10-02 | Rendimiento de `bulk` por motor (lote por motor y operación, `prefetch_blocks`), aislamiento de filas erróneas (`on_error="isolate"`, rechazos) y corrección de la pérdida de datos de la 0.24.0 en SQL Server. |
+| `v0.19.0 – v0.23.0` | 2026-09-29 – 2026-10-01 | MySQL como motor propio (PyMySQL/aiomysql); `migrate` reescribe vistas con sqlglot y convierte jerarquías `CONNECT BY` de Oracle. |
+| `v0.11.0 – v0.18.0` | 2026-09-22 – 2026-09-27 | Auditoría completa del proyecto y auditorías de rendimiento de `bulk` y `dump` con banco de pruebas contra motores reales. |
 
 ### Serie 0.7 – 0.10 — Rendimiento y cobertura de tipos
 
@@ -54,7 +64,6 @@ Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md). Pendiente, sin fe
 ## Futuro
 
 - **`v1.0.0`** — API estable bajo SemVer estricto y cobertura de tests ≥ 85%.
-
 Ideas exploradas pero **fuera de alcance** por ahora (registradas en el
 [plan de tipos v0.8.0](v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md)):
 validación completa de JSON Schema, generación de dataclasses/TypeScript, motores no relacionales

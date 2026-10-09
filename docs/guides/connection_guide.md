@@ -103,7 +103,7 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 | Motor | Claves requeridas | Opcionales habituales |
 |---|---|---|
 | `postgresql` | `host`, `user`, `password`, `database` | `port`=5432, `schema` (→ `search_path`; nombres sin comillas separados por comas), `sslmode` (también en async: asyncpg recibe el modo de libpq), `connect_timeout`, `application_name`, `pool_size` |
-| `mariadb` | `host`, `user`, `password`, `database` | `port`=3306, `charset`=utf8mb4, `init_command`=`"SET NAMES utf8mb4"`, `encoding_errors`=`"replace"`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size` |
+| `mariadb` | `host`, `user`, `password`, `database` | `port`=3306, `charset`=utf8mb4, `init_command`=`"SET NAMES utf8mb4"`, `catalog_charset_mode`=`"auto"`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size`, `ssl`/`ssl_ca`/`ssl_cert`/`ssl_key`, `ssl_verify_cert` (sin `ssl_verify_identity`: límite del driver, ver §6). `encoding_errors` se acepta pero no tiene efecto |
 | `mysql` | `host`, `user`, `password`, `database` | `port`=3306, `charset`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size`, `max_overflow`, `pool_timeout`, `pool_recycle`, `ssl_ca`/`ssl_cert`/`ssl_key`, `ssl_verify_cert`, `ssl_verify_identity` (sync y async: con CA se verifican certificado y hostname salvo que se desactiven) |
 | `oracle` | `user`, `password` + **uno de** `service_name` / `sid` / `dsn` / `database` | `host`=localhost, `port`=1521, `protocol` (`tcp`/`tcps`; sin `dsn`), `oracle_client_path`, `oracle_thick_mode`, `pool_size` |
 | `sqlserver` | `host`, `user`, `password`, `database` | `port`=1433, `sql_server_driver` (`pymssql`/`pyodbc`), `driver_name` (pyodbc), `encryption` (`mandatory`/`optional`/`off`; con pymssql se traduce a `require`/por defecto de FreeTDS/`off`), `trust_cert` y `use_mars` (solo pyodbc/aioodbc; con pymssql, `trust_cert=True` avisa una vez de que no se aplica) |
@@ -125,7 +125,34 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 | Error async con HSQLDB | HSQLDB no soporta async | Usar `SyncDatabaseManager` (HSQLDB es solo síncrono) |
 | `Server has gone away` (MariaDB/MySQL) | Conexión caducada en cargas largas | Obtener el engine con `get_sqlalchemy_engine()` (incluye `pool_pre_ping`) |
 | El `schema` PostgreSQL parece ignorado | `schema` no es un parámetro libpq | La librería lo traduce a `options=-c search_path=<schema>` automáticamente |
-| `UnicodeDecodeError` en MariaDB al generar documentación | Encoding mismatch: servidor `latin1` vs. cliente `utf8mb4` | Usar `init_command` y `encoding_errors` (ver §6) |
+| `UnicodeDecodeError` en MariaDB al generar documentación | Encoding mismatch: servidor `latin1` vs. cliente `utf8mb4` | Usar `init_command` y `catalog_charset_mode="convert"` (ver §6; `encoding_errors` no tiene efecto) |
+| `CERT_E_CN_NO_MATCH` (MariaDB sync) o error de conexión TLS (async) con `ssl_ca` | El nombre o la IP de `host` no figura en el certificado del servidor; el conector de MariaDB no permite verificar solo la CA | Conectar con un nombre que esté en el certificado (ver [TLS en MariaDB](#tls-en-mariadb-ssl-ssl_ca-ssl_cert-ssl_key-ssl_verify_cert-desde-v0390)) |
+| WARNING `trust_cert no tiene efecto con pymssql` | pymssql no admite `trust_cert`: la validación del certificado depende de FreeTDS | `sql_server_driver="pyodbc"` (ver [TLS en SQL Server](#tls-en-sql-server-encryption-y-trust_cert)) |
+
+### TLS en SQL Server: `encryption` y `trust_cert`
+
+`encryption` (`mandatory`/`optional`/`off`, por defecto `optional`) y `trust_cert` (por defecto `False`) se traducen de
+forma distinta según el driver:
+
+| Driver | `encryption` | `trust_cert` |
+|---|---|---|
+| `pyodbc` (sync) y `aioodbc` (async) | `Encrypt=yes` con `mandatory`; `Encrypt=no` en el resto (ODBC Driver 18 lo trata como `Optional`) | `TrustServerCertificate=yes/no` |
+| `pymssql` (sync, por defecto) | `mandatory` → `require`, `off` → `off`; con `optional` manda la configuración de FreeTDS | **Sin efecto** (límite del driver) |
+
+pymssql no tiene ningún parámetro para confiar en el certificado del servidor: la validación depende de FreeTDS (`ca
+file` en `freetds.conf`), no de la conexión. Por eso, con pymssql y `trust_cert=True`, la librería no puede aplicar el
+parámetro y, desde v0.39.2, emite un WARNING una vez por servidor y proceso (antes se ignoraba sin avisar). Para
+controlar la validación del certificado por conexión, usa pyodbc:
+
+```python
+conn_params = {"host": "sql.example", "user": "app", "password": "pwd", "database": "ventas",
+               "sql_server_driver": "pyodbc", "driver_name": "ODBC Driver 18 for SQL Server",
+               "encryption": "mandatory", "trust_cert": True}
+```
+
+Con pymssql y `encryption="mandatory"`, la librería comprueba que la sesión va cifrada (requiere `VIEW SERVER STATE`;
+sin ese permiso solo avisa) y falla si no lo está: algunos FreeTDS, como el del wheel de Windows, aceptan `require` y no
+cifran.
 
 ### 6. Parámetros especiales de MariaDB: `init_command` y `encoding_errors`
 

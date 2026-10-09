@@ -73,8 +73,10 @@ with SyncDatabaseManager('sqlite', {'database': ':memory:'}) as m:
 | `PoolExhaustedError: Pool agotado` | `pool_size` insuficiente para la concurrencia real | Aumentar `pool_size`; para async usar `asyncio.Semaphore(n)` para limitar |
 | `PoolTimeoutError: Timeout esperando conexión` | Pool agotado + timeout de espera; o queries lentas bloqueando | Aumentar `pool_timeout`; optimizar queries lentas; revisar índices |
 | `ConnectionError: No se pudo conectar` | Servidor no alcanzable, credenciales incorrectas, listener apagado | Verificar host/port/credenciales; ejecutar `telnet host port` para probar conectividad |
-| `InvalidDatabaseType` | `db_type` escrito incorrectamente | Usar exactamente: `mariadb`, `oracle`, `postgresql`, `sqlite`, `hsqldb`, `sqlserver` |
-| `DriverError: No module named 'psycopg2'` | Driver no instalado en el entorno virtual activo | `pip install psycopg2-binary` en el entorno virtual correcto |
+| `InvalidDatabaseType` | `db_type` escrito incorrectamente | Usar exactamente: `mariadb`, `mysql`, `oracle`, `postgresql`, `sqlite`, `hsqldb`, `sqlserver` |
+| `No module named 'psycopg'` | Driver no instalado en el entorno virtual activo | `pip install "util_bbdd[postgresql]"` en el entorno virtual correcto (los managers usan psycopg 3, no `psycopg2`) |
+| `CERT_E_CN_NO_MATCH` o error de conexión TLS con `ssl_ca` en MariaDB | El hostname de conexión no figura en el certificado. MariaDB Connector/Python no tiene `ssl_verify_identity`: verifica CA y hostname a la vez (límite del driver) | Conectar con un nombre o IP que esté en el certificado (ver [Guía: Conexión § TLS en MariaDB](connection_guide.md#tls-en-mariadb-ssl-ssl_ca-ssl_cert-ssl_key-ssl_verify_cert-desde-v0390)) |
+| WARNING `trust_cert no tiene efecto con pymssql` | pymssql no admite `trust_cert`; la validación del certificado depende de FreeTDS (límite del driver) | `sql_server_driver="pyodbc"` (ver [Guía: Conexión § TLS en SQL Server](connection_guide.md#tls-en-sql-server-encryption-y-trust_cert)) |
 | `pyodbc.Error: ('IM002'...)` SQL Server | ODBC driver nativo no instalado en el SO | Instalar Microsoft ODBC Driver for SQL Server (ver installation.md) |
 | `Lost connection to server` MariaDB bulk | `max_allowed_packet` del servidor es insuficiente | Reducir `chunk_size` a 500 o aumentar `max_allowed_packet` en el servidor |
 | `Server has gone away` MariaDB | Conexión ociosa cerrada por el servidor | Usar `SyncDatabaseManager.get_sqlalchemy_engine()` que incluye `pool_pre_ping=True` |
