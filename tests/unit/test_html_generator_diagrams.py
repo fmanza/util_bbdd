@@ -51,6 +51,7 @@ def test_build_diagram_tab_payload_groups_tabs_by_direction_and_level(tmp_path: 
     # Un solo SVG por nivel: con los enlaces en disco y el mismo markup incrustado en la página
     written = (graph_dir / "graphviz_ext_users_outgoing_level1.svg").read_text(encoding="utf-8")
     assert "../tables/users.html" in written
+    assert 'rel="noopener noreferrer"' in written
     assert written == tabs[0]["items"][0]["inline_svg"]
     assert summary["max_depth"] == 3
     assert summary["visible_outgoing_levels"] == 1

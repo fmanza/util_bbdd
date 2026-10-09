@@ -1722,10 +1722,12 @@ class HtmlGenerator:
                 if existing_anchor is not None:
                     existing_anchor.set(f"{{{xlink_ns}}}href", target_href)
                     existing_anchor.set("target", "_blank")
+                    existing_anchor.set("rel", "noopener noreferrer")  # S-03
                     continue
                 anchor: ET.Element = ET.Element(f"{{{svg_ns}}}a")
                 anchor.set(f"{{{xlink_ns}}}href", target_href)
                 anchor.set("target", "_blank")
+                anchor.set("rel", "noopener noreferrer")  # S-03
                 children: list[ET.Element] = list(node_group)
                 for child in children:
                     node_group.remove(child)
