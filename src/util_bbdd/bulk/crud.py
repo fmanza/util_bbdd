@@ -930,6 +930,11 @@ class BulkCrud:
         exclude_autoincrement_pk: bool = False,
     ) -> None:
         """Template Method para operaciones bulk con estrategia por operación."""
+        # Sin este log, el tiempo de la operación se atribuía en el log a la línea anterior (p. ej. el informe del advisor)
+        self.logger.debug(
+            f"▶️ bulk {strategy_key.upper()} iniciado: {len(df)} filas → {tabla_destino} "
+            f"({'solo SQL' if generar_sql else 'en BD'}, {self.db_info})."
+        )
         if generar_sql:
             path_sql = self.__validar_y_generar_path_sql(path_sql, tabla_destino, strategy_key)
         else:

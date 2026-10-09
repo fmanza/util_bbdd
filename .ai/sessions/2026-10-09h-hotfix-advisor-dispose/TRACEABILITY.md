@@ -57,14 +57,17 @@ Usuario: «pudes continuar» tras el veredicto APROBADO CON CONDICIONES de `/aud
 
 ## Directrices para Futuras IAs
 - **[advisor]**: `EngineReadinessAdvisor.report_once(engine)` solo conoce lo que hay en `engine.url` y `engine.pool`; los parámetros del driver van en el `creator` (ADR-005) y no son visibles. Un check que no tenga el valor no debe informarlo con un valor por defecto.
-- **[logs de bulk]**: el tiempo entre el informe del advisor y «bulk X finalizado» es la operación entera: `bulk` no registra el inicio (H3, pendiente). No atribuirlo al advisor.
+- **[logs de bulk]**: desde v0.40.1 cada operación registra «bulk X iniciado» (DEBUG) y «bulk X finalizado» (INFO); en logs anteriores el tiempo hasta «finalizado» es la operación entera, no la línea previa.
 - **[cierre en finalización]**: `sys.is_finalizing()` ya decide el cierre de los pools nativos (`connection/close.py`) y, desde v0.40.1, del Engine sync (`dispose(close=False)`). Para reproducir un cierre en finalización, mantener los managers vivos con una referencia global; como locales de una corrutina se liberan antes.
 
 ## Veredicto final
 Veredicto: CLOSED
 Pendientes al cierre:
-- H3: log DEBUG al iniciar cada operación de `bulk` (observabilidad; no es hotfix).
-- `_check_mysql` supera la complejidad cognitiva de Sonar (18/15) tras el fix; extraer un helper es refactor, fuera de hotfix.
 - `AsyncDatabaseManager.close()` hace `await engine.dispose()`: en finalización no hay loop, caso distinto, sin evidencia de fallo.
-- En `pruebas_util` (no es la librería): cerrar los managers en el `finally` de `main.py` y devolver las conexiones de `get_connection()`.
 - Push y tag `v0.40.1` pendientes.
+
+## Segunda ronda («Antes corrige lo pendiente»)
+- **H3**: `__run_bulk_pipeline` registra el inicio de cada operación en DEBUG (`▶️ bulk X iniciado: N filas → tabla (en BD|solo SQL, motor)`). DEBUG y no INFO: en `*_from_chunks` el pipeline corre una vez por chunk. Test-first: `tests/unit/bulk/test_operation_start_log.py` (6; fallaban sin el cambio).
+- **Complejidad de `_check_mysql`** (Sonar 18/15): tabla `_MYSQL_MINIMUMS` + `_minimum_finding`; mismo orden, textos y `current` (tests del advisor sin cambios).
+- **`pruebas_util/src/main.py`** (fuera del repo, sin git; copia previa en el scratchpad de la sesión): los managers se registran en una lista y se cierran en el `finally`; las 4 conexiones de `get_connection()` se devuelven con `close_connection()`. Compila; no se ejecutó (carga 1M filas contra 192.168.1.103).
+- Validación: `ruff` OK; `mypy` sin errores (332 ficheros, `build/logs/v0.40.1_pendientes_mypy.txt`); `pytest` 5433 passed, 507 skipped (`build/logs/v0.40.1_pendientes_pytest.txt`).

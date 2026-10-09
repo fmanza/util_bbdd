@@ -22,6 +22,14 @@ Hotfix de dos hallazgos de `/audit-code` sobre un log de `pruebas_util` (`.ai/se
   finalización ahora se descarta el pool sin cerrar esas conexiones (`dispose(close=False)`); el proceso las libera al
   salir. Con `close()` explícito no cambia nada.
 
+### Changed
+
+- **bulk (H3)**: cada operación (`bulk_*_from_df` y cada chunk de `*_from_chunks`) registra su inicio en DEBUG
+  (`▶️ bulk INSERT iniciado: N filas → tabla (en BD|solo SQL, motor)`); antes solo constaba el final y el tiempo de una
+  operación larga parecía de la línea anterior del log (p. ej. el informe del advisor).
+- **connection**: los checks estáticos de MariaDB/MySQL del advisor (`pool_size`, `write_timeout`, `read_timeout`) salen
+  de una tabla de mínimos (`_MYSQL_MINIMUMS`); mismo resultado.
+
 ## [0.40.0] - 2026-10-09
 
 P3 del plan de pendientes tras `drivers-connections-audit` (F5; `.ai/sessions/2026-10-09e-engine-url-parity/`).
