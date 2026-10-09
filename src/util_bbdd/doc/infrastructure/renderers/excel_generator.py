@@ -39,8 +39,10 @@ class ExcelGenerator:
 
     def _normalize_table_style(self, table_style: str) -> str:
         """Normaliza el estilo de tabla a un valor compatible con Excel."""
-        style_map: dict = {
+        style_map: dict[str, str] = {
             "Medium Shading 2 Accent 1": "TableStyleMedium2",
+            # Valor por defecto de imprimir.table_style (un estilo de Word): sin aviso en cada ejecución (A-11)
+            "Table Grid": "TableStyleMedium2",
         }
         normalized_style: str = style_map.get(table_style, table_style)
 

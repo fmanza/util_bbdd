@@ -110,6 +110,8 @@ class WordGenerator:
         self.headers = headers
         self.headers["UNIQUE"] = GeneratorTabularRuntime.normalize_unique_headers(self.headers.get("UNIQUE"))
         self.table_style: str = table_style
+        # (documento, estilo resuelto): el estilo de tabla se resuelve una vez por documento (P-02)
+        self._table_style_cache: tuple[Document, str | None] | None = None
 
     def generate_document(
         self,
@@ -1239,24 +1241,37 @@ class WordGenerator:
         document.add_paragraph("")
 
     def _apply_table_style(self, table: Table, document: Document) -> None:
-        """Aplica estilo a la tabla y usa "Table Grid" por defecto si el solicitado no existe."""
+        """Aplica el estilo de tabla configurado; si el documento no lo tiene, "Table Grid" o "Normal Table".
+
+        El estilo se resuelve una vez por documento (P-02: recorrer los estilos en cada tabla era el 43 % del tiempo
+        de Word sin diagramas) y se reutiliza en las demás tablas.
+        """
+        cached = self._table_style_cache
+        if cached is not None and cached[0] is document:
+            if cached[1] is not None:
+                table.style = cached[1]
+            return
+        resolved: str | None = self._resolve_table_style(table, document)
+        self._table_style_cache = (document, resolved)
+
+    def _resolve_table_style(self, table: Table, document: Document) -> str | None:
+        """Prueba el estilo configurado y los de respaldo sobre ``table`` y devuelve el que se aplicó (o ``None``)."""
         preferred_style: str = self.table_style
         fallback_styles: list[str] = ["Table Grid", "Normal Table"]
 
         def normalize_style_name(style_name: str) -> str:
             return " ".join(style_name.replace("–", "-").replace("—", "-").split()).casefold()
 
-        available_styles: list[str] = [
-            str(style.name) for style in document.styles if style.type is not None and style.name
-        ]
         normalized_available: dict[str, str] = {
-            normalize_style_name(style_name): style_name for style_name in available_styles
+            normalize_style_name(str(style.name)): str(style.name)
+            for style in document.styles
+            if style.type is not None and style.name
         }
 
         resolved_preferred_style: str = normalized_available.get(normalize_style_name(preferred_style), preferred_style)
         try:
             table.style = resolved_preferred_style
-            return
+            return resolved_preferred_style
         except KeyError:
             pass
 
@@ -1266,11 +1281,12 @@ class WordGenerator:
             try:
                 table.style = resolved_style
                 self.logger.info(f"🟢 Usando estilo de tabla de respaldo: {resolved_style}")
-                return
+                return resolved_style
             except KeyError:
                 continue
 
         self.logger.warning("⚠️ No se encontró un estilo de tabla de respaldo. Se usa el estilo por defecto de Word.")
+        return None
 
     def _repeat_header(self, row: _Row) -> None:
         """Configura la repetición de cabecera en tablas Word"""

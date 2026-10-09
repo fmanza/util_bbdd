@@ -20,7 +20,7 @@ from collections import Counter
 from collections.abc import Callable
 from typing import Any
 
-from ....metadata.model import ColumnMeta, Kind, RoutineMeta, SchemaSnapshot
+from ....metadata.model import ColumnMeta, Kind, RoutineMeta, SchemaSnapshot, ViewMeta
 
 Row = tuple[Any, ...]
 
@@ -63,6 +63,7 @@ class CatalogRows:
         self._load = load
         self._snapshots: dict[Kind, SchemaSnapshot] = {}
         self._routine_names: dict[tuple[str, str], list[RoutineMeta]] | None = None
+        self._views_by_name: dict[str, ViewMeta] | None = None
 
     def _snapshot(self, kind: Kind) -> SchemaSnapshot:
         if kind not in self._snapshots:
@@ -132,7 +133,11 @@ class CatalogRows:
         ]
 
     def view_ddl(self, view: str) -> str:
-        found = next((v for v in self._snapshot(Kind.VIEWS).views() if v.name.casefold() == view.casefold()), None)
+        if self._views_by_name is None:  # P-03: un índice en lugar de recorrer todas las vistas en cada vista
+            self._views_by_name = {}
+            for item in self._snapshot(Kind.VIEWS).views():
+                self._views_by_name.setdefault(item.name.casefold(), item)
+        found = self._views_by_name.get(view.casefold())
         definition = _text(found.definition if found else None).strip()
         if not definition or definition[:6].upper() == "CREATE":
             return definition
