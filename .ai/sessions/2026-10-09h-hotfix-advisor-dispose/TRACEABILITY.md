@@ -64,7 +64,7 @@ Usuario: «pudes continuar» tras el veredicto APROBADO CON CONDICIONES de `/aud
 Veredicto: CLOSED
 Pendientes al cierre:
 - `AsyncDatabaseManager.close()` hace `await engine.dispose()`: en finalización no hay loop, caso distinto, sin evidencia de fallo.
-- Push y tag `v0.40.1` pendientes.
+- Push y tag `v0.40.1` hechos (2026-10-09).
 
 ## Segunda ronda («Antes corrige lo pendiente»)
 - **H3**: `__run_bulk_pipeline` registra el inicio de cada operación en DEBUG (`▶️ bulk X iniciado: N filas → tabla (en BD|solo SQL, motor)`). DEBUG y no INFO: en `*_from_chunks` el pipeline corre una vez por chunk. Test-first: `tests/unit/bulk/test_operation_start_log.py` (6; fallaban sin el cambio).
