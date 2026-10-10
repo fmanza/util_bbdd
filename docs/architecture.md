@@ -144,7 +144,7 @@ Principios aplicados en todas las capas (ver [`.github/SHARED_INSTRUCTIONS.md`](
 - **Abstracción de motor**: `sqlalchemy` como capa común; `db_type` se valida al inicio y lanza `InvalidDatabaseType` antes de conectar.
 - **Cierres explícitos**: usar el manager como context manager o llamar a `close()`.
 - **Tipos de retorno uniformes**: `Row`, `Rows`, `RowOrNone`, `QueryResult` desde `results/`.
-- **Excepciones canónicas**: jerarquía centralizada en `_core/exceptions.py`, reexportada en la API pública.
+- **Excepciones canónicas**: jerarquía centralizada en `_core/exceptions.py`, publicada en `util_bbdd.exceptions`, que es la ruta que muestran trazas, `repr` y pickle.
 
 ### Checklist no funcional
 

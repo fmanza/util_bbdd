@@ -438,6 +438,14 @@ class AuditValidationError(AuditError):
     """Error en validación de parámetros."""
 
 
+# Las clases se definen aquí, pero su ruta pública es util_bbdd.exceptions (API 1.0): es la que muestran trazas, repr y
+# logs, y la que guarda pickle. Los pickles con la ruta antigua (util_bbdd._core.exceptions.X) se siguen cargando.
+_PUBLIC_MODULE = "util_bbdd.exceptions"
+for _exception_class in [v for v in globals().values() if isinstance(v, type) and issubclass(v, DatabaseException)]:
+    _exception_class.__module__ = _PUBLIC_MODULE
+del _exception_class
+
+
 __all__ = [
     # Base
     "DatabaseException",
