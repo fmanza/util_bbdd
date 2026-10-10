@@ -117,7 +117,7 @@ mismo `mkdocs.yml`; el CI publica con Zensical. Ver `ZENICAL.md`.
 | N1 | `doc_agents.yml` heredado (APIs externas, módulo inexistente) | ✅ Retirado 2026-10-10 | B0 |
 | H1 | Hotfix: consultas async de PostgreSQL (asyncpg) rotas desde v0.5.6 (encontrado en B5) | ✅ Hecho (v1.1.0, `d369c8e3`) | — |
 | R1 | Release 1.1.0: tag `v1.1.0`, push de `develop` y fast-forward de `main` | ✅ Hecho 2026-10-10 (`e4467d25`) | B7 |
-| D2 | Revisión de docs nivel 2 (~85 páginas) y `docs/examples/migrate_*` | Pendiente | `docs` |
+| D2 | Revisión de docs nivel 2: 82 páginas (lista en `.ai/sessions/2026-10-10-plan-pendientes-post-1-0/03_DOCS_PENDIENTES.txt`; prompt en `NEXT_SESSION_PROMPT.md` de esa sesión) | Pendiente | `docs` |
 | A1 | `AsyncDatabaseManager("sqlserver")` sondeado con el ODBC Driver 18 instalado: filas anidadas con pyodbc (también en sync) y pool async sin `driver_name` | ✅ Hecho (v1.1.0, `cf7abb78`, `1c83041b`) | — |
 | A2 | `driver_name` por defecto = ODBC Driver 17: con solo el 18 instalado hay que indicarlo (¿detectar el instalado?) | Por decidir | `/new-feature` |
 | P7 | Externos (los comprueba el usuario; sin `gh`): PR #18 (probablemente cerrada: no existe `refs/pull/18/merge`), issue del ORA-03106 (`.ai/sessions/2026-10-01y-ora03106-repro/ISSUE_DRAFT.md`), `docs-release.yml` de v0.43.0/v0.44.0/v1.0.0, `integration.yml` | Usuario | B6 |
