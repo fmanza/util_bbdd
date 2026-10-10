@@ -5,6 +5,25 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.41.3] - 2026-10-10
+
+Bloque Q3 del plan de pendientes global (`.ai/sessions/2026-10-10-plan-pendientes-global/`): hallazgos de la auditoría
+de `metadata-centralization` verificados contra el banco.
+
+### Fixed
+
+- **metadata** (F3): en SQL Server, `prefetch_table_metadata` (la usan `dump` y `comparar`) daba PK y FK vacías a una
+  tabla inexistente en lugar del `NoSuchTableError` de la consulta tabla a tabla (el del resto de motores).
+- **metadata** (F4): en una base de SQL Server con collation sensible a mayúsculas, pedir `users` devolvía también las
+  columnas y la PK de `Users`, y pedir `USERS` (que no existe) devolvía esa mezcla. Cada nombre pedido se resuelve ahora
+  contra las tablas y vistas existentes: exacto, o una sola coincidencia sin distinguir mayúsculas.
+- **managers** (F5): `clear_cache(table=…)`/`clear_cache(context_database=…)` no descartaba nada con un usuario Oracle
+  entrecomillado en minúsculas (`"zz_f5"`): la caché guardaba `zz_f5` e invalidaba `ZZ_F5`.
+
+### Tests
+
+- H2 (lock async de la caché de catálogo entre bucles de eventos) no se reproduce: queda fijado con un test.
+
 ## [0.41.2] - 2026-10-10
 
 Hotfix H1 del plan de pendientes global (`.ai/sessions/2026-10-10-plan-pendientes-global/`) y el resto del plan de
