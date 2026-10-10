@@ -6,6 +6,7 @@ import asyncio
 import importlib.util
 import sqlite3
 
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -79,7 +80,8 @@ def test_async_manager_matches_sync(db: Path) -> None:
 
 
 def test_driver_paramstyle_by_connection_module() -> None:
-    assert driver_paramstyle(sqlite3.connect(":memory:")) == "qmark"
+    with closing(sqlite3.connect(":memory:")) as conn:
+        assert driver_paramstyle(conn) == "qmark"
 
     class Fake:
         pass

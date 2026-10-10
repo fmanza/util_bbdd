@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from contextlib import closing
 from typing import TYPE_CHECKING
 
 import pytest
@@ -57,12 +58,12 @@ class TestSqliteScriptIsExecutable:
         )
         script = _render("sqlite", diff, tmp_path)
 
-        conn = sqlite3.connect(":memory:")
-        conn.execute("CREATE TABLE r (id INTEGER PRIMARY KEY)")
-        conn.execute("CREATE TABLE t (c TEXT)")
-        conn.executescript(script)  # antes: "ALTER TABLE t -- ⚠ …;" se comía el ";" → error de sintaxis
+        with closing(sqlite3.connect(":memory:")) as conn:
+            conn.execute("CREATE TABLE r (id INTEGER PRIMARY KEY)")
+            conn.execute("CREATE TABLE t (c TEXT)")
+            conn.executescript(script)  # antes: "ALTER TABLE t -- ⚠ …;" se comía el ";" → error de sintaxis
 
-        assert conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'").fetchall() == [("ix_c",)]
+            assert conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'").fetchall() == [("ix_c",)]
         assert all(not s.startswith("ALTER TABLE") for s in _statements(script))
 
     def test_dropped_table_fk_warning_is_standalone_comment(self, tmp_path: Path) -> None:
@@ -71,7 +72,8 @@ class TestSqliteScriptIsExecutable:
         script = _render("sqlite", diff, tmp_path)
 
         assert "ALTER TABLE t --" not in script
-        sqlite3.connect(":memory:").executescript(script)
+        with closing(sqlite3.connect(":memory:")) as conn:
+            conn.executescript(script)
 
 
 # ---------------------------------------------------------------------------

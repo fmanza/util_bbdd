@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_mock_engine
 
 from util_bbdd._core.batching import resolve_write_batch_size
 
@@ -53,7 +53,7 @@ class TestResolveWriteBatchSize:
     def test_with_target_engine_postgresql(self) -> None:
         """Si se pasa target_engine, debe usarse engine.dialect.name."""
         # Crear un engine PostgreSQL (en-memoria, URL ficticia; no se ejecuta SQL)
-        engine = create_engine("postgresql+psycopg2://", strategy="mock", executor=lambda *a, **kw: None)
+        engine = create_mock_engine("postgresql+psycopg2://", executor=lambda *a, **kw: None)
         result = resolve_write_batch_size(
             db_type="mysql", chunk_size=5000, commit_every_n_chunks=None, target_engine=engine
         )
@@ -62,7 +62,7 @@ class TestResolveWriteBatchSize:
 
     def test_with_target_engine_mysql(self) -> None:
         """Si se pasa target_engine MySQL, debe devolver chunk_size."""
-        engine = create_engine("mysql+pymysql://", strategy="mock", executor=lambda *a, **kw: None)
+        engine = create_mock_engine("mysql+pymysql://", executor=lambda *a, **kw: None)
         result = resolve_write_batch_size(
             db_type="postgresql", chunk_size=5000, commit_every_n_chunks=None, target_engine=engine
         )
@@ -71,7 +71,7 @@ class TestResolveWriteBatchSize:
 
     def test_none_db_type_with_engine(self) -> None:
         """Si db_type es None pero target_engine se pasa, debe usar engine.dialect.name."""
-        engine = create_engine("postgresql+psycopg2://", strategy="mock", executor=lambda *a, **kw: None)
+        engine = create_mock_engine("postgresql+psycopg2://", executor=lambda *a, **kw: None)
         result = resolve_write_batch_size(
             db_type=None, chunk_size=5000, commit_every_n_chunks=None, target_engine=engine
         )

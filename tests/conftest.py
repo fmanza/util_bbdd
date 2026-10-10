@@ -1,15 +1,20 @@
 """Configuracion central de pytest para util_bbdd."""
 
+import contextlib
 import importlib.metadata
 import logging
 import sys
 import tomllib
 
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
+import sqlalchemy
 
 from packaging.requirements import Requirement
+from sqlalchemy.engine import Engine
 
 pytest_plugins = [
     "fixtures.database_fixtures",
@@ -38,6 +43,40 @@ def _reset_warn_once():
     from util_bbdd.connection._advisory import reset_warned
 
     reset_warned()
+
+
+@pytest.fixture(autouse=True)
+def _close_test_engine_connections(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Cierra al terminar cada test las conexiones de los Engine que crea el módulo de test (fixtures, helpers, cuerpo).
+
+    Sin cerrarlas, el pool conserva las conexiones de SQLite hasta que el GC recoge el Engine, y con ``--cov`` eso ocurre
+    en otro test como ``ResourceWarning: unclosed database`` (340 avisos en v1.0.0). Solo se envuelve el
+    ``create_engine`` importado por el módulo de test: los Engine que cree la librería no se tocan, así que una fuga suya
+    se sigue viendo. Los de fixtures de módulo o sesión se crean antes del envoltorio y tampoco se tocan.
+
+    Se guardan las conexiones DBAPI (evento ``connect``) y no el Engine ni su pool: el pool referencia al Engine a través
+    de su ``creator``, y hay tests que comprueban que el GC libera el Engine (``test_performance_advisor_once``).
+    """
+    module = getattr(request, "module", None)
+    if getattr(module, "create_engine", None) is not sqlalchemy.create_engine:
+        yield
+        return
+    connections: list[Any] = []
+
+    def remember(dbapi_connection: Any, _record: Any) -> None:
+        connections.append(dbapi_connection)
+
+    def tracking_create_engine(*args: Any, **kwargs: Any) -> Any:
+        engine = sqlalchemy.create_engine(*args, **kwargs)
+        if isinstance(engine, Engine):  # strategy="mock" devuelve un MockConnection, sin pool
+            sqlalchemy.event.listen(engine, "connect", remember)
+        return engine
+
+    monkeypatch.setattr(module, "create_engine", tracking_create_engine)
+    yield
+    for dbapi_connection in connections:
+        with contextlib.suppress(Exception):  # ya cerrada por el test o por dispose(): nada que liberar
+            dbapi_connection.close()
 
 
 def _resolve_scope_marker(node_path: str, marker_names: set[str]) -> str | None:
