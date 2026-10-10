@@ -50,6 +50,7 @@ flowchart TD
 | `conn_params` | `dict[str, Any]` | Parámetros de conexión | Debe incluir `database` |
 | `use_pool` | `bool` | Activar pool async | Default `True`; cae a conexión directa si no soportado |
 | `mode` en `close` | `str \| AsyncCloseMode` | Política de cierre | `"immediate"` (default), `"graceful"` o `"drain"` |
+| `params` en `execute_custom_*` / `execute_query_*` | `dict[str, Any] \| None` | Valores de los marcadores del SQL | Con el estilo del driver; en PostgreSQL (asyncpg), `%(nombre)s` como en sync o `:nombre`, que se envían como `$1`, `$2`… (desde v1.1.0; hasta v1.0.0 toda consulta async en PostgreSQL fallaba). asyncpg tipa los parámetros en el servidor: uno sin contexto de tipo (`SELECT %(n)s`, o las filas de un `VALUES` de varias filas) es `text` y rechaza un `int`; usa un cast (`%(n)s::int`) |
 
 ### Contrato de salida
 

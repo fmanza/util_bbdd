@@ -24,6 +24,11 @@ from ..results import ResultNormalizer, RowOrNone, Rows
 # ``%(nombre)s``) ni esté ya escapado (``%%``) se duplica.
 _PYFORMAT_LITERAL_PERCENT: re.Pattern[str] = re.compile(r"%%|%(?!\([A-Za-z_]\w*\)s|s)")
 
+# asyncpg no es DB-API: se ejecuta con ``fetch``/``fetchrow`` y parámetros ``$n``. Se traducen los dos estilos con nombre
+# que ya reconoce el ejecutor (``%(nombre)s``, el de psycopg en sync, y ``:nombre``); ``::`` (cast) y ``'10:30'`` no son
+# parámetros.
+_ASYNCPG_PARAM: re.Pattern[str] = re.compile(r"%\((?P<pyformat>[A-Za-z_]\w*)\)s|(?<![:\w]):(?P<named>[A-Za-z_]\w*)")
+
 
 class AsyncQueryExecutor:
     """Ejecuta queries SQL de forma asincrónica."""
@@ -113,6 +118,47 @@ class AsyncQueryExecutor:
             return params
         return None
 
+    @staticmethod
+    def _is_asyncpg(conn: Any) -> bool:
+        """``True`` con una conexión de asyncpg (también el proxy de su pool): no tiene cursores DB-API."""
+        return type(conn).__module__.startswith("asyncpg")
+
+    @staticmethod
+    def _to_asyncpg(sql: str, params: dict[str, Any] | None) -> tuple[str, list[Any]]:
+        """``sql`` con ``%(nombre)s``/``:nombre`` como ``$n`` (en orden de primera aparición) y sus valores."""
+        if not params:
+            return sql, []
+        names: list[str] = []
+        pyformat: bool = False
+
+        def replace(match: re.Match[str]) -> str:
+            nonlocal pyformat
+            name: str = match.group("pyformat") or match.group("named")
+            if name not in params:
+                return match.group(0)
+            pyformat = pyformat or match.group("pyformat") is not None
+            if name not in names:
+                names.append(name)
+            return f"${names.index(name) + 1}"
+
+        translated: str = _ASYNCPG_PARAM.sub(replace, sql)
+        if pyformat:
+            translated = translated.replace("%%", "%")  # escape de psycopg; con ``$n`` el ``%`` es literal
+        return translated, [params[name] for name in names]
+
+    async def _fetch_asyncpg(
+        self, conn: Any, sql: str, params: dict[str, Any] | None, expect_one: bool
+    ) -> tuple[RowOrNone | Rows, int]:
+        """Ejecuta ``sql`` con asyncpg (``fetchrow``/``fetch``) y normaliza como la vía de cursor."""
+        driver_sql, args = self._to_asyncpg(sql, params)
+        if expect_one:
+            record = await conn.fetchrow(driver_sql, *args)
+            result_one = self.result_normalizer.normalize_one(None if record is None else tuple(record))
+            return result_one, 0 if result_one is None else 1
+        records = await conn.fetch(driver_sql, *args)
+        result_many = self.result_normalizer.normalize_many([tuple(record) for record in records])
+        return result_many, len(result_many)
+
     async def _get_cursor(self, conn: Any) -> tuple[Any, bool]:
         if hasattr(conn, "cursor"):
             cursor = await maybe_await(conn.cursor())
@@ -170,10 +216,13 @@ class AsyncQueryExecutor:
                 self.logger.debug(f"SQL final: {final_sql}")
 
                 conn = await self.connection_provider()
-                cursor, owns_cursor = await self._get_cursor(conn)
                 execute_params = self._resolve_execute_params(final_sql, params)
-                await self._execute_sql_with_optional_params(cursor, final_sql, execute_params)
-                result, result_rows = await self._fetch_and_normalize(cursor, expect_one)
+                if self._is_asyncpg(conn):
+                    result, result_rows = await self._fetch_asyncpg(conn, final_sql, execute_params, expect_one)
+                else:
+                    cursor, owns_cursor = await self._get_cursor(conn)
+                    await self._execute_sql_with_optional_params(cursor, final_sql, execute_params)
+                    result, result_rows = await self._fetch_and_normalize(cursor, expect_one)
 
             elapsed_ms: float = (time.time() - start_time) * 1000
             self.logger.debug(
@@ -209,9 +258,12 @@ class AsyncQueryExecutor:
                 deadline_seconds=deadline_seconds,
             ):
                 conn = await self.connection_provider()
-                cursor, owns_cursor = await self._get_cursor(conn)
-                await self._execute_sql_with_optional_params(cursor, sql, params)
-                result, result_rows = await self._fetch_and_normalize(cursor, expect_one)
+                if self._is_asyncpg(conn):
+                    result, result_rows = await self._fetch_asyncpg(conn, sql, params, expect_one)
+                else:
+                    cursor, owns_cursor = await self._get_cursor(conn)
+                    await self._execute_sql_with_optional_params(cursor, sql, params)
+                    result, result_rows = await self._fetch_and_normalize(cursor, expect_one)
 
             elapsed_ms: float = (time.time() - start_time) * 1000
             self.logger.debug(f"✅ Custom query executed: elapsed_ms={elapsed_ms:.2f}, result_rows={result_rows}")
