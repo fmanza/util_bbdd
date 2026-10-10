@@ -213,6 +213,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-10-10 | Pendientes de la auditoría de `doc/` → v0.41.1 (`2026-10-09l-plan-pendientes-doc`) | B-04 DDL de HSQLDB (`LISTAGG` sin `WITHIN GROUP`, rama de vistas con columna inexistente, relleno `CHAR`); S-02 entidades en el DDL de HTML (ningún motor las devuelve); orden total del inventario; docstrings con `DatabaseConnectionError` |
 | 2026-10-10 | Plan de pendientes global → v0.41.2 (`2026-10-10-plan-pendientes-global`) | H1 confirmado con sondas y corregido (lecturas de catálogo sin fin de transacción: PostgreSQL `idle in transaction`, MySQL con metadatos obsoletos); H2 no reproducido; P5–P7 de doc publicados |
 | 2026-10-10 | Plan de pendientes global, Q3 → v0.41.3 (`2026-10-10-plan-pendientes-global`) | F3/F4 confirmados en SQL Server (PK/FK vacías para tablas inexistentes; mezcla de `Users`/`users` con collation CS) y corregidos; F5 (`clear_cache` dirigido con usuario Oracle entrecomillado) corregido; H2 fijado con test |
+| 2026-10-10 | Plan de pendientes global, Q4–Q5 → v0.42.0 (`2026-10-10-plan-pendientes-global`) | CI de integración (PostgreSQL/MySQL/MariaDB, manual y nocturno; simulado en local); DDL de HSQLDB con PK; `routine_parameters` indexado (0,91 s → 0,003 s con 2000 routines) |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 

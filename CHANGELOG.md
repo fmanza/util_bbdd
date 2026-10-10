@@ -5,6 +5,26 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.42.0] - 2026-10-10
+
+Bloques Q4 y Q5 del plan de pendientes global (`.ai/sessions/2026-10-10-plan-pendientes-global/`).
+
+### Added
+
+- **metadata**: el DDL de tabla de HSQLDB (`get_ddl`) incluye la clave primaria (`CONSTRAINT … PRIMARY KEY (…)`, con
+  las columnas en el orden de la clave), como el de PostgreSQL y SQL Server.
+
+### Performance
+
+- **metadata** (F7): `SchemaSnapshot.routine_parameters` busca en un índice por routine en lugar de recorrer todos los
+  parámetros del schema: con 2000 routines de 5 parámetros, 0,91 s → 0,003 s al leer los de todas (la documentación lo
+  hace una vez por routine y formato).
+
+### CI
+
+- `.github/workflows/integration.yml`: `tests/integration` contra PostgreSQL 17, MySQL 8.4 y MariaDB 11.4 como
+  contenedores de servicio, manual y nocturno. SQL Server, Oracle y HSQLDB siguen en el banco local.
+
 ## [0.41.3] - 2026-10-10
 
 Bloque Q3 del plan de pendientes global (`.ai/sessions/2026-10-10-plan-pendientes-global/`): hallazgos de la auditoría
