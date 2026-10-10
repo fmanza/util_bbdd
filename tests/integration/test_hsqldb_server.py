@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 import uuid
 
 from collections.abc import Iterator
@@ -107,19 +108,29 @@ def test_table_ddl_lists_columns_in_order(table: str) -> None:
     existe en HSQLDB 2.7) hacían fallar ``get_ddl``; el ``CASE`` de nulabilidad rellenaba el tipo con espacios."""
     manager = SyncDatabaseManager("hsqldb", _params())
     try:
-        # ID se declaró PRIMARY KEY sin NOT NULL: HSQLDB informa IS_NULLABLE = YES (sin PK en el DDL: limitación conocida)
-        assert manager.get_ddl(table) == f"CREATE TABLE {table} (ID INTEGER, NOMBRE CHARACTER VARYING(40))"
+        # ID se declaró PRIMARY KEY sin NOT NULL: HSQLDB informa IS_NULLABLE = YES. La PK, con el nombre que le dio el
+        # motor (SYS_PK_…), desde v0.42.0
+        assert re.fullmatch(
+            rf"CREATE TABLE {table} \(ID INTEGER, NOMBRE CHARACTER VARYING\(40\), "
+            r"CONSTRAINT SYS_PK_\d+ PRIMARY KEY \(ID\)\)",
+            manager.get_ddl(table),
+        )
         assert manager.get_ddl("ZZ_NO_EXISTE") == ""
-        other = f"{table}_B"
+        other, composite = f"{table}_B", f"{table}_C"
         cursor = manager.get_connection().cursor()
         cursor.execute(f"CREATE TABLE {other} (A INTEGER NOT NULL, B VARCHAR(5) DEFAULT 'x' NOT NULL, C DATE)")
+        cursor.execute(f"CREATE TABLE {composite} (A INTEGER, B INTEGER, CONSTRAINT {composite}_PK PRIMARY KEY (B, A))")
         cursor.close()
         try:
             expected = f"CREATE TABLE {other} (A INTEGER NOT NULL, B CHARACTER VARYING(5) NOT NULL DEFAULT 'x', C DATE)"
-            assert manager.get_ddl(other) == expected
+            assert manager.get_ddl(other) == expected  # sin PK: sin CONSTRAINT
+            assert manager.get_ddl(composite) == (
+                f"CREATE TABLE {composite} (A INTEGER, B INTEGER, CONSTRAINT {composite}_PK PRIMARY KEY (B, A))"
+            )
         finally:
             cursor = manager.get_connection().cursor()
             cursor.execute(f"DROP TABLE {other} IF EXISTS")
+            cursor.execute(f"DROP TABLE {composite} IF EXISTS")
             cursor.close()
     finally:
         manager.close()
