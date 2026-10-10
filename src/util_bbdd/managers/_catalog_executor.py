@@ -149,6 +149,35 @@ def _has_unicode_error_in_chain(exc: BaseException) -> bool:
     return False
 
 
+_SERVER_STATUS_IN_TRANS: int = 0x0001  # protocolo MySQL/MariaDB: SERVER_STATUS_IN_TRANS
+
+
+def _in_transaction(connection: Any) -> bool | None:
+    """Si la conexión tiene una transacción abierta; ``None`` si el driver no permite saberlo.
+
+    psycopg 3 (``info.transaction_status``), psycopg2 (``get_transaction_status()``), python-oracledb
+    (``transaction_in_progress``), sqlite3/aiosqlite (``in_transaction``), asyncpg (``is_in_transaction()``) y
+    PyMySQL/aiomysql (``server_status``). El resto (pyodbc, pymssql, jaydebeapi…) devuelve ``None``.
+    """
+    status = getattr(getattr(connection, "info", None), "transaction_status", None)
+    if status is not None:
+        return int(status) != 0  # TransactionStatus.IDLE
+    get_status = getattr(connection, "get_transaction_status", None)
+    if callable(get_status):
+        return int(get_status()) != 0  # TRANSACTION_STATUS_IDLE
+    for attribute in ("transaction_in_progress", "in_transaction"):
+        value = getattr(connection, attribute, None)
+        if isinstance(value, bool):
+            return value
+    is_in_transaction = getattr(connection, "is_in_transaction", None)
+    if callable(is_in_transaction):
+        return bool(is_in_transaction())
+    server_status = getattr(connection, "server_status", None)
+    if isinstance(server_status, int):
+        return bool(server_status & _SERVER_STATUS_IN_TRANS)
+    return None
+
+
 def _rollback(connection: Any) -> None:
     """Deja usable la conexión tras un error (PostgreSQL aborta la transacción en curso).
 
@@ -247,10 +276,19 @@ class ManagerCatalogExecutor:
         total_attempts = self._max_retries + 1  # 1 initial attempt + max_retries retries
         for attempt in range(total_attempts):
             connection = self._provider()
+            # H1 (v0.41.2): si consta que la conexión no tenía transacción, se deshace lo que abra esta lectura. Con
+            # use_pool=False es la conexión única del manager: una transacción previa es del usuario y no se toca. Sin
+            # esto, PostgreSQL quedaba «idle in transaction» y MySQL no veía DDL posterior ni tras clear_cache(): MySQL 8
+            # deja una read view (REPEATABLE READ) al leer information_schema sin marcar SERVER_STATUS_IN_TRANS, por
+            # eso no se mira el estado después. Las escrituras del usuario sí lo marcan; deshacer una lectura no pierde nada.
+            idle_before: bool = _in_transaction(connection) is False
             try:
                 logger.debug(f"[Catálogo intento {attempt + 1}/{total_attempts}] Ejecutando SQL: {sql[:80]}...")
                 rows = self._resolve_executor(connection).fetch_all(sql, dict(params))
-                return [tuple(_materialize(v) for v in row) for row in rows]
+                result = [tuple(_materialize(v) for v in row) for row in rows]
+                if idle_before:
+                    _rollback(connection)
+                return result
             except DatabaseException:
                 raise
             except SystemError as exc:  # Error específico del driver mariadb (cursor corrupto)
@@ -337,6 +375,7 @@ class AsyncManagerCatalogExecutor:
         total_attempts = self._max_retries + 1  # 1 initial attempt + max_retries retries
         for attempt in range(total_attempts):
             connection = await self._provider()
+            idle_before: bool = _in_transaction(connection) is False
             try:
                 logger.debug(f"[Catálogo async intento {attempt + 1}/{total_attempts}] Ejecutando SQL: {sql[:80]}...")
                 style = driver_paramstyle(connection)
@@ -350,7 +389,10 @@ class AsyncManagerCatalogExecutor:
                     rows = await maybe_await(cursor.fetchall())
                 finally:
                     await maybe_await(cursor.close())
-                return [tuple(_materialize(v) for v in row) for row in rows]
+                result = [tuple(_materialize(v) for v in row) for row in rows]
+                if idle_before:  # H1, ver ManagerCatalogExecutor.fetch_all
+                    await _arollback(connection)
+                return result
             except DatabaseException:
                 raise
             except SystemError as exc:  # Error específico del driver mariadb
