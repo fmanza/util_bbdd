@@ -158,3 +158,26 @@ async def _async_empty() -> tuple:
 def test_max_schemas_must_be_positive() -> None:
     with pytest.raises(ValueError):
         SnapshotCache(max_schemas=0)
+
+
+def test_async_loads_work_across_event_loops_with_contention() -> None:
+    """H2 (2026-10-10, no reproducido): el lock async por clave no queda atado al primer bucle de eventos. Dos
+    ``asyncio.run`` seguidos (como un script que llama dos veces a un manager async) con tareas en contención."""
+
+    cache = SnapshotCache()
+    loads: list[int] = []
+
+    async def slow_loader() -> tuple[str, ...]:
+        loads.append(1)
+        await asyncio.sleep(0.01)
+        return ("x",)
+
+    async def burst() -> list[tuple[str, ...]]:
+        cache.invalidate("src")
+        return await asyncio.gather(
+            *(cache.aget_or_load(("src", "s", Kind.TABLES, None), slow_loader) for _ in range(3))
+        )
+
+    for _ in range(2):
+        assert asyncio.run(burst()) == [("x",)] * 3
+    assert len(loads) == 2  # una carga por bucle, compartida por las tres tareas
