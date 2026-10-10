@@ -452,6 +452,7 @@ __all__ = [
     "QueryExecutionError",
     "QueryNotFoundError",
     "QueryValidationError",
+    "QueryParameterError",
     # Metadatos
     "MetadataError",
     "MetadataFetchError",
