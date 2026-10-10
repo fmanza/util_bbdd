@@ -1270,7 +1270,7 @@ class HtmlGenerator:
         if section_flags[0]:
             try:
                 ddl: str = data_provider.get_ddl(table_name)
-                payload["ddl"] = self._decode_html_entities(ddl) if ddl is not None else ""
+                payload["ddl"] = ddl or ""
             except DatabaseException as error:
                 payload["ddl"] = f"⚠️ Error obteniendo DDL: {error}"
 
@@ -1407,7 +1407,7 @@ class HtmlGenerator:
         if section_flags[0]:
             try:
                 ddl: str = data_provider.get_view_ddl(view_name)
-                payload["ddl"] = self._decode_html_entities(ddl) if ddl is not None else ""
+                payload["ddl"] = ddl or ""
             except DatabaseException as error:
                 payload["ddl"] = f"⚠️ Error obteniendo DDL: {error}"
 
@@ -1466,7 +1466,7 @@ class HtmlGenerator:
 
         try:
             ddl: str = data_provider.get_routine_ddl(routine_name, routine_type)
-            payload["ddl"] = self._decode_html_entities(ddl) if ddl is not None else ""
+            payload["ddl"] = ddl or ""
         except DatabaseException as error:
             payload["ddl"] = f"⚠️ Error obteniendo DDL: {error}"
 
@@ -1737,13 +1737,3 @@ class HtmlGenerator:
         except ET.ParseError as error:
             self.logger.warning(f"⚠️ No se pudieron inyectar enlaces SVG en memoria: {error}")
             return _decode_markup(svg_bytes)
-
-    def _decode_html_entities(self, value: str, max_rounds: int = 3) -> str:
-        """Decodifica entidades HTML (incluyendo casos doblemente escapados)."""
-        decoded: str = value
-        for _ in range(max_rounds):
-            unescaped = html.unescape(decoded)
-            if unescaped == decoded:
-                break
-            decoded = unescaped
-        return decoded

@@ -111,7 +111,7 @@ def test_html_generator_unique_constraint_rows_follow_catalog_rows() -> None:
     assert payload["unicas"] == [["UQ_USERS_EMAIL", "EMAIL"], ["UQ_USERS_FULL", "FIRST"], ["UQ_USERS_FULL", ""]]
 
 
-def test_html_generator_routine_helpers_default_path_and_entity_decode() -> None:
+def test_html_generator_routine_helpers_default_path() -> None:
     generator = HtmlGenerator(database="db", headers={})
 
     default_path = generator._get_default_content_path(
@@ -124,12 +124,10 @@ def test_html_generator_routine_helpers_default_path_and_entity_decode() -> None
     )
     normalized = GeneratorRoutineRuntime.normalize_entry(("sp_users", "procedure", None))
     key = generator._build_routine_key(("sp_users", "procedure", ""))
-    decoded = generator._decode_html_entities("&amp;amp;lt;h1&amp;amp;gt;Hi&amp;amp;lt;/h1&amp;amp;gt;")
 
     assert default_path == "views/v_users.html"
     assert normalized == ("sp_users", "PROCEDURE", "")
     assert key == "PROCEDURE:sp_users"
-    assert decoded == "<h1>Hi</h1>"
 
 
 def test_html_generator_inventory_summary_and_storage_collection_rows() -> None:

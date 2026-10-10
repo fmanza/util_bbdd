@@ -1,18 +1,5 @@
 (function () {
-  function decodeHtmlEntities(text) {
-    var decoded = text;
-    for (var i = 0; i < 3; i += 1) {
-      var textarea = document.createElement('textarea');
-      textarea.innerHTML = decoded;
-      var next = textarea.value;
-      if (next === decoded) {
-        break;
-      }
-      decoded = next;
-    }
-    return decoded;
-  }
-
+  // textContent ya es el SQL tal como lo guarda el motor: no se decodifican entidades (S-02, v0.41.1).
   function escapeHtml(text) {
     return text
       .replace(/&/g, "&amp;")
@@ -49,7 +36,7 @@
   function run() {
     var blocks = document.querySelectorAll('code.language-sql');
     blocks.forEach(function (block) {
-      var raw = decodeHtmlEntities(block.textContent || "");
+      var raw = block.textContent || "";
       block.innerHTML = highlightSql(raw);
     });
   }
