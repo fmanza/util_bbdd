@@ -2,7 +2,7 @@
 
 **Generado**: 2026-06-05 (cabecera, «Próximos pasos» y tests actualizados el 2026-10-09 al cerrar `drivers-connections-audit`)  
 **Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.39.1` (la tabla de abajo no recoge todas las versiones intermedias: el detalle está en el CHANGELOG)  
-**Versión**: `v0.41.1` (2026-10-10). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`, `v0.40.3`, `v0.41.0`, `v0.41.1`  
+**Versión**: `v0.41.2` (2026-10-10). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`, `v0.40.3`, `v0.41.0`, `v0.41.1`, `v0.41.2`  
 **Rama activa**: `develop`
 
 ---
@@ -56,12 +56,13 @@
 | `v0.40.0`–`v0.40.3` | Liberados 2026-10-09 — URL de los Engine sync/async con la misma semántica; hotfixes de `EngineReadinessAdvisor`, `init_command` y reset del pool MariaDB | ✅ |
 | `v0.41.0` | Liberado 2026-10-09 — auditoría de `doc/` + `analysis/`: diagramas Graphviz por lotes (HTML 12,6×), un generador por documentación, inventario de almacenamiento declarativo, **API de `util_bbdd.doc` reducida** (`DatabaseDocumentation` + `DocumentationResult`, errores propios) | ✅ |
 | `v0.41.1` | Liberado 2026-10-10 — DDL de tabla de HSQLDB (fallaba siempre), DDL en HTML sin decodificar entidades, orden estable del inventario de almacenamiento | ✅ |
+| `v0.41.2` | Liberado 2026-10-10 — hotfix H1: las lecturas de catálogo terminan la transacción que abren (MySQL con `use_pool=False` veía metadatos obsoletos); dorado de Oracle aislado, genéricos con parámetros en `doc`/`analysis`, tests de matplotlib | ✅ |
 | Zenical | Hecho — `migrate/zenical-pure` fusionada (PR #19, `c6d765a8`); `zensical` 0.0.44 es el generador del CI y lee `mkdocs.yml` (no se usa `zensical.toml`) | ✅ |
 
 PR #18 (`MySQLVariableValidator`): su código (`9a71e056`) está en `main` y `develop`; el estado de la PR en GitHub no se ha comprobado (sin `gh`) — cerrarla si sigue abierta.  
 PR #19 (`migrate/zenical-pure`): fusionada.  
 
-**Tests actuales** (v0.41.0, 2026-10-09): 5476 passed, 507 skipped; `tests/integration` 564 passed, 8 skipped (5 servidores + HSQLDB con `JAVA_HOME`); mypy sin errores (331 ficheros). Anterior (v0.39.1): 5397 passed, 497 skipped; integración 552 passed. Medición anterior: 5049 passed, 496 skipped con `pytest` completo sin URLs de servidor y el entorno de referencia `pip install -e ".[dev,docs]"` (v0.31.0, 2026-10-04); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 551 passed, 10 skipped en 5 servidores (menos que en v0.30.0: se retiraron los tests de los módulos eliminados). mypy sin errores (320 ficheros). Sin las dependencias del extra `dev` los recuentos bajan (módulos que se saltan enteros) y `tests/conftest.py` lo avisa: ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`.
+**Tests actuales** (v0.41.2, 2026-10-10): `tests/unit` 5060 passed; `tests/integration` 572 passed, 7 skipped (5 servidores + HSQLDB con `JAVA_HOME`); mypy sin errores (331 ficheros). Anterior (v0.39.1): 5397 passed, 497 skipped; integración 552 passed. Medición anterior: 5049 passed, 496 skipped con `pytest` completo sin URLs de servidor y el entorno de referencia `pip install -e ".[dev,docs]"` (v0.31.0, 2026-10-04); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 551 passed, 10 skipped en 5 servidores (menos que en v0.30.0: se retiraron los tests de los módulos eliminados). mypy sin errores (320 ficheros). Sin las dependencias del extra `dev` los recuentos bajan (módulos que se saltan enteros) y `tests/conftest.py` lo avisa: ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`.
 
 ---
 
@@ -94,7 +95,7 @@ mismo `mkdocs.yml`; el CI publica con Zensical. Ver `ZENICAL.md`.
 
 ## Próximos pasos
 
-**Plan vigente**: `.ai/sessions/2026-10-10-plan-pendientes-global/PLAN_AUDIT_PLAN.md` (Q0–Q6).
+**Plan vigente**: `.ai/sessions/2026-10-10-plan-pendientes-global/PLAN_AUDIT_PLAN.md` (Q0–Q2 hechos en v0.41.2; siguen Q3–Q6).
 
 000000000. `v0.41.1` (2026-10-10): **pendientes de la auditoría de `doc/`** (`.ai/sessions/2026-10-09l-plan-pendientes-doc/`, P1–P4): B-04 DDL de HSQLDB, S-02 entidades en el DDL de HTML, orden total del inventario, docstrings. Después, en `develop` (`[Unreleased]`): P5 dorado de documentación de Oracle aislado, P6 genéricos con parámetros + `disallow_any_generics` en `doc`/`analysis`, P7 tests de matplotlib y nombre de fichero saneado.
 00000000. `v0.41.0` (2026-10-09): **documentation-architecture-audit de `doc/` + `analysis/`** (`.ai/sessions/2026-10-09k-doc-architecture-audit/`): diagramas Graphviz por lotes (`GraphvizRelationshipGraphExt.prefetch`, `dot -O`; HTML con diagramas 75,7 s → 6,0 s con 120 tablas), un generador de grafos por documentación (el .docx ya no depende de los demás formatos), inventario de almacenamiento declarativo por motor (SQL Server sin aviso falso), API `util_bbdd.doc` = `DatabaseDocumentation` + `DocumentationResult` con `DocumentationConfigError`/`DocumentationRenderError` (rompe API). Pendientes en `.ai/sessions/2026-10-09l-plan-pendientes-doc/` (P1–P7, v0.41.1).

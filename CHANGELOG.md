@@ -5,9 +5,19 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.41.2] - 2026-10-10
 
-Resto del plan de pendientes de la auditoría de `doc/` (`.ai/sessions/2026-10-09l-plan-pendientes-doc/`, P5–P7).
+Hotfix H1 del plan de pendientes global (`.ai/sessions/2026-10-10-plan-pendientes-global/`) y el resto del plan de
+pendientes de la auditoría de `doc/` (`.ai/sessions/2026-10-09l-plan-pendientes-doc/`, P5–P7).
+
+### Fixed
+
+- **metadata** (H1): las lecturas de catálogo terminan la transacción que ellas mismas abren. Con `use_pool=False` (la
+  conexión única del manager), PostgreSQL quedaba `idle in transaction` tras `get_schema_metadata()` y **MySQL no veía
+  una tabla creada desde fuera ni después de `clear_cache()`** (MySQL 8 deja una *read view* REPEATABLE READ al leer
+  `information_schema`). Solo se hace `rollback` si consta que la conexión no tenía transacción antes de leer (psycopg,
+  python-oracledb, sqlite3/aiosqlite, asyncpg, PyMySQL/aiomysql): una transacción del usuario en la misma conexión no
+  se toca. Con pool no ocurría.
 
 ### Security
 

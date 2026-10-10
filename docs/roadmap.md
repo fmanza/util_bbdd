@@ -7,13 +7,13 @@ El detalle exhaustivo de cada cambio vive en el
 [Keep a Changelog](https://keepachangelog.com/) + [SemVer](https://semver.org/)); esta página
 es la vista panorámica.
 
-> **Versión vigente: v0.41.1.** Las series `0.x` siguen siendo pre-estables: la API se mantiene
+> **Versión vigente: v0.41.2.** Las series `0.x` siguen siendo pre-estables: la API se mantiene
 > mayormente compatible, pero puede haber cambios acotados entre minors. La estabilización formal
 > llega con `v1.0.0`.
 
 ## En curso (`develop`)
 
-Sin trabajo abierto tras v0.41.1 (correcciones tras la auditoría de la arquitectura de `doc/` y `analysis/`). Lo que se
+Tras v0.41.2 sigue el plan de pendientes de `.ai/sessions/2026-10-10-plan-pendientes-global/` (verificación de casos límite de metadata, CI de integración, mejoras menores y plan de la API 1.0). Lo que se
 añada a `develop` antes del próximo tag aparecerá en el
 [CHANGELOG](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md).
 
@@ -33,7 +33,7 @@ en el driver. Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md).
 
 | Versiones | Fechas | Hito |
 |---|---|---|
-| `v0.41.0 – v0.41.1` | 2026-10-09 – 2026-10-10 | Auditoría de la arquitectura de `doc/` y `analysis/` (`documentation-architecture-audit`): diagramas Graphviz por lotes (HTML con diagramas, 12× más rápido), un generador de grafos por documentación, inventario de almacenamiento declarativo por motor y API de `util_bbdd.doc` reducida a `DatabaseDocumentation`/`DocumentationResult` con errores propios. |
+| `v0.41.0 – v0.41.2` | 2026-10-09 – 2026-10-10 | Auditoría de la arquitectura de `doc/` y `analysis/` (`documentation-architecture-audit`): diagramas Graphviz por lotes (HTML con diagramas, 12× más rápido), un generador de grafos por documentación, inventario de almacenamiento declarativo por motor y API de `util_bbdd.doc` reducida a `DatabaseDocumentation`/`DocumentationResult` con errores propios. |
 | `v0.36.0 – v0.40.0` | 2026-10-09 | Auditoría de conexiones multimotor (`drivers-connections-audit`, [ADR-005](adr/ADR-005-conexiones-multimotor.md)): pools con política común, validación única de `conn_params` también en async, `catalog_charset_mode`, TLS en MariaDB, avisos una sola vez y URL de los Engine sync/async con la misma semántica. |
 | `v0.31.0 – v0.35.x` | 2026-10-04 – 2026-10-07 | Extracción de metadatos centralizada en `metadata/` (ADR-003), soporte de Oracle 11g con resolución perezosa de versión (ADR-004) y detección de charset de MariaDB/MySQL. |
 | `v0.29.0 – v0.30.0` | 2026-10-02 – 2026-10-03 | Módulo de auditoría común `util_bbdd.audit` (ADR-002) y comparación de esquemas fiable entre motores y schemas. |
