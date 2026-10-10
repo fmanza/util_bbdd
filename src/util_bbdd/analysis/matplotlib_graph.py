@@ -55,7 +55,7 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
         if not MATPLOTLIB_AVAILABLE or plt is None or nx is None:
             raise ImportError(MATPLOTLIB_NETWORKX_ERROR)
 
-    def _create_radial_layout(self, graph: Any, central_node: str) -> dict[str, tuple]:
+    def _create_radial_layout(self, graph: Any, central_node: str) -> dict[str, tuple[float, float]]:
         """
         Crea un layout radial donde el nodo central está en el centro
         y los demás nodos se distribuyen alrededor en círculo
@@ -69,11 +69,11 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
         """
         self.logger.debug(f"Creando layout radial para {central_node}")
 
-        pos: dict[str, tuple] = {}
+        pos: dict[str, tuple[float, float]] = {}
         nodes = list(graph.nodes())
 
         # El nodo principal en el centro
-        pos[central_node] = (0, 0)
+        pos[central_node] = (0.0, 0.0)
 
         # Nodos secundarios en círculo alrededor
         secondary_nodes = [n for n in nodes if n != central_node]

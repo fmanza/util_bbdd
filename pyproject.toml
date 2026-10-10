@@ -172,6 +172,12 @@ enable_error_code = ["deprecated"]
 # extras `dev` no instalan: no se comprueba al recorrer src/. Con una ejecución explícita sí, de ahí el override de abajo.
 exclude = ['(^|/)docs_build_plugin\.py$']
 
+# doc/ y analysis/ no admiten genéricos sin parámetros (`list`, `tuple`, `dict` a secas): se limpiaron en 0.41.x
+# (sesión 2026-10-09l, P6) y así no vuelven. Las llamadas sin tipos de python-docx siguen permitidas.
+[[tool.mypy.overrides]]
+module = ["util_bbdd.doc.*", "util_bbdd.analysis.*"]
+disallow_any_generics = true
+
 [[tool.mypy.overrides]]
 module = [
     "pymssql",

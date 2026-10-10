@@ -115,9 +115,9 @@ class WordGenerator:
 
     def generate_document(
         self,
-        tables: list[tuple],
-        views: list[tuple],
-        routines: list[tuple],
+        tables: list[tuple[Any, ...]],
+        views: list[tuple[Any, ...]],
+        routines: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
         output_target: Path,
         print_config: dict[str, Any] | None = None,
@@ -165,8 +165,8 @@ class WordGenerator:
                     "Si desea incluirla, configure [imprimir.info_database] en el archivo TOML con imprimir_info_database = true"
                 )
 
-            tables_for_chunks: list[tuple] = tables if include_tables else []
-            table_chunks: list[list[tuple]] = self._chunk_tables(tables_for_chunks, tables_per_document)
+            tables_for_chunks: list[tuple[Any, ...]] = tables if include_tables else []
+            table_chunks: list[list[tuple[Any, ...]]] = self._chunk_tables(tables_for_chunks, tables_per_document)
             if not table_chunks:
                 table_chunks = [[]]
 
@@ -220,10 +220,10 @@ class WordGenerator:
         self,
         idx: int,
         total_chunks: int,
-        all_tables: list[tuple],
-        table_chunk: list[tuple],
-        views: list[tuple],
-        routines: list[tuple],
+        all_tables: list[tuple[Any, ...]],
+        table_chunk: list[tuple[Any, ...]],
+        views: list[tuple[Any, ...]],
+        routines: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
         output_file: Path,
         config: DocumentChunkConfig,
@@ -314,16 +314,16 @@ class WordGenerator:
         self,
         *,
         document: Document,
-        tables: list[tuple],
-        views: list[tuple],
-        routines: list[tuple],
+        tables: list[tuple[Any, ...]],
+        views: list[tuple[Any, ...]],
+        routines: list[tuple[Any, ...]],
         include_storage: bool,
         data_provider: DocumentationManagerPort,
         include_procedures: bool,
         include_functions: bool,
     ) -> None:
         """Agrega un resumen inicial con conteos del inventario."""
-        filtered_routines: list[tuple] = GeneratorRoutineRuntime.filter_by_flags(
+        filtered_routines: list[tuple[Any, ...]] = GeneratorRoutineRuntime.filter_by_flags(
             routines,
             include_procedures=include_procedures,
             include_functions=include_functions,
@@ -370,7 +370,7 @@ class WordGenerator:
     def _add_tables_content(
         self,
         document: Document,
-        table_chunk: list[tuple],
+        table_chunk: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
         table_section_flags: list[bool],
         include_tables: bool,
@@ -404,7 +404,7 @@ class WordGenerator:
     def _add_views_content(
         self,
         document: Document,
-        views: list[tuple],
+        views: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
         view_section_flags: list[bool],
         include_views: bool,
@@ -428,7 +428,7 @@ class WordGenerator:
     def _add_routines_content(
         self,
         document: Document,
-        routines: list[tuple],
+        routines: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
         include_procedures: bool,
         include_functions: bool,
@@ -464,7 +464,7 @@ class WordGenerator:
         self.logger.info(f"📄 Cargando plantilla Word: {resolved_template_path}")
         return load_document(str(resolved_template_path))
 
-    def _chunk_tables(self, tables: list[tuple], tables_per_document: int) -> list[list[tuple]]:
+    def _chunk_tables(self, tables: list[tuple[Any, ...]], tables_per_document: int) -> list[list[tuple[Any, ...]]]:
         """Divide tablas en lotes para crear múltiples documentos."""
         if not tables:
             return []
@@ -812,7 +812,7 @@ class WordGenerator:
     def _add_routines_sections(
         self,
         document: Document,
-        routines: list[tuple],
+        routines: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
         include_procedures: bool,
         include_functions: bool,
@@ -849,7 +849,7 @@ class WordGenerator:
     def _add_routine_type_section(
         self,
         document: Document,
-        routines: list[tuple],
+        routines: list[tuple[Any, ...]],
         routine_type: str,
         data_provider: DocumentationManagerPort,
         include_ddl: bool,
@@ -870,7 +870,7 @@ class WordGenerator:
     def _add_other_routines_section(
         self,
         document: Document,
-        routines: list[tuple],
+        routines: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
         include_ddl: bool,
     ) -> None:
@@ -1177,7 +1177,7 @@ class WordGenerator:
         document: Document,
         title: str,
         headers: list[str],
-        data: list,
+        data: list[Any],
         right_align_indices: list[int] | None = None,
     ) -> None:
         """Agrega una tabla al documento Word"""

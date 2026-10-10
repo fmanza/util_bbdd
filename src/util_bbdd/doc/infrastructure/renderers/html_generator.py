@@ -54,9 +54,9 @@ class HtmlGenerator:
 
     def generate_document(
         self,
-        tables: list[tuple],
-        views: list[tuple],
-        routines: list[tuple],
+        tables: list[tuple[Any, ...]],
+        views: list[tuple[Any, ...]],
+        routines: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
         output_target: Path,
         print_config: dict[str, Any] | None = None,
@@ -219,11 +219,11 @@ class HtmlGenerator:
 
     def _build_slug_maps_and_filters(
         self,
-        tables: list[tuple],
-        views: list[tuple],
-        routines: list[tuple],
+        tables: list[tuple[Any, ...]],
+        views: list[tuple[Any, ...]],
+        routines: list[tuple[Any, ...]],
         resolved: dict[str, Any],
-    ) -> tuple[dict[str, str], dict[str, str], list[tuple], dict[str, str], dict[str, str]]:
+    ) -> tuple[dict[str, str], dict[str, str], list[tuple[Any, ...]], dict[str, str], dict[str, str]]:
         """Construye mapas de slugs y filtra rutinas."""
         table_slug_map: dict[str, str] = (
             self._build_slug_map([row[0] for row in tables]) if resolved["include_tables"] else {}
@@ -231,7 +231,7 @@ class HtmlGenerator:
         view_slug_map: dict[str, str] = (
             self._build_slug_map([row[0] for row in views]) if resolved["include_views"] else {}
         )
-        selected_routines: list[tuple] = GeneratorRoutineRuntime.filter_by_flags(
+        selected_routines: list[tuple[Any, ...]] = GeneratorRoutineRuntime.filter_by_flags(
             routines,
             include_procedures=resolved["include_procedures"],
             include_functions=resolved["include_functions"],
@@ -253,7 +253,7 @@ class HtmlGenerator:
 
     def _process_tables(
         self,
-        tables: list[tuple],
+        tables: list[tuple[Any, ...]],
         detail_template: Template,
         table_slug_map: dict[str, str],
         resolved: dict[str, Any],
@@ -316,7 +316,7 @@ class HtmlGenerator:
 
     def _process_views(
         self,
-        views: list[tuple],
+        views: list[tuple[Any, ...]],
         detail_template: Template,
         view_slug_map: dict[str, str],
         resolved: dict[str, Any],
@@ -363,7 +363,7 @@ class HtmlGenerator:
 
     def _process_routines(
         self,
-        routines: list[tuple],
+        routines: list[tuple[Any, ...]],
         detail_template: Template,
         routine_slug_map: dict[str, str],
         data_provider: DocumentationManagerPort,
@@ -1045,7 +1045,7 @@ class HtmlGenerator:
             slug_map[name] = self._build_unique_slug(name, used_slugs)
         return slug_map
 
-    def _build_routine_key(self, routine: tuple) -> str:
+    def _build_routine_key(self, routine: tuple[Any, ...]) -> str:
         """Construye clave estable para slugs de rutina."""
         routine_name, routine_type, _ = GeneratorRoutineRuntime.normalize_entry(routine)
         return f"{routine_type}:{routine_name}"

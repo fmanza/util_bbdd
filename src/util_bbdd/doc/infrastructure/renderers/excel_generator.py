@@ -64,9 +64,9 @@ class ExcelGenerator:
 
     def generate_document(
         self,
-        tables: list[tuple],
-        views: list[tuple],
-        routines: list[tuple],
+        tables: list[tuple[Any, ...]],
+        views: list[tuple[Any, ...]],
+        routines: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
         output_target: Path,
         print_config: dict[str, Any] | None = None,
@@ -140,11 +140,11 @@ class ExcelGenerator:
         self,
         ws: Worksheet,
         fila: int,
-        tables: list[tuple],
-        views: list[tuple],
-        routines: list[tuple],
+        tables: list[tuple[Any, ...]],
+        views: list[tuple[Any, ...]],
+        routines: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
-        data_flat: list,
+        data_flat: list[Any],
         config: dict[str, Any],
     ) -> int:
         """Construye todas las secciones de descripción general del documento."""
@@ -166,7 +166,7 @@ class ExcelGenerator:
                 section_flags=config["view_section_flags"],
             )
         if config["include_procedures"] or config["include_functions"]:
-            selected_routines: list[tuple] = GeneratorRoutineRuntime.filter_by_flags(
+            selected_routines: list[tuple[Any, ...]] = GeneratorRoutineRuntime.filter_by_flags(
                 routines,
                 include_procedures=config["include_procedures"],
                 include_functions=config["include_functions"],
@@ -183,9 +183,9 @@ class ExcelGenerator:
     def _create_supplementary_sheets(
         self,
         wb: Workbook,
-        data_flat: list,
-        tables: list[tuple],
-        routines: list[tuple],
+        data_flat: list[Any],
+        tables: list[tuple[Any, ...]],
+        routines: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
         config: dict[str, Any],
     ) -> None:
@@ -233,9 +233,9 @@ class ExcelGenerator:
         self,
         ws: Worksheet,
         fila: int,
-        tables: list[tuple],
+        tables: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
-        data_flat: list,
+        data_flat: list[Any],
         section_flags: list[bool],
     ) -> int:
         """Agrega el bloque de tablas al documento Excel."""
@@ -268,7 +268,7 @@ class ExcelGenerator:
         self,
         ws: Worksheet,
         fila: int,
-        views: list[tuple],
+        views: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
         section_flags: list[bool],
     ) -> int:
@@ -291,7 +291,7 @@ class ExcelGenerator:
         self,
         ws: Worksheet,
         fila: int,
-        routines: list[tuple],
+        routines: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
     ) -> int:
         """Agrega el bloque de procedures/funciones al documento Excel."""
@@ -315,7 +315,7 @@ class ExcelGenerator:
         self,
         ws: Worksheet,
         fila: int,
-        routines: list[tuple],
+        routines: list[tuple[Any, ...]],
         section_title: str,
         color: str,
         data_provider: DocumentationManagerPort,
@@ -338,9 +338,9 @@ class ExcelGenerator:
         self,
         ws: Worksheet,
         fila: int,
-        routines: list[tuple],
-        procedures: list[tuple],
-        functions: list[tuple],
+        routines: list[tuple[Any, ...]],
+        procedures: list[tuple[Any, ...]],
+        functions: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
     ) -> int:
         """Procesa rutinas no clasificadas."""
@@ -366,7 +366,7 @@ class ExcelGenerator:
     def _create_routines_sheets(
         self,
         wb: Workbook,
-        routines: list[tuple],
+        routines: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
         include_procedures: bool,
         include_functions: bool,
@@ -394,7 +394,7 @@ class ExcelGenerator:
         self,
         wb: Workbook,
         title: str,
-        routines: list[tuple],
+        routines: list[tuple[Any, ...]],
         data_provider: DocumentationManagerPort,
     ) -> None:
         """Crea una hoja de rutinas por tipo en formato tabular."""
@@ -427,7 +427,7 @@ class ExcelGenerator:
             prefix=title,
         )
 
-    def _build_routine_sheet_row(self, routine: tuple, data_provider: DocumentationManagerPort) -> list[str]:
+    def _build_routine_sheet_row(self, routine: tuple[Any, ...], data_provider: DocumentationManagerPort) -> list[str]:
         """Construye una fila tabular para la hoja de rutinas."""
         routine_name, routine_type, routine_comment = GeneratorRoutineRuntime.normalize_entry(
             routine,
@@ -465,7 +465,7 @@ class ExcelGenerator:
 
         return "\n".join(parameters_rows)
 
-    def _format_routine_parameter_row(self, row: tuple) -> str:
+    def _format_routine_parameter_row(self, row: tuple[Any, ...]) -> str:
         """Formatea una fila de parámetro de rutina a texto legible."""
         position: str = self._safe_tuple_value(row, 4)
         mode: str = self._safe_tuple_value(row, 0)
@@ -476,7 +476,7 @@ class ExcelGenerator:
         raw_text: str = f"{position}. {mode} {name} {data_type} {default_value}".strip()
         return raw_text.lstrip(".").strip()
 
-    def _safe_tuple_value(self, row: tuple, index: int) -> str:
+    def _safe_tuple_value(self, row: tuple[Any, ...], index: int) -> str:
         """Obtiene un valor de tuple en forma segura y lo devuelve como texto."""
         if len(row) <= index:
             return ""
@@ -485,8 +485,8 @@ class ExcelGenerator:
         return str(value) if value is not None else ""
 
     def _get_unclassified_routines(
-        self, routines: list[tuple], procedures: list[tuple], functions: list[tuple]
-    ) -> list[tuple]:
+        self, routines: list[tuple[Any, ...]], procedures: list[tuple[Any, ...]], functions: list[tuple[Any, ...]]
+    ) -> list[tuple[Any, ...]]:
         """Obtiene rutinas no clasificadas como procedures/functions."""
         return GeneratorRoutineRuntime.get_unclassified(
             routines=routines,
@@ -505,9 +505,9 @@ class ExcelGenerator:
         *,
         ws: Worksheet,
         fila: int,
-        tables: list[tuple],
-        views: list[tuple],
-        routines: list[tuple],
+        tables: list[tuple[Any, ...]],
+        views: list[tuple[Any, ...]],
+        routines: list[tuple[Any, ...]],
         include_storage: bool,
         data_provider: DocumentationManagerPort,
     ) -> int:
@@ -550,7 +550,7 @@ class ExcelGenerator:
         comentario: str,
         charset_collation: str | None,
         data_provider: DocumentationManagerPort,
-        data_flat: list,
+        data_flat: list[Any],
         table_section_flags: list[bool],
     ) -> int:
         """Procesa la información de una tabla individual."""
@@ -580,7 +580,7 @@ class ExcelGenerator:
         self,
         ws: Worksheet,
         fila: int,
-        routine: tuple,
+        routine: tuple[Any, ...],
         data_provider: DocumentationManagerPort,
     ) -> int:
         """Procesa la información de una rutina (procedure/función)."""
@@ -700,7 +700,7 @@ class ExcelGenerator:
         if view_section_flags[1]:
             try:
                 # Crear lista temporal para data_flat (no se usa para vistas)
-                data_flat_tmp: list = []
+                data_flat_tmp: list[Any] = []
                 fila = self._add_columns_section(
                     ws,
                     fila,
@@ -741,7 +741,7 @@ class ExcelGenerator:
         tabla: str,
         comentario: str,
         data_provider: DocumentationManagerPort,
-        data_flat: list,
+        data_flat: list[Any],
         create_excel_table: bool = True,
     ) -> int:
         """Agrega la sección de Columnas a la hoja Excel."""
@@ -809,7 +809,7 @@ class ExcelGenerator:
                 for col in range(1, column_count + 1):
                     ws.cell(row=row, column=col).fill = row_fill_even
 
-    def _create_flat_sheet(self, wb: Workbook, data_flat: list) -> None:
+    def _create_flat_sheet(self, wb: Workbook, data_flat: list[Any]) -> None:
         """Crea la hoja plana con todas las columnas (MariaDB)."""
         ws2 = wb.create_sheet("Columnas")
         headers = self.headers["FLAT"]
@@ -831,7 +831,7 @@ class ExcelGenerator:
         )
 
     def _create_enriched_sheet(
-        self, wb: Workbook, data_provider: DocumentationManagerPort, tables: list[tuple]
+        self, wb: Workbook, data_provider: DocumentationManagerPort, tables: list[tuple[Any, ...]]
     ) -> None:
         """Crea la hoja enriquecida con PK, FK e Índices (Oracle, PostgreSQL, HSQLDB)."""
         ws2 = wb.create_sheet("Columnas")
@@ -1088,7 +1088,7 @@ class ExcelGenerator:
         ws.column_dimensions["A"].width = 25
         ws.column_dimensions["B"].width = 50
 
-    def _prepare_enriched_data(self, tabla: str, comentario: str, data_provider: DocumentationManagerPort) -> list:
+    def _prepare_enriched_data(self, tabla: str, comentario: str, data_provider: DocumentationManagerPort) -> list[Any]:
         """Prepara los datos enriquecidos de una tabla (PK, FK, Índices)."""
         columns: list[tuple[Any, ...]] = list(data_provider.get_columns(tabla))
         return GeneratorTabularRuntime.build_enriched_flat_rows_for_table(
@@ -1101,7 +1101,7 @@ class ExcelGenerator:
         )
 
     def _create_columns_charset_collation_sheet(
-        self, wb: Workbook, tables: list[tuple], data_provider: DocumentationManagerPort
+        self, wb: Workbook, tables: list[tuple[Any, ...]], data_provider: DocumentationManagerPort
     ) -> None:
         """Crea hoja consolidada Charset/Collation de todas las columnas."""
         self.logger.info("Creando hoja consolidada de Charset & Collation")
