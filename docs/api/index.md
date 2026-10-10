@@ -43,7 +43,7 @@ Resuelve valores awaitables o directos con una única API. Útil al implementar 
 que puede recibir tanto valores síncronos como corutinas.
 
 ```python
-from util_bbdd import maybe_await
+from util_bbdd.async_utils import maybe_await
 
 async def ejemplo():
     resultado = await maybe_await(alguna_funcion_o_corutina())

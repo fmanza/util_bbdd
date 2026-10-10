@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import pytest
 
-from util_bbdd import InvalidDatabaseType
 from util_bbdd.connection.factory import ConnectionFactory
 from util_bbdd.connection.params import ConnectionParamsManager
+from util_bbdd.exceptions import InvalidDatabaseType
 
 
 def test_connection_factory_unsupported_db_type_raises_invalid_database_type() -> None:

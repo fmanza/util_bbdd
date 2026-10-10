@@ -10,12 +10,8 @@ Este ejemplo muestra cómo:
 
 import logging
 
-from util_bbdd import (
-    DatabaseException,
-    QueryTimeoutError,
-    SyncDatabaseManager,
-    ValidationError,
-)
+from util_bbdd import DatabaseException, SyncDatabaseManager
+from util_bbdd.exceptions import QueryTimeoutError, ValidationError
 
 logging.basicConfig(level=logging.CRITICAL)
 logger = logging.getLogger(__name__)

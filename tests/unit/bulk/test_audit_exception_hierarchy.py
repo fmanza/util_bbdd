@@ -6,8 +6,8 @@ import pickle
 
 import pytest
 
-import util_bbdd
 import util_bbdd.bulk as bulk_pkg
+import util_bbdd.exceptions as public_exceptions
 
 from util_bbdd._core import exceptions as core
 from util_bbdd.bulk import audit as bulk_audit
@@ -23,7 +23,7 @@ def test_every_import_path_gives_the_same_class(name: str) -> None:
     cls = getattr(core, name)
     assert getattr(audit_errors, name) is cls
     assert getattr(bulk_audit, name) is cls
-    assert getattr(util_bbdd, name) is cls
+    assert getattr(public_exceptions, name) is cls
     if name == "AuditError":
         assert bulk_pkg.AuditError is cls
 

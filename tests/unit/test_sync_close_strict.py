@@ -14,8 +14,8 @@ from typing import Any, cast
 
 import pytest
 
-from util_bbdd import DatabaseOperationError, PoolTimeoutError
 from util_bbdd.connection.protocols import ConnectionPoolProtocol
+from util_bbdd.exceptions import DatabaseOperationError, PoolTimeoutError
 from util_bbdd.managers import SyncDatabaseManager
 
 

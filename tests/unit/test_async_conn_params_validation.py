@@ -8,8 +8,10 @@ from unittest import mock
 
 import pytest
 
-from util_bbdd import AsyncDatabaseManager, SyncDatabaseManager, ValidationError, build_conn_params
+from util_bbdd import AsyncDatabaseManager, SyncDatabaseManager
+from util_bbdd.connection import build_conn_params
 from util_bbdd.connection.params import ConnectionParamsManager
+from util_bbdd.exceptions import ValidationError
 from util_bbdd.managers._metadata_context import MetadataContextResolver
 
 NET = {"host": "localhost", "user": "u", "password": "p", "database": "db"}

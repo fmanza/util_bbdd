@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from util_bbdd import QueryNotFoundError
+from util_bbdd.exceptions import QueryNotFoundError
 from util_bbdd.query import DatabaseQueries
 
 SAMPLE_QUERIES = Path(__file__).resolve().parents[1] / "fixtures" / "sql_queries_sample.json"

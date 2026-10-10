@@ -195,7 +195,7 @@ class _RuntimeErrorSink:
 
 def test_strict_destino_propio_que_falla_lanza_audit_error(engine: Engine) -> None:
     """Hallazgo 1: audit_strict promete AuditError/OSError; la causa original queda en __cause__."""
-    from util_bbdd import AuditError
+    from util_bbdd.exceptions import AuditError
 
     crud = BulkCrud(engine, audit_sink=_RuntimeErrorSink(), audit_strict=True)
 

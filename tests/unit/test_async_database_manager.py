@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from util_bbdd import DatabaseOperationError, QueryNotFoundError
+from util_bbdd.exceptions import DatabaseOperationError, QueryNotFoundError
 from util_bbdd.managers import AsyncDatabaseManager
 
 

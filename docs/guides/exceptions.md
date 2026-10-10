@@ -15,8 +15,8 @@ Importar y usar la jerarquía de excepciones de `util_bbdd` para capturar errore
 ### Paso 1 — Importar las excepciones necesarias
 
 ```python
-from util_bbdd import (
-    DatabaseException,        # Base de todas las excepciones
+from util_bbdd.exceptions import (
+    DatabaseException,        # Base de todas las excepciones (también en la raíz: from util_bbdd import ...)
     ConnectionError,          # Errores de conexión y pool
     PoolExhaustedError,       # Pool agotado
     PoolTimeoutError,         # Timeout esperando conexión
@@ -56,7 +56,8 @@ DatabaseException (base)
 ### Paso 3 — Patrón de manejo recomendado
 
 ```python
-from util_bbdd import SyncDatabaseManager, QueryTimeoutError, ConnectionError, DatabaseException
+from util_bbdd import SyncDatabaseManager, DatabaseException
+from util_bbdd.exceptions import QueryTimeoutError, ConnectionError
 
 with SyncDatabaseManager("postgresql", conn_params) as manager:
     try:
@@ -76,7 +77,8 @@ with SyncDatabaseManager("postgresql", conn_params) as manager:
 
 ```python
 import time
-from util_bbdd import ConnectionError, DatabaseException
+from util_bbdd import DatabaseException
+from util_bbdd.exceptions import ConnectionError
 
 def ejecutar_con_retry(manager, sql, max_reintentos=3, delay=1.0):
     for intento in range(1, max_reintentos + 1):
@@ -91,7 +93,8 @@ def ejecutar_con_retry(manager, sql, max_reintentos=3, delay=1.0):
 ## 4. Verificación
 
 ```python
-from util_bbdd import SyncDatabaseManager, InvalidDatabaseType
+from util_bbdd import SyncDatabaseManager
+from util_bbdd.exceptions import InvalidDatabaseType
 
 try:
     SyncDatabaseManager("motor_inexistente", {"database": ":memory:"})

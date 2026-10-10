@@ -10,7 +10,7 @@ import pytest
 
 from sqlalchemy.pool import NullPool
 
-from util_bbdd import ConnectionError, ValidationError
+from util_bbdd.exceptions import ConnectionError, ValidationError
 from util_bbdd.factory.async_sqlalchemy_engine_factory import AsyncSQLAlchemyEngineFactory
 
 

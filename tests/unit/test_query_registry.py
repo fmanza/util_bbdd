@@ -9,7 +9,7 @@ Todos los tests son sin dependencias de bases de datos reales.
 
 import pytest
 
-from util_bbdd import QueryNotFoundError
+from util_bbdd.exceptions import QueryNotFoundError
 from util_bbdd.models import QueryDefinition
 from util_bbdd.query import QueryRegistry
 

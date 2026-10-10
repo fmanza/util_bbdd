@@ -64,7 +64,7 @@ síncrono o awaitable según el motor y la operación:
 - Pools async por motor: `connection/{mariadb,postgresql,oracle,sqlserver}/async_pool_connection_*.py`
 
 ```python
-from util_bbdd import maybe_await
+from util_bbdd.async_utils import maybe_await
 
 
 async def resolver(valor):

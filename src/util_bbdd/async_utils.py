@@ -7,6 +7,8 @@ import inspect
 from collections.abc import Awaitable
 from typing import cast, overload
 
+__all__: list[str] = ["maybe_await"]
+
 
 @overload
 async def maybe_await[T](value: Awaitable[T]) -> T: ...

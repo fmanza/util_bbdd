@@ -194,7 +194,7 @@ class TestFactoryBasic:
 
     def test_connect_factory_creation(self):
         """Test: crear ConnectionFactory."""
-        from util_bbdd import ConnectionFactory
+        from util_bbdd.factory import ConnectionFactory
 
         factory = ConnectionFactory()
         assert factory is not None
@@ -225,7 +225,7 @@ class TestExceptionHandling:
 
     def test_connection_error_import(self):
         """Test: importar DatabaseConnectionError."""
-        from util_bbdd import ConnectionError as DatabaseConnectionError
+        from util_bbdd.exceptions import ConnectionError as DatabaseConnectionError
 
         assert DatabaseConnectionError is not None
 
@@ -238,7 +238,7 @@ class TestExceptionHandling:
 
     def test_raise_connection_error(self):
         """Test: lanzar DatabaseConnectionError."""
-        from util_bbdd import ConnectionError as DatabaseConnectionError
+        from util_bbdd.exceptions import ConnectionError as DatabaseConnectionError
 
         with pytest.raises(DatabaseConnectionError):
             raise DatabaseConnectionError("Connection failed")

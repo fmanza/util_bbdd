@@ -6,7 +6,8 @@ import asyncio
 
 import pytest
 
-from util_bbdd import AsyncDatabaseManager, DatabaseOperationError
+from util_bbdd import AsyncDatabaseManager
+from util_bbdd.exceptions import DatabaseOperationError
 from util_bbdd.managers._manager_lifecycle import close_async_resources
 
 #: conn_params mínimos válidos por motor: desde v0.37.0 AsyncDatabaseManager los valida como el sync.

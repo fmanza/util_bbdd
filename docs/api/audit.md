@@ -120,7 +120,8 @@ Sin dependencias nuevas: el destino JSON Lines usa `json` de la biblioteca está
 ```python
 from pathlib import Path
 
-from util_bbdd import BulkCrud, JsonLinesAuditSink
+from util_bbdd import BulkCrud
+from util_bbdd.audit import JsonLinesAuditSink
 from util_bbdd.dump import DumpConfig, DumpOrchestrator
 
 sink = JsonLinesAuditSink(Path("logs/auditoria.jsonl"))

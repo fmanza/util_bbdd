@@ -4,12 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from util_bbdd import (
-    DatabaseOperationError,
-    QueryNotFoundError,
-    QueryTimeoutError,
-    QueryValidationError,
-)
+from util_bbdd.exceptions import DatabaseOperationError, QueryNotFoundError, QueryTimeoutError, QueryValidationError
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
 from util_bbdd.query import QueryRegistry
 

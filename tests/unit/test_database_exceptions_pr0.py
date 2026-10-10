@@ -5,8 +5,8 @@ Pruebas unitarias para la jerarquía de excepciones actualizada
 en database_exceptions.py.
 """
 
-from util_bbdd import (
-    DatabaseException,
+from util_bbdd import DatabaseException
+from util_bbdd.exceptions import (
     InvalidDatabaseType,
     QueryError,
     QueryNotFoundError,

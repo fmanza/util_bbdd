@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from util_bbdd import ValidationError
+from util_bbdd.exceptions import ValidationError
 from util_bbdd.factory.sqlalchemy_engine_factory import SQLAlchemyEngineFactory
 
 

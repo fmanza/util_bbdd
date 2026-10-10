@@ -204,13 +204,19 @@ importa nada de la librería, pero es Especialización.
 ## APIs Públicas (importes recomendados)
 
 ```python
+# Raíz (API 1.0, v0.43.0): 13 puntos de entrada y sus resultados; el resto, en su submódulo público
 from util_bbdd import (
     SyncDatabaseManager, AsyncDatabaseManager,
-    SyncMetadataProvider, AsyncMetadataProvider,
+    BulkCrud, ParallelBulkLoader,
+    DumpOrchestrator, DumpConfig, DumpResult,
+    MigrationPlanner, MigrationPlan,
     SchemaComparator, SchemaDiff,
-    ConnectionFactory, PoolFactory, build_conn_params,
-    maybe_await,
+    DatabaseDocumentation, DatabaseException,
 )
+from util_bbdd.metadata import SyncMetadataProvider, AsyncMetadataProvider
+from util_bbdd.connection import build_conn_params
+from util_bbdd.factory import ConnectionFactory, PoolFactory
+from util_bbdd.async_utils import maybe_await
 
 # Bulk operations
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader, AuditManager, PKSequenceSyncer
@@ -223,7 +229,7 @@ from util_bbdd.migrate import MigrationPlanner, MigrationPlan
 from util_bbdd.dump import DumpOrchestrator, DumpConfig, DumpResult
 
 # Exceptions (fuente canónica: _core/exceptions.py)
-from util_bbdd import DatabaseException, ConnectionError, QueryError, ValidationError
+from util_bbdd.exceptions import DatabaseException, ConnectionError, QueryError, ValidationError
 ```
 
 ---
@@ -244,4 +250,4 @@ from util_bbdd import DatabaseException, ConnectionError, QueryError, Validation
 
 ---
 
-*Documento actualizado: Junio 2026 - alineado a v0.10.0; `connection/` y `factory/` revisados el 2026-10-09 (v0.39.1)*
+*Documento actualizado: Junio 2026 - alineado a v0.10.0; `connection/` y `factory/` revisados el 2026-10-09 (v0.39.1); imports de la API 1.0 revisados el 2026-10-10 (v0.43.0)*

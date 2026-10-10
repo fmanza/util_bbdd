@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from util_bbdd import QueryParameterError, QueryValidationError
+from util_bbdd.exceptions import QueryParameterError, QueryValidationError
 from util_bbdd.models import QueryDefinition, ResolvedQuery
 from util_bbdd.query import QueryResolver
 
@@ -207,7 +207,7 @@ class TestQueryResolverErrors:
 
     def test_query_not_found_raises_error(self, resolver, mock_registry):
         """Falla si query no existe"""
-        from util_bbdd import QueryNotFoundError
+        from util_bbdd.exceptions import QueryNotFoundError
 
         mock_registry.get_query_definition.side_effect = QueryNotFoundError("test_query")
 

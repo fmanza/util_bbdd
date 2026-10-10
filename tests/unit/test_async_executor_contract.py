@@ -6,12 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from util_bbdd import (
-    DatabaseOperationError,
-    QueryNotFoundError,
-    QueryTimeoutError,
-    QueryValidationError,
-)
+from util_bbdd.exceptions import DatabaseOperationError, QueryNotFoundError, QueryTimeoutError, QueryValidationError
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.query import QueryRegistry
 

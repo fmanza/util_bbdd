@@ -19,13 +19,13 @@ import pytest
 
 from sqlalchemy import Engine, create_engine, text
 
-from util_bbdd import AuditError
 from util_bbdd._core.exceptions import DumpReportError
 from util_bbdd.audit import MemoryAuditSink
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader
 from util_bbdd.bulk._audit.events import BulkAuditEvents
 from util_bbdd.dump import DumpConfig, DumpOrchestrator
 from util_bbdd.dump._audit_events import DumpAuditEvents
+from util_bbdd.exceptions import AuditError
 from util_bbdd.migrate import MigrationPlan
 from util_bbdd.migrate._audit_events import MigrationAuditEvents
 

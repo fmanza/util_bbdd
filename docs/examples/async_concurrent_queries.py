@@ -10,7 +10,8 @@ Este ejemplo muestra cómo:
 
 import asyncio
 
-from util_bbdd import AsyncDatabaseManager, DatabaseException, PoolExhaustedError
+from util_bbdd import AsyncDatabaseManager, DatabaseException
+from util_bbdd.exceptions import PoolExhaustedError
 
 
 async def demonstrate_concurrent_queries():

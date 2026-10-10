@@ -93,18 +93,23 @@ src/util_bbdd/
 
 ### API pública recomendada
 
+La raíz exporta solo los 13 puntos de entrada y sus resultados (API 1.0, v0.43.0); el resto se importa desde su
+submódulo público (`exceptions`, `audit`, `metadata`, `connection`, `factory`, `async_utils`, `analysis`). Los nombres
+antiguos de la raíz avisan con `DeprecationWarning` hasta 1.0.0: no los uses en código, tests ni docs nuevos. Tabla
+completa: `docs/guides/api_1_0_migration.md`.
+
 ```python
 from util_bbdd import (
     SyncDatabaseManager,
     AsyncDatabaseManager,
-    SyncMetadataProvider,
-    AsyncMetadataProvider,
+    BulkCrud,
+    DumpOrchestrator,
+    MigrationPlanner,
     SchemaComparator,
-    ConnectionFactory,
-    PoolFactory,
-    maybe_await,
-    build_conn_params,
+    DatabaseException,
 )
+from util_bbdd.connection import build_conn_params
+from util_bbdd.exceptions import QueryNotFoundError
 
 # Ejemplo: conexión y listado de tablas
 manager = SyncDatabaseManager(
@@ -387,4 +392,4 @@ especializaciones afectadas (`CLAUDE.md`, `.github/copilot-instructions.md`, `GE
 
 ---
 
-*Actualizado: 2026-10-04*
+*Actualizado: 2026-10-10*

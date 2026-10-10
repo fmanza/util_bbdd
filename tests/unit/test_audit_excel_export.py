@@ -85,7 +85,7 @@ def test_unwritable_output_raises_audit_export_error_that_is_also_os_error(
     # auditoria.xlsx abierto en Excel: antes salía un PermissionError sin envolver. AuditExportError mantiene OSError.
     import pickle
 
-    from util_bbdd import AuditDataError, AuditExportError
+    from util_bbdd.exceptions import AuditDataError, AuditExportError
 
     def _bloqueado(*args: object, **kwargs: object) -> None:
         raise PermissionError("abierto en Excel")

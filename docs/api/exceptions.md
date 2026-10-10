@@ -2,6 +2,13 @@
 
 Jerarquía unificada de excepciones de `util_bbdd`. Todas heredan de `DatabaseException`.
 
+Se importan desde el módulo público `util_bbdd.exceptions` (v0.43.0); la raíz `util_bbdd` exporta solo
+`DatabaseException`. Ver [Migración a la API 1.0](../guides/api_1_0_migration.md).
+
+```python
+from util_bbdd.exceptions import DatabaseException, QueryNotFoundError
+```
+
 ```
 DatabaseException
 ├── ConnectionError
@@ -61,7 +68,7 @@ DatabaseException
 
 ---
 
-::: util_bbdd._core.exceptions
+::: util_bbdd.exceptions
     options:
       show_source: false
       heading_level: 3

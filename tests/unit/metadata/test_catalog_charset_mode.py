@@ -10,9 +10,10 @@ from unittest import mock
 
 import pytest
 
-from util_bbdd import AsyncDatabaseManager, ValidationError
+from util_bbdd import AsyncDatabaseManager
 from util_bbdd.connection.config import MariaDBConnectionConfig, MySQLConnectionConfig
 from util_bbdd.connection.params import ConnectionParamsManager
+from util_bbdd.exceptions import ValidationError
 from util_bbdd.managers._catalog_executor import AsyncManagerCatalogExecutor, ManagerCatalogExecutor
 from util_bbdd.metadata._adaptive_executor import AdaptiveCatalogExecutor
 

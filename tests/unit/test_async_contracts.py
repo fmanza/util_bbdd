@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from util_bbdd import maybe_await
+from util_bbdd.async_utils import maybe_await
 from util_bbdd.connection.factory import ConnectionFactory
 from util_bbdd.connection.protocols import AsyncConnectionProtocol, AsyncPoolProtocol
 

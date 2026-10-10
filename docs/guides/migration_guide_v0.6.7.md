@@ -1,5 +1,9 @@
 # Guía de Migración — v0.6.6 → v0.6.7
 
+!!! note "Guía histórica"
+    Los imports de excepciones desde la raíz (`from util_bbdd import ConnectionError`) están obsoletos desde v0.43.0;
+    usa `util_bbdd.exceptions`. Ver [Migración a la API 1.0](api_1_0_migration.md).
+
 ## 1. Objetivo
 
 Migrar código de v0.6.6 a v0.6.7 actualizando los nombres de excepciones y eliminando imports de módulos de fachada obsoletos.

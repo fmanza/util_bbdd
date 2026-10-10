@@ -11,7 +11,6 @@ from typing import Any, cast
 
 import pytest
 
-from util_bbdd import DatabaseOperationError, QueryNotFoundError
 from util_bbdd.doc.application.use_cases.documentation_orchestrator import (
     DocumentationBootstrap,
     DocumentationOutputPlanner,
@@ -24,6 +23,7 @@ from util_bbdd.doc.infrastructure.runtime.headers_runtime import DocumentationHe
 from util_bbdd.doc.infrastructure.runtime.metadata_runtime import DocumentationMetadataRuntimeFactory
 from util_bbdd.doc.infrastructure.runtime.output_runtime import DocumentationOutputRuntime
 from util_bbdd.doc.infrastructure.storage.runtime import StorageInventoryReportService, StorageInventoryRuntime
+from util_bbdd.exceptions import DatabaseOperationError, QueryNotFoundError
 from util_bbdd.metadata.model import ColumnMeta, Kind, PrimaryKeyMeta, RoutineMeta, SchemaSnapshot, TableMeta, ViewMeta
 
 

@@ -4,12 +4,8 @@ from __future__ import annotations
 
 from typing import get_args, get_origin, get_type_hints
 
-from util_bbdd import (
-    DatabaseException,
-    QueryExecutionError,
-    QueryTimeoutError,
-    QueryValidationError,
-)
+from util_bbdd import DatabaseException
+from util_bbdd.exceptions import QueryExecutionError, QueryTimeoutError, QueryValidationError
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
 from util_bbdd.managers import AsyncDatabaseManager, SyncDatabaseManager

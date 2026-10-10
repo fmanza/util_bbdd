@@ -127,7 +127,7 @@ class TestSyncDatabaseManagerE2E:
 
     def test_e2e_query_not_found(self, sqlite_engine_with_schema, sqlite_connection_config):
         """Test: Error cuando query no existe en sql_queries.json."""
-        from util_bbdd import QueryNotFoundError
+        from util_bbdd.exceptions import QueryNotFoundError
 
         manager = SyncDatabaseManager(**sqlite_connection_config)
         try:

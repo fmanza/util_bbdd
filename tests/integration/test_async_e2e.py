@@ -7,7 +7,8 @@ import asyncio
 
 import pytest
 
-from util_bbdd import AsyncDatabaseManager, DatabaseOperationError, QueryNotFoundError
+from util_bbdd import AsyncDatabaseManager
+from util_bbdd.exceptions import DatabaseOperationError, QueryNotFoundError
 
 
 @pytest.mark.e2e

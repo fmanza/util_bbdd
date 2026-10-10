@@ -597,6 +597,11 @@ Lo comprueba `tests/unit/test_architecture_import_rules.py`.
 
 La ruta recomendada para código nuevo usa **imports canónicos** desde la raíz del paquete. Rutas legacy se mantienen solo como transición.
 
+> **API 1.0 (v0.43.0)**: la raíz `util_bbdd` exporta solo los 13 puntos de entrada y sus resultados; las excepciones se
+> importan desde `util_bbdd.exceptions` y el resto desde su submódulo público. Los nombres antiguos siguen funcionando
+> con `DeprecationWarning` hasta 1.0.0. Tabla completa en
+> [docs/guides/api_1_0_migration.md](docs/guides/api_1_0_migration.md).
+
 | Componente | Import Canónico (Recomendado) | Ruta Legacy (Deprecated) |
 |---|---|---|
 | Manager sync | `from util_bbdd import SyncDatabaseManager` | `from util_bbdd.database_manager import DatabaseManager` |
