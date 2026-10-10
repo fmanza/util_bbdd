@@ -51,7 +51,6 @@ nav:
       - Índice de Referencia: api/intro.md
       - Managers:
           - Manager Síncrono: api/managers_sync.md
-          - Manager Síncrono (Técnico): api/managers_sync_technical.md
           - Manager Asíncrono: api/managers_async.md
           - Ciclo de Vida de Conexión: api/managers_lifecycle.md
       - Metadatos e Introspección:

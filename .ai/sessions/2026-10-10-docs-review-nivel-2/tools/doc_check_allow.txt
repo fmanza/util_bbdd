@@ -1,0 +1,5 @@
+# Bloques «antes» intencionados o hipotéticos registrados (path:línea del bloque)
+docs/guides/api_1_0_migration.md:62
+docs/guides/migration_guide_v0.6.7.md:64
+docs/guides/migration_guide_v0.6.7.md:74
+docs/guides/code_reusability_analysis_guide.md:258
