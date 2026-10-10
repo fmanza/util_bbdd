@@ -10,13 +10,17 @@ filas malas 1,13–1,23× (PostgreSQL 1,65×, lotes de 20 000): cada fila mala r
 from __future__ import annotations
 
 import contextlib
+import logging
 import operator
 import sqlite3
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Generator, Mapping, Sequence
+from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import Table
 from sqlalchemy.exc import DataError, IntegrityError
 
 from ...audit.rejects import REJECT_COLUMNS, RejectsWriter
@@ -305,10 +309,160 @@ class Isolator:
         self.rejected += 1  # M-1: solo filas entregadas (escritas): si on_reject falla, no cuenta
 
 
+#: Nota que lleva el ``OSError`` de no poder escribir el CSV de rechazos (M-1, audit-code 2026-10-01).
+REJECTS_FAILURE_NOTE: str = "bulk: no se pudo escribir el CSV de rechazos"
+
+
+@dataclass(slots=True)
+class RejectsSequence:
+    """Estado de ``BulkCrud.rejects_scope``: una secuencia de entrada para los rechazos de varias operaciones."""
+
+    partition: int | None
+    #: Posición en la secuencia de la primera fila de la operación siguiente.
+    row_offset: int
+    #: Rechazos de las operaciones ya terminadas del ámbito (presupuesto común de ``max_rejects``).
+    rejected: int = 0
+
+
+@dataclass(slots=True)
+class IsolatedOperation:
+    """Lo que :meth:`RejectsCoordinator.operation` necesita saber de la operación: sus filas, para avanzar el ámbito."""
+
+    rows: int = 0
+
+
+class RejectsCoordinator:
+    """Rechazos de una ``BulkCrud`` con ``on_error="isolate"``: escritor, presupuesto, ámbito y aislador en curso.
+
+    Extraído de ``bulk/crud.py`` en v1.1.0 (A5, SRP de ``BulkCrud`` por dentro) sin cambios de comportamiento. Sin
+    escritor (``on_error="raise"``) no hace nada. ``BulkCrud`` le pasa cómo reflejar la tabla, si se aísla con
+    ``batcherrors`` (Oracle) y cómo enganchar el aislador a sus ejecutores, para que este módulo no dependa de ellos.
+
+    Args:
+        writer: CSV de rechazos, o ``None`` sin aislamiento.
+        max_rejects: Filas que una operación (o un :meth:`scope`) puede rechazar; ``None`` sin límite.
+        reflect_table: ``Table`` de una tabla destino (``BulkCrud.reflect_table``).
+        batch_errors: ``True`` si se aíslan filas con ``batcherrors`` (``BulkCrud.__batch_errors``).
+        attach: Engancha el aislador de la operación a los ejecutores (``None`` al terminar).
+        logger: Logger de ``BulkCrud``.
+    """
+
+    def __init__(
+        self,
+        *,
+        writer: RejectsWriter | None,
+        max_rejects: int | None,
+        reflect_table: Callable[[str], Table],
+        batch_errors: Callable[[], bool],
+        attach: Callable[[Isolator | None], None],
+        logger: logging.Logger,
+    ) -> None:
+        self._writer: RejectsWriter | None = writer
+        self._max_rejects: int | None = max_rejects
+        self._reflect_table: Callable[[str], Table] = reflect_table
+        self._batch_errors: Callable[[], bool] = batch_errors
+        self._attach: Callable[[Isolator | None], None] = attach
+        self.logger: logging.Logger = logger
+        #: Filas rechazadas por la instancia, acumulado (``BulkCrud.rows_rejected``).
+        self.rows_rejected: int = 0
+        #: Aislador de la operación en curso; None fuera de una operación.
+        self.isolator: Isolator | None = None
+        #: Ámbito de ``rejects_scope`` en curso (None fuera de él).
+        self._sequence: RejectsSequence | None = None
+
+    @contextmanager
+    def scope(self, *, partition: int | None, row_offset: int) -> Generator[None, None, None]:
+        """Cuerpo de ``BulkCrud.rejects_scope`` (validación y ámbito; la documentación pública está allí)."""
+        # B-1 (audit-code 2026-10-02): partition va sin neutralizar al CSV (se abre en Excel); solo enteros.
+        checked_partition = optional_non_negative_int(partition, "partition")
+        checked_offset = optional_non_negative_int(row_offset, "row_offset")
+        if checked_offset is None:
+            raise ValueError(f"row_offset debe ser un entero ≥ 0, recibido: {row_offset!r}")
+        if self._sequence is not None:
+            raise RuntimeError("rejects_scope ya está abierto en esta instancia de BulkCrud")
+        self._sequence = RejectsSequence(partition=checked_partition, row_offset=checked_offset)
+        try:
+            yield
+        finally:
+            self._sequence = None
+
+    @contextmanager
+    def operation(self, tabla_destino: str, operation: str) -> Generator[IsolatedOperation, None, None]:
+        """Con ``on_error="isolate"``, aísla las filas erróneas de la operación (S-2); si no, no hace nada.
+
+        Un ``*_from_chunks`` es una sola operación (``max_rejects`` cuenta toda la secuencia): dentro de él, el
+        aislador del stream se reutiliza. Dentro de :meth:`scope`, la posición y el presupuesto de ``max_rejects``
+        continúan los del ámbito; quien llama anota en ``rows`` las filas de entrada de la operación.
+        """
+        operation_rows = IsolatedOperation()
+        if self._writer is None or self.isolator is not None:
+            yield operation_rows
+            return
+        writer: RejectsWriter = self._writer
+        tabla: Table = self._reflect_table(tabla_destino)
+        columns: set[str] = set(tabla.c.keys())
+        scope = self._sequence
+        base: int = 0 if scope is None else scope.row_offset
+        partition: int | None = None if scope is None else scope.partition
+
+        def on_reject(position: int, values: Mapping[str, Any], error: BaseException) -> None:
+            # Sin los alias de PK del UPDATE: solo las columnas de la tabla.
+            row = {key: value for key, value in values.items() if key in columns}
+            position += base  # posición en la secuencia de rejects_scope (filas saltadas al reanudar, chunks previos)
+            try:
+                writer.write(
+                    table=tabla_destino,
+                    operation=operation,
+                    position=position,
+                    error=error,
+                    values=row,
+                    partition=partition,
+                )
+            except OSError as exc:
+                # M-1 (audit-code 2026-10-01): p. ej. el CSV abierto en Excel. La operación falla (no se pierde el
+                # rechazo en silencio); la nota distingue este fallo del de la auditoría en el log de la operación.
+                exc.add_note(f"{REJECTS_FAILURE_NOTE} ({writer.path}; fila {position} de la entrada)")
+                raise
+            # B-2: una línea por fila solo en DEBUG; el resumen de la operación va en WARNING.
+            self.logger.debug(
+                f"bulk {operation} en '{tabla_destino}': fila {position} rechazada ({type(error).__name__})"
+            )
+
+        isolator = Isolator(
+            on_reject=on_reject,
+            max_rejects=self._max_rejects,
+            batch_errors=self._batch_errors(),
+            already_rejected=0 if scope is None else scope.rejected,
+        )
+        self.isolator = isolator
+        self._attach(isolator)
+        try:
+            yield operation_rows
+        finally:
+            self.isolator = None
+            self._attach(None)
+            self.rows_rejected += isolator.rejected
+            if scope is not None:
+                scope.row_offset += operation_rows.rows
+                scope.rejected += isolator.rejected
+            if isolator.rejected:
+                self.logger.warning(
+                    f"⚠️ bulk {operation} en '{tabla_destino}': {isolator.rejected} filas rechazadas en {writer.path}"
+                )
+
+    def rejected_so_far(self) -> int:
+        """Filas rechazadas hasta ahora en la operación en curso (0 sin aislamiento)."""
+        return 0 if self.isolator is None else self.isolator.rejected
+
+
 __all__: list[str] = [
     "ISOLATED_ERRORS",
+    "REJECTS_FAILURE_NOTE",
     "REJECT_COLUMNS",
+    "IsolatedOperation",
     "Isolator",
+    "RejectsCoordinator",
+    "RejectsSequence",
     "RejectsWriter",
     "optional_non_negative_int",
     "validate_isolation",

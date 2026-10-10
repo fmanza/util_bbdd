@@ -73,7 +73,14 @@ from ._support.iterables import closing_iterable
 from ._support.persistence import BulkPersistenceManager
 from ._support.pk_sync import PKSequenceSyncer
 from ._support.prefetch import prefetch
-from ._support.rejects import Isolator, RejectsWriter, optional_non_negative_int, validate_isolation
+from ._support.rejects import (
+    REJECTS_FAILURE_NOTE,
+    Isolator,
+    RejectsCoordinator,
+    RejectsWriter,
+    optional_non_negative_int,
+    validate_isolation,
+)
 from ._support.sql_helpers import (
     SqlColumns,
     build_override_identity_text_stmt,
@@ -148,10 +155,6 @@ class _StreamPosition:
     first: bool
 
 
-#: Nota que lleva el ``OSError`` de no poder escribir el CSV de rechazos (M-1, audit-code 2026-10-01).
-_REJECTS_FAILURE_NOTE: str = "bulk: no se pudo escribir el CSV de rechazos"
-
-
 #: Tipos LOB: el UPDATE con alguno de ellos aísla por bisección y no con ``batcherrors`` (S-5, ORA-03106).
 _LOB_TYPES: tuple[type, ...] = (Text, LargeBinary, JSON)
 
@@ -167,24 +170,6 @@ def _lob_like(column_type: Any) -> bool:
         return True
     length = getattr(column_type, "length", None) if isinstance(column_type, String) else None
     return length is not None and length > _LOB_LIKE_STRING_LENGTH
-
-
-@dataclass(slots=True)
-class _RejectsScope:
-    """Estado de ``BulkCrud.rejects_scope``: una secuencia de entrada para los rechazos de varias operaciones."""
-
-    partition: int | None
-    #: Posición en la secuencia de la primera fila de la operación siguiente.
-    row_offset: int
-    #: Rechazos de las operaciones ya terminadas del ámbito (presupuesto común de ``max_rejects``).
-    rejected: int = 0
-
-
-@dataclass(slots=True)
-class _IsolatedOperation:
-    """Lo que ``__isolating`` necesita saber de la operación: sus filas de entrada, para avanzar el ámbito."""
-
-    rows: int = 0
 
 
 class BulkCrud:
@@ -312,13 +297,16 @@ class BulkCrud:
         # v1.1.0: las rutas aceptan str además de Path (antes, audit_csv_path=str fallaba con AuditConfigError).
         audit_path: Path | None = validate_optional_path(audit_csv_path, "audit_csv_path")
         rejects_path: Path | None = validate_optional_path(rejects_csv_path, "rejects_csv_path")
-        self._rejects: RejectsWriter | None = self.__rejects_writer(on_error, rejects_path, max_rejects)
-        self._max_rejects: int | None = optional_non_negative_int(max_rejects, "max_rejects")
-        self._rows_rejected: int = 0
-        #: Aislador de la operación en curso (``on_error="isolate"``); None fuera de una operación.
-        self._isolator: Isolator | None = None
-        #: Ámbito de ``rejects_scope`` en curso (None fuera de él).
-        self._rejects_scope: _RejectsScope | None = None
+        # A5 (v1.1.0): escritor, presupuesto, ámbito y aislador de on_error="isolate" en RejectsCoordinator.
+        # Las lambdas resuelven reflect_table y __batch_errors en cada llamada, como cuando vivían aquí.
+        self._rejects: RejectsCoordinator = RejectsCoordinator(
+            writer=self.__rejects_writer(on_error, rejects_path, max_rejects),
+            max_rejects=optional_non_negative_int(max_rejects, "max_rejects"),
+            reflect_table=lambda tabla_destino: self.reflect_table(tabla_destino),
+            batch_errors=lambda: self.__batch_errors(),
+            attach=self.__attach_isolator,
+            logger=self.logger,
+        )
 
         self.engine: Engine = validate_engine(engine)
         self._table_cache: dict[str, Table] = {}
@@ -599,7 +587,7 @@ class BulkCrud:
         resolved: tuple[Any, list[str]] | None = None
         self._session.rows.start_operation()  # B-11: last_operation_rows_committed cuenta todo el stream
 
-        with self.__isolating(tabla_destino, "INSERT") as isolated, self.bulk_session():
+        with self._rejects.operation(tabla_destino, "INSERT") as isolated, self.bulk_session():
             for chunk_index, chunk in enumerate(chunks):
                 working_df: pd.DataFrame = chunk.copy(deep=False)
                 self.__actualizar_df(working_df, tabla)
@@ -616,7 +604,7 @@ class BulkCrud:
 
                 numero_registros: int = len(working_df)
                 isolated.rows = total + numero_registros  # B-4: filas recibidas, también si este chunk falla
-                rejected_before: int = self.__rejected_so_far()
+                rejected_before: int = self._rejects.rejected_so_far()
                 size: int = self._batch_sizes["insert"]
                 start: float = perf_counter()
                 with batch_failure_note("INSERT", tabla.fullname, chunk_index, total, numero_registros):
@@ -638,7 +626,7 @@ class BulkCrud:
                     table_name=tabla_destino,
                     operation="INSERT",
                     # S-2: con on_error="isolate", las filas aplicadas (las rechazadas no están en la BD).
-                    rowcount=numero_registros - (self.__rejected_so_far() - rejected_before),
+                    rowcount=numero_registros - (self._rejects.rejected_so_far() - rejected_before),
                     elapsed=elapsed,
                     generated_sql=False,
                 )
@@ -696,7 +684,7 @@ class BulkCrud:
         operation: str = strategy_key.upper()
         with (
             closing_iterable(chunks) as items,
-            self.__isolating(tabla_destino, operation) as isolated,
+            self._rejects.operation(tabla_destino, operation) as isolated,
             self.bulk_session(),
         ):
             for chunk_index, chunk in enumerate(items):
@@ -781,84 +769,8 @@ class BulkCrud:
             ...     for chunk in pd.read_csv("datos.csv", chunksize=50_000):
             ...         crud.bulk_insert_from_df(chunk, "items", generar_sql=False)
         """
-        # B-1 (audit-code 2026-10-02): partition va sin neutralizar al CSV (se abre en Excel); solo enteros.
-        checked_partition = optional_non_negative_int(partition, "partition")
-        checked_offset = optional_non_negative_int(row_offset, "row_offset")
-        if checked_offset is None:
-            raise ValueError(f"row_offset debe ser un entero ≥ 0, recibido: {row_offset!r}")
-        if self._rejects_scope is not None:
-            raise RuntimeError("rejects_scope ya está abierto en esta instancia de BulkCrud")
-        self._rejects_scope = _RejectsScope(partition=checked_partition, row_offset=checked_offset)
-        try:
+        with self._rejects.scope(partition=partition, row_offset=row_offset):
             yield
-        finally:
-            self._rejects_scope = None
-
-    @contextmanager
-    def __isolating(self, tabla_destino: str, operation: str) -> Generator[_IsolatedOperation, None, None]:
-        """Con ``on_error="isolate"``, aísla las filas erróneas de la operación (S-2); si no, no hace nada.
-
-        Un ``*_from_chunks`` es una sola operación (``max_rejects`` cuenta toda la secuencia): dentro de él, el
-        aislador del stream se reutiliza. Dentro de :meth:`rejects_scope`, la posición y el presupuesto de
-        ``max_rejects`` continúan los del ámbito; quien llama anota en ``rows`` las filas de entrada de la operación.
-        """
-        operation_rows = _IsolatedOperation()
-        if self._rejects is None or self._isolator is not None:
-            yield operation_rows
-            return
-        writer: RejectsWriter = self._rejects
-        tabla: Table = self.reflect_table(tabla_destino)
-        columns: set[str] = set(tabla.c.keys())
-        scope = self._rejects_scope
-        base: int = 0 if scope is None else scope.row_offset
-        partition: int | None = None if scope is None else scope.partition
-
-        def on_reject(position: int, values: Mapping[str, Any], error: BaseException) -> None:
-            # Sin los alias de PK del UPDATE: solo las columnas de la tabla.
-            row = {key: value for key, value in values.items() if key in columns}
-            position += base  # posición en la secuencia de rejects_scope (filas saltadas al reanudar, chunks previos)
-            try:
-                writer.write(
-                    table=tabla_destino,
-                    operation=operation,
-                    position=position,
-                    error=error,
-                    values=row,
-                    partition=partition,
-                )
-            except OSError as exc:
-                # M-1 (audit-code 2026-10-01): p. ej. el CSV abierto en Excel. La operación falla (no se pierde el
-                # rechazo en silencio); la nota distingue este fallo del de la auditoría en el log de la operación.
-                exc.add_note(f"{_REJECTS_FAILURE_NOTE} ({writer.path}; fila {position} de la entrada)")
-                raise
-            # B-2: una línea por fila solo en DEBUG; el resumen de la operación va en WARNING.
-            self.logger.debug(
-                f"bulk {operation} en '{tabla_destino}': fila {position} rechazada ({type(error).__name__})"
-            )
-
-        isolator = Isolator(
-            on_reject=on_reject,
-            max_rejects=self._max_rejects,
-            batch_errors=self.__batch_errors(),
-            already_rejected=0 if scope is None else scope.rejected,
-        )
-        self._isolator = isolator
-        self._batch_statement_executor.isolator = isolator
-        self._delete_batch_executor.isolator = isolator
-        try:
-            yield operation_rows
-        finally:
-            self._isolator = None
-            self._batch_statement_executor.isolator = None
-            self._delete_batch_executor.isolator = None
-            self._rows_rejected += isolator.rejected
-            if scope is not None:
-                scope.row_offset += operation_rows.rows
-                scope.rejected += isolator.rejected
-            if isolator.rejected:
-                self.logger.warning(
-                    f"⚠️ bulk {operation} en '{tabla_destino}': {isolator.rejected} filas rechazadas en {writer.path}"
-                )
 
     def __batch_errors(self) -> bool:
         """``True`` si se aíslan filas con ``batcherrors`` (Oracle con oracledb, S-5); registra el listener una vez."""
@@ -867,9 +779,10 @@ class BulkCrud:
         oracle_batch_errors.install(self.engine)
         return True
 
-    def __rejected_so_far(self) -> int:
-        """Filas rechazadas hasta ahora en la operación en curso (0 sin aislamiento)."""
-        return 0 if self._isolator is None else self._isolator.rejected
+    def __attach_isolator(self, isolator: Isolator | None) -> None:
+        """Engancha a los dos ejecutores el aislador de la operación en curso (``None`` al terminar)."""
+        self._batch_statement_executor.isolator = isolator
+        self._delete_batch_executor.isolator = isolator
 
     def __resolve_stream_insert(
         self,
@@ -966,11 +879,11 @@ class BulkCrud:
             if generar_sql:
                 self.__guardar_fichero_sql(prepared_operation.generate_sql_lines(), path_sql)
             else:
-                with self.__isolating(tabla_destino, operation_name) as isolated:
+                with self._rejects.operation(tabla_destino, operation_name) as isolated:
                     isolated.rows = prepared_operation.rowcount
-                    rejected_before: int = self.__rejected_so_far()
+                    rejected_before: int = self._rejects.rejected_so_far()
                     prepared_operation.execute()
-                    rejected = self.__rejected_so_far() - rejected_before
+                    rejected = self._rejects.rejected_so_far() - rejected_before
             elapsed: float = perf_counter() - start
 
             self._persistence.register_operation(
@@ -989,7 +902,7 @@ class BulkCrud:
             self.logger.error(f"❌ Error en bulk {strategy_key.upper()}: {error}")
             raise
         except (AuditError, OSError) as error:
-            if any(note.startswith(_REJECTS_FAILURE_NOTE) for note in getattr(error, "__notes__", ())):
+            if any(note.startswith(REJECTS_FAILURE_NOTE) for note in getattr(error, "__notes__", ())):
                 self.logger.error(f"❌ No se pudo escribir el CSV de rechazos de bulk {strategy_key.upper()}: {error}")
             else:
                 self.logger.error(f"❌ Error registrando auditoría de bulk {strategy_key.upper()}: {error}")
@@ -1151,10 +1064,10 @@ class BulkCrud:
             .values({col: json_binds.get(col, bindparam(col)) for col in update_plan.update_cols})
         )
         executor = self._batch_statement_executor
-        if self._isolator is not None:
+        if self._rejects.isolator is not None:
             # S-5: con un bind LOB grande y una fila mala, batcherrors da ORA-03106 en el UPDATE (oracledb thin 4.0.1,
             # 4.0.2 y 26.0.1; el INSERT no falla: sesión 2026-10-01y).
-            self._isolator.batch_errors = self.__batch_errors() and not any(
+            self._rejects.isolator.batch_errors = self.__batch_errors() and not any(
                 _lob_like(tabla.c[column].type) for column in update_plan.update_cols
             )
         staging: StagingUpdateStrategy | None = None
@@ -1393,7 +1306,7 @@ class BulkCrud:
         Si no se puede escribir el CSV (p. ej. abierto en Excel), la operación falla con ``OSError`` (nota «no se pudo
         escribir el CSV de rechazos») y esa fila no cuenta.
         """
-        return self._rows_rejected
+        return self._rejects.rows_rejected
 
     @property
     def rows_committed(self) -> int:
