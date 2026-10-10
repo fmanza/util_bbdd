@@ -2,7 +2,7 @@
 
 **Generado**: 2026-06-05 (cabecera y «Próximos pasos» actualizados el 2026-10-10 tras v1.0.0)  
 **Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.39.1` (la tabla de abajo no recoge todas las versiones intermedias: el detalle está en el CHANGELOG)  
-**Versión**: `v1.1.0` (2026-10-10, cerrada en local: sin tag ni push hasta autorización; `v1.0.0` publicada con tag y `main` en v1.0.0). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`, `v0.40.3`, `v0.41.0`, `v0.41.1`, `v0.41.2`, `v0.41.3`, `v0.42.0`, `v0.42.1`, `v0.43.0`, `v0.44.0`, `v1.0.0`  
+**Versión**: `v1.1.0` (2026-10-10, publicada: tag `v1.1.0`, `develop` y `main` en `e4467d25`). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`, `v0.40.3`, `v0.41.0`, `v0.41.1`, `v0.41.2`, `v0.41.3`, `v0.42.0`, `v0.42.1`, `v0.43.0`, `v0.44.0`, `v1.0.0`, `v1.1.0`  
 **Rama activa**: `develop`
 
 ---
@@ -63,7 +63,7 @@
 | `v0.43.0` | Liberado 2026-10-10 — **API pública 1.0, fase 0.43.0**: raíz con 13 puntos de entrada y carga perezosa, `util_bbdd.exceptions`, 46 alias deprecados, managers simétricos (`.ai/sessions/2026-10-10-api-1-0/`) | ✅ |
 | `v0.44.0` | Liberado 2026-10-10 — excepciones con `__module__` público `util_bbdd.exceptions`; pickles antiguos compatibles (`.ai/sessions/2026-10-10-exceptions-module-name/`) | ✅ |
 | `v1.0.0` | Liberado 2026-10-10 (tag sobre `158903b6`; `main` en v1.0.0) — **API pública estable**: alias de 0.x y `close_connection()` retirados; documentación revisada para 1.0; cobertura 91 % (`.ai/sessions/2026-10-10-api-1-0-final/`) | ✅ |
-| `v1.1.0` | Cerrado en local 2026-10-10 — rutas `str` en `bulk`/`dump`; **hotfix**: consultas async de PostgreSQL (asyncpg), filas de pyodbc anidadas, `driver_name` en el pool async de SQL Server; `BulkCrud` dividido por dentro (`TableMaintenance`, `RejectsCoordinator`); 0 `ResourceWarning` con `--cov`; guías de rendimiento, constraints y `migrate` revisadas (`.ai/sessions/2026-10-10-plan-pendientes-post-1-0/`) | ✅ (sin push) |
+| `v1.1.0` | Liberado 2026-10-10 (tag sobre `e4467d25`; `main` en v1.1.0) — rutas `str` en `bulk`/`dump`; **hotfix**: consultas async de PostgreSQL (asyncpg), filas de pyodbc anidadas, `driver_name` en el pool async de SQL Server; `BulkCrud` dividido por dentro (`TableMaintenance`, `RejectsCoordinator`); 0 `ResourceWarning` con `--cov`; guías de rendimiento, constraints y `migrate` revisadas (`.ai/sessions/2026-10-10-plan-pendientes-post-1-0/`) | ✅ |
 | Zenical | Hecho — `migrate/zenical-pure` fusionada (PR #19, `c6d765a8`); `zensical` 0.0.44 es el generador del CI y lee `mkdocs.yml` (no se usa `zensical.toml`) | ✅ |
 
 PR #18 (`MySQLVariableValidator`): su código (`9a71e056`) está en `main` y `develop`; el estado de la PR en GitHub no se ha comprobado (sin `gh`) — cerrarla si sigue abierta.  
@@ -116,7 +116,7 @@ mismo `mkdocs.yml`; el CI publica con Zensical. Ver `ZENICAL.md`.
 | P6 | Esta lista | ✅ Rehecha 2026-10-10 | B0 |
 | N1 | `doc_agents.yml` heredado (APIs externas, módulo inexistente) | ✅ Retirado 2026-10-10 | B0 |
 | H1 | Hotfix: consultas async de PostgreSQL (asyncpg) rotas desde v0.5.6 (encontrado en B5) | ✅ Hecho (v1.1.0, `d369c8e3`) | — |
-| R1 | Release 1.1.0: tag `v1.1.0`, push de `develop` y fast-forward de `main` | Pendiente de autorización | B7 |
+| R1 | Release 1.1.0: tag `v1.1.0`, push de `develop` y fast-forward de `main` | ✅ Hecho 2026-10-10 (`e4467d25`) | B7 |
 | D2 | Revisión de docs nivel 2 (~85 páginas) y `docs/examples/migrate_*` | Pendiente | `docs` |
 | A1 | `AsyncDatabaseManager("sqlserver")` sondeado con el ODBC Driver 18 instalado: filas anidadas con pyodbc (también en sync) y pool async sin `driver_name` | ✅ Hecho (v1.1.0, `cf7abb78`, `1c83041b`) | — |
 | A2 | `driver_name` por defecto = ODBC Driver 17: con solo el 18 instalado hay que indicarlo (¿detectar el instalado?) | Por decidir | `/new-feature` |
