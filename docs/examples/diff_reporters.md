@@ -24,8 +24,7 @@ Aspectos críticos:
 ## 4. Ejecución y Pruebas
 
 ```bash
-# Instalar dependencias de reportes
-pip install "util-bbdd[doc]"
+# Las dependencias de los reportes (openpyxl, python-docx, jinja2) van en la instalación base de util_bbdd
 
 # Validación sintáctica
 python -m py_compile docs/examples/diff_reporters.py

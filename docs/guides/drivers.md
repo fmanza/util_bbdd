@@ -37,7 +37,7 @@ manager = AsyncDatabaseManager(
 )
 
 # Funciona con async/await
-schema = await manager.fetch_current_schema()
+snapshot = await manager.get_schema_metadata()
 ```
 
 **Limitaciones:**
@@ -122,7 +122,7 @@ manager = SyncDatabaseManager(
 )
 
 # Funciona con código sincrónico (no-async)
-schema = manager.fetch_current_schema()
+snapshot = manager.get_schema_metadata()
 ```
 
 **Parámetros:**

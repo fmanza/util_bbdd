@@ -11,7 +11,7 @@ Soporta MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB. Puede generar 
 - Instancia del gestor síncrono de BD ya inicializada y con conexión activa
 - Permisos de lectura sobre los metadatos del esquema, vistas de catálogo y DDL
 - Directorio de salida accesible con permisos de escritura
-- Dependencias opcionales de documentación instaladas (`util-bbdd[doc]`)
+- Dependencias de documentación (`openpyxl`, `python-docx`, `jinja2`): incluidas en la instalación base
 - Para grafos: Graphviz disponible cuando se activen diagramas de relaciones
 - Formatos válidos: `word`, `excel`, `html`
 

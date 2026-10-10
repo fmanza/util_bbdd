@@ -342,7 +342,8 @@ Output esperado: `INFO - Documentation built in Xs` sin warnings.
 - [Programación asíncrona](async_guide.md) — patrones y drivers async
 - [Conexión y Drivers por Motor](connection_guide.md) — conexión por motor y troubleshooting
 - [Excepciones](exceptions.md) — jerarquía de excepciones canónica
-- [Guía de Migración](migration_guide.md) — migración entre versiones de la librería
+- [Migración a la API 1.0](api_1_0_migration.md) — de 0.x a 1.0 (imports desde la raíz y submódulos públicos)
+- [Guía de Migración v0.6.3](migration_guide.md) — histórica, para código anterior a v0.6.3
 - [Ejemplos](../examples/example_connect_introspect.md) — casos de uso por funcionalidad (punto de entrada recomendado para explorar la API)
 
 ### Contexto IA del proyecto

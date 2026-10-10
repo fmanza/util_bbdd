@@ -12,8 +12,8 @@ Documentación generada automáticamente desde los docstrings del código fuente
 | [Managers](managers.md) | `SyncDatabaseManager`, `AsyncDatabaseManager` |
 | [Comparador](comparator.md) | `SchemaComparator`, modelos `SchemaDiff` |
 | [Reporters](reporters.md) | `SchemaDiffReporter`, `HtmlDiffReporter`, `SqlDiffReporter`, `MarkdownDiffReporter`, `ExcelDiffReporter`, `WordDiffReporter` |
-| [Bulk Operations](bulk.md) | `bulk_crud` |
-| [Excepciones](exceptions.md) | `DatabaseException` y toda la jerarquía |
+| [Bulk Operations](bulk.md) | `BulkCrud`, `ParallelBulkLoader` y auxiliares de `util_bbdd.bulk` |
+| [Excepciones](exceptions.md) | `util_bbdd.exceptions`: `DatabaseException` y toda la jerarquía |
 
 ---
 
@@ -65,5 +65,5 @@ is_async_supported("hsqldb")      # False
 is_async_supported("desconocido") # None
 ```
 
-Motores con soporte async: `mariadb`, `oracle`, `postgresql`, `sqlserver`, `sqlite`.
+Motores con soporte async: `mariadb`, `mysql`, `oracle`, `postgresql`, `sqlserver`, `sqlite`.
 Sin soporte async: `hsqldb`.

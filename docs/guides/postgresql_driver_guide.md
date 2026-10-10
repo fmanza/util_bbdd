@@ -7,24 +7,24 @@ Instalar y configurar el driver de PostgreSQL (sync y async) para usarlo con `Sy
 ## 2. Requisitos Previos
 
 - `util_bbdd` instalado
-- Python 3.10+ para el driver async (`asyncpg`)
+- Python 3.12+ (el mismo requisito que `util_bbdd`)
 - Servidor PostgreSQL accesible (o usar Docker: `docker run -e POSTGRES_PASSWORD=secret -p 5432:5432 postgres:15`)
-- Elegir entre `psycopg2` (sync, ampliamente probado) y `asyncpg` (async, mayor rendimiento) o `psycopg3` (sync+async, el más rápido para bulk)
+- Drivers que usan los managers: **psycopg 3** (`psycopg` + `psycopg-pool`) en sync y **asyncpg** en async. `psycopg2` no
+  lo usan los managers; solo aplica si pasas a `BulkCrud` un Engine `postgresql+psycopg2://` creado por ti
 
 ## 3. Pasos
 
 ### Paso 1 — Instalar el driver elegido
 
 ```bash
-# Sync (psycopg2 — el más compatible)
-pip install psycopg2-binary
+# Todo lo necesario para PostgreSQL (psycopg 3 + psycopg-pool en sync, asyncpg en async)
+pip install "util_bbdd[postgresql]"
 
-# Async (asyncpg — el más rápido para async)
-pip install asyncpg
-
-# psycopg3 — sync y async, más rápido para bulk (psycopg3 usa COPY en bulk_crud)
-pip install "psycopg[binary]"
+# Equivalente a mano
+pip install "psycopg[binary]" psycopg-pool asyncpg
 ```
+
+Con psycopg 3, `BulkCrud` inserta con `COPY ... FROM STDIN`.
 
 ### Paso 2 — Conexión síncrona
 
@@ -77,14 +77,18 @@ manager = SyncDatabaseManager(
         "database": "mydb",
         "user": "app_user",
         "password": "secret",
-        "pool_size": 20,
-        "max_overflow": 10,
-        "pool_pre_ping": True,      # verificar conexión antes de usar
-        "pool_recycle": 1800,       # reciclar conexiones cada 30 min
-        "connect_args": {"sslmode": "require"},  # SSL en producción
+        "pool_size": 20,            # conexiones del pool (psycopg-pool)
+        "pool_timeout": 30,         # segundos esperando una conexión libre
+        "max_idle": 600,            # segundos antes de cerrar una conexión ociosa
+        "sslmode": "require",       # TLS en producción (parámetro de libpq)
     },
 )
 ```
+
+Parámetros admitidos: los de conexión de libpq que recoge `PostgreSQLConnectionConfig` (`sslmode`,
+`connect_timeout`, `application_name`, `keepalives*`, `options`, `target_session_attrs`…) y los de pool de
+`PostgreSQLPoolConfig` (`pool_size`, `pool_timeout`, `max_idle`, `close_timeout`). Ver
+[Conexión y Drivers por Motor](connection_guide.md).
 
 ## 4. Verificación
 
@@ -109,9 +113,10 @@ manager.close()
 
 | Error / Síntoma | Causa probable | Solución |
 |---|---|---|
-| `No module named 'psycopg2'` | Driver no instalado | `pip install psycopg2-binary` |
+| `Módulo psycopg (psycopg3) no disponible` | Driver sync no instalado | `pip install "util_bbdd[postgresql]"` |
+| `No module named 'asyncpg'` | Driver async no instalado | `pip install "util_bbdd[postgresql]"` |
 | `fe_sendauth: no password supplied` | Sin contraseña en `conn_params` | Añadir `"password": "..."` en `conn_params` |
-| `SSL connection required` en producción | Servidor requiere SSL | Añadir `"connect_args": {"sslmode": "require"}` en `conn_params` |
+| `SSL connection required` en producción | Servidor requiere SSL | Añadir `"sslmode": "require"` en `conn_params` |
 | `FATAL: role "username" does not exist` | Usuario no existe en PostgreSQL | Crear el usuario: `CREATE USER username WITH PASSWORD '...'` |
 | `FATAL: database "dbname" does not exist` | Base de datos no creada | `CREATE DATABASE dbname;` en psql |
-| Bulk insert lento con psycopg2 | psycopg2 usa `execute_values` (3–5×); psycopg3 usa `COPY` (mucho más rápido) | `pip install "psycopg[binary]"` para usar psycopg3 |
+| Bulk insert lento con un Engine `postgresql+psycopg2://` propio | psycopg2 usa `execute_values`; psycopg 3 usa `COPY` (mucho más rápido) | Crea el Engine con `postgresql+psycopg://` o usa `manager.get_sqlalchemy_engine()` |

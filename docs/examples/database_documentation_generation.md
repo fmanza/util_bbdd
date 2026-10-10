@@ -19,7 +19,7 @@ Aspectos críticos:
 - **Separación constructor / `generate()`**: el constructor solo valida la configuración (lanza `DocumentationConfigError` si un formato, el fichero de cabeceras o la plantilla Word no son válidos) y no consulta la base de datos. `generate()` lee el catálogo, escribe los ficheros y devuelve un `DocumentationResult` con la ruta de cada formato y el número de tablas, vistas y rutinas.
 - **`imprimir_config`**: diccionario que controla qué documentar y cómo presentarlo. Las claves `tablas`, `vistas` y `rutinas` controlan las secciones; la clave `grafo` configura los diagramas de relaciones.
 - **Fragmentación Word automática**: con `tablas_por_documento=50` (default), esquemas grandes se dividen en múltiples ficheros `.docx` numerados automáticamente.
-- **Dependencia `util-bbdd[doc]`**: la generación de Word, Excel y HTML requiere el extra `doc` instalado.
+- **Dependencias**: `openpyxl`, `python-docx` y `jinja2` (Excel, Word y HTML) van en la instalación base; los grafos necesitan el extra `analysis` y los binarios de Graphviz.
 
 ```python
 # Generar solo HTML sin gráficos (caso mínimo)
@@ -40,8 +40,8 @@ with SyncDatabaseManager("sqlite", {"database": ":memory:"}, use_pool=False) as 
 ## 4. Ejecución y Pruebas
 
 ```bash
-# Instalar dependencias de documentación
-pip install "util-bbdd[doc]"
+# Grafos de relaciones (opcional): extra analysis + binarios de Graphviz
+pip install "util_bbdd[analysis] @ git+https://github.com/fmanza/util_bbdd.git@v1.0.0"
 
 # Validación sintáctica
 python -m py_compile docs/examples/database_documentation_generation.py

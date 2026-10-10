@@ -1,9 +1,10 @@
-# Migración a la API 1.0 (v0.43.0)
+# Migración a la API 1.0
 
 ## 1. Objetivo
 
-Adaptar el código que usa `util_bbdd` ≤ 0.42 a la superficie pública 1.0. En **0.43.0** todo lo anterior sigue
-funcionando y emite `DeprecationWarning`; en **1.0.0** se retiran los alias. Esta guía dice qué cambiar.
+Adaptar el código que usa `util_bbdd` ≤ 0.42 a la superficie pública 1.0. En **1.0.0** los nombres antiguos de la raíz
+y `SyncDatabaseManager.close_connection()` ya no existen: `from util_bbdd import QueryNotFoundError` da `ImportError`.
+Esta guía dice desde dónde se importa cada nombre. (0.43–0.44 los mantenían con `DeprecationWarning`.)
 
 ## 2. Qué cambia
 
@@ -43,22 +44,19 @@ funcionando y emite `DeprecationWarning`; en **1.0.0** se retiran los alias. Est
 
 ### Paso 1 — Ver qué usa tu código
 
-Ejecuta tus tests con los avisos de obsolescencia como errores; cada fallo dice la ruta nueva:
+Busca los imports desde la raíz y compáralos con la tabla del paso 2:
 
 ```bash
-python -W error::DeprecationWarning -m pytest
+grep -rnE "from util_bbdd import|util_bbdd\.[A-Z]" --include=*.py .
 ```
 
-El mensaje tiene esta forma:
-
-```text
-DeprecationWarning: 'util_bbdd.QueryNotFoundError' está obsoleto y se retirará en util_bbdd 1.0.0;
-usa 'from util_bbdd.exceptions import QueryNotFoundError'.
-```
+Si migras desde 0.43 o 0.44, otra opción es ejecutar tus tests con esa versión y los avisos como errores
+(`python -W error::DeprecationWarning -m pytest`): cada aviso nombra el import nuevo. Con 1.0.0 el fallo es un
+`ImportError: cannot import name '…' from 'util_bbdd'`.
 
 ### Paso 2 — Cambiar los imports
 
-Antes (≤ 0.42):
+Antes (0.x):
 
 ```python
 from util_bbdd import (
@@ -70,7 +68,7 @@ from util_bbdd import (
 )
 ```
 
-Después (0.43+):
+Después (1.0):
 
 ```python
 from util_bbdd import DatabaseException, SyncDatabaseManager
@@ -97,14 +95,15 @@ Tabla completa de nombres que salen de la raíz:
 | `TableDumpResult` | `util_bbdd.dump` |
 | `MigrationWarning` | `util_bbdd.migrate` |
 
-Las clases son **las mismas**: `except util_bbdd.QueryError` y `except util_bbdd.exceptions.QueryError` capturan lo
-mismo, así que puedes migrar los imports fichero a fichero.
+Las clases son **las mismas** que en 0.x; solo cambia desde dónde se importan. Desde 0.44.0 las trazas y los pickles
+muestran `util_bbdd.exceptions.QueryError` en vez de `util_bbdd._core.exceptions.QueryError` (los pickles antiguos se
+siguen cargando).
 
 ### Paso 3 — Managers
 
 | Antes | Después |
 |---|---|
-| `sync_manager.close_connection(conn)` | `sync_manager.release_connection(conn)` |
+| `sync_manager.close_connection(conn)` (retirado en 1.0.0) | `sync_manager.release_connection(conn)` |
 | — | `sync_manager.init()` (devuelve el manager; no hace I/O porque el sync conecta en el constructor) |
 | `AsyncDatabaseManager.is_db_type_supported` / `validate_db_type_static` no existían | ahora existen, igual que en el sync |
 
@@ -125,9 +124,9 @@ Diferencia que se mantiene a propósito: en `AsyncDatabaseManager`, `get_query_i
 
 ## 4. Verificación
 
-- `python -W error::DeprecationWarning -m pytest` pasa sin avisos de `util_bbdd`.
+- Tu suite pasa con util_bbdd 1.0.0 sin `ImportError` ni `AttributeError` sobre `util_bbdd`.
 - `from util_bbdd import *` solo trae los 13 símbolos de la raíz: si usabas `*`, importa explícitamente el resto
-  (este caso **no** avisa, porque `*` solo mira `__all__`).
+  (el fallo aparece como `NameError` en el primer uso, no en el import).
 
 ## 5. Errores frecuentes
 
@@ -135,12 +134,13 @@ Diferencia que se mantiene a propósito: en `AsyncDatabaseManager`, `get_query_i
 |---|---|---|
 | `NameError: name 'QueryError' is not defined` tras `from util_bbdd import *` | `*` ya no trae excepciones | `from util_bbdd.exceptions import QueryError` |
 | Un `ImportError` de un driver o de python-docx aparece al acceder a `util_bbdd.DatabaseDocumentation` y no al importar `util_bbdd` | Carga perezosa de los puntos de entrada | Instala la dependencia; el error es el mismo, solo cambia el momento |
-| `DeprecationWarning` sobre `close_connection()` | Nombre unificado con el manager async | Usa `release_connection()` |
+| `ImportError: cannot import name 'QueryError' from 'util_bbdd'` | El nombre salió de la raíz en 1.0.0 | Importa desde su submódulo (tabla del paso 2) |
+| `AttributeError: 'SyncDatabaseManager' object has no attribute 'close_connection'` | Nombre unificado con el manager async | Usa `release_connection()` |
 
 ## 6. Calendario
 
 | Versión | Estado |
 |---|---|
 | 0.43.0 | Superficie nueva + alias con `DeprecationWarning` |
-| 0.43–0.x | Los alias se mantienen |
-| 1.0.0 | Se retiran los alias de la raíz y `SyncDatabaseManager.close_connection()` |
+| 0.44.0 | Las excepciones se presentan como `util_bbdd.exceptions` (trazas, logs, pickle) |
+| 1.0.0 | Alias de la raíz y `SyncDatabaseManager.close_connection()` retirados; API pública estable bajo SemVer |

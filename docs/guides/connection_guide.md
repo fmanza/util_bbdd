@@ -216,7 +216,7 @@ conn_params = {
 
 from util_bbdd.managers import SyncDatabaseManager
 with SyncDatabaseManager(db_type="mariadb", conn_params=conn_params) as db:
-    docs = db.get_database_documentation()  # Sin errores de encoding
+    snapshot = db.get_schema_metadata()  # Sin errores de encoding
 ```
 
 #### **`catalog_charset_mode`** (MariaDB y MySQL, default `"auto"`, desde v0.38.0)
@@ -314,7 +314,7 @@ Desde v0.36.0 los Engine sync y async siguen la misma política, tomada de `conn
 SQLite no usa estos parámetros (SQLAlchemy le asigna su propio pool). Con `use_pool=False`, el AsyncEngine no usa pool
 (`NullPool`); el Engine sync sigue usando el suyo.
 
-Para el detalle de drivers PostgreSQL (psycopg2 vs asyncpg, pooling), ver la
+Para el detalle de drivers PostgreSQL (psycopg 3 y asyncpg, pooling), ver la
 [guía de drivers PostgreSQL](postgresql_driver_guide.md). Para el contrato completo de los managers,
 ver [Gestión de Conexiones (Sync)](../functional/managers_sync.md) y
 [(Async)](../functional/managers_async.md).

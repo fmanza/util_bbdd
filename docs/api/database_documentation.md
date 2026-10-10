@@ -97,7 +97,7 @@ Opciones de `imprimir["grafo"]` relevantes para el rendimiento:
 | `openpyxl` | Generación de hojas Excel | Solo para `excel` | Error al intentar generar Excel |
 | `Jinja2` | Generación de HTML | Solo para `html` | Error al intentar generar HTML |
 | `graphviz` + binarios | Generación de grafos | Opcional | Sin grafos cuando no disponible |
-| Extra `util_bbdd[doc]` | Instala dependencias de documentación | Sí para cualquier formato | Dependencias no disponibles |
+| `openpyxl`, `python-docx`, `Jinja2` | Excel, Word y HTML | Incluidas en la instalación base (no hay extra `doc`) | Instalación incompleta: reinstalar `util_bbdd` |
 
 ## 5. Ejemplos Relacionados
 

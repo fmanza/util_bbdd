@@ -87,7 +87,7 @@ irrecuperables), este parámetro define el comportamiento:
 with SyncDatabaseManager("mariadb", conn_params) as db:
     # v0.34.0: UnicodeDecodeError → crash
     # v0.35.0 con encoding_errors='replace': lectura parcial con ? en lugar de crash
-    docs = db.get_database_documentation()
+    snapshot = db.get_schema_metadata()
 ```
 
 ## 4. Configuración
@@ -110,7 +110,7 @@ conn_params = {
 }
 
 with SyncDatabaseManager(db_type="mariadb", conn_params=conn_params) as db:
-    docs = db.get_database_documentation()  # ✅ Funciona, sin errores
+    snapshot = db.get_schema_metadata()  # ✅ Funciona, sin errores
 ```
 
 ### Personalización
@@ -207,7 +207,7 @@ with SyncDatabaseManager("mariadb", conn_params) as db:
 from util_bbdd import SyncDatabaseManager
 
 with SyncDatabaseManager("mariadb", conn_params) as db:
-    docs = db.get_database_documentation()
+    snapshot = db.get_schema_metadata()
     print("✅ Migrations successful, no UnicodeDecodeError")
 ```
 

@@ -1,5 +1,9 @@
 # Guía de Migración — util_bbdd v0.6.3
 
+!!! note "Guía histórica"
+    Describe la migración a v0.6.3. Para pasar de 0.x a 1.0 (imports desde la raíz, `util_bbdd.exceptions`,
+    `release_connection()`), ver [Migración a la API 1.0](api_1_0_migration.md).
+
 ## 1. Objetivo
 
 Migrar código de versiones anteriores a v0.6.3 actualizando imports, nombres de clase y contratos de API que han cambiado.

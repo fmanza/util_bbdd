@@ -93,10 +93,10 @@ src/util_bbdd/
 
 ### API pública recomendada
 
-La raíz exporta solo los 13 puntos de entrada y sus resultados (API 1.0, v0.43.0); el resto se importa desde su
-submódulo público (`exceptions`, `audit`, `metadata`, `connection`, `factory`, `async_utils`, `analysis`). Los nombres
-antiguos de la raíz avisan con `DeprecationWarning` hasta 1.0.0: no los uses en código, tests ni docs nuevos. Tabla
-completa: `docs/guides/api_1_0_migration.md`.
+La raíz exporta solo los 13 puntos de entrada y sus resultados (API 1.0); el resto se importa desde su submódulo
+público (`exceptions`, `audit`, `metadata`, `connection`, `factory`, `async_utils`, `analysis`). Desde 1.0.0 la API
+pública sigue SemVer: un cambio incompatible en la raíz o en esos submódulos exige versión MAJOR. Tabla de rutas:
+`docs/guides/api_1_0_migration.md`.
 
 ```python
 from util_bbdd import (

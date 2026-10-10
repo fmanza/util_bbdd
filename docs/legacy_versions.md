@@ -15,7 +15,8 @@ Este archivo explica dónde encontrar información sobre versiones anteriores de
 |---|---|
 | Cambios entre versiones | [`CHANGELOG.md`](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md) |
 | Estado actual de la librería | [Inicio](index.md) y [README](index.md) |
-| Migrar código a versiones recientes (v0.6+) | [guides/migration_guide.md](guides/migration_guide.md) |
+| Migrar código de 0.x a 1.0 | [guides/api_1_0_migration.md](guides/api_1_0_migration.md) |
+| Migrar código anterior a v0.6.3 | [guides/migration_guide.md](guides/migration_guide.md) |
 | Migración v0.5 → v0.6 | [guides/migration_guide_v0.6.7.md](guides/migration_guide_v0.6.7.md) |
 | Detalle de un PR o decisión de diseño antigua | Historial de git (`git log`) y `CHANGELOG.md` |
 | Resolver un error en código antiguo | [guides/troubleshooting.md](guides/troubleshooting.md) |

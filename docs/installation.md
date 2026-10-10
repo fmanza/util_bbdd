@@ -4,7 +4,7 @@
 
 - **Python 3.12+**
 - `pip` actualizado: `pip install --upgrade pip`
-- Acceso a red para instalar desde PyPI
+- Acceso a GitHub: `util_bbdd` no está publicado en PyPI y se instala desde su repositorio
 - Driver Python del motor de base de datos que vayas a usar (ver [Paso 3](#3-drivers-por-motor))
 - **Dependencia interna `util`**: `util_bbdd` depende de `util @ git+https://github.com/fmanza/util.git@develop` (timing automático), por lo que la instalación requiere acceso a GitHub salvo que se instale `util` por separado (ver [Solución de Problemas](#5-solucion-de-problemas))
 
@@ -12,20 +12,31 @@
 
 ### Instalación básica
 
+Desde el repositorio, fijando la versión con su tag:
+
 ```bash
-pip install util_bbdd
+pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v1.0.0"
 ```
 
 ### Extras opcionales
 
-Solo estos extras están declarados en `pyproject.toml`:
+Extras declarados en `pyproject.toml` (se combinan: `util_bbdd[postgresql,analysis]`):
 
-| Extra | Comando | Para qué |
-|---|---|---|
-| `analysis` | `pip install "util-bbdd[analysis]"` | Grafos de relaciones entre tablas (Graphviz) |
-| `doc-svg` | `pip install "util-bbdd[doc-svg]"` | Render de SVG a otros formatos (CairoSVG) |
-| `docs` | `pip install "util-bbdd[docs]"` | Construir el sitio de documentación (Zensical + MkDocs Material + mkdocstrings) |
-| `dev` | `pip install "util-bbdd[dev]"` | Toolchain de desarrollo (pytest, ruff, mypy, build) |
+```bash
+pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v1.0.0"
+```
+
+| Extra | Para qué |
+|---|---|
+| `postgresql` | Drivers PostgreSQL: `psycopg[binary]` + `psycopg-pool` (sync) y `asyncpg` (async) |
+| `mariadb` | Drivers MariaDB: `mariadb` (MariaDB Connector/Python, sync) y `aiomysql` (async) |
+| `mysql` | Drivers MySQL: `pymysql[rsa]` (sync) y `aiomysql` (async) |
+| `migrate` | `sqlglot`: reescribe el SQL de las vistas al dialecto destino en `MigrationPlanner` |
+| `analysis` | Grafos de relaciones entre tablas (Graphviz) |
+| `analysis-matplotlib` | `MatplotlibRelationshipGraph` (matplotlib + networkx) |
+| `doc-svg` | Render de SVG a otros formatos (CairoSVG) |
+| `docs` | Construir el sitio de documentación (Zensical + MkDocs Material + mkdocstrings) |
+| `dev` | Toolchain de desarrollo (pytest, ruff, mypy, build) |
 
 !!! note
     La generación de documentación de BD (Word, Excel, HTML/Jinja2) **no requiere extra**: `openpyxl`, `python-docx` y `jinja2` forman parte de las dependencias base.
@@ -65,13 +76,13 @@ pip install -e ".[docs]"
 
 ## 3. Drivers por Motor
 
-Los drivers de base de datos **no se incluyen** en `util_bbdd`; instálalos por separado según el motor:
+Salvo `oracledb`, los drivers **no se incluyen** en la instalación básica; instálalos con el extra del motor o a mano:
 
 | Motor | Driver sync | Driver async | Comando de instalación |
 |---|---|---|---|
-| PostgreSQL | `psycopg2-binary` | `asyncpg` | `pip install psycopg2-binary asyncpg` |
-| MariaDB (`db_type="mariadb"`) | `mariadb` (MariaDB Connector/Python) | `aiomysql` | `pip install "util_bbdd[mariadb]"` (o `pip install mariadb aiomysql`) |
-| MySQL (`db_type="mysql"`) | `pymysql` | `aiomysql` | `pip install "util_bbdd[mysql]"` (o `pip install "pymysql[rsa]" aiomysql`) |
+| PostgreSQL | `psycopg` 3 + `psycopg-pool` | `asyncpg` | extra `postgresql` (o `pip install "psycopg[binary]" psycopg-pool asyncpg`) |
+| MariaDB (`db_type="mariadb"`) | `mariadb` (MariaDB Connector/Python) | `aiomysql` | extra `mariadb` (o `pip install mariadb aiomysql`) |
+| MySQL (`db_type="mysql"`) | `pymysql` | `aiomysql` | extra `mysql` (o `pip install "pymysql[rsa]" aiomysql`) |
 | SQLite | `sqlite3` (stdlib) | `aiosqlite` | `pip install aiosqlite` (sync incluido en Python) |
 | Oracle | `oracledb` (incluido) | `oracledb` (incluido) | — (incluido en las dependencias base) |
 | SQL Server | `pyodbc` | `aioodbc` | `pip install pyodbc aioodbc` + ODBC driver nativo del SO |
@@ -101,11 +112,11 @@ python -c "from util_bbdd import SyncDatabaseManager; m = SyncDatabaseManager('p
 
 | Error / Síntoma | Causa probable | Solución |
 |---|---|---|
-| `No module named 'psycopg2'` | Driver PostgreSQL no instalado | `pip install psycopg2-binary` |
+| `Módulo psycopg (psycopg3) no disponible` | Driver PostgreSQL no instalado | Extra `postgresql` (o `pip install "psycopg[binary]" psycopg-pool`) |
 | `No module named 'mariadb'` | Driver MariaDB no instalado | `pip install mariadb` (requiere MariaDB Connector/C en el sistema) |
 | `No module named 'pymysql'` | Driver MySQL no instalado | `pip install "pymysql[rsa]"` |
 | `'cryptography' package is required for sha256_password or caching_sha2_password` | MySQL 8 sin TLS necesita `cryptography` para autenticar | `pip install "pymysql[rsa]"` |
 | `pyodbc.Error: ('IM002'...)` | ODBC driver de SQL Server no instalado en el SO | Instalar [Microsoft ODBC Driver for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) |
 | `oracledb.DatabaseError: DPY-2014` | Oracle Instant Client no encontrado | Descargar Oracle Instant Client y configurar `oracle_client_path` en `conn_params` |
-| `pip install util_bbdd` falla resolviendo `util @ git+...` | Sin acceso a GitHub (CI offline, red corporativa) | `pip install git+https://github.com/fmanza/util.git@develop` y luego `pip install util_bbdd --no-deps` |
-| `Timeout esperando conexión del pool` | Pool agotado | Aumentar `pool_size` en `conn_params`: `{"pool_size": 20, "max_overflow": 10, ...}` |
+| La instalación falla resolviendo `util @ git+...` | Sin acceso a GitHub (CI offline, red corporativa) | Instala `util` desde una copia local (`pip install <ruta>/util`) y luego `util_bbdd` con `--no-deps` |
+| `Timeout esperando conexión del pool` | Pool agotado | Aumentar `pool_size` en `conn_params` (`{"pool_size": 20, ...}`); `pool_timeout` existe en PostgreSQL, MySQL y SQL Server, y `max_overflow` en MySQL y SQL Server |

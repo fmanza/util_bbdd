@@ -3,9 +3,9 @@
 Los managers son el punto de entrada principal de `util_bbdd`.
 Proveen la API de alto nivel para operaciones sobre bases de datos.
 
-Desde v0.43.0 los dos comparten los nombres del ciclo de vida: `init()`, `get_connection()`,
-`release_connection()` y `close()` (en el async son corrutinas). `SyncDatabaseManager.close_connection()` queda como
-alias obsoleto de `release_connection()` hasta 1.0.0. Ver [Migración a la API 1.0](../guides/api_1_0_migration.md).
+Los dos comparten los nombres del ciclo de vida: `init()`, `get_connection()`, `release_connection()` y `close()` (en el
+async son corrutinas). `SyncDatabaseManager.close_connection()` se retiró en 1.0.0; ver
+[Migración a la API 1.0](../guides/api_1_0_migration.md).
 
 ---
 
