@@ -5,6 +5,27 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Resto del plan de pendientes de la auditoría de `doc/` (`.ai/sessions/2026-10-09l-plan-pendientes-doc/`, P5–P7).
+
+### Security
+
+- **analysis** (S-04): `MatplotlibRelationshipGraph.generate_matplotlib_graph_paginated` nombra los ficheros con el
+  nombre de tabla saneado, como `GraphvizRelationshipGraphExt`: uno entrecomillado con `/` o `..` ya no escribe fuera de
+  `output_dir`.
+
+### Changed
+
+- **doc/analysis**: genéricos con parámetros en los renderers y en `matplotlib_graph` (`mypy --strict`: 81 → 9 errores,
+  solo llamadas sin tipos de python-docx) y `disallow_any_generics` para `util_bbdd.doc.*` y `util_bbdd.analysis.*`.
+
+### Tests
+
+- Dorado de documentación de Oracle en un usuario aislado (`ZZ_GOLD_DOC`, creado con
+  `UTIL_BBDD_TEST_ORACLE_ADMIN_URL`, que exportan `scripts/bench_env.example.{sh,ps1}`).
+- `MatplotlibRelationshipGraph` con backend Agg (cobertura 27 % → 93 %; se salta sin matplotlib/networkx).
+
 ## [0.41.1] - 2026-10-10
 
 Pendientes de la auditoría de `doc/` (`.ai/sessions/2026-10-09l-plan-pendientes-doc/`, bloques P1–P4).

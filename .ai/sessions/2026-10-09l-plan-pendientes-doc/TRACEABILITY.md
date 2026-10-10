@@ -38,6 +38,8 @@ PLAN y AUDIT_PLAN de lo Pendiente
   `'&amp;<b>'` en PostgreSQL, MySQL, MariaDB, SQL Server, Oracle y SQLite).
 - **[HSQLDB/DDL]**: un `CAST(CASE … END AS VARCHAR)` no quita el relleno: el `CHAR` ya está calculado; hay que tipar
   como `VARCHAR` los literales de cada rama. Una columna `PRIMARY KEY` sin `NOT NULL` figura con `IS_NULLABLE = YES`.
+- **[tests/Oracle]**: `UTIL_BBDD_TEST_ORACLE_ADMIN_URL` (SYSTEM, misma contraseña del banco) permite crear usuarios
+  aislados; un `ALTER SESSION SET CURRENT_SCHEMA` en la misma conexión basta para crear los objetos del otro usuario.
 - **[Oracle/contexto]**: `MetadataContextResolver` usa el usuario conectado como schema en Oracle; documentar otro
   owner exige conectar como él.
 
@@ -52,9 +54,13 @@ D5 (b).
 | P2 | `45670f6a` `fix(doc)` | e2e SQLite con `'&amp;<b>'` (rojo antes); sonda de HSQLDB; dorados HTML sin cambios; `sql-highlight.js` probado con Node |
 | P3 | `c60a3fc3` `fix(metadata)` | test unitario de orden total; dos snapshots seguidos idénticos (MySQL, MariaDB, SQL Server, Oracle) |
 | P4 | `2e1c1bf3` `docs` | `grep DatabaseConnectionError src` vacío |
+| Release | `35c2cc62` (tag `v0.41.1`, push) | ruff, mypy, 5483 pasan, `zensical build --strict`, `python -m build` |
+| P5 | `506e7912` `test(doc)` | `test_doc_matches_golden[oracle]` pasa dos veces seguidas; `ZZ_GOLD_DOC` borrado (comprobado en `FREEPDB1`) |
+| P6 | `bf5dbe5f` `refactor(doc)` | `mypy --strict` 81 → 9 (python-docx); override `disallow_any_generics` comprobado con un fichero de prueba |
+| P7 | `66102057` `security(analysis)` + `73b9112f` `test(analysis)` | `matplotlib_graph.py` 27 % → 93 %; S-04 también en matplotlib (encontrado al escribir los tests) |
 
 ## Veredicto final
-Veredicto: GO (P0–P4 cerrados en v0.41.1)
+Veredicto: CLOSED — P0–P7 completados (P0–P4 en `v0.41.0`/`v0.41.1`; P5–P7 en `develop`, bajo `[Unreleased]`)
 Pendientes al cierre:
-- P5–P7 (ver § 2 del plan).
 - DDL de tabla de HSQLDB sin clave primaria (mejora, no entra en un hotfix).
+- Los 9 `no-untyped-call` de python-docx (dependen de los tipos de la librería).
