@@ -112,13 +112,17 @@ _NATIVE_TABLE_DDL_SQL: dict[str, str] = {
         ":table_name"
     ),
     "sqlite": "SELECT sql AS ddl FROM sqlite_master WHERE type='table' AND name=:table_name",
+    # B-04 (v0.41.1): LISTAGG exige WITHIN GROUP (que además fija el orden de las columnas); el '' de cada CASE va como
+    # VARCHAR porque un CASE con literales de distinta longitud es CHAR y rellena con espacios. Solo tablas: el DDL de
+    # las vistas sale del snapshot (view_ddl), y INFORMATION_SCHEMA.VIEWS no tiene la columna TEXT.
     "hsqldb": (
-        "SELECT TEXT AS ddl FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA = :schema AND TABLE_NAME = "
-        ":table_name UNION SELECT 'CREATE TABLE ' || TABLE_NAME || ' (' || LISTAGG(COLUMN_NAME || ' ' || "
-        "DATA_TYPE || CASE WHEN CHARACTER_MAXIMUM_LENGTH IS NOT NULL THEN '(' || CHARACTER_MAXIMUM_LENGTH || "
-        "')' ELSE '' END || CASE WHEN IS_NULLABLE = 'NO' THEN ' NOT NULL' ELSE '' END || CASE WHEN "
-        "COLUMN_DEFAULT IS NOT NULL THEN ' DEFAULT ' || COLUMN_DEFAULT ELSE '' END, ', ') || ')' FROM "
-        "INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = :schema AND TABLE_NAME = :table_name GROUP BY TABLE_NAME"
+        "SELECT 'CREATE TABLE ' || TABLE_NAME || ' (' || LISTAGG(COLUMN_NAME || ' ' || DATA_TYPE || "
+        "CASE WHEN CHARACTER_MAXIMUM_LENGTH IS NOT NULL THEN '(' || CHARACTER_MAXIMUM_LENGTH || ')' "
+        "ELSE CAST('' AS VARCHAR(1)) END || "
+        "CASE WHEN IS_NULLABLE = 'NO' THEN CAST(' NOT NULL' AS VARCHAR(9)) ELSE CAST('' AS VARCHAR(1)) END || "
+        "CASE WHEN COLUMN_DEFAULT IS NOT NULL THEN ' DEFAULT ' || COLUMN_DEFAULT ELSE CAST('' AS VARCHAR(1)) END, "
+        "', ') WITHIN GROUP (ORDER BY ORDINAL_POSITION) || ')' FROM INFORMATION_SCHEMA.COLUMNS WHERE "
+        "TABLE_SCHEMA = :schema AND TABLE_NAME = :table_name GROUP BY TABLE_NAME"
     ),
 }
 

@@ -100,3 +100,43 @@ def test_creation_only_properties_do_not_apply_to_existing_server_database() -> 
         cursor.close()
     finally:
         manager.close()
+
+
+def test_table_ddl_lists_columns_in_order(table: str) -> None:
+    """B-04 (v0.41.1): ``LISTAGG`` sin ``WITHIN GROUP`` y la rama de ``INFORMATION_SCHEMA.VIEWS.TEXT`` (columna que no
+    existe en HSQLDB 2.7) hacían fallar ``get_ddl``; el ``CASE`` de nulabilidad rellenaba el tipo con espacios."""
+    manager = SyncDatabaseManager("hsqldb", _params())
+    try:
+        # ID se declaró PRIMARY KEY sin NOT NULL: HSQLDB informa IS_NULLABLE = YES (sin PK en el DDL: limitación conocida)
+        assert manager.get_ddl(table) == f"CREATE TABLE {table} (ID INTEGER, NOMBRE CHARACTER VARYING(40))"
+        assert manager.get_ddl("ZZ_NO_EXISTE") == ""
+        other = f"{table}_B"
+        cursor = manager.get_connection().cursor()
+        cursor.execute(f"CREATE TABLE {other} (A INTEGER NOT NULL, B VARCHAR(5) DEFAULT 'x' NOT NULL, C DATE)")
+        cursor.close()
+        try:
+            expected = f"CREATE TABLE {other} (A INTEGER NOT NULL, B CHARACTER VARYING(5) NOT NULL DEFAULT 'x', C DATE)"
+            assert manager.get_ddl(other) == expected
+        finally:
+            cursor = manager.get_connection().cursor()
+            cursor.execute(f"DROP TABLE {other} IF EXISTS")
+            cursor.close()
+    finally:
+        manager.close()
+
+
+def test_documentation_with_table_ddl(table: str, tmp_path: Any) -> None:
+    from util_bbdd.doc import DatabaseDocumentation
+
+    manager = SyncDatabaseManager("hsqldb", _params())
+    try:
+        result = DatabaseDocumentation(
+            manager,
+            directorio_salida=tmp_path,
+            imprimir={"tablas": {"imprimir_tablas": True, "ddl": True, "columnas": True}},
+            formatos=["html"],
+        ).generate()
+    finally:
+        manager.close()
+    pages = " ".join(page.read_text(encoding="utf-8") for page in (result.outputs["html"] / "tables").glob("*.html"))
+    assert f"CREATE TABLE {table} (ID INTEGER, NOMBRE" in pages
