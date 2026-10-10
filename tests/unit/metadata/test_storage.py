@@ -90,3 +90,20 @@ def test_native_table_ddl_text() -> None:
     assert native_table_ddl([(None,)]) == ""
     assert native_table_ddl([("\n  CREATE TABLE t",)]) == "\n  CREATE TABLE t"
     assert native_table_ddl_sql("mysql") is None
+
+
+@pytest.mark.parametrize(
+    ("engine", "name", "tiebreak"),
+    [
+        ("mysql", "ficheros_fisicos", "ORDER BY total_mb DESC, objeto"),
+        ("mariadb", "ficheros_fisicos", "ORDER BY total_mb DESC, objeto"),
+        ("oracle", "ficheros_fisicos", "ORDER BY 1, 3 DESC, 2"),
+        ("oracle", "temp_tablespaces", "ORDER BY 1, 3 DESC, 2"),
+        ("sqlserver", "ficheros_fisicos", "[size_mb] DESC, df.name"),
+        ("sqlserver", "temp_tablespaces", "[size_mb] DESC, name"),
+    ],
+)
+def test_multi_row_storage_queries_have_a_total_order(engine: str, name: str, tiebreak: str) -> None:
+    """Ficheros del mismo tamaño salían en orden distinto en cada ejecución (v0.41.1): desempate por nombre."""
+    sql = storage_query(engine, name)
+    assert sql is not None and sql.endswith(tiebreak)

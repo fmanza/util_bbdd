@@ -10,7 +10,8 @@ presenta ``doc``. Consultas por motor:
 - ``temp_storage_variables`` (MySQL/MariaDB), ``sqlite_file_summary`` (SQLite) y ``user_tablespaces`` (Oracle:
   tablespaces por defecto y temporal del usuario).
 
-HSQLDB no tiene inventario (``{"primary": []}``).
+HSQLDB no tiene inventario (``{"primary": []}``). Toda consulta que devuelve varias filas tiene un orden total (desempate
+por nombre): la documentación sale igual en cada ejecución.
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ _STORAGE_SQL: dict[str, dict[str, str]] = {
             "CONVERT(t.engine USING utf8mb4) AS motor, ROUND(t.data_length/1024/1024, 2) AS datos_mb, "
             "ROUND(t.index_length/1024/1024, 2) AS indices_mb, ROUND((t.data_length+t.index_length)/1024/1024, "
             "2) AS total_mb FROM information_schema.tables t WHERE t.table_schema = :schema ORDER BY total_mb "
-            "DESC"
+            "DESC, objeto"
         ),
         "temp_tablespaces": (
             "SELECT CONVERT(TABLESPACE_NAME USING utf8mb4) AS tablespace, CONVERT(FILE_NAME USING utf8mb4) AS "
@@ -46,7 +47,7 @@ _STORAGE_SQL: dict[str, dict[str, str]] = {
             "CONVERT(t.engine USING utf8mb4) AS motor, ROUND(t.data_length/1024/1024, 2) AS datos_mb, "
             "ROUND(t.index_length/1024/1024, 2) AS indices_mb, ROUND((t.data_length+t.index_length)/1024/1024, "
             "2) AS total_mb FROM information_schema.tables t WHERE t.table_schema = :schema ORDER BY total_mb "
-            "DESC"
+            "DESC, objeto"
         ),
         "temp_tablespaces": (
             "SELECT CONVERT(TABLESPACE_NAME USING utf8mb4) AS tablespace, CONVERT(FILE_NAME USING utf8mb4) AS "
@@ -60,12 +61,12 @@ _STORAGE_SQL: dict[str, dict[str, str]] = {
         "ficheros_fisicos": (
             "SELECT tablespace_name AS tablespace, file_name AS archivo, bytes/1024/1024 AS tamano_mb, status AS "
             "estado, 'DATAFILE' AS file_type, autoextensible AS autoextensible, maxbytes/1024/1024 AS max_mb "
-            "FROM dba_data_files WHERE tablespace_name = UPPER(:tablespace) ORDER BY 1, 3 DESC"
+            "FROM dba_data_files WHERE tablespace_name = UPPER(:tablespace) ORDER BY 1, 3 DESC, 2"
         ),
         "temp_tablespaces": (
             "SELECT tablespace_name AS tablespace, file_name AS archivo, bytes/1024/1024 AS tamano_mb, status AS "
             "estado, 'TEMPFILE' AS file_type, autoextensible AS autoextensible, maxbytes/1024/1024 AS max_mb "
-            "FROM dba_temp_files WHERE tablespace_name = UPPER(:tablespace) ORDER BY 1, 3 DESC"
+            "FROM dba_temp_files WHERE tablespace_name = UPPER(:tablespace) ORDER BY 1, 3 DESC, 2"
         ),
     },
     "postgresql": {
@@ -91,7 +92,7 @@ _STORAGE_SQL: dict[str, dict[str, str]] = {
             "AS bigint) * 8 / 1024 END AS [max_size_mb], df.is_percent_growth AS [is_percent_growth], CASE "
             "df.is_percent_growth WHEN 1 THEN CONCAT(df.growth, ' %') ELSE CONCAT(CAST(df.growth AS bigint) * 8 "
             "/ 1024, ' MB') END AS [growth_setting] FROM sys.database_files AS df ORDER BY df.type_desc, "
-            "[size_mb] DESC"
+            "[size_mb] DESC, df.name"
         ),
         "temp_tablespaces": (
             "SELECT DB_NAME(database_id) AS [database_name], name AS [logical_name], type_desc AS [file_type], "
@@ -99,7 +100,7 @@ _STORAGE_SQL: dict[str, dict[str, str]] = {
             "-1 THEN NULL WHEN 0 THEN CAST(size AS bigint) * 8 / 1024 ELSE CAST(max_size AS bigint) * 8 / 1024 "
             "END AS [max_size_mb], is_percent_growth AS [is_percent_growth], CASE is_percent_growth WHEN 1 THEN "
             "CONCAT(growth, ' %') ELSE CONCAT(CAST(growth AS bigint) * 8 / 1024, ' MB') END AS [growth_setting] "
-            "FROM sys.master_files WHERE DB_NAME(database_id) = 'tempdb' ORDER BY [file_type], [size_mb] DESC"
+            "FROM sys.master_files WHERE DB_NAME(database_id) = 'tempdb' ORDER BY [file_type], [size_mb] DESC, name"
         ),
     },
     "sqlite": {
