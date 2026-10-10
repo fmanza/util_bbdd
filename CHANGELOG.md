@@ -5,6 +5,19 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.44.0] - 2026-10-10
+
+Sesión `.ai/sessions/2026-10-10-exceptions-module-name/`. Sin cambios de API: mismas clases y mismos imports.
+
+### Changed
+
+- **exceptions**: las 40 excepciones tienen `__module__ = "util_bbdd.exceptions"`, su ruta pública desde 0.43.0. Las
+  trazas, `repr` y logs muestran `util_bbdd.exceptions.QueryError` en vez de `util_bbdd._core.exceptions.QueryError`, y
+  pickle guarda la ruta pública. Las herramientas que agrupan errores por el nombre completo del tipo (p. ej. Sentry)
+  abrirán grupos nuevos una vez.
+- **pickle**: los pickles creados con ≤ 0.43 (ruta `_core`) se siguen cargando. Los creados con 0.44 se cargan con
+  ≥ 0.43, no con ≤ 0.42.
+
 ## [0.43.0] - 2026-10-10
 
 API pública 1.0, fase 0.43.0 (decisiones A1–A6 de `.ai/sessions/2026-10-10-plan-pendientes-global/Q6_PLAN_API_1_0.md`;

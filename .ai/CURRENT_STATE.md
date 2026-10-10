@@ -2,7 +2,7 @@
 
 **Generado**: 2026-06-05 (cabecera, «Próximos pasos» y tests actualizados el 2026-10-09 al cerrar `drivers-connections-audit`)  
 **Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.39.1` (la tabla de abajo no recoge todas las versiones intermedias: el detalle está en el CHANGELOG)  
-**Versión**: `v0.43.0` (2026-10-10, sin tag remoto hasta autorización). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`, `v0.40.3`, `v0.41.0`, `v0.41.1`, `v0.41.2`, `v0.41.3`, `v0.42.0`, `v0.42.1`  
+**Versión**: `v0.44.0` (2026-10-10, sin push ni tag hasta autorización; `v0.43.0` publicada con tag). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`, `v0.40.3`, `v0.41.0`, `v0.41.1`, `v0.41.2`, `v0.41.3`, `v0.42.0`, `v0.42.1`  
 **Rama activa**: `develop`
 
 ---
@@ -60,13 +60,14 @@
 | `v0.41.3` | Liberado 2026-10-10 — F3/F4 precarga de SQL Server (tablas inexistentes, collation sensible a mayúsculas), F5 `clear_cache` dirigido con usuario Oracle entrecomillado | ✅ |
 | `v0.42.0` | Liberado 2026-10-10 — DDL de HSQLDB con PK, `routine_parameters` indexado (F7), workflow de integración en CI | ✅ |
 | `v0.42.1` | Liberado 2026-10-10 — condiciones de `/audit-code`: CI con MariaDB Connector/C, H1 en SQL Server con tests, 12 tests unitarios rotos sin el banco | ✅ |
-| `v0.43.0` | Cerrado en local 2026-10-10 — **API pública 1.0, fase 0.43.0**: raíz con 13 puntos de entrada y carga perezosa, `util_bbdd.exceptions`, 46 alias deprecados, managers simétricos (`.ai/sessions/2026-10-10-api-1-0/`) | ✅ (sin push) |
+| `v0.43.0` | Cerrado en local 2026-10-10 — **API pública 1.0, fase 0.43.0**: raíz con 13 puntos de entrada y carga perezosa, `util_bbdd.exceptions`, 46 alias deprecados, managers simétricos (`.ai/sessions/2026-10-10-api-1-0/`) | ✅ |
+| `v0.44.0` | Cerrado en local 2026-10-10 — excepciones con `__module__` público `util_bbdd.exceptions`; pickles antiguos compatibles (`.ai/sessions/2026-10-10-exceptions-module-name/`) | ✅ (sin push) |
 | Zenical | Hecho — `migrate/zenical-pure` fusionada (PR #19, `c6d765a8`); `zensical` 0.0.44 es el generador del CI y lee `mkdocs.yml` (no se usa `zensical.toml`) | ✅ |
 
 PR #18 (`MySQLVariableValidator`): su código (`9a71e056`) está en `main` y `develop`; el estado de la PR en GitHub no se ha comprobado (sin `gh`) — cerrarla si sigue abierta.  
 PR #19 (`migrate/zenical-pure`): fusionada.  
 
-**Tests actuales** (v0.43.0, 2026-10-10): `pytest` completo sin URLs del banco 5594 passed, 523 skipped; con el banco y `JAVA_HOME` 6110 passed, 7 skipped; mypy sin errores (332 ficheros); mide siempre también sin el banco, que es lo que ve el CI. Anterior (v0.42.1): 5512 passed, 523 skipped sin banco; 6028 passed, 7 skipped con banco (`tests/integration` 581 passed). Anterior (v0.42.0): `tests/integration` 577 passed; mypy sin errores (331 ficheros). Anterior (v0.39.1): 5397 passed, 497 skipped; integración 552 passed. Medición anterior: 5049 passed, 496 skipped con `pytest` completo sin URLs de servidor y el entorno de referencia `pip install -e ".[dev,docs]"` (v0.31.0, 2026-10-04); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 551 passed, 10 skipped en 5 servidores (menos que en v0.30.0: se retiraron los tests de los módulos eliminados). mypy sin errores (320 ficheros). Sin las dependencias del extra `dev` los recuentos bajan (módulos que se saltan enteros) y `tests/conftest.py` lo avisa: ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`.
+**Tests actuales** (v0.44.0, 2026-10-10): `pytest` completo sin URLs del banco 5679 passed, 523 skipped; con el banco y `JAVA_HOME` 6195 passed, 7 skipped; mypy sin errores (332 ficheros). Anterior (v0.43.0): 5594 passed sin banco, 6110 passed con banco; mide siempre también sin el banco, que es lo que ve el CI. Anterior (v0.42.1): 5512 passed, 523 skipped sin banco; 6028 passed, 7 skipped con banco (`tests/integration` 581 passed). Anterior (v0.42.0): `tests/integration` 577 passed; mypy sin errores (331 ficheros). Anterior (v0.39.1): 5397 passed, 497 skipped; integración 552 passed. Medición anterior: 5049 passed, 496 skipped con `pytest` completo sin URLs de servidor y el entorno de referencia `pip install -e ".[dev,docs]"` (v0.31.0, 2026-10-04); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 551 passed, 10 skipped en 5 servidores (menos que en v0.30.0: se retiraron los tests de los módulos eliminados). mypy sin errores (320 ficheros). Sin las dependencias del extra `dev` los recuentos bajan (módulos que se saltan enteros) y `tests/conftest.py` lo avisa: ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`.
 
 ---
 

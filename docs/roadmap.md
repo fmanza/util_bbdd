@@ -7,13 +7,13 @@ El detalle exhaustivo de cada cambio vive en el
 [Keep a Changelog](https://keepachangelog.com/) + [SemVer](https://semver.org/)); esta página
 es la vista panorámica.
 
-> **Versión vigente: v0.43.0.** Las series `0.x` siguen siendo pre-estables: la API se mantiene
+> **Versión vigente: v0.44.0.** Las series `0.x` siguen siendo pre-estables: la API se mantiene
 > mayormente compatible, pero puede haber cambios acotados entre minors. La estabilización formal
 > llega con `v1.0.0`.
 
 ## En curso (`develop`)
 
-Tras v0.43.0 (superficie de la API 1.0 con alias deprecados, `.ai/sessions/2026-10-10-api-1-0/`) queda 1.0.0: retirar los alias tras al menos una versión con avisos. Lo que se
+Tras v0.43.0 (superficie de la API 1.0 con alias deprecados, `.ai/sessions/2026-10-10-api-1-0/`) y v0.44.0 (excepciones con módulo público) queda 1.0.0: retirar los alias tras al menos una versión con avisos. Lo que se
 añada a `develop` antes del próximo tag aparecerá en el
 [CHANGELOG](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md).
 
@@ -29,10 +29,11 @@ en el driver. Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md).
 
 ## Entregado
 
-### Serie 0.11 – 0.43 — Auditorías, rendimiento con banco real y conexiones
+### Serie 0.11 – 0.44 — Auditorías, rendimiento con banco real y conexiones
 
 | Versiones | Fechas | Hito |
 |---|---|---|
+| `v0.44.0` | 2026-10-10 | Las excepciones se presentan como `util_bbdd.exceptions` (trazas, `repr`, logs, pickle); los pickles antiguos se siguen cargando. |
 | `v0.43.0` | 2026-10-10 | **API pública 1.0, fase 0.43.0**: raíz reducida a 13 puntos de entrada con carga perezosa (`import util_bbdd` ~1,1 s → ~0,3 s), módulo público `util_bbdd.exceptions`, 46 alias con `DeprecationWarning` hasta 1.0.0 y managers sync/async simétricos (`init`, `release_connection`). Guía: [Migración a la API 1.0](guides/api_1_0_migration.md). |
 | `v0.41.0 – v0.42.1` | 2026-10-09 – 2026-10-10 | Auditoría de la arquitectura de `doc/` y `analysis/` (`documentation-architecture-audit`): diagramas Graphviz por lotes (HTML con diagramas, 12× más rápido), un generador de grafos por documentación, inventario de almacenamiento declarativo por motor y API de `util_bbdd.doc` reducida a `DatabaseDocumentation`/`DocumentationResult` con errores propios. |
 | `v0.36.0 – v0.40.0` | 2026-10-09 | Auditoría de conexiones multimotor (`drivers-connections-audit`, [ADR-005](adr/ADR-005-conexiones-multimotor.md)): pools con política común, validación única de `conn_params` también en async, `catalog_charset_mode`, TLS en MariaDB, avisos una sola vez y URL de los Engine sync/async con la misma semántica. |
