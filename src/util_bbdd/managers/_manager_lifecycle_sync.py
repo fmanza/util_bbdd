@@ -104,7 +104,7 @@ class SyncLifecycleManager:
             Conexión a la base de datos.
 
         Raises:
-            DatabaseConnectionError: Si la conexión falla.
+            ConnectionError: Si la conexión falla.
         """
         try:
             self.logger.info(f"🔗 Estableciendo conexión a {self.db_type}")

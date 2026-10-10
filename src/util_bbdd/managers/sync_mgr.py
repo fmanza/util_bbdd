@@ -88,7 +88,7 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         Raises:
             DatabaseValidationError: Si la validación de parámetros falla
             DatabaseDriverError: Si un driver requerido no está disponible
-            DatabaseConnectionError: Si la conexión inicial falla
+            ConnectionError: Si la conexión inicial falla
         """
         # Inicializar logger
         self.logger: logging.Logger = logging.getLogger(__name__)
@@ -704,7 +704,7 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
 
         Raises:
             ImportError: Si SQLAlchemy no está instalado.
-            DatabaseConnectionError: Si hay error creando la Engine.
+            ConnectionError: Si hay error creando la Engine.
 
         Ejemplo:
             db_mgr = SyncDatabaseManager("oracle", {"user": "hr", "password": "pass", "service_name": "ORCL"})

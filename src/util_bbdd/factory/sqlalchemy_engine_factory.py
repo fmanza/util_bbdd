@@ -73,7 +73,7 @@ class SQLAlchemyEngineFactory:
 
         Raises:
             ImportError: Si SQLAlchemy no está instalado
-            DatabaseConnectionError: Si hay error creando la Engine
+            ConnectionError: Si hay error creando la Engine
 
         Note:
             oracle_thick_mode: Si es True para Oracle, inicializa el cliente en modo thick antes del Engine.
