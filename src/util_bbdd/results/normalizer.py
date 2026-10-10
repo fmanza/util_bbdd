@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from .types import Row, RowOrNone, Rows
@@ -49,12 +49,23 @@ class ResultNormalizer:
 
     @staticmethod
     def _is_row_sequence(value: Any) -> bool:
-        return isinstance(value, (list, tuple))
+        return isinstance(value, (list, tuple)) or ResultNormalizer._is_driver_row(value)
+
+    @staticmethod
+    def _is_driver_row(value: Any) -> bool:
+        """Fila de driver que no es ``tuple`` (``pyodbc.Row``, también la de aioodbc; ``sqlite3.Row``): secuencia indexable.
+
+        Hasta v1.0.0 se envolvía en otra tupla: ``((1, 'a'),)`` en ``execute_custom_one`` y una sola «fila» con todas las
+        filas en ``execute_custom_many`` (hotfix 1.1.0). Texto, bytes y mapeos siguen siendo un único valor.
+        """
+        if isinstance(value, (str, bytes, bytearray, memoryview, Mapping)):
+            return False
+        return hasattr(value, "__len__") and hasattr(value, "__getitem__")  # pyodbc.Row no define __iter__
 
     @staticmethod
     def _as_row(value: Any) -> Row:
         if isinstance(value, tuple):
             return value
-        if isinstance(value, list):
+        if isinstance(value, list) or ResultNormalizer._is_driver_row(value):
             return tuple(value)
         return (value,)
