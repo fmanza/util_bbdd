@@ -45,8 +45,9 @@ def _engine(target: GoldenTarget) -> Engine:
 @pytest.fixture(params=[t for t in targets() if t.engine in supported_catalog_engines()], ids=lambda t: t.engine)
 def target(request: pytest.FixtureRequest) -> Iterator[GoldenTarget]:
     t: GoldenTarget = request.param
-    if t.url_env and not os.environ.get(t.url_env):
-        pytest.skip(f"{t.url_env} no definida")
+    reason = t.skip_reason()
+    if reason:
+        pytest.skip(reason)
     build(t)
     try:
         yield t

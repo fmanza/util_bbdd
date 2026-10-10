@@ -22,17 +22,17 @@ jobs:
     timeout-minutes: 40
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-      # Contraseña de prueba de los contenedores efímeros de este job (no es la del banco local).
-      UTIL_BBDD_TEST_POSTGRESQL_URL: postgresql+psycopg://bench:ci_bench_pw@127.0.0.1:5432/bench
-      UTIL_BBDD_TEST_MYSQL_URL: mysql+pymysql://root:ci_bench_pw@127.0.0.1:3306/bench
-      UTIL_BBDD_TEST_MARIADB_URL: mariadb+pymysql://root:ci_bench_pw@127.0.0.1:3307/bench
+      # Contraseña de los contenedores efímeros de este job: distinta en cada ejecución (no es la del banco local).
+      UTIL_BBDD_TEST_POSTGRESQL_URL: postgresql+psycopg://bench:ci-${{ github.run_id }}@127.0.0.1:5432/bench
+      UTIL_BBDD_TEST_MYSQL_URL: mysql+pymysql://root:ci-${{ github.run_id }}@127.0.0.1:3306/bench
+      UTIL_BBDD_TEST_MARIADB_URL: mariadb+pymysql://root:ci-${{ github.run_id }}@127.0.0.1:3307/bench
 
     services:
       postgres:
         image: postgres:17
         env:
           POSTGRES_USER: bench
-          POSTGRES_PASSWORD: ci_bench_pw
+          POSTGRES_PASSWORD: ci-${{ github.run_id }}
           POSTGRES_DB: bench
         ports: ["5432:5432"]
         options: >-
@@ -41,16 +41,16 @@ jobs:
       mysql:
         image: mysql:8.4
         env:
-          MYSQL_ROOT_PASSWORD: ci_bench_pw
+          MYSQL_ROOT_PASSWORD: ci-${{ github.run_id }}
           MYSQL_DATABASE: bench
         ports: ["3306:3306"]
         options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pci_bench_pw"
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pci-${{ github.run_id }}"
           --health-interval 5s --health-timeout 5s --health-retries 30
       mariadb:
         image: mariadb:11.4
         env:
-          MARIADB_ROOT_PASSWORD: ci_bench_pw
+          MARIADB_ROOT_PASSWORD: ci-${{ github.run_id }}
           MARIADB_DATABASE: bench
         ports: ["3307:3306"]
         options: >-
@@ -75,10 +75,15 @@ jobs:
         fi
       shell: bash
 
+    # SyncDatabaseManager("mariadb") usa MariaDB Connector/Python (paquete mariadb), que compila contra Connector/C.
+    # Sin él los tests [mariadb] de caracterización se saltan (GoldenTarget.skip_reason) en lugar de probar el motor.
+    - name: Install MariaDB Connector/C
+      run: sudo apt-get update && sudo apt-get install -y libmariadb-dev
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip setuptools wheel
-        python -m pip install -e ".[dev,postgresql,mysql]"
+        python -m pip install -e ".[dev,postgresql,mysql,mariadb]"
 
     - name: Integration tests (PostgreSQL, MySQL, MariaDB)
       run: python -m pytest tests/integration -m integration -q -rs

@@ -30,6 +30,7 @@ from sqlalchemy.engine import make_url
 
 from util_bbdd import SyncDatabaseManager
 
+from ._schemas import skip_reason
 from .test_metadata_golden import _ORACLE_IDENTITY_SEQ, GOLDEN_DIR, _call, _compare
 
 pytestmark = pytest.mark.integration
@@ -263,8 +264,9 @@ def _run(target: TypesTarget, statements: tuple[str, ...], *, ignore_errors: boo
 @pytest.fixture(scope="module", params=_targets(), ids=lambda t: t.engine)
 def target(request: pytest.FixtureRequest) -> Iterator[TypesTarget]:
     t: TypesTarget = request.param
-    if not os.environ.get(t.url_env):
-        pytest.skip(f"{t.url_env} no definida")
+    reason = skip_reason(t.engine, t.url_env)
+    if reason:
+        pytest.skip(reason)
     _run(t, t.drop, ignore_errors=True)
     _run(t, t.create, ignore_errors=False)
     try:

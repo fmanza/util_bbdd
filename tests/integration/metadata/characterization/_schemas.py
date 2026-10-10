@@ -7,6 +7,7 @@ Mismo contenido lógico en todos los motores: PK simple y compuesta, FK con ``ON
 from __future__ import annotations
 
 import dataclasses
+import importlib.util
 import os
 import secrets
 import tempfile
@@ -19,6 +20,18 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine, make_url
 
 PREFIX = "zz_gold_"
+# Driver nativo que usa el manager para el motor (la URL de los tests puede usar otro, p. ej. PyMySQL)
+_NATIVE_DRIVERS: dict[str, str] = {"mariadb": "mariadb"}
+
+
+def skip_reason(engine: str, url_env: str | None) -> str | None:
+    """Por qué no se puede probar ``engine`` aquí (sin URL o sin el driver nativo del manager); ``None`` si se puede."""
+    if url_env and not os.environ.get(url_env):
+        return f"{url_env} no definida"
+    driver = _NATIVE_DRIVERS.get(engine)
+    if driver and importlib.util.find_spec(driver) is None:
+        return f"paquete {driver} no instalado (driver del manager para {engine})"
+    return None
 
 
 @dataclass(frozen=True)
@@ -35,6 +48,14 @@ class GoldenTarget:
     extra: dict[str, Any] = field(default_factory=dict)
     admin_url_env: str | None = None  # URL con la que se crea y borra el schema, si no es url_env
     login: tuple[str, str] | None = None  # (usuario, contraseña) del manager, si no son los de url_env
+
+    def skip_reason(self) -> str | None:
+        """Por qué no se puede probar este motor aquí (sin URL o sin el driver nativo del manager); ``None`` si se puede.
+
+        ``SyncDatabaseManager("mariadb")`` usa MariaDB Connector/Python (paquete ``mariadb``), no el PyMySQL de la URL:
+        sin él, los tests de MariaDB se saltan en lugar de fallar (p. ej. en el CI de integración, sin Connector/C).
+        """
+        return skip_reason(self.engine, self.url_env)
 
     def admin_engine(self) -> Engine:
         if self.engine == "sqlite":

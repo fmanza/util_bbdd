@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
-import os
 
 from collections.abc import Iterator
 
@@ -38,8 +37,9 @@ _ASYNC_DRIVER = {
 @pytest.fixture(scope="module", params=targets(), ids=lambda t: t.engine)
 def target(request: pytest.FixtureRequest) -> Iterator[GoldenTarget]:
     t: GoldenTarget = request.param
-    if t.url_env and not os.environ.get(t.url_env):
-        pytest.skip(f"{t.url_env} no definida")
+    reason = t.skip_reason()
+    if reason:
+        pytest.skip(reason)
     build(t)
     try:
         yield t
