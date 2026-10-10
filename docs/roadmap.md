@@ -7,12 +7,12 @@ El detalle exhaustivo de cada cambio vive en el
 [Keep a Changelog](https://keepachangelog.com/) + [SemVer](https://semver.org/)); esta página
 es la vista panorámica.
 
-> **Versión vigente: v1.0.0.** API pública estable bajo SemVer: la raíz `util_bbdd` (13 puntos de entrada) y sus
+> **Versión vigente: v1.1.0.** API pública estable bajo SemVer: la raíz `util_bbdd` (13 puntos de entrada) y sus
 > submódulos públicos solo cambian de forma incompatible en una versión MAJOR. Las series `0.x` eran pre-estables.
 
 ## En curso (`develop`)
 
-Sin trabajo abierto tras v1.0.0. Lo que se
+Sin trabajo abierto tras v1.1.0. Lo que se
 añada a `develop` antes del próximo tag aparecerá en el
 [CHANGELOG](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md).
 
@@ -32,6 +32,7 @@ en el driver. Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md).
 
 | Versiones | Fechas | Hito |
 |---|---|---|
+| `v1.1.0` | 2026-10-10 | Rutas `str` además de `Path` en `bulk`, `ParallelBulkLoader` y `dump` (con `output_dir` como `str` el volcado perdía su resultado); **hotfix**: las consultas async de PostgreSQL (asyncpg) fallaban siempre; `BulkCrud` dividido por dentro (mantenimiento de tabla y aislamiento de rechazos en clases propias); guías de rendimiento y de migración revisadas. |
 | `v1.0.0` | 2026-10-10 | **API pública estable**: alias de 0.x retirados de la raíz y `SyncDatabaseManager.close_connection()` retirado; documentación revisada para 1.0 (README reescrito, instalación desde el repositorio, drivers de PostgreSQL, extras reales). Cobertura de tests 91 %. Guía: [Migración a la API 1.0](guides/api_1_0_migration.md). |
 | `v0.44.0` | 2026-10-10 | Las excepciones se presentan como `util_bbdd.exceptions` (trazas, `repr`, logs, pickle); los pickles antiguos se siguen cargando. |
 | `v0.43.0` | 2026-10-10 | **API pública 1.0, fase 0.43.0**: raíz reducida a 13 puntos de entrada con carga perezosa (`import util_bbdd` ~1,1 s → ~0,3 s), módulo público `util_bbdd.exceptions`, 46 alias con `DeprecationWarning` hasta 1.0.0 y managers sync/async simétricos (`init`, `release_connection`). Guía: [Migración a la API 1.0](guides/api_1_0_migration.md). |

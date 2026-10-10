@@ -2,7 +2,7 @@
 
 **Generado**: 2026-06-05 (cabecera y «Próximos pasos» actualizados el 2026-10-10 tras v1.0.0)  
 **Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.39.1` (la tabla de abajo no recoge todas las versiones intermedias: el detalle está en el CHANGELOG)  
-**Versión**: `v1.0.0` (2026-10-10, publicada con tag; `main` y `develop` en origin). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`, `v0.40.3`, `v0.41.0`, `v0.41.1`, `v0.41.2`, `v0.41.3`, `v0.42.0`, `v0.42.1`, `v0.43.0`, `v0.44.0`, `v1.0.0`  
+**Versión**: `v1.1.0` (2026-10-10, cerrada en local: sin tag ni push hasta autorización; `v1.0.0` publicada con tag y `main` en v1.0.0). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`, `v0.40.3`, `v0.41.0`, `v0.41.1`, `v0.41.2`, `v0.41.3`, `v0.42.0`, `v0.42.1`, `v0.43.0`, `v0.44.0`, `v1.0.0`  
 **Rama activa**: `develop`
 
 ---
@@ -63,12 +63,13 @@
 | `v0.43.0` | Liberado 2026-10-10 — **API pública 1.0, fase 0.43.0**: raíz con 13 puntos de entrada y carga perezosa, `util_bbdd.exceptions`, 46 alias deprecados, managers simétricos (`.ai/sessions/2026-10-10-api-1-0/`) | ✅ |
 | `v0.44.0` | Liberado 2026-10-10 — excepciones con `__module__` público `util_bbdd.exceptions`; pickles antiguos compatibles (`.ai/sessions/2026-10-10-exceptions-module-name/`) | ✅ |
 | `v1.0.0` | Liberado 2026-10-10 (tag sobre `158903b6`; `main` en v1.0.0) — **API pública estable**: alias de 0.x y `close_connection()` retirados; documentación revisada para 1.0; cobertura 91 % (`.ai/sessions/2026-10-10-api-1-0-final/`) | ✅ |
+| `v1.1.0` | Cerrado en local 2026-10-10 — rutas `str` en `bulk`/`dump`; **hotfix**: consultas async de PostgreSQL (asyncpg); `BulkCrud` dividido por dentro (`TableMaintenance`, `RejectsCoordinator`); 0 `ResourceWarning` con `--cov`; guías de rendimiento, constraints y `migrate` revisadas (`.ai/sessions/2026-10-10-plan-pendientes-post-1-0/`) | ✅ (sin push) |
 | Zenical | Hecho — `migrate/zenical-pure` fusionada (PR #19, `c6d765a8`); `zensical` 0.0.44 es el generador del CI y lee `mkdocs.yml` (no se usa `zensical.toml`) | ✅ |
 
 PR #18 (`MySQLVariableValidator`): su código (`9a71e056`) está en `main` y `develop`; el estado de la PR en GitHub no se ha comprobado (sin `gh`) — cerrarla si sigue abierta.  
 PR #19 (`migrate/zenical-pure`): fusionada.  
 
-**Tests actuales** (v1.0.0, 2026-10-10): `pytest` completo sin URLs del banco 5678 passed, 523 skipped; con el banco y `JAVA_HOME` 6194 passed, 7 skipped; cobertura 91 %; mypy sin errores (332 ficheros). Anterior (v0.44.0): 5679 / 6195 passed. Anterior (v0.43.0): 5594 passed sin banco, 6110 passed con banco; mide siempre también sin el banco, que es lo que ve el CI. Anterior (v0.42.1): 5512 passed, 523 skipped sin banco; 6028 passed, 7 skipped con banco (`tests/integration` 581 passed). Anterior (v0.42.0): `tests/integration` 577 passed; mypy sin errores (331 ficheros). Anterior (v0.39.1): 5397 passed, 497 skipped; integración 552 passed. Medición anterior: 5049 passed, 496 skipped con `pytest` completo sin URLs de servidor y el entorno de referencia `pip install -e ".[dev,docs]"` (v0.31.0, 2026-10-04); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 551 passed, 10 skipped en 5 servidores (menos que en v0.30.0: se retiraron los tests de los módulos eliminados). mypy sin errores (320 ficheros). Sin las dependencias del extra `dev` los recuentos bajan (módulos que se saltan enteros) y `tests/conftest.py` lo avisa: ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`.
+**Tests actuales** (v1.1.0, 2026-10-10): `pytest` completo sin URLs del banco 5718 passed, 527 skipped; con el banco y `JAVA_HOME` 6238 passed, 7 skipped; con `--cov`, sin `ResourceWarning` ni `SADeprecationWarning`; mypy sin errores (334 ficheros). Anterior (v1.0.0): 5678 passed, 523 skipped sin banco; 6194 passed con banco; cobertura 91 %. Anterior (v0.44.0): 5679 / 6195 passed. Anterior (v0.43.0): 5594 passed sin banco, 6110 passed con banco; mide siempre también sin el banco, que es lo que ve el CI. Anterior (v0.42.1): 5512 passed, 523 skipped sin banco; 6028 passed, 7 skipped con banco (`tests/integration` 581 passed). Anterior (v0.42.0): `tests/integration` 577 passed; mypy sin errores (331 ficheros). Anterior (v0.39.1): 5397 passed, 497 skipped; integración 552 passed. Medición anterior: 5049 passed, 496 skipped con `pytest` completo sin URLs de servidor y el entorno de referencia `pip install -e ".[dev,docs]"` (v0.31.0, 2026-10-04); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 551 passed, 10 skipped en 5 servidores (menos que en v0.30.0: se retiraron los tests de los módulos eliminados). mypy sin errores (320 ficheros). Sin las dependencias del extra `dev` los recuentos bajan (módulos que se saltan enteros) y `tests/conftest.py` lo avisa: ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`.
 
 ---
 
@@ -108,12 +109,16 @@ mismo `mkdocs.yml`; el CI publica con Zensical. Ver `ZENICAL.md`.
 | ID | Pendiente | Estado | Bloque / versión |
 |---|---|---|---|
 | P1 | `main` en v1.0.0 | ✅ Hecho 2026-10-10: fast-forward a `158903b6` y push de `main` | B1 |
-| P2 | A5: SRP de `BulkCrud` por dentro (re-alcance D2: mantenimiento de tabla y orquestación del aislamiento a `bulk/_support/`; la auditoría ya estaba fuera) | Pendiente | B4 · 1.1.0 (`/refactor`) |
-| P3 | Rutas `str` en los parámetros de ruta de `bulk`, `ParallelBulkLoader` y `dump` (`DumpConfig(output_dir=str)` carga y pierde el `DumpResult`) | Pendiente | B3 · 1.1.0 (`/new-feature`) |
-| P4 | 340 `ResourceWarning` con `--cov` (Engines SQLite sin `dispose()` en 40 ficheros de test) y 3 `SADeprecationWarning` en `tests/_core/test_batching.py` | Pendiente | B2 (`test`) |
-| P5 | Revisión página a página de rendimiento, constraints y `migrate_*` (18 páginas) + instalación por PyPI residual; mover `constraints_*`/`performance_audit_*` a `docs/guides/` | Pendiente | B5 · 1.1.0 (`docs`) |
+| P2 | A5: SRP de `BulkCrud` por dentro (re-alcance D2: mantenimiento de tabla y orquestación del aislamiento a `bulk/_support/`; la auditoría ya estaba fuera) | ✅ Hecho (v1.1.0, `0b0ba205`, `c9bb3598`) | B4 |
+| P3 | Rutas `str` en los parámetros de ruta de `bulk`, `ParallelBulkLoader` y `dump` (`DumpConfig(output_dir=str)` carga y pierde el `DumpResult`) | ✅ Hecho (v1.1.0, `587e7f40`) | B3 |
+| P4 | 340 `ResourceWarning` con `--cov` (Engines SQLite sin `dispose()` en 40 ficheros de test) y 3 `SADeprecationWarning` en `tests/_core/test_batching.py` | ✅ Hecho (`e7cb3676`, `2369e6ed`) | B2 |
+| P5 | Revisión página a página de rendimiento, constraints y `migrate_*` (18 páginas) + instalación por PyPI residual; mover `constraints_*`/`performance_audit_*` a `docs/guides/` | ✅ Hecho (v1.1.0, `e14dd441`, `ac605edc`); nivel 2 (~85 páginas) pendiente | B5 |
 | P6 | Esta lista | ✅ Rehecha 2026-10-10 | B0 |
 | N1 | `doc_agents.yml` heredado (APIs externas, módulo inexistente) | ✅ Retirado 2026-10-10 | B0 |
+| H1 | Hotfix: consultas async de PostgreSQL (asyncpg) rotas desde v0.5.6 (encontrado en B5) | ✅ Hecho (v1.1.0, `d369c8e3`) | — |
+| R1 | Release 1.1.0: tag `v1.1.0`, push de `develop` y fast-forward de `main` | Pendiente de autorización | B7 |
+| D2 | Revisión de docs nivel 2 (~85 páginas) y `docs/examples/migrate_*` | Pendiente | `docs` |
+| A1 | `AsyncDatabaseManager("sqlserver")` sin sondear (falta el driver ODBC de aioodbc en la máquina local) | Pendiente | verificación |
 | P7 | Externos (los comprueba el usuario; sin `gh`): PR #18 (probablemente cerrada: no existe `refs/pull/18/merge`), issue del ORA-03106 (`.ai/sessions/2026-10-01y-ora03106-repro/ISSUE_DRAFT.md`), `docs-release.yml` de v0.43.0/v0.44.0/v1.0.0, `integration.yml` | Usuario | B6 |
 | N2 | 8 ramas `origin/dependabot/*` (2026-03-31 a 2026-06-23) | Usuario | B6 |
 | — | Aparcados: S-1 (`bulk` con procesos, NO_GO hasta ≥ 10M filas/tabla) y las dos limitaciones de driver de `docs/roadmap.md` | Aparcado | — |

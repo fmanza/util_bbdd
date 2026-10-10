@@ -4,7 +4,7 @@ Librería Python para **operaciones de base de datos** en MariaDB, MySQL, Oracle
 async) y HSQLDB (sync): conexiones con pool, carga masiva desde DataFrames, volcado entre motores, migración DDL,
 comparación de esquemas y documentación de la base de datos.
 
-**Version:** 1.0.0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 1.1.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -29,10 +29,10 @@ comparación de esquemas y documentación de la base de datos.
 `util_bbdd` no está publicado en PyPI: se instala desde el repositorio, fijando la versión con su tag.
 
 ```bash
-pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v1.0.0"
+pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v1.1.0"
 
 # Con los drivers de un motor (extras: postgresql, mariadb, mysql; se combinan con comas)
-pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v1.0.0"
+pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v1.1.0"
 ```
 
 Oracle (`oracledb`), la documentación de BD (`openpyxl`, `python-docx`, `jinja2`) y pandas van en la instalación base.
@@ -342,7 +342,7 @@ pruebas (`scripts/bench_env.example.sh`). Flujo con asistentes de IA (Claude Cod
 [Semantic Versioning](https://semver.org/): desde 1.0.0, la API pública (la raíz y los submódulos públicos listados
 arriba) solo cambia de forma incompatible en una versión MAJOR.
 
-**Current Version: v1.0.0** (API pública estable: raíz con 13 puntos de entrada, submódulos públicos y alias de 0.x retirados)
+**Current Version: v1.1.0** (rutas `str` en `bulk`/`dump`, consultas async de PostgreSQL corregidas; API pública 1.x estable)
 
 Historial completo: [CHANGELOG.md](CHANGELOG.md) · Hoja de ruta: [docs/roadmap.md](docs/roadmap.md).
 

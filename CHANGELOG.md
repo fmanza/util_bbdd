@@ -5,6 +5,53 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-10-10
+
+Sesión `.ai/sessions/2026-10-10-plan-pendientes-post-1-0/`. Sin cambios incompatibles.
+
+### Added
+
+- **bulk, dump**: los parámetros de ruta aceptan `str` además de `Path` (cualquier `os.PathLike[str]`) y se guardan como
+  `Path`: `BulkCrud(audit_csv_path, rejects_csv_path)`, `bulk_*_from_df(path_sql)`,
+  `ParallelBulkLoader(audit_csv_path, rejects_csv_path)`, `AuditManager(audit_csv_path)` y su setter,
+  `AuditManager.exportar_resumen_json/html(output_path)` y `DumpConfig(output_dir, bulk_audit_path, rejects_csv_path)`.
+  Otro tipo da `ValueError` con el nombre del parámetro (`AuditConfigError`, subclase de `ValueError`, en
+  `AuditManager`). Antes, `path_sql` como `str` daba `ValueError` a propósito.
+
+### Fixed
+
+- **executors** (hotfix): `AsyncDatabaseManager("postgresql")` fallaba siempre en `execute_custom_one/many` y
+  `execute_query_one/many` con `DatabaseOperationError: Connection.cursor() missing 1 required positional argument:
+  'query'`, con y sin pool (desde v0.5.6): el ejecutor async usaba la API DB-API, que asyncpg no tiene. Ahora, con
+  asyncpg, ejecuta con `fetch`/`fetchrow` y envía `%(nombre)s` o `:nombre` como `$1`, `$2`… asyncpg tipa los
+  parámetros en el servidor: uno sin contexto de tipo (`SELECT %(n)s`) es `text` y necesita un cast
+  ([managers async](docs/api/managers_async.md)).
+- **dump**: `DumpConfig(output_dir="out")` cargaba los datos y fallaba después al escribir el informe con `TypeError`,
+  sin devolver el `DumpResult`; `DumpConfig(bulk_audit_path="audit.csv")` fallaba con `AttributeError` antes de cargar.
+- **bulk**: `BulkCrud(audit_csv_path="audit.csv")` y `ParallelBulkLoader(audit_csv_path=...)` con `str` fallaban con
+  `AuditConfigError: 'str' object has no attribute 'parent'`.
+
+### Changed
+
+- **bulk** (interno, sin cambios de comportamiento): `BulkCrud.maintenance_scope` delega en `TableMaintenance`
+  (`bulk/_execution/maintenance.py`) y el aislamiento de `on_error="isolate"` (escritor, `max_rejects`,
+  `rejects_scope`) en `RejectsCoordinator` (`bulk/_support/rejects.py`). `bulk/crud.py`: 1943 → 1564 líneas.
+- **docs**: `performance_audit_guide.md` y `performance_audit_constraints_guide.md` pasan a `docs/guides/`; las páginas
+  `constraints_audit_index.md`, `constraints_quick_reference.md` y `constraints_reading_guide.md` se retiran y su
+  contenido útil pasa a la guía de constraints, con el SQL por motor corregido, una referencia rápida alineada con
+  `maintenance_scope` y el banco real en lugar de un CLI inexistente.
+- **docs**: `guides/benchmarks.md` sin la tabla de pool ni los tiempos de PostgreSQL 15, que no tenían fuente
+  (recomendaban `max_overflow` en PostgreSQL); la cadencia de commit no acelera a 1M filas (acota el undo log y permite
+  reanudar).
+- **docs**: páginas funcionales y de API de `migrate` al día (destino MySQL, `plan()` con un manager o una
+  `MetadataSource`, `MetadataError` al leer el catálogo, `audit_sink`, comentarios de vistas y rutinas, drivers reales);
+  instalación desde el repositorio también en comparador y grafos.
+- **tests**: sin `ResourceWarning` con `pytest --cov` (340 en 1.0.0: los tests no cerraban sus Engines SQLite;
+  `tests/conftest.py` cierra las conexiones de los Engines que crea cada módulo de test) ni `SADeprecationWarning`
+  (`create_mock_engine`).
+- **ci**: se retira el workflow heredado `doc_agents.yml` (generaba documentación con APIs de IA externas y apuntaba a un
+  módulo de otro proyecto).
+
 ## [1.0.0] - 2026-10-10
 
 API pública estable (sesión `.ai/sessions/2026-10-10-api-1-0-final/`). Desde esta versión la raíz `util_bbdd` y sus

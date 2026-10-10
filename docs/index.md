@@ -2,7 +2,7 @@
 
 Librería Python para **operaciones de base de datos** sobre múltiples motores (sync/async): CRUD en lote, migración DDL, comparación de esquemas y documentación automática.
 
-**Version:** 1.0.0 | **Status:** ✅ Production/Stable | **Python:** 3.12+
+**Version:** 1.1.0 | **Status:** ✅ Production/Stable | **Python:** 3.12+
 
 ---
 
@@ -50,7 +50,7 @@ sigue SemVer. Si vienes de 0.x: [Migración a la API 1.0](guides/api_1_0_migrati
 ## 3. Quick Start
 
 ```bash
-pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v1.0.0"
+pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v1.1.0"
 ```
 
 ```python

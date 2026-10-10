@@ -218,6 +218,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-10-10 | API pública 1.0, fase 0.43.0 → v0.43.0 (`2026-10-10-api-1-0`) | Raíz de 56 a 13 símbolos con carga perezosa (`import util_bbdd` ~1,1 s → ~0,3 s); `util_bbdd.exceptions` público; 46 alias con `DeprecationWarning`; `init`/`release_connection` en ambos managers; guía `docs/guides/api_1_0_migration.md` |
 | 2026-10-10 | Módulo público de las excepciones → v0.44.0 (`2026-10-10-exceptions-module-name`) | `__module__ = "util_bbdd.exceptions"` en las 40 excepciones (trazas, logs, pickle); pickle de v0.43.0 sigue cargando (test con bytes reales del tag) |
 | 2026-10-10 | API 1.0 final → v1.0.0 (`2026-10-10-api-1-0-final`) | 46 alias de la raíz y `close_connection()` retirados; README reescrito; instalación, drivers PostgreSQL, extra `doc` inexistente, `SchemaDiffReporter` y métodos inexistentes corregidos en docs; cobertura 91 % |
+| 2026-10-10 | Pendientes tras 1.0 → v1.1.0 (`2026-10-10-plan-pendientes-post-1-0`) | `main` en v1.0.0; rutas `str` en `bulk`/`dump` (`output_dir` como `str` perdía el `DumpResult`); hotfix: consultas async de PostgreSQL (asyncpg) rotas desde v0.5.6; `BulkCrud` 1943 → 1564 líneas (`TableMaintenance`, `RejectsCoordinator`); 340 → 0 `ResourceWarning` con `--cov`; guías de rendimiento/constraints/migrate revisadas; `doc_agents.yml` retirado |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
