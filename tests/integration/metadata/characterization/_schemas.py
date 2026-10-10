@@ -6,7 +6,9 @@ Mismo contenido lógico en todos los motores: PK simple y compuesta, FK con ``ON
 
 from __future__ import annotations
 
+import dataclasses
 import os
+import secrets
 import tempfile
 
 from dataclasses import dataclass, field
@@ -29,14 +31,17 @@ class GoldenTarget:
     create: tuple[str, ...]
     drop: tuple[str, ...]
     migrate_source: bool = True
-    doc: bool = True  # False si el schema no está aislado (Oracle comparte el del usuario bench)
+    doc: bool = True  # False si el schema no está aislado (Oracle comparte el del usuario bench): ver oracle_doc_target
     extra: dict[str, Any] = field(default_factory=dict)
+    admin_url_env: str | None = None  # URL con la que se crea y borra el schema, si no es url_env
+    login: tuple[str, str] | None = None  # (usuario, contraseña) del manager, si no son los de url_env
 
     def admin_engine(self) -> Engine:
         if self.engine == "sqlite":
             return create_engine(f"sqlite:///{sqlite_path().as_posix()}")
-        assert self.url_env
-        return create_engine(os.environ[self.url_env], isolation_level="AUTOCOMMIT")
+        url_env = self.admin_url_env or self.url_env
+        assert url_env
+        return create_engine(os.environ[url_env], isolation_level="AUTOCOMMIT")
 
     def manager_args(self) -> tuple[str, dict[str, Any]]:
         if self.engine == "sqlite":
@@ -44,6 +49,8 @@ class GoldenTarget:
         assert self.url_env
         url = make_url(os.environ[self.url_env])
         params: dict[str, Any] = {"host": url.host, "port": url.port, "user": url.username, "password": url.password}
+        if self.login:
+            params["user"], params["password"] = self.login
         if self.engine == "oracle":
             return "oracle", {**params, "service_name": url.query.get("service_name", "FREEPDB1")}
         if self.engine in ("mysql", "mariadb"):
@@ -200,6 +207,38 @@ def targets() -> list[GoldenTarget]:
             migrate_source=False,
         ),
     ]
+
+
+ORACLE_DOC_USER = "ZZ_GOLD_DOC"
+ORACLE_ADMIN_URL_ENV = "UTIL_BBDD_TEST_ORACLE_ADMIN_URL"
+
+
+def oracle_doc_target(oracle: GoldenTarget) -> GoldenTarget | None:
+    """El schema de Oracle en un usuario propio (``ZZ_GOLD_DOC``) para el dorado de documentación.
+
+    En Oracle el contexto de metadatos es el usuario conectado, y el de ``bench`` tiene objetos de otras pruebas: la
+    documentación los incluiría. Se crea con ``SYSTEM`` (``UTIL_BBDD_TEST_ORACLE_ADMIN_URL``, ver
+    ``scripts/bench_env.example.sh``), con una contraseña nueva en cada ejecución, y se borra con ``DROP USER …
+    CASCADE``. ``None`` si falta la URL de administración.
+    """
+    if not os.environ.get(ORACLE_ADMIN_URL_ENV):
+        return None
+    password = "Zz" + secrets.token_hex(12)
+    user = ORACLE_DOC_USER
+    return dataclasses.replace(
+        oracle,
+        schema=user,
+        create=(
+            f'CREATE USER {user} IDENTIFIED BY "{password}" QUOTA UNLIMITED ON USERS',
+            f"GRANT CREATE SESSION TO {user}",
+            f"ALTER SESSION SET CURRENT_SCHEMA = {user}",
+            *oracle.create,
+        ),
+        drop=(f"DROP USER {user} CASCADE",),
+        doc=True,
+        admin_url_env=ORACLE_ADMIN_URL_ENV,
+        login=(user, password),
+    )
 
 
 def build(target: GoldenTarget) -> None:

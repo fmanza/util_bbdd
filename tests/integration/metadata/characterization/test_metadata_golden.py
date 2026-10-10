@@ -34,7 +34,7 @@ import pytest
 
 from util_bbdd import SyncDatabaseManager
 
-from ._schemas import PREFIX, GoldenTarget, build, drop, targets
+from ._schemas import ORACLE_ADMIN_URL_ENV, PREFIX, GoldenTarget, build, drop, oracle_doc_target, targets
 
 pytestmark = pytest.mark.integration
 
@@ -198,8 +198,15 @@ def test_metadata_matches_golden(target: GoldenTarget) -> None:
 
 
 def test_doc_matches_golden(target: GoldenTarget) -> None:
-    if not target.doc:
-        pytest.skip("schema de pruebas no aislado: la documentación incluiría objetos ajenos")
-    db_type, params = target.manager_args()
-    with SyncDatabaseManager(db_type, params, use_pool=False) as mgr:
-        _compare(GOLDEN_DIR / f"{target.engine}_doc.txt", _doc_text(mgr, target.engine))
+    doc_target: GoldenTarget | None = target if target.doc else oracle_doc_target(target)
+    if doc_target is None:
+        pytest.skip(f"schema de pruebas no aislado y sin {ORACLE_ADMIN_URL_ENV} para crear uno propio")
+    if doc_target is not target:
+        build(doc_target)
+    try:
+        db_type, params = doc_target.manager_args()
+        with SyncDatabaseManager(db_type, params, use_pool=False) as mgr:
+            _compare(GOLDEN_DIR / f"{target.engine}_doc.txt", _doc_text(mgr, target.engine))
+    finally:
+        if doc_target is not target:
+            drop(doc_target)

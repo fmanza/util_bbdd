@@ -22,6 +22,8 @@ for _bench_prefix in BENCH TEST; do
     export "UTIL_BBDD_${_bench_prefix}_MSSQL_URL=mssql+pymssql://sa:${_bench_pw}@${_bench_host}:${UTIL_BBDD_BENCH_MSSQL_PORT:-51433}/bench"
     export "UTIL_BBDD_${_bench_prefix}_ORACLE_URL=oracle+oracledb://bench:${_bench_pw}@${_bench_host}:${UTIL_BBDD_BENCH_ORACLE_PORT:-51521}/?service_name=FREEPDB1"
 done
+# SYSTEM de Oracle (misma contraseña): solo para crear el usuario aislado del dorado de documentación (ZZ_GOLD_DOC)
+export "UTIL_BBDD_TEST_ORACLE_ADMIN_URL=oracle+oracledb://system:${_bench_pw}@${_bench_host}:${UTIL_BBDD_BENCH_ORACLE_PORT:-51521}/?service_name=FREEPDB1"
 # Opcional: HSQLDB en red (docker-compose.bench-hsqldb.yml) y su jar de cliente; solo si el jar está descargado.
 if [ -f "build/bench_hsqldb/hsqldb-2.7.4.jar" ]; then
     export UTIL_BBDD_TEST_HSQLDB_JAR="${UTIL_BBDD_TEST_HSQLDB_JAR:-$PWD/build/bench_hsqldb/hsqldb-2.7.4.jar}"

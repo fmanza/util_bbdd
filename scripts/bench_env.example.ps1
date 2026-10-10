@@ -32,6 +32,8 @@ foreach ($prefix in 'BENCH', 'TEST') {
         Set-Item -Path "env:UTIL_BBDD_${prefix}_${engine}_URL" -Value $benchUrls[$engine]
     }
 }
+# SYSTEM de Oracle (misma contraseña): solo para crear el usuario aislado del dorado de documentación (ZZ_GOLD_DOC)
+$env:UTIL_BBDD_TEST_ORACLE_ADMIN_URL = "oracle+oracledb://system:${benchPw}@${benchHost}:$(Get-BenchPort 'UTIL_BBDD_BENCH_ORACLE_PORT' 51521)/?service_name=FREEPDB1"
 # Opcional: HSQLDB en red (docker-compose.bench-hsqldb.yml) y su jar de cliente; solo si el jar está descargado.
 $hsqldbJar = Join-Path (Get-Location) 'build/bench_hsqldb/hsqldb-2.7.4.jar'
 if (Test-Path $hsqldbJar) {

@@ -1,0 +1,706 @@
+Todas las funciones - ZZ_GOLD_DOC
+Todas las funciones
+Base de datos: ZZ_GOLD_DOC · Generado: <fecha> · Registros: 1
+Anterior
+Página 1/1
+Siguiente
+0 resultados
+Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.
+Filas por página
+10
+25
+50
+100
+Todas
+CSV
+TSV
+XLSX
+PDF
+Rutina
+Tipo rutina
+Comentario
+Modo
+Parámetro
+Tipo
+Valor por defecto
+Posición
+Detalle
+ZZ_GOLD_F
+FUNCTION
+IN
+X
+NUMBER
+1
+Abrir detalle
+Todos los procedures - ZZ_GOLD_DOC
+Todos los procedures
+Base de datos: ZZ_GOLD_DOC · Generado: <fecha> · Registros: 1
+Anterior
+Página 1/1
+Siguiente
+0 resultados
+Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.
+Filas por página
+10
+25
+50
+100
+Todas
+CSV
+TSV
+XLSX
+PDF
+Rutina
+Tipo rutina
+Comentario
+Modo
+Parámetro
+Tipo
+Valor por defecto
+Posición
+Detalle
+ZZ_GOLD_P
+PROCEDURE
+IN
+X
+NUMBER
+1
+Abrir detalle
+Todo el almacenamiento - ZZ_GOLD_DOC
+Todo el almacenamiento
+Base de datos: ZZ_GOLD_DOC · Generado: <fecha> · Registros: 0
+Anterior
+Página 1/1
+Siguiente
+0 resultados
+Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.
+Filas por página
+10
+25
+50
+100
+Todas
+CSV
+TSV
+XLSX
+PDF
+Sección
+Estado
+Mensaje
+Detalle
+Todas las tablas y columnas - ZZ_GOLD_DOC
+Todas las tablas y columnas
+Base de datos: ZZ_GOLD_DOC · Generado: <fecha> · Registros: 16
+Anterior
+Página 1/1
+Siguiente
+0 resultados
+Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.
+Filas por página
+10
+25
+50
+100
+Todas
+CSV
+TSV
+XLSX
+PDF
+Tabla
+Comentario Tabla
+Campo
+Tipo
+Nulo
+Por defecto
+Generación
+Es PK
+Es FK
+Índices
+Comentario Columna
+Detalle
+ZZ_GOLD_CHILD
+ID
+NUMBER(10)
+NO
+Sí
+No
+PK_ZZ_GOLD_CHILD
+Abrir detalle
+ZZ_GOLD_CHILD
+PARENT_ID
+NUMBER(10)
+NO
+No
+FK_ZZ_GOLD_CHILD_PARENT -> ZZ_GOLD_PARENT(ID)
+Abrir detalle
+ZZ_GOLD_CHILD
+LABEL
+VARCHAR2(50)
+YES
+No
+No
+IX_ZZ_GOLD_CHILD_LABEL
+Abrir detalle
+ZZ_GOLD_COMPOSITE
+A
+NUMBER(10)
+NO
+Sí
+No
+PK_ZZ_GOLD_COMPOSITE
+Abrir detalle
+ZZ_GOLD_COMPOSITE
+B
+NUMBER(10)
+NO
+Sí
+No
+PK_ZZ_GOLD_COMPOSITE
+Abrir detalle
+ZZ_GOLD_COMPOSITE
+NOTE
+VARCHAR2(30)
+YES
+No
+No
+Abrir detalle
+ZZ_GOLD_IDENTITY
+ID
+NUMBER(10)
+NO
+IDENTITY (BY DEFAULT)
+Sí
+No
+PK_ZZ_GOLD_IDENTITY
+Abrir detalle
+ZZ_GOLD_IDENTITY
+VAL
+VARCHAR2(10)
+YES
+No
+No
+Abrir detalle
+ZZ_GOLD_PARENT
+tabla padre
+ID
+NUMBER(10)
+NO
+Sí
+No
+PK_ZZ_GOLD_PARENT
+Abrir detalle
+ZZ_GOLD_PARENT
+tabla padre
+CODE
+VARCHAR2(20)
+NO
+No
+No
+UK_ZZ_GOLD_PARENT_CODE
+Abrir detalle
+ZZ_GOLD_PARENT
+tabla padre
+NAME
+VARCHAR2(100)
+YES
+No
+No
+Abrir detalle
+ZZ_GOLD_PARENT
+tabla padre
+AMOUNT
+NUMBER(12,2)
+YES
+No
+No
+Abrir detalle
+ZZ_GOLD_PARENT
+tabla padre
+CREATED
+DATE
+YES
+No
+No
+Abrir detalle
+ZZ_GOLD_REF_COMPOSITE
+ID
+NUMBER(10)
+NO
+Sí
+No
+PK_ZZ_GOLD_REF_COMPOSITE
+Abrir detalle
+ZZ_GOLD_REF_COMPOSITE
+A
+NUMBER(10)
+YES
+No
+FK_ZZ_GOLD_REF_COMPOSITE -> ZZ_GOLD_COMPOSITE(A)
+Abrir detalle
+ZZ_GOLD_REF_COMPOSITE
+B
+NUMBER(10)
+YES
+No
+FK_ZZ_GOLD_REF_COMPOSITE -> ZZ_GOLD_COMPOSITE(B)
+Abrir detalle
+Todas las vistas y columnas - ZZ_GOLD_DOC
+Todas las vistas y columnas
+Base de datos: ZZ_GOLD_DOC · Generado: <fecha> · Registros: 2
+Anterior
+Página 1/1
+Siguiente
+0 resultados
+Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.
+Filas por página
+10
+25
+50
+100
+Todas
+CSV
+TSV
+XLSX
+PDF
+Vista
+Comentario
+Campo
+Tipo
+Nulo
+Por defecto
+Generación
+Comentario
+Detalle
+ZZ_GOLD_V_PARENT
+ID
+NUMBER(10)
+NO
+Abrir detalle
+ZZ_GOLD_V_PARENT
+CODE
+VARCHAR2(20)
+NO
+Abrir detalle
+Índice documentación BD - ZZ_GOLD_DOC
+Índice de documentación - ZZ_GOLD_DOC
+Generado: <fecha>
+Buscar en
+TABLA
+VISTA
+PROCEDURE
+FUNCTION
+ALMACENAMIENTO
+INFORMACIÓN BD
+Contraer panel lateral
+Tablas
+5
+Vistas
+1
+Procedures
+1
+Funciones
+1
+Almacenamiento
+0
+Tablas (5)
+Ver todo
+ZZ_GOLD_CHILD
+ZZ_GOLD_COMPOSITE
+ZZ_GOLD_IDENTITY
+ZZ_GOLD_PARENT
+tabla padre
+ZZ_GOLD_REF_COMPOSITE
+Anterior
+Página 1/1
+Siguiente
+Vistas (1)
+Ver todo
+ZZ_GOLD_V_PARENT
+Anterior
+Página 1/1
+Siguiente
+Procedures (1)
+Ver todo
+ZZ_GOLD_P
+Anterior
+Página 1/1
+Siguiente
+Funciones (1)
+Ver todo
+ZZ_GOLD_F
+Anterior
+Página 1/1
+Siguiente
+Almacenamiento (0)
+Ver todo
+No hay inventario de almacenamiento.
+Anterior
+Página 1/1
+Siguiente
+Información BD (0)
+No hay información de base de datos.
+Anterior
+Página 1/1
+Siguiente
+Rutina - ZZ_GOLD_F | ZZ_GOLD_DOC
+Rutina: ZZ_GOLD_F
+Generado: <fecha>
+Base de datos: ZZ_GOLD_DOC
+Comentario:
+DDL
+Copiar DDL
+CREATE OR REPLACE FUNCTION zz_gold_f(x NUMBER) RETURN NUMBER IS BEGIN RETURN x + 1; END;
+Tipo
+Función
+Parámetros
+Modo
+Parámetro
+Tipo
+Valor por defecto
+Posición
+IN
+X
+NUMBER
+1
+Rutina - ZZ_GOLD_P | ZZ_GOLD_DOC
+Rutina: ZZ_GOLD_P
+Generado: <fecha>
+Base de datos: ZZ_GOLD_DOC
+Comentario:
+DDL
+Copiar DDL
+CREATE OR REPLACE PROCEDURE zz_gold_p(x NUMBER) IS y NUMBER; BEGIN y := x; END;
+Tipo
+Procedure
+Parámetros
+Modo
+Parámetro
+Tipo
+Valor por defecto
+Posición
+IN
+X
+NUMBER
+1
+Tabla - ZZ_GOLD_CHILD | ZZ_GOLD_DOC
+Tabla: ZZ_GOLD_CHILD
+Generado: <fecha>
+Base de datos: ZZ_GOLD_DOC
+Comentario:
+DDL
+Copiar DDL
+CREATE TABLE "ZZ_GOLD_DOC"."ZZ_GOLD_CHILD"
+( "ID" NUMBER(10,0) NOT NULL ENABLE,
+"PARENT_ID" NUMBER(10,0) NOT NULL ENABLE,
+"LABEL" VARCHAR2(50),
+CONSTRAINT "PK_ZZ_GOLD_CHILD" PRIMARY KEY ("ID")
+USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255
+TABLESPACE "USERS" ENABLE,
+CONSTRAINT "FK_ZZ_GOLD_CHILD_PARENT" FOREIGN KEY ("PARENT_ID")
+REFERENCES "ZZ_GOLD_DOC"."ZZ_GOLD_PARENT" ("ID") ON DELETE CASCADE ENABLE
+) SEGMENT CREATION DEFERRED
+PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255
+NOCOMPRESS LOGGING
+TABLESPACE "USERS"
+Columnas
+Campo
+Tipo
+Nulo
+Por defecto
+Generación
+Comentario
+ID
+NUMBER(10)
+NO
+PARENT_ID
+NUMBER(10)
+NO
+LABEL
+VARCHAR2(50)
+YES
+Claves Primarias
+('ID',)
+Relaciones (Claves Foráneas)
+Nombre Restricción
+Columna
+Tabla Referenciada
+Columna Referenciada
+ON DELETE
+ON UPDATE
+FK_ZZ_GOLD_CHILD_PARENT
+PARENT_ID
+ZZ_GOLD_PARENT
+ID
+CASCADE
+NO ACTION
+Restricciones Únicas
+No se encontraron claves únicas.
+Índices
+Nombre Índice
+Columna
+Único
+Tipo de Índice
+IX_ZZ_GOLD_CHILD_LABEL
+LABEL
+No
+NORMAL
+PK_ZZ_GOLD_CHILD
+ID
+Sí
+NORMAL
+Tabla - ZZ_GOLD_COMPOSITE | ZZ_GOLD_DOC
+Tabla: ZZ_GOLD_COMPOSITE
+Generado: <fecha>
+Base de datos: ZZ_GOLD_DOC
+Comentario:
+DDL
+Copiar DDL
+CREATE TABLE "ZZ_GOLD_DOC"."ZZ_GOLD_COMPOSITE"
+( "A" NUMBER(10,0) NOT NULL ENABLE,
+"B" NUMBER(10,0) NOT NULL ENABLE,
+"NOTE" VARCHAR2(30),
+CONSTRAINT "PK_ZZ_GOLD_COMPOSITE" PRIMARY KEY ("A", "B")
+USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255
+TABLESPACE "USERS" ENABLE
+) SEGMENT CREATION DEFERRED
+PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255
+NOCOMPRESS LOGGING
+TABLESPACE "USERS"
+Columnas
+Campo
+Tipo
+Nulo
+Por defecto
+Generación
+Comentario
+A
+NUMBER(10)
+NO
+B
+NUMBER(10)
+NO
+NOTE
+VARCHAR2(30)
+YES
+Claves Primarias
+('A',) ('B',)
+Relaciones (Claves Foráneas)
+No se encontraron claves foráneas.
+Restricciones Únicas
+No se encontraron claves únicas.
+Índices
+Nombre Índice
+Columna
+Único
+Tipo de Índice
+PK_ZZ_GOLD_COMPOSITE
+A
+Sí
+NORMAL
+PK_ZZ_GOLD_COMPOSITE
+B
+Sí
+NORMAL
+Tabla - ZZ_GOLD_IDENTITY | ZZ_GOLD_DOC
+Tabla: ZZ_GOLD_IDENTITY
+Generado: <fecha>
+Base de datos: ZZ_GOLD_DOC
+Comentario:
+DDL
+Copiar DDL
+CREATE TABLE "ZZ_GOLD_DOC"."ZZ_GOLD_IDENTITY"
+( "ID" NUMBER(10,0) GENERATED BY DEFAULT AS IDENTITY MINVALUE 1 MAXVALUE 9999999999999999999999999999 INCREMENT BY 1 START WITH 1 CACHE 20 NOORDER NOCYCLE NOKEEP NOSCALE NOT NULL ENABLE,
+"VAL" VARCHAR2(10),
+CONSTRAINT "PK_ZZ_GOLD_IDENTITY" PRIMARY KEY ("ID")
+USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255
+TABLESPACE "USERS" ENABLE
+) SEGMENT CREATION DEFERRED
+PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255
+NOCOMPRESS LOGGING
+TABLESPACE "USERS"
+Columnas
+Campo
+Tipo
+Nulo
+Por defecto
+Generación
+Comentario
+ID
+NUMBER(10)
+NO
+IDENTITY (BY DEFAULT)
+VAL
+VARCHAR2(10)
+YES
+Claves Primarias
+('ID',)
+Relaciones (Claves Foráneas)
+No se encontraron claves foráneas.
+Restricciones Únicas
+No se encontraron claves únicas.
+Índices
+Nombre Índice
+Columna
+Único
+Tipo de Índice
+PK_ZZ_GOLD_IDENTITY
+ID
+Sí
+NORMAL
+Tabla - ZZ_GOLD_PARENT | ZZ_GOLD_DOC
+Tabla: ZZ_GOLD_PARENT
+Generado: <fecha>
+Base de datos: ZZ_GOLD_DOC
+Comentario: tabla padre
+DDL
+Copiar DDL
+CREATE TABLE "ZZ_GOLD_DOC"."ZZ_GOLD_PARENT"
+( "ID" NUMBER(10,0) NOT NULL ENABLE,
+"CODE" VARCHAR2(20) NOT NULL ENABLE,
+"NAME" VARCHAR2(100),
+"AMOUNT" NUMBER(12,2),
+"CREATED" DATE,
+CONSTRAINT "PK_ZZ_GOLD_PARENT" PRIMARY KEY ("ID")
+USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255
+TABLESPACE "USERS" ENABLE,
+CONSTRAINT "UK_ZZ_GOLD_PARENT_CODE" UNIQUE ("CODE")
+USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255
+TABLESPACE "USERS" ENABLE
+) SEGMENT CREATION DEFERRED
+PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255
+NOCOMPRESS LOGGING
+TABLESPACE "USERS"
+Columnas
+Campo
+Tipo
+Nulo
+Por defecto
+Generación
+Comentario
+ID
+NUMBER(10)
+NO
+CODE
+VARCHAR2(20)
+NO
+NAME
+VARCHAR2(100)
+YES
+AMOUNT
+NUMBER(12,2)
+YES
+CREATED
+DATE
+YES
+Claves Primarias
+('ID',)
+Relaciones (Claves Foráneas)
+No se encontraron claves foráneas.
+Restricciones Únicas
+Nombre Restricción
+Campo
+UK_ZZ_GOLD_PARENT_CODE
+CODE
+Índices
+Nombre Índice
+Columna
+Único
+Tipo de Índice
+PK_ZZ_GOLD_PARENT
+ID
+Sí
+NORMAL
+UK_ZZ_GOLD_PARENT_CODE
+CODE
+Sí
+NORMAL
+Tabla - ZZ_GOLD_REF_COMPOSITE | ZZ_GOLD_DOC
+Tabla: ZZ_GOLD_REF_COMPOSITE
+Generado: <fecha>
+Base de datos: ZZ_GOLD_DOC
+Comentario:
+DDL
+Copiar DDL
+CREATE TABLE "ZZ_GOLD_DOC"."ZZ_GOLD_REF_COMPOSITE"
+( "ID" NUMBER(10,0) NOT NULL ENABLE,
+"A" NUMBER(10,0),
+"B" NUMBER(10,0),
+CONSTRAINT "PK_ZZ_GOLD_REF_COMPOSITE" PRIMARY KEY ("ID")
+USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255
+TABLESPACE "USERS" ENABLE,
+CONSTRAINT "FK_ZZ_GOLD_REF_COMPOSITE" FOREIGN KEY ("A", "B")
+REFERENCES "ZZ_GOLD_DOC"."ZZ_GOLD_COMPOSITE" ("A", "B") ENABLE
+) SEGMENT CREATION DEFERRED
+PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255
+NOCOMPRESS LOGGING
+TABLESPACE "USERS"
+Columnas
+Campo
+Tipo
+Nulo
+Por defecto
+Generación
+Comentario
+ID
+NUMBER(10)
+NO
+A
+NUMBER(10)
+YES
+B
+NUMBER(10)
+YES
+Claves Primarias
+('ID',)
+Relaciones (Claves Foráneas)
+Nombre Restricción
+Columna
+Tabla Referenciada
+Columna Referenciada
+ON DELETE
+ON UPDATE
+FK_ZZ_GOLD_REF_COMPOSITE
+A
+ZZ_GOLD_COMPOSITE
+A
+NO ACTION
+NO ACTION
+FK_ZZ_GOLD_REF_COMPOSITE
+B
+ZZ_GOLD_COMPOSITE
+B
+NO ACTION
+NO ACTION
+Restricciones Únicas
+No se encontraron claves únicas.
+Índices
+Nombre Índice
+Columna
+Único
+Tipo de Índice
+PK_ZZ_GOLD_REF_COMPOSITE
+ID
+Sí
+NORMAL
+Vista - ZZ_GOLD_V_PARENT | ZZ_GOLD_DOC
+Vista: ZZ_GOLD_V_PARENT
+Generado: <fecha>
+Base de datos: ZZ_GOLD_DOC
+Comentario:
+DDL
+Copiar DDL
+CREATE VIEW ZZ_GOLD_V_PARENT AS
+SELECT id, code FROM zz_gold_parent
+Columnas
+Campo
+Tipo
+Nulo
+Por defecto
+Generación
+Comentario
+ID
+NUMBER(10)
+NO
+CODE
+VARCHAR2(20)
+NO
