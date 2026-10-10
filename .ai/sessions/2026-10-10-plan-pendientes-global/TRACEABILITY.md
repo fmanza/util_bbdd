@@ -81,6 +81,6 @@ CI-2 es la corrección de la fila Q4).
 Veredicto: GO (Q0–Q5 implementados en v0.41.2–v0.42.0; Q6 entregado como PLAN)
 Pendientes al cierre:
 - Push de `develop` y de los tags `v0.41.2`, `v0.41.3`, `v0.42.0`, `v0.42.1` (no autorizado).
-- Decisiones A1–A6 de `Q6_PLAN_API_1_0.md`.
+- ~~Decisiones A1–A6 de `Q6_PLAN_API_1_0.md`~~: aceptadas las recomendadas (2026-10-10); IMPLEMENT en sesión propia (0.43.0).
 - Comprobar en GitHub la primera ejecución de `integration.yml` (aquí no hay `gh`).
 - Externos: PR #18, issue ORA-03106.

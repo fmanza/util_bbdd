@@ -1,6 +1,6 @@
 # Q6 — PLAN + AUDIT_PLAN de la API pública 1.0
 
-Fecha: 2026-10-10 · Base: `develop` @ v0.42.0 · Solo lectura. Origen: `2026-10-04-api-single-entry-point-audit`
+Fecha: 2026-10-10 · Base: `develop` @ v0.42.0 · Solo lectura. **Decidido 2026-10-10: A1–A6 aceptadas (§3).** Origen: `2026-10-04-api-single-entry-point-audit`
 (Opción A hecha; B y C pendientes). Inventario: `api_inventory.tsv` (en esta carpeta) (cada símbolo de `util_bbdd.__all__`
 con el número de ficheros de `docs/`, ejemplos, `tests/` y `src/` que lo nombran).
 
@@ -56,6 +56,11 @@ porque después sería ruptura.
 | A5 | `BulkCrud` SRP | (a) después de 1.0, por dentro; (b) antes | **(a)** |
 | A6 | Calendario | 0.43.0 con alias y avisos de obsolescencia → 1.0.0 quitándolos | — |
 
+**Decisión del usuario (2026-10-10): se aceptan las recomendaciones A1–A6.** A1 (a), A2 (a) con alias en la raíz y
+`DeprecationWarning` durante 0.x, A3 (a), A4 (a), A5 (a) y A6 con el calendario propuesto: 0.43.0 (nueva superficie +
+alias deprecados + guía de migración) → 1.0.0 (retirar alias tras al menos una versión con avisos). La implementación
+se hace en una sesión propia (`.ai/sessions/<fecha>-api-1-0/`, flujo `/refactor`), que llega solo a 0.43.0.
+
 ## 4. AUDIT_PLAN
 
 | Riesgo | Mitigación |
@@ -68,5 +73,5 @@ porque después sería ruptura.
 
 ## 5. Siguiente paso
 
-Responder A1–A6. Con ellas, IMPLEMENT en dos versiones: **0.43.0** (nueva superficie + alias deprecados + guía) y
+~~Responder A1–A6.~~ Hecho (2026-10-10, §3). Siguiente: sesión nueva con PLAN → AUDIT_PLAN → IMPLEMENT en dos versiones: **0.43.0** (nueva superficie + alias deprecados + guía) y
 **1.0.0** (retirar alias tras al menos una versión con avisos).

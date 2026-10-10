@@ -98,7 +98,7 @@ mismo `mkdocs.yml`; el CI publica con Zensical. Ver `ZENICAL.md`.
 
 ## Próximos pasos
 
-**Plan vigente**: `.ai/sessions/2026-10-10-plan-pendientes-global/PLAN_AUDIT_PLAN.md` (Q0–Q2 en v0.41.2, Q3 en v0.41.3, Q4–Q5 en v0.42.0, condiciones de `/audit-code` en v0.42.1; Q6 entregado como PLAN: `Q6_PLAN_API_1_0.md`, decisiones A1–A6 pendientes).
+**Plan vigente**: `.ai/sessions/2026-10-10-plan-pendientes-global/PLAN_AUDIT_PLAN.md` (Q0–Q2 en v0.41.2, Q3 en v0.41.3, Q4–Q5 en v0.42.0, condiciones de `/audit-code` en v0.42.1; Q6 entregado como PLAN: `Q6_PLAN_API_1_0.md`, A1–A6 aceptadas el 2026-10-10; IMPLEMENT de 0.43.0 en sesión propia).
 
 000000000. `v0.41.1` (2026-10-10): **pendientes de la auditoría de `doc/`** (`.ai/sessions/2026-10-09l-plan-pendientes-doc/`, P1–P4): B-04 DDL de HSQLDB, S-02 entidades en el DDL de HTML, orden total del inventario, docstrings. Después, en `develop` (`[Unreleased]`): P5 dorado de documentación de Oracle aislado, P6 genéricos con parámetros + `disallow_any_generics` en `doc`/`analysis`, P7 tests de matplotlib y nombre de fichero saneado.
 00000000. `v0.41.0` (2026-10-09): **documentation-architecture-audit de `doc/` + `analysis/`** (`.ai/sessions/2026-10-09k-doc-architecture-audit/`): diagramas Graphviz por lotes (`GraphvizRelationshipGraphExt.prefetch`, `dot -O`; HTML con diagramas 75,7 s → 6,0 s con 120 tablas), un generador de grafos por documentación (el .docx ya no depende de los demás formatos), inventario de almacenamiento declarativo por motor (SQL Server sin aviso falso), API `util_bbdd.doc` = `DatabaseDocumentation` + `DocumentationResult` con `DocumentationConfigError`/`DocumentationRenderError` (rompe API). Pendientes en `.ai/sessions/2026-10-09l-plan-pendientes-doc/` (P1–P7, v0.41.1).
