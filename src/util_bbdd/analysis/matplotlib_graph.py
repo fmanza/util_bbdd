@@ -9,6 +9,7 @@ from logging import Logger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from .._core.filenames import safe_file_stem
 from .base import DatabaseRelationshipGraphBase, GraphDocument, LevelDirection, TableRelation
 from .contracts import RelationshipGraphSource
 
@@ -146,14 +147,11 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
 
         generated_files: list[Path] = []
 
+        # Nombre de tabla saneado: uno con «/» o «..» no escribe fuera de output_dir (S-04)
+        stem: str = f"matplotlib_{safe_file_stem(table_name)}"
         for page_num, page_relations in enumerate(split_relations, 1):
-            # Crear nombre de archivo descriptivo con matplotlib y nombre de tabla
-            if len(split_relations) > 1:
-                # Múltiples páginas: matplotlib_tablename_page1.png
-                file_name: str = f"matplotlib_{table_name}_page{page_num}"
-            else:
-                # Una sola página: matplotlib_tablename.png
-                file_name = f"matplotlib_{table_name}"
+            # Varias páginas: matplotlib_<tabla>_page1.png; una sola: matplotlib_<tabla>.png
+            file_name: str = f"{stem}_page{page_num}" if len(split_relations) > 1 else stem
 
             output_path: Path = output_dir / file_name
 
