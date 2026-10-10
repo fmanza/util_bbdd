@@ -5,10 +5,11 @@ Soporta MariaDB, Oracle, PostgreSQL, SQLite, HSQLDB y SQL Server.
 
 import logging
 import sys
+import warnings
 
 from collections.abc import Callable, Collection
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, Self, cast
 
 from sqlalchemy.engine.base import Engine
 
@@ -211,7 +212,7 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             # Inicializar ejecutor stateless (cada operación obtiene/libera conexión)
             self.sync_query_executor = self.session_manager.build_sync_executor(
                 connection_provider=lambda: self.get_connection(),
-                connection_releaser=lambda conn: self.close_connection(conn),
+                connection_releaser=lambda conn: self.release_connection(conn),
                 registry=self._query_catalog.registry,
                 resolver=self._query_catalog.resolver,
             )
@@ -265,6 +266,17 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         """Establece la conexión a la base de datos (solo para conexiones directas)."""
         self._connection = conn
 
+    def init(self) -> Self:
+        """Devuelve el manager inicializado (simetría con ``AsyncDatabaseManager.init()``).
+
+        El manager sync conecta en ``__init__``, así que no hace I/O: existe para que el mismo código de arranque sirva
+        en sync y async. Es idempotente.
+
+        Returns:
+            El propio manager.
+        """
+        return self
+
     def get_connection(self) -> Any:
         """Obtiene conexión del pool o conexión única."""
         return self.session_manager.get_connection(
@@ -272,9 +284,19 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             db_type=self.db_type,
         )
 
-    def close_connection(self, connection: Any | None = None) -> None:
-        """Devuelve conexión al pool o cierra conexión única."""
+    def release_connection(self, connection: Any | None = None) -> None:
+        """Devuelve la conexión al pool o cierra la conexión única (mismo nombre que en ``AsyncDatabaseManager``)."""
         self.session_manager.close_connection(connection=connection)
+
+    def close_connection(self, connection: Any | None = None) -> None:
+        """Alias obsoleto de :meth:`release_connection`; se retira en util_bbdd 1.0.0."""
+        warnings.warn(
+            "'SyncDatabaseManager.close_connection()' está obsoleto y se retirará en util_bbdd 1.0.0; "
+            "usa 'release_connection()'.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.release_connection(connection)
 
     def close(self, timeout_seconds: float | None = None, force: bool = False) -> None:
         """Cierra la conexión a la base de datos y libera recursos del pool."""

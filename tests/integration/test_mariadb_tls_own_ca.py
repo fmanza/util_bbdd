@@ -60,7 +60,7 @@ def _sync_cipher(params: dict[str, Any], use_pool: bool) -> str:
         cipher = str(cursor.fetchone()[1])
         cursor.close()
         if use_pool:
-            manager.close_connection(connection)
+            manager.release_connection(connection)
         return cipher
     finally:
         manager.close()

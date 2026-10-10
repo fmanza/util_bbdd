@@ -11,7 +11,7 @@ from typing import Any, cast
 from util_bbdd._drivers.validator import DatabaseTypeValidator
 
 from .._core.exceptions import DatabaseOperationError, QueryError, ValidationError
-from .._drivers import get_database_validator, get_db_type_info, get_supported_db_types
+from .._drivers import get_database_validator, get_db_type_info, get_supported_db_types, validate_db_type
 from ..async_utils import maybe_await
 from ..connection.close import AsyncCloseMode, normalize_close_mode
 from ..connection.factory import ConnectionFactory
@@ -524,6 +524,21 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
     def get_db_type_info_static(db_type: str) -> dict[str, Any]:
         """Obtiene información de un tipo de base de datos (método estático)."""
         return get_db_type_info(db_type)
+
+    @staticmethod
+    def is_db_type_supported(db_type: str) -> bool:
+        """Indica si el tipo de base de datos está soportado (mismo contrato que en ``SyncDatabaseManager``)."""
+        validator: DatabaseTypeValidator = get_database_validator()
+        return validator.is_db_type_supported(db_type)
+
+    @staticmethod
+    def validate_db_type_static(db_type: str) -> bool:
+        """Valida un tipo de base de datos (mismo contrato que en ``SyncDatabaseManager``).
+
+        Raises:
+            ValueError: Si el tipo no es válido.
+        """
+        return validate_db_type(db_type)
 
     async def get_available_queries(self) -> list[str]:
         executor: AsyncQueryExecutor = await self._get_query_executor()
