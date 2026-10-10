@@ -82,7 +82,7 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 - **Invocable**: Sí (generación activa, escribe archivos)
 - **Diferencia con Reviewer**: Reviewer audita, Generator crea contenido nuevo
 - **Prompts base**: `.github/prompts/functional_doc.prompt.md` + `.github/prompts/technical_doc.prompt.md`
-- **Sin APIs de IA externas**: el contenido lo genera el agente en sesión. `.github/workflows/doc_agents.yml` es heredado y queda **fuera de la política vigente** (`SHARED_INSTRUCTIONS.md` § «Estándar de generación documental»); no lo uses ni lo recomiendes.
+- **Sin APIs de IA externas**: el contenido lo genera el agente en sesión (`SHARED_INSTRUCTIONS.md` § «Estándar de generación documental»). El workflow heredado `doc_agents.yml`, que lo hacía con APIs externas, se retiró el 2026-10-10.
 
 ### 7. **Config Reviewer** (`config-reviewer.agent.md`)
 - **Propósito**: Revisar y consolidar ficheros de configuración IA, eliminando duplicación entre plataformas
@@ -267,4 +267,4 @@ Gobernanza entre plataformas: [`SHARED_INSTRUCTIONS.md`](SHARED_INSTRUCTIONS.md)
 
 ---
 
-*Actualizado: 2026-10-02*
+*Actualizado: 2026-10-10*
