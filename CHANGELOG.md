@@ -5,6 +5,54 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.43.0] - 2026-10-10
+
+API pública 1.0, fase 0.43.0 (decisiones A1–A6 de `.ai/sessions/2026-10-10-plan-pendientes-global/Q6_PLAN_API_1_0.md`;
+sesión `.ai/sessions/2026-10-10-api-1-0/`). Sin cambios funcionales: las clases son las mismas, cambia desde dónde se
+importan. Guía de migración: [docs/guides/api_1_0_migration.md](docs/guides/api_1_0_migration.md).
+
+### Added
+
+- **exceptions**: módulo público `util_bbdd.exceptions` con la jerarquía completa (40 excepciones). La implementación
+  sigue en `util_bbdd._core.exceptions`.
+- **raíz**: `BulkCrud`, `ParallelBulkLoader` y `DatabaseDocumentation` se importan también desde `util_bbdd`.
+- **managers**: `SyncDatabaseManager.init()` (devuelve el manager; sin I/O) y `SyncDatabaseManager.release_connection()`,
+  con el mismo nombre que en `AsyncDatabaseManager`; `AsyncDatabaseManager.is_db_type_supported()` y
+  `validate_db_type_static()`, como en el sync.
+
+### Changed
+
+- **raíz**: `util_bbdd.__all__` pasa de 56 a 13 símbolos: `SyncDatabaseManager`, `AsyncDatabaseManager`, `BulkCrud`,
+  `ParallelBulkLoader`, `DumpOrchestrator`, `DumpConfig`, `DumpResult`, `MigrationPlanner`, `MigrationPlan`,
+  `SchemaComparator`, `SchemaDiff`, `DatabaseDocumentation` y `DatabaseException`. `from util_bbdd import *` ya no trae
+  el resto (este caso no avisa).
+- **raíz**: carga perezosa de los puntos de entrada de `bulk`, `dump`, `migrate`, `comparar` y `doc`. `import util_bbdd`
+  baja de ~1,1 s a ~0,3 s y ya no carga pandas, openpyxl, python-docx ni jinja2; un error de esas dependencias aparece al
+  acceder al punto de entrada, no al importar el paquete. `util_bbdd.<subpaquete>` se sigue resolviendo sin importarlo.
+- **docs**: autodoc de excepciones sobre `util_bbdd.exceptions`; SHARED_INSTRUCTIONS y `.ai/architecture.md` recomiendan
+  los imports nuevos.
+
+### Deprecated
+
+Se retiran en 1.0.0. Siguen funcionando, son el mismo objeto que en su ruta nueva y avisan con `DeprecationWarning`
+nombrando el import nuevo.
+
+| Antes | Ahora |
+|---|---|
+| `from util_bbdd import <excepción>` (31: `ConnectionError`, `Pool*Error`, `DriverError`, `ValidationError`, `InvalidDatabaseType`, `DatabaseOperationError`, `DatabaseConfigurationError`, `Query*Error`, `ComparerError` y sus 3 subclases, `Dump*Error`, `Audit*Error`, `Documentation*Error`) | `from util_bbdd.exceptions import …` |
+| `AuditEvent`, `AuditSink`, `JsonLinesAuditSink`, `MemoryAuditSink`, `NullAuditSink` | `util_bbdd.audit` |
+| `SyncMetadataProvider`, `AsyncMetadataProvider` | `util_bbdd.metadata` |
+| `build_conn_params`, `EngineReadinessAdvisor`, `AdvisoryFinding` | `util_bbdd.connection` |
+| `ConnectionFactory`, `PoolFactory` | `util_bbdd.factory` |
+| `maybe_await` | `util_bbdd.async_utils` |
+| `TableDumpResult` | `util_bbdd.dump` |
+| `MigrationWarning` | `util_bbdd.migrate` |
+| `SyncDatabaseManager.close_connection()` | `release_connection()` |
+
+### Fixed
+
+- **exceptions**: `_core.exceptions.__all__` no incluía `QueryParameterError`.
+
 ## [0.42.1] - 2026-10-10
 
 Condiciones de `/audit-code` sobre v0.41.2–v0.42.0 (veredicto APROBADO CON CONDICIONES), en
