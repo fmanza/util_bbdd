@@ -273,8 +273,16 @@ class SchemaSnapshot:
     tables_filter: frozenset[str] | None = None
     _by_table: dict[Kind, dict[str, tuple[Any, ...]]] = field(default_factory=dict, init=False, repr=False)
     _folded: dict[Kind, dict[str, str]] = field(default_factory=dict, init=False, repr=False)
+    # Parámetros por (nombre, firma) de la routine: antes se recorrían todos en cada routine (F7: 2000 routines, 0,9 s)
+    _params_by_routine: dict[tuple[str, str], list[RoutineParameterMeta]] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
+        for parameter in self.data.get(Kind.ROUTINE_PARAMETERS, ()):
+            self._params_by_routine.setdefault((parameter.routine.name, parameter.routine.signature), []).append(
+                parameter
+            )
         for kind, items in self.data.items():
             if kind in TABLE_SCOPED_KINDS and kind not in (Kind.TABLES, Kind.VIEWS):
                 grouped = _group(items, "table")
@@ -346,7 +354,9 @@ class SchemaSnapshot:
         return self._for_table(Kind.IDENTITY, table)
 
     def routine_parameters(self, routine: RoutineKey) -> tuple[RoutineParameterMeta, ...]:
-        return tuple(p for p in self._all(Kind.ROUTINE_PARAMETERS) if p.routine.matches(routine))
+        self._all(Kind.ROUTINE_PARAMETERS)
+        candidates = self._params_by_routine.get((routine.name, routine.signature), [])
+        return tuple(p for p in candidates if p.routine.matches(routine))
 
 
 __all__: list[str] = [
