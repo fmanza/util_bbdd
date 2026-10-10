@@ -5,7 +5,6 @@ Soporta MariaDB, Oracle, PostgreSQL, SQLite, HSQLDB y SQL Server.
 
 import logging
 import sys
-import warnings
 
 from collections.abc import Callable, Collection
 from pathlib import Path
@@ -287,16 +286,6 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
     def release_connection(self, connection: Any | None = None) -> None:
         """Devuelve la conexión al pool o cierra la conexión única (mismo nombre que en ``AsyncDatabaseManager``)."""
         self.session_manager.close_connection(connection=connection)
-
-    def close_connection(self, connection: Any | None = None) -> None:
-        """Alias obsoleto de :meth:`release_connection`; se retira en util_bbdd 1.0.0."""
-        warnings.warn(
-            "'SyncDatabaseManager.close_connection()' está obsoleto y se retirará en util_bbdd 1.0.0; "
-            "usa 'release_connection()'.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.release_connection(connection)
 
     def close(self, timeout_seconds: float | None = None, force: bool = False) -> None:
         """Cierra la conexión a la base de datos y libera recursos del pool."""

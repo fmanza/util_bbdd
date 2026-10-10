@@ -1,8 +1,8 @@
-"""Superficie pública de la raíz ``util_bbdd`` (API 1.0, fase 0.43.0).
+"""Superficie pública de la raíz ``util_bbdd`` (API 1.0).
 
-Fija los 13 símbolos de ``util_bbdd.__all__``, la carga perezosa de los puntos de entrada pesados y los 46 alias
-deprecados que la raíz exportaba hasta 0.42: cada uno avisa con ``DeprecationWarning``, nombra su ruta nueva y devuelve
-el mismo objeto que esa ruta (un ``except util_bbdd.QueryError`` sigue capturando lo mismo).
+Fija los 13 símbolos de ``util_bbdd.__all__``, la carga perezosa de los puntos de entrada pesados y la retirada (1.0.0)
+de los 46 nombres que la raíz exportaba hasta 0.42: ya no existen en la raíz y cada uno sigue exportado por su
+submódulo público.
 """
 
 from __future__ import annotations
@@ -34,8 +34,8 @@ ROOT_API: list[str] = [
     "DatabaseException",
 ]
 
-# Los 46 nombres que salen de la raíz en 0.43.0 y el submódulo público que los exporta desde ahora.
-DEPRECATED: dict[str, str] = {
+# Los 46 nombres retirados de la raíz en 1.0.0 (deprecados en 0.43.0) y el submódulo público que los exporta.
+REMOVED_IN_1_0: dict[str, str] = {
     **dict.fromkeys(
         (
             "ConnectionError",
@@ -86,10 +86,10 @@ def test_root_all_is_the_1_0_surface() -> None:
     assert util_bbdd.__all__ == ROOT_API
 
 
-def test_deprecated_table_matches_the_package() -> None:
-    assert len(DEPRECATED) == 46
-    assert util_bbdd._DEPRECATED == DEPRECATED
-    assert not set(DEPRECATED) & set(ROOT_API)
+def test_removed_names_are_not_part_of_the_root() -> None:
+    assert len(REMOVED_IN_1_0) == 46
+    assert not set(REMOVED_IN_1_0) & set(ROOT_API)
+    assert not hasattr(util_bbdd, "_DEPRECATED")
 
 
 @pytest.mark.parametrize("name", ROOT_API)
@@ -99,28 +99,17 @@ def test_root_symbols_resolve_without_warning(name: str) -> None:
         assert getattr(util_bbdd, name) is not None
 
 
-@pytest.mark.parametrize(("name", "module"), sorted(DEPRECATED.items()))
-def test_deprecated_alias_warns_and_is_the_same_object(name: str, module: str) -> None:
+@pytest.mark.parametrize(("name", "module"), sorted(REMOVED_IN_1_0.items()))
+def test_removed_name_lives_only_in_its_submodule(name: str, module: str) -> None:
     target = importlib.import_module(f"util_bbdd.{module}")
-    with pytest.warns(DeprecationWarning, match=rf"from util_bbdd\.{module} import {name}'") as record:
-        value = getattr(util_bbdd, name)
-    assert value is getattr(target, name)
     assert name in target.__all__
-    # stacklevel=2: el aviso señala al llamante, no a util_bbdd/__init__.py.
-    assert record[0].filename == __file__
+    assert getattr(target, name) is not None
+    assert not hasattr(util_bbdd, name)
 
 
-def test_deprecated_alias_warns_on_from_import() -> None:
-    with pytest.warns(DeprecationWarning, match="util_bbdd.QueryError"):
+def test_removed_name_fails_on_from_import() -> None:
+    with pytest.raises(ImportError, match="QueryError"):
         from util_bbdd import QueryError  # noqa: F401
-
-
-def test_deprecated_alias_warns_on_every_access() -> None:
-    """Los alias no se cachean en el módulo: cada acceso avisa (los perezosos sí se cachean)."""
-    for _ in range(2):
-        with pytest.warns(DeprecationWarning):
-            util_bbdd.QueryError  # noqa: B018
-    assert "QueryError" not in vars(util_bbdd)
 
 
 def test_unknown_attribute_raises_attribute_error() -> None:
@@ -128,10 +117,10 @@ def test_unknown_attribute_raises_attribute_error() -> None:
         util_bbdd.no_existe  # noqa: B018
 
 
-def test_dir_lists_the_root_api_but_not_deprecated_aliases() -> None:
+def test_dir_lists_the_root_api_but_not_removed_names() -> None:
     names = dir(util_bbdd)
     assert set(ROOT_API) <= set(names)
-    assert not set(DEPRECATED) & set(names)
+    assert not set(REMOVED_IN_1_0) & set(names)
 
 
 def test_public_exceptions_module_is_the_full_hierarchy() -> None:
@@ -172,8 +161,8 @@ def test_subpackages_resolve_by_attribute_without_explicit_import() -> None:
     assert out == "DumpOrchestrator util_bbdd.audit"
 
 
-def test_library_does_not_use_its_own_deprecated_aliases() -> None:
-    """Importar todos los subpaquetes no dispara ningún alias deprecado de la raíz."""
+def test_library_loads_without_deprecation_warnings() -> None:
+    """Cargar todos los subpaquetes y los 13 símbolos de la raíz no emite ``DeprecationWarning``."""
     code = (
         "import warnings; warnings.simplefilter('error', DeprecationWarning)\n"
         "import util_bbdd\n"

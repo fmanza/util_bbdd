@@ -1,7 +1,7 @@
 """Simetría sync/async del ciclo de vida de los managers (API 1.0, decisión A4).
 
 Ambos managers exponen ``init()``, ``release_connection()`` y los validadores estáticos de tipo con el mismo nombre;
-``SyncDatabaseManager.close_connection()`` queda como alias deprecado de ``release_connection()`` hasta 1.0.0.
+``SyncDatabaseManager.close_connection()`` se retiró en 1.0.0 (alias deprecado en 0.43.0).
 """
 
 from __future__ import annotations
@@ -67,18 +67,12 @@ def test_sync_release_connection_delegates_to_session(sync_manager: SyncDatabase
     session.close_connection.assert_called_once_with(connection=conn)
 
 
-def test_sync_close_connection_is_a_deprecated_alias(sync_manager: SyncDatabaseManager) -> None:
-    session = MagicMock()
-    sync_manager.session_manager = session
-    conn = object()
-    with pytest.warns(DeprecationWarning, match=r"usa 'release_connection\(\)'") as record:
-        sync_manager.close_connection(conn)
-    session.close_connection.assert_called_once_with(connection=conn)
-    assert record[0].filename == __file__
+def test_sync_close_connection_was_removed_in_1_0() -> None:
+    assert not hasattr(SyncDatabaseManager, "close_connection")
+    assert not hasattr(AsyncDatabaseManager, "close_connection")
 
 
-def test_sync_queries_do_not_use_the_deprecated_alias(
-    sync_manager: SyncDatabaseManager, recwarn: pytest.WarningsRecorder
-) -> None:
-    sync_manager.execute_custom_many("SELECT 1 AS x")
-    assert not [w for w in recwarn if "close_connection" in str(w.message)]
+def test_sync_queries_still_work_after_the_removal(sync_manager: SyncDatabaseManager) -> None:
+    """El ejecutor interno libera con ``release_connection()``; sin ``close_connection()`` las consultas siguen igual."""
+    assert sync_manager.execute_custom_many("SELECT 1 AS x")[0][0] == 1
+    assert sync_manager.execute_custom_many("SELECT 2 AS x")[0][0] == 2

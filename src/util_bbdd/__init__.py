@@ -9,8 +9,8 @@ Los puntos de entrada que dependen de pandas, openpyxl, python-docx o jinja2 (``
 ``DumpOrchestrator``, ``MigrationPlanner``, ``DatabaseDocumentation``…) se cargan al usarlos por primera vez, de modo
 que ``import util_bbdd`` solo carga los managers.
 
-Los nombres que la raíz exportaba hasta 0.42 siguen disponibles con ``DeprecationWarning`` y se retiran en 1.0.0; la
-guía de migración está en ``docs/guides/api_1_0_migration.md``.
+Los nombres que la raíz exportaba hasta 0.42 se retiraron en 1.0.0; la guía de migración
+(``docs/guides/api_1_0_migration.md``) dice desde qué submódulo se importa cada uno.
 
 Example:
     >>> from util_bbdd import SyncDatabaseManager
@@ -18,8 +18,6 @@ Example:
 """
 
 from __future__ import annotations
-
-import warnings
 
 from importlib import import_module
 from typing import TYPE_CHECKING, Any
@@ -72,54 +70,6 @@ _LAZY: dict[str, str] = {
     "DatabaseDocumentation": "doc",
 }
 
-# Nombres exportados por la raíz hasta 0.42 que salen de ella en 0.43 (DeprecationWarning) y se retiran en 1.0.0:
-# símbolo → submódulo público que lo exporta desde ahora.
-_DEPRECATED: dict[str, str] = {
-    **dict.fromkeys(
-        (
-            "ConnectionError",
-            "PoolConnectionError",
-            "PoolExhaustedError",
-            "PoolTimeoutError",
-            "DriverError",
-            "ValidationError",
-            "InvalidDatabaseType",
-            "DatabaseOperationError",
-            "DatabaseConfigurationError",
-            "QueryError",
-            "QueryNotFoundError",
-            "QueryValidationError",
-            "QueryParameterError",
-            "QueryTimeoutError",
-            "QueryExecutionError",
-            "ComparerError",
-            "SchemaDiffValidationError",
-            "MetadataIntrospectionError",
-            "DiffReportGenerationError",
-            "DumpError",
-            "DumpConstraintError",
-            "DumpReportError",
-            "AuditError",
-            "AuditConfigError",
-            "AuditFileError",
-            "AuditDataError",
-            "AuditExportError",
-            "AuditValidationError",
-            "DocumentationError",
-            "DocumentationConfigError",
-            "DocumentationRenderError",
-        ),
-        "exceptions",
-    ),
-    **dict.fromkeys(("AuditEvent", "AuditSink", "JsonLinesAuditSink", "MemoryAuditSink", "NullAuditSink"), "audit"),
-    **dict.fromkeys(("SyncMetadataProvider", "AsyncMetadataProvider"), "metadata"),
-    **dict.fromkeys(("build_conn_params", "EngineReadinessAdvisor", "AdvisoryFinding"), "connection"),
-    **dict.fromkeys(("ConnectionFactory", "PoolFactory"), "factory"),
-    "maybe_await": "async_utils",
-    "TableDumpResult": "dump",
-    "MigrationWarning": "migrate",
-}
-
 # Submódulos que ``util_bbdd.<nombre>`` resuelve sin importarlos antes (hasta 0.42 los cargaba ``import util_bbdd``).
 _SUBMODULES: frozenset[str] = frozenset(
     {
@@ -146,15 +96,6 @@ def __getattr__(name: str) -> Any:
         value = getattr(import_module(f".{module_name}", __name__), name)
         globals()[name] = value
         return value
-    module_name = _DEPRECATED.get(name)
-    if module_name is not None:
-        warnings.warn(
-            f"'util_bbdd.{name}' está obsoleto y se retirará en util_bbdd 1.0.0; "
-            f"usa 'from util_bbdd.{module_name} import {name}'.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return getattr(import_module(f".{module_name}", __name__), name)
     if name in _SUBMODULES:
         return import_module(f".{name}", __name__)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
