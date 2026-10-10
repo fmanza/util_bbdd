@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import logging
 
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, overload
 
@@ -60,7 +61,7 @@ from util_bbdd.metadata.sqlserver.tables import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Sequence
+    from collections.abc import Callable, Iterable, Mapping, Sequence
 
     from sqlalchemy.engine import Inspector
     from sqlalchemy.engine.interfaces import (
@@ -212,27 +213,45 @@ def _mssql_prefetch(
     owner: str = schema or inspector.default_schema_name or "dbo"
     sql_builders, build = spec
     try:
+        existing = {*inspector.get_table_names(schema=schema), *inspector.get_view_names(schema=schema)}
         with bind.connect() as conn:
             results = [conn.execute(text(sql()), {"schema": owner}).all() for sql in sql_builders]
-    except SQLAlchemyError as exc:
+    except (NotImplementedError, SQLAlchemyError) as exc:
         logger.debug("Consulta de %s por schema falló (%s); se consulta tabla a tabla.", kind, exc)
         return None
-    return build([_as_requested(rows, names) for rows in results], schema, owner, names, inspector.dialect)
+    resolved = _resolve_requested(names, existing)
+    present = [name for name in names if name in resolved.values()]
+    return build([_as_requested(rows, resolved) for rows in results], schema, owner, present, inspector.dialect)
 
 
-def _as_requested(rows: Sequence[Sequence[Any]], names: Sequence[str]) -> list[Sequence[Any]]:
-    """Filas con la tabla (primera columna) escrita como se pidió si solo difiere en mayúsculas (SQL Server suele no
-    distinguirlas; ``dump`` recibe nombres del usuario). Con varias candidatas no se adivina."""
-    requested = set(names)
-    folded: dict[str, str | None] = {}
+def _resolve_requested(names: Sequence[str], existing: Iterable[str]) -> dict[str, str]:
+    """``{nombre real: nombre pedido}`` de los nombres pedidos que corresponden a una sola tabla o vista existente.
+
+    Vale el nombre exacto o, si no existe, el único que coincide sin distinguir mayúsculas (SQL Server suele no
+    distinguirlas; ``dump`` recibe nombres del usuario). Con varias candidatas (collation sensible a mayúsculas:
+    ``Users`` y ``users``) o varios nombres pedidos que coinciden así, no se adivina. Los que no se resuelven no se
+    precargan: se consultan tabla a tabla y fallan como allí (F3: antes una tabla inexistente recibía PK y FK vacías;
+    F4: antes ``users`` recibía también las columnas de ``Users``).
+    """
+    actual_names = set(existing)
+    by_fold: dict[str, list[str]] = {}
+    for actual in actual_names:
+        by_fold.setdefault(actual.casefold(), []).append(actual)
+    requested_folds = Counter(name.casefold() for name in names)
+    resolved: dict[str, str] = {}
     for name in names:
-        folded[name.casefold()] = None if name.casefold() in folded else name
-    out: list[Sequence[Any]] = []
-    for row in rows:
-        table = str(row[0])
-        alias = folded.get(table.casefold()) if table not in requested else None
-        out.append((alias, *row[1:]) if alias else row)
-    return out
+        if name in actual_names:
+            resolved[name] = name
+            continue
+        candidates = by_fold.get(name.casefold(), [])
+        if len(candidates) == 1 and requested_folds[name.casefold()] == 1 and candidates[0] not in resolved:
+            resolved[candidates[0]] = name
+    return resolved
+
+
+def _as_requested(rows: Sequence[Sequence[Any]], resolved: Mapping[str, str]) -> list[Sequence[Any]]:
+    """Filas con la tabla (primera columna) renombrada al nombre pedido (``resolved``: real → pedido); el resto, igual."""
+    return [(resolved[str(row[0])], *row[1:]) if str(row[0]) in resolved else row for row in rows]
 
 
 def _mssql_build_fks(

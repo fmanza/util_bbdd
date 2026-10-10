@@ -135,12 +135,18 @@ def test_registered_fetcher_takes_precedence(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_mssql_rows_are_matched_to_requested_names_ignoring_case() -> None:
     """D2: ``dump`` recibe nombres del usuario; una fila de ``Orders`` sirve para ``ORDERS`` si no hay ambigüedad."""
-    from util_bbdd.metadata.reflection import _as_requested
+    from util_bbdd.metadata.reflection import _as_requested, _resolve_requested
 
+    resolved = _resolve_requested(["ORDERS", "items", "dup", "DUP", "missing"], ["Orders", "items", "Dup", "other"])
+    assert resolved == {"Orders": "ORDERS", "items": "items"}  # "dup"/"DUP": dos pedidos para la misma tabla
     rows = [("Orders", 1), ("items", 2), ("Dup", 3), ("other", 4)]
-    assert _as_requested(rows, ["ORDERS", "items", "dup", "DUP"]) == [
-        ("ORDERS", 1),
-        ("items", 2),
-        ("Dup", 3),
-        ("other", 4),
-    ]
+    assert _as_requested(rows, resolved) == [("ORDERS", 1), ("items", 2), ("Dup", 3), ("other", 4)]
+
+
+def test_mssql_names_that_differ_only_in_case_are_not_guessed() -> None:
+    """F4 (v0.41.3): con collation sensible a mayúsculas, ``Users`` y ``users`` son tablas distintas."""
+    from util_bbdd.metadata.reflection import _resolve_requested
+
+    existing = ["Users", "users"]
+    assert _resolve_requested(["users"], existing) == {"users": "users"}
+    assert _resolve_requested(["USERS"], existing) == {}  # dos candidatas: tabla a tabla (NoSuchTableError)
