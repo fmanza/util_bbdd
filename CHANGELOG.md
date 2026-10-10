@@ -5,6 +5,36 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-10-10
+
+API pública estable (sesión `.ai/sessions/2026-10-10-api-1-0-final/`). Desde esta versión la raíz `util_bbdd` y sus
+submódulos públicos siguen SemVer: un cambio incompatible exige versión MAJOR. El usuario decidió publicar 1.0.0 sin
+esperar otra versión con avisos (la decisión A6 preveía al menos una). Guía:
+[docs/guides/api_1_0_migration.md](docs/guides/api_1_0_migration.md).
+
+### Removed
+
+- **raíz** (BREAKING): los 46 nombres deprecados en 0.43.0 ya no se importan desde `util_bbdd`;
+  `from util_bbdd import QueryError` da `ImportError`. Se importan desde su submódulo público: `util_bbdd.exceptions`
+  (31 excepciones), `util_bbdd.audit`, `util_bbdd.metadata`, `util_bbdd.connection`, `util_bbdd.factory`,
+  `util_bbdd.async_utils`, `util_bbdd.dump` (`TableDumpResult`) y `util_bbdd.migrate` (`MigrationWarning`).
+- **managers** (BREAKING): `SyncDatabaseManager.close_connection()`; usa `release_connection()`, igual que en
+  `AsyncDatabaseManager`.
+
+### Changed
+
+- **docs**: README reescrito para 1.0 (sin las secciones históricas de v0.2–v0.32 ni ejemplos con APIs inexistentes:
+  `bulk_crud`, `PoolFactory.create`, `database_exceptions`, métodos inventados en la tabla de excepciones).
+- **docs**: instalación desde el repositorio (`util_bbdd` no está en PyPI) y tabla completa de los 9 extras.
+- **docs**: PostgreSQL usa psycopg 3 + psycopg-pool (sync) y asyncpg (async) en los managers; las guías decían
+  psycopg2 y parámetros de pool de SQLAlchemy que el pool de PostgreSQL no admite (`max_overflow`, `pool_pre_ping`,
+  `pool_recycle`, `connect_args`).
+- **docs**: el extra `doc` no existe; openpyxl, python-docx y jinja2 van en la instalación base (6 páginas).
+- **docs**: `SchemaDiffReporter` se importa desde `util_bbdd.comparar` (nunca estuvo en la raíz); `fetch_current_schema()` y
+  `get_database_documentation()`, que no existen, pasan a `get_schema_metadata()`; la verificación del comparador
+  ejecuta SQL con `text()` dentro de `engine.begin()`.
+- **docs**: portada, referencia de la API, guía de managers, guía de migración y hoja de ruta describen la API 1.0.
+
 ## [0.44.0] - 2026-10-10
 
 Sesión `.ai/sessions/2026-10-10-exceptions-module-name/`. Sin cambios de API: mismas clases y mismos imports.

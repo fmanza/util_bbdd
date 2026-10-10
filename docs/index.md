@@ -2,13 +2,13 @@
 
 Librería Python para **operaciones de base de datos** sobre múltiples motores (sync/async): CRUD en lote, migración DDL, comparación de esquemas y documentación automática.
 
-**Version:** 0.44.0 | **Status:** ✅ Production/Stable | **Python:** 3.12+
+**Version:** 1.0.0 | **Status:** ✅ Production/Stable | **Python:** 3.12+
 
 ---
 
 ## 1. Identidad y Propósito
 
-`util_bbdd` centraliza las operaciones habituales contra bases de datos relacionales detrás de una API uniforme, de modo que el mismo código sirva para MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB (este último solo en modo síncrono). Abstrae la conexión, el pooling y la introspección sobre `sqlalchemy`, y añade operaciones de alto nivel (carga masiva con auditoría, comparación de esquemas, migración DDL y generación de documentación).
+`util_bbdd` centraliza las operaciones habituales contra bases de datos relacionales detrás de una API uniforme, de modo que el mismo código sirva para MariaDB, MySQL, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB (este último solo en modo síncrono). Abstrae la conexión, el pooling y la introspección sobre `sqlalchemy`, y añade operaciones de alto nivel (carga masiva con auditoría, comparación de esquemas, migración DDL y generación de documentación).
 
 Está dirigida a **desarrolladores, ingenieros de datos y DBAs** que necesitan mover datos, comparar entornos o documentar esquemas sin reescribir lógica específica por motor.
 
@@ -24,16 +24,24 @@ Está dirigida a **desarrolladores, ingenieros de datos y DBAs** que necesitan m
 - ✅ **Documentación de BD** generada automáticamente (Word, Excel, HTML/Jinja2)
 - ✅ **Análisis de relaciones** — grafos de relaciones entre tablas (Graphviz)
 
+### API pública 1.0
+
+La raíz `util_bbdd` exporta los 13 puntos de entrada y sus resultados (`SyncDatabaseManager`, `AsyncDatabaseManager`,
+`BulkCrud`, `ParallelBulkLoader`, `DumpOrchestrator`, `DumpConfig`, `DumpResult`, `MigrationPlanner`, `MigrationPlan`,
+`SchemaComparator`, `SchemaDiff`, `DatabaseDocumentation`, `DatabaseException`); el resto vive en submódulos públicos
+(`util_bbdd.exceptions`, `.audit`, `.metadata`, `.connection`, `.factory`, `.analysis`, `.async_utils`). Desde 1.0.0
+sigue SemVer. Si vienes de 0.x: [Migración a la API 1.0](guides/api_1_0_migration.md).
+
 ### Soporte por motor
 
 | Motor      | Conexión Sync | Conexión Async | Pool Async | Driver principal |
 |------------|:-------------:|:--------------:|:----------:|------------------|
-| PostgreSQL | ✅            | ✅             | ✅         | `asyncpg`        |
+| PostgreSQL | ✅            | ✅             | ✅         | `psycopg` 3 / `asyncpg` |
 | SQLite     | ✅            | ✅             | ✅         | `aiosqlite`      |
 | MariaDB    | ✅            | ✅             | ✅         | `mariadb` / `aiomysql` |
 | MySQL      | ✅            | ✅             | ✅         | `pymysql` / `aiomysql` |
 | Oracle     | ✅            | ✅             | ✅         | `oracledb`       |
-| SQL Server | ✅            | ✅             | ✅         | `aioodbc`        |
+| SQL Server | ✅            | ✅             | ✅         | `pyodbc` o `pymssql` / `aioodbc` |
 | HSQLDB     | ✅            | ❌             | ❌         | `jaydebeapi`     |
 
 !!! note
@@ -42,7 +50,7 @@ Está dirigida a **desarrolladores, ingenieros de datos y DBAs** que necesitan m
 ## 3. Quick Start
 
 ```bash
-pip install util_bbdd
+pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v1.0.0"
 ```
 
 ```python
@@ -73,7 +81,7 @@ La matriz de soporte por motor (sync/async, pool y driver) está en la tabla de 
 
 - **Todos los motores** soportan conexión síncrona vía `SyncDatabaseManager`.
 - **Todos excepto HSQLDB** soportan conexión y pool asíncronos vía `AsyncDatabaseManager`.
-- Los **drivers no se incluyen** en el paquete: se instalan por separado según el motor (ver [Instalación](installation.md#3-drivers-por-motor)).
+- Salvo `oracledb`, los **drivers no se incluyen** en la instalación básica: se instalan con el extra del motor o a mano (ver [Instalación](installation.md#3-drivers-por-motor)).
 
 Más detalle:
 

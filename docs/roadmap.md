@@ -7,13 +7,12 @@ El detalle exhaustivo de cada cambio vive en el
 [Keep a Changelog](https://keepachangelog.com/) + [SemVer](https://semver.org/)); esta página
 es la vista panorámica.
 
-> **Versión vigente: v0.44.0.** Las series `0.x` siguen siendo pre-estables: la API se mantiene
-> mayormente compatible, pero puede haber cambios acotados entre minors. La estabilización formal
-> llega con `v1.0.0`.
+> **Versión vigente: v1.0.0.** API pública estable bajo SemVer: la raíz `util_bbdd` (13 puntos de entrada) y sus
+> submódulos públicos solo cambian de forma incompatible en una versión MAJOR. Las series `0.x` eran pre-estables.
 
 ## En curso (`develop`)
 
-Tras v0.43.0 (superficie de la API 1.0 con alias deprecados, `.ai/sessions/2026-10-10-api-1-0/`) y v0.44.0 (excepciones con módulo público) queda 1.0.0: retirar los alias tras al menos una versión con avisos. Lo que se
+Sin trabajo abierto tras v1.0.0. Lo que se
 añada a `develop` antes del próximo tag aparecerá en el
 [CHANGELOG](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md).
 
@@ -29,10 +28,11 @@ en el driver. Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md).
 
 ## Entregado
 
-### Serie 0.11 – 0.44 — Auditorías, rendimiento con banco real y conexiones
+### Serie 0.11 – 1.0 — Auditorías, rendimiento con banco real y conexiones
 
 | Versiones | Fechas | Hito |
 |---|---|---|
+| `v1.0.0` | 2026-10-10 | **API pública estable**: alias de 0.x retirados de la raíz y `SyncDatabaseManager.close_connection()` retirado; documentación revisada para 1.0 (README reescrito, instalación desde el repositorio, drivers de PostgreSQL, extras reales). Cobertura de tests 91 %. Guía: [Migración a la API 1.0](guides/api_1_0_migration.md). |
 | `v0.44.0` | 2026-10-10 | Las excepciones se presentan como `util_bbdd.exceptions` (trazas, `repr`, logs, pickle); los pickles antiguos se siguen cargando. |
 | `v0.43.0` | 2026-10-10 | **API pública 1.0, fase 0.43.0**: raíz reducida a 13 puntos de entrada con carga perezosa (`import util_bbdd` ~1,1 s → ~0,3 s), módulo público `util_bbdd.exceptions`, 46 alias con `DeprecationWarning` hasta 1.0.0 y managers sync/async simétricos (`init`, `release_connection`). Guía: [Migración a la API 1.0](guides/api_1_0_migration.md). |
 | `v0.41.0 – v0.42.1` | 2026-10-09 – 2026-10-10 | Auditoría de la arquitectura de `doc/` y `analysis/` (`documentation-architecture-audit`): diagramas Graphviz por lotes (HTML con diagramas, 12× más rápido), un generador de grafos por documentación, inventario de almacenamiento declarativo por motor y API de `util_bbdd.doc` reducida a `DatabaseDocumentation`/`DocumentationResult` con errores propios. |
@@ -66,7 +66,7 @@ en el driver. Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md).
 
 ## Futuro
 
-- **`v1.0.0`** — API estable bajo SemVer estricto y cobertura de tests ≥ 85%.
+- **`v1.0.0`** — ✅ entregado el 2026-10-10: API estable bajo SemVer y cobertura de tests ≥ 85 % (91 % medido con `pytest --cov` sin el banco).
 Ideas exploradas pero **fuera de alcance** por ahora (registradas en el
 [plan de tipos v0.8.0](v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md)):
 validación completa de JSON Schema, generación de dataclasses/TypeScript, motores no relacionales
