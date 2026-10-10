@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from contextlib import closing
 from typing import TYPE_CHECKING
 
 import pytest
@@ -47,9 +48,9 @@ def test_referenced_new_tables_are_created_first(tmp_path: Path) -> None:
 
     # Nivel 0 en orden alfabético (c, d), después b y después a
     assert _create_order(script) == ["c_clientes", "d_suelta", "b_pedidos", "a_lineas"]
-    conn = sqlite3.connect(":memory:")
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.executescript(script)  # cada FK referencia una tabla ya creada
+    with closing(sqlite3.connect(":memory:")) as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.executescript(script)  # cada FK referencia una tabla ya creada
 
 
 def test_self_reference_and_existing_tables_do_not_affect_order(tmp_path: Path) -> None:

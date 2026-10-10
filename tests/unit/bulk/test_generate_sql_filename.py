@@ -62,7 +62,10 @@ def test_generated_file_lands_in_path_sql_for_absolute_sqlite(tmp_path: Path) ->
     Table("t", MetaData(), Column("id", Integer, primary_key=True)).create(engine)
     out = tmp_path / "sql"
 
-    BulkCrud(engine).bulk_insert_from_df(pd.DataFrame({"id": [1]}), "t", generar_sql=True, path_sql=out)
+    try:
+        BulkCrud(engine).bulk_insert_from_df(pd.DataFrame({"id": [1]}), "t", generar_sql=True, path_sql=out)
+    finally:
+        engine.dispose()
 
     assert len(list(out.glob("*.sql"))) == 1
     assert list((tmp_path / "db").glob("*.sql")) == []
