@@ -116,12 +116,8 @@ nav:
           - Migración DDL entre Motores: guides/ddl_migration_guide.md
       - Rendimiento:
           - Performance & Benchmarks: guides/benchmarks.md
-          - Performance Audit (General): performance_audit_guide.md
-          - Performance Audit (Constraints): performance_audit_constraints_guide.md
-      - Auditoría:
-          - Auditoría de Constraints (Quick Ref): constraints_quick_reference.md
-          - Auditoría de Constraints (Index): constraints_audit_index.md
-          - Auditoría de Constraints (Lectura): constraints_reading_guide.md
+          - Performance Audit (General): guides/performance_audit_guide.md
+          - Performance Audit (Constraints): guides/performance_audit_constraints_guide.md
       - Reutilización de Código: guides/code_reusability_analysis_guide.md
       - Drivers por Motor: guides/drivers.md
       - Migración de Versión:

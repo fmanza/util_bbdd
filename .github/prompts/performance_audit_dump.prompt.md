@@ -5,7 +5,7 @@
 **Objetivo Secundario**: Verificar que los cambios propuestos mantengan compatibilidad con múltiples dialectos (PostgreSQL, MySQL/MariaDB, Oracle, SQL Server, SQLite).
 
 Agente: Performance Auditor. Flujo operativo en 5 fases: `.github/prompts/performance_audit_dump_agent.prompt.md`.
-Guía: `.claude/performance-audit-guide.md` (cuellos CB1–CB8) y `docs/performance_audit_guide.md`.
+Guía: `.claude/performance-audit-guide.md` (cuellos CB1–CB8) y `docs/guides/performance_audit_guide.md`.
 
 ## Inputs requeridos
 

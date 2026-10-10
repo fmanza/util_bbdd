@@ -49,7 +49,10 @@ Test 2: CON cadencia — 7.92s
 Speedup: 1.07×
 ```
 
-Con MariaDB real y disco, el speedup con cadencia es típicamente 3–8× a partir de 1M filas.
+Con servidores reales la cadencia no acelera la carga a 1M filas: medido con el banco, commit cada 20 lotes cuesta
+entre ±5 % (PostgreSQL, MySQL, SQL Server, Oracle) y +12 % (MariaDB) frente a la carga atómica (ver
+[Benchmarks](../guides/benchmarks.md#checkpoints-reanudacion-y-reintentos)). Su valor es acotar el undo log de
+MariaDB/MySQL y poder reanudar tras un fallo.
 
 ## 5. Referencias Relacionadas
 

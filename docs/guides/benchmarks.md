@@ -9,20 +9,18 @@ Configurar el pool de conexiones y las opciones de bulk insert para obtener el r
 - `util_bbdd` instalado con el motor a benchmarkear configurado
 - Para benchmarks de bulk insert: `pandas` instalado
 - Para benchmarks de concurrencia async: `asyncpg` o driver async del motor objetivo
-- Entorno de prueba: los valores de referencia se midieron en AWS t3.large (2 vCPU, 8GB RAM) con PostgreSQL 15 y Python 3.12
+- Las mediciones de esta página se hicieron con los contenedores del banco (Docker local, ver «Banco de pruebas contra
+  motores reales»); cada tabla indica su versión y su sesión
 
 ## 3. Pasos
 
-### Configuración de pool recomendada por throughput
+### Tamaño del pool de los managers
 
-| pool_size | max_overflow | Throughput (req/s) | CPU Usage | Cuándo usarlo |
-|---|---|---|---|---|
-| 5 | 0 | ~22 | 15% | Desarrollo local |
-| 10 | 5 | ~43 | 28% | API pequeña |
-| **20** | **10** | **~87** | **52%** | **Producción estándar (recomendado)** |
-| 40 | 20 | ~109 | 78% | API de alto tráfico |
-
-**Sweet spot**: `pool_size=20, max_overflow=10` da el mejor ratio throughput/CPU.
+El repositorio no tiene un banco de throughput del pool: no hay cifras medidas que recomendar. Qué parámetros acepta
+cada motor (`pool_size`, y `max_overflow`/`pool_timeout` solo en MySQL y SQL Server) y qué significa `pool_size` en
+cada pool nativo está en la [guía de conexiones](connection_guide.md#7-pools-pool_size-close_timeout-y-el-pool-del-engine).
+Mide con tu carga (ver el ejemplo de «Verificación») antes de subir `pool_size` por encima del default (5): cada
+conexión del pool es una sesión abierta en el servidor.
 
 ### Tuning de carga masiva (bulk)
 
@@ -334,16 +332,6 @@ tabla a tabla con los managers cuesta 70 s en PostgreSQL 17, 121 s en SQL Server
 lectura por schema de `migrate` (9 consultas, incluye vistas y routines), 0,16 s, 0,22 s y 0,27 s. Detalle y causas en
 la sesión `2026-10-03-metadata-centralization` (ADR-003).
 
-### Tiempos de referencia por tipo de operación (PostgreSQL 15)
-
-| Operación | Tiempo promedio | Notas |
-|---|---|---|
-| `SELECT 1` (ping) | 2–3 ms | Validación de pool |
-| `SELECT *` (100 filas) | 8–12 ms | Index scan |
-| `SELECT *` (10K filas) | 45–80 ms | Full table scan |
-| `INSERT` (1000 filas bulk) | 120–150 ms | Via `execute_values` |
-| `UPDATE` (1 fila por PK) | 4–7 ms | Index lookup |
-
 ## 4. Verificación
 
 ```bash
@@ -356,27 +344,33 @@ Output esperado (SQLite in-memory):
 ```
 Test 1: SIN cadencia — X.XXs
 Test 2: CON cadencia — X.XXs
-Speedup: ~1.07× (mínimo en SQLite; en MariaDB real: 3–8×)
+Speedup: ~1.07×
 ```
 
-Para pool:
+Con servidores reales la cadencia no acelera la carga a 1M filas (MariaDB +12 % con commit cada 20 lotes, ver
+«Checkpoints, reanudación y reintentos»): lo que aporta es acotar el undo log y poder reanudar tras un fallo.
+
+Para el pool (100 consultas concurrentes con `pool_size` de 5 y 20; `pool_size` va en `conn_params`):
 
 ```python
 import asyncio
+import time
+
 from util_bbdd import AsyncDatabaseManager
 
-async def benchmark_pool():
-    async with AsyncDatabaseManager("postgresql", conn_params, pool_size=20) as mgr:
-        import time
-        t0 = time.perf_counter()
-        import asyncio
-        resultados = await asyncio.gather(*[
-            mgr.execute_custom_one("SELECT 1") for _ in range(100)
-        ])
-        elapsed = time.perf_counter() - t0
-        print(f"100 queries paralelas: {elapsed:.2f}s ({100/elapsed:.0f} req/s)")
+conn_params = {"host": "127.0.0.1", "port": 5432, "user": "usr", "password": "pwd", "database": "mydb"}
 
-asyncio.run(benchmark_pool())
+
+async def benchmark_pool(pool_size: int) -> None:
+    async with AsyncDatabaseManager("postgresql", {**conn_params, "pool_size": pool_size}) as mgr:
+        t0 = time.perf_counter()
+        await asyncio.gather(*(mgr.execute_custom_one("SELECT 1") for _ in range(100)))
+        elapsed = time.perf_counter() - t0
+        print(f"pool_size={pool_size}: 100 consultas en {elapsed:.2f} s ({100 / elapsed:.0f} consultas/s)")
+
+
+for size in (5, 20):
+    asyncio.run(benchmark_pool(size))
 ```
 
 Para el banco de pruebas de bulk, una ejecución corta solo con SQLite (no necesita servidor):
@@ -419,7 +413,7 @@ Para cargas masivas en MariaDB, el conector original es la opción más rápida 
 | Latencia crece exponencialmente en bulk insert > 1M filas | Undo log de MariaDB/MySQL saturado | Activar `commit_every_n_chunks=20` en `BulkCrud` |
 | Error 1419 (`You do not have the SUPER privilege and binary logging is enabled`) al crear funciones en el MySQL del banco | Contenedor creado antes de 0.23.1, sin `--log-bin-trust-function-creators=1` (el usuario `bench` no tiene `SUPER`) | `docker compose -f docker-compose.bench.yml up -d --wait mysql` lo recrea con la opción y conserva sus datos (sin `-V`) |
 | `fast_executemany` no acelera en SQL Server | pyodbc < 4.0.28 o columnas `NVARCHAR(MAX)` | Actualizar pyodbc o desactivar con `enable_fast_executemany=False` |
-| Pool agotado bajo carga concurrente | `pool_size` insuficiente | Aumentar `pool_size` siguiendo la tabla de recomendaciones arriba |
+| Pool agotado bajo carga concurrente | `pool_size` insuficiente | Aumentar `pool_size` en `conn_params` y medirlo con el ejemplo de «Verificación» (ver «Tamaño del pool de los managers») |
 | PostgreSQL: `COPY` más lento que esperado | psycopg3 no instalado (usa psycopg2) | `pip install psycopg[binary]` para instalar psycopg3 |
 | `bench_bulk.py` salta un motor con `SKIP ... sin URL` | Falta `UTIL_BBDD_BENCH_<MOTOR>_URL` (y `UTIL_BBDD_TEST_<MOTOR>_URL`) | Definir la URL del servidor de pruebas |
 | `bench_bulk.py` informa `no se pudo preparar el motor` | Driver no instalado, servidor caído o sin permiso de CREATE/DROP TABLE | Revisar `environment.json`; el resto de motores se mide igualmente |

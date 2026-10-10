@@ -16,7 +16,7 @@ El framework de auditoría de rendimiento consta de:
 | **Reference Prompt** | `.github/prompts/performance_audit_dump.prompt.md` | Análisis técnico detallado de cuellos de botella |
 | **Agent Prompt** | `.github/prompts/performance_audit_dump_agent.prompt.md` | Workflow estructurado en 5 fases para agentes |
 | **Benchmarking Tool** | `scripts/bench_dump.py` | CLI para medir baseline y validar mejoras |
-| **User Guide** | `docs/performance_audit_guide.md` | Documentación para usuarios finales |
+| **User Guide** | `docs/guides/performance_audit_guide.md` | Documentación para usuarios finales |
 
 ---
 
@@ -78,7 +78,7 @@ python scripts/bench_dump.py summarize .ai/sessions/<sesión>/baseline/results.j
 ```
 
 Cada medición registra el total, las fases, la memoria pico y la verificación origen/destino (ver
-`docs/performance_audit_guide.md` § «Uso del banco de rendimiento»).
+`docs/guides/performance_audit_guide.md` § «Uso del banco de rendimiento»).
 
 ---
 
@@ -310,7 +310,7 @@ python scripts/bench_dump.py one --engine postgresql --variant baseline --volume
 - **Reference Prompt**: `.github/prompts/performance_audit_dump.prompt.md`
 - **Agent Prompt**: `.github/prompts/performance_audit_dump_agent.prompt.md`
 - **Benchmarking Tool**: `scripts/bench_dump.py`
-- **User Guide**: `docs/performance_audit_guide.md`
+- **User Guide**: `docs/guides/performance_audit_guide.md`
 - **Module Source**: `src/util_bbdd/dump/`
 
 ---

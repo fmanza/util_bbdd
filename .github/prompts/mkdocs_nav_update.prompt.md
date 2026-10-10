@@ -128,13 +128,10 @@ Contexto adicional (opcional):
 ```
 Nuevas páginas (huérfanas post-auditoría v0.32.1):
   - adr/ADR-004-lazy-oracle-version-resolution.md
-  - constraints_audit_index.md
-  - constraints_quick_reference.md
-  - constraints_reading_guide.md
   - guides/drivers.md
   - guides/code_reusability_analysis_guide.md
-  - performance_audit_guide.md
-  - performance_audit_constraints_guide.md
+  - guides/performance_audit_guide.md
+  - guides/performance_audit_constraints_guide.md
 ```
 
 **Salida esperada**:
@@ -142,14 +139,9 @@ Nuevas páginas (huérfanas post-auditoría v0.32.1):
 # En Arquitectura → Decisiones Arquitectónicas (ADRs):
 - ADR-004 (Lazy Oracle Version): adr/ADR-004-lazy-oracle-version-resolution.md
 
-# En Guías → Auditoría:
-- Auditoría de Constraints (Quick Ref): constraints_quick_reference.md
-- Auditoría de Constraints (Index): constraints_audit_index.md
-- Auditoría de Constraints (Lectura): constraints_reading_guide.md
-
 # En Guías → Rendimiento:
-- Performance Audit (General): performance_audit_guide.md
-- Performance Audit (Constraints): performance_audit_constraints_guide.md
+- Performance Audit (General): guides/performance_audit_guide.md
+- Performance Audit (Constraints): guides/performance_audit_constraints_guide.md
 
 # En Guías:
 - Drivers por Motor: guides/drivers.md

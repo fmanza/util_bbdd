@@ -10,7 +10,7 @@ Lee y aplica, en este orden:
 1. `.github/prompts/performance_audit_constraints.prompt.md` — inputs, áreas de auditoría y reglas (contrato de salida)
 2. `.github/prompts/performance_audit_constraints_agent.prompt.md` — flujo operativo en 5 fases y archivos clave
 3. `.github/agents/performance-auditor.agent.md` — rol y criterios de prioridad
-4. `docs/performance_audit_constraints_guide.md` — guía de uso y referencia rápida
+4. `docs/guides/performance_audit_constraints_guide.md` — guía de uso y referencia rápida por motor
 
 ## Reglas de ejecución
 

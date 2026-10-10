@@ -354,8 +354,9 @@ Una vez completada la auditoría:
 
 ### ¿Con qué BD testeo si solo tengo SQLite?
 
-**Respuesta**: `scripts/bench_dump.py` mide SQLite solo como **destino**, con PostgreSQL de origen (el origen SQLite no
-está soportado por `dump`). Para medir necesitas al menos el contenedor PostgreSQL de `docker-compose.bench.yml`. Las
+**Respuesta**: `scripts/bench_dump.py` mide SQLite solo como **destino**, con PostgreSQL de origen: el banco no prepara
+un origen SQLite (`dump` lo admite, pero avisa de que lee las fechas como texto y los DECIMAL como `float`, porque SQLite
+no tiene tipos de columna). Para medir necesitas al menos el contenedor PostgreSQL de `docker-compose.bench.yml`. Las
 cifras de SQLite en memoria no son representativas: la escritura y la lectura contra un servidor real dominan el tiempo
 (45–73 % y 19–42 % en la auditoría de 2026-09-25).
 
@@ -380,8 +381,8 @@ informe que los cita.
 - **Prompt agente**: `.github/prompts/performance_audit_dump_agent.prompt.md`
 - **Script benchmark**: `scripts/bench_dump.py`
 - **Código módulo dump**: `src/util_bbdd/dump/`
-- **Docs funcional**: `docs/functional/dump.md` (si existe)
-- **Docs técnica**: `docs/api/dump.md` (si existe)
+- **Docs funcional**: [Volcado de datos](../functional/dump_data_export.md)
+- **Docs técnica**: [API de `dump`](../api/dump.md)
 
 ---
 
@@ -404,4 +405,4 @@ informe que los cita.
 
 ---
 
-*Guía actualizada: 2026-09-24 | Versión: 1.0*
+*Guía actualizada: 2026-10-10 | Versión: 1.0*

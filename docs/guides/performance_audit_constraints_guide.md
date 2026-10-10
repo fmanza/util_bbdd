@@ -25,6 +25,48 @@ Cuando cargas datos en volumen (INSERT/UPDATE/DELETE masivo en mil o más filas)
 4. Proponer alternativas más seguras (COPY, pre-validación, batch tuning)
 5. Generar un plan de implementación priorizando low-risk wins
 
+!!! note "Cifras de los ejemplos"
+    Los porcentajes y tiempos de esta guía (30 % por FK, 5,2 s → 2,1 s…) ilustran el formato de la salida; no son
+    mediciones de `util_bbdd`. Las mediciones reales están en [Benchmarks](benchmarks.md) y en las sesiones de
+    auditoría de `.ai/sessions/`.
+
+## 🧰 Qué hace ya util_bbdd
+
+Antes de auditar, conviene saber qué desactiva la librería por su cuenta:
+
+| Punto de entrada | Qué desactiva y cómo lo restaura | Referencia |
+|---|---|---|
+| `BulkCrud.maintenance_scope(tabla, disable_constraints=True, disable_indexes=False, require_optimization=False)` | MariaDB/MySQL: `FOREIGN_KEY_CHECKS=0` (y `DISABLE KEYS` solo en MyISAM/Aria). PostgreSQL: `DISABLE TRIGGER ALL` si el usuario es propietario o superusuario, con comprobación de filas huérfanas de cada FK al restaurar. SQL Server: `NOCHECK CONSTRAINT ALL` y, con `disable_indexes`, `ALTER INDEX ALL … DISABLE` solo si la tabla no tiene índice CLUSTERED. Oracle: `DISABLE`/`ENABLE VALIDATE CONSTRAINT` de cada FK, CHECK con nombre y UNIQUE. Requiere `bulk_session()` | [BulkCrud](../api/bulk_crud.md) |
+| `ParallelBulkLoader(disable_constraints=True)` | Solo en el INSERT. En SQL Server y PostgreSQL desactiva una vez antes de lanzar los hilos; en el resto, cada worker usa `maintenance_scope`. Nunca desactiva índices (en SQL Server bloquearía la tabla entre hilos) | [Carga paralela](../api/bulk_parallel.md) |
+| `DumpOrchestrator` | Desactiva las constraints del destino durante la carga y las rehabilita al final (`DumpResult.constraint_results`); `DumpConfig.manage_indexes=True` gestiona además los índices | [Volcado](../api/dump.md) |
+
+La auditoría sirve para decidir si esas palancas compensan en tu caso y qué validar después.
+
+## ⚡ Referencia rápida por motor
+
+Qué se puede desactivar, cómo se reactiva y si la reactivación comprueba los datos cargados. La columna «util_bbdd»
+es lo que hace `maintenance_scope` (código en `src/util_bbdd/bulk/_execution/maintenance.py`).
+
+| Motor | Desactivar | Reactivar | ¿Revalida al reactivar? | util_bbdd |
+|---|---|---|---|---|
+| PostgreSQL | `ALTER TABLE t DISABLE TRIGGER ALL` (propietario o superusuario; apaga las FK **y todos los triggers**, también los de usuario) | `ALTER TABLE t ENABLE TRIGGER ALL` | **No**: la FK sigue marcada como válida aunque haya filas huérfanas, y `VALIDATE CONSTRAINT` no hace nada sobre una FK válida | Lo usa si hay permisos (si no, avisa y sigue sin desactivar; con `require_optimization=True` falla) y, al reactivar, busca filas huérfanas de cada FK: las que tienen quedan con `status="failed"` |
+| MySQL / MariaDB | `SET SESSION FOREIGN_KEY_CHECKS=0` | `SET SESSION FOREIGN_KEY_CHECKS=1` | **No** | Lo usa; el resultado es `status="unverified"` |
+| SQL Server | `ALTER TABLE t NOCHECK CONSTRAINT ALL` (FK y CHECK) | `ALTER TABLE t WITH CHECK CHECK CONSTRAINT ALL` | **Sí** (sin `WITH CHECK` quedarían «no confiables») | Lo usa con `WITH CHECK` |
+| Oracle | `ALTER TABLE t DISABLE CONSTRAINT c` (por constraint) | `ALTER TABLE t ENABLE VALIDATE CONSTRAINT c` | **Sí** (falla si hay violaciones) | Lo usa con cada FK, CHECK con nombre y UNIQUE; el DDL confirma la transacción |
+| SQLite | `PRAGMA foreign_keys = OFF` (no tiene efecto dentro de una transacción) | `PRAGMA foreign_keys = ON` | **No**; se comprueba con `PRAGMA foreign_key_check` | No desactiva nada |
+
+Las UNIQUE y las CHECK de PostgreSQL no se desactivan: solo se pueden borrar y volver a crear. En SQL Server una UNIQUE
+se desactiva desactivando su índice (`ALTER INDEX … DISABLE`, y `REBUILD` para reactivarla). No desactives las PK.
+
+Comprobar a mano filas huérfanas de una FK (cualquier motor):
+
+```sql
+SELECT COUNT(*)
+FROM orders c
+WHERE c.customer_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM customers p WHERE p.id = c.customer_id);  -- debe ser 0
+```
+
 ---
 
 ## 🚀 Cómo usar esta auditoría
@@ -80,8 +122,8 @@ Para que la auditoría sea rápida y útil, prepara:
 -- MySQL:
 SHOW CREATE TABLE tablename;
 
--- Oracle:
-DBMS_METADATA.GET_DDL('TABLE', 'tablename');
+-- Oracle (nombre en mayúsculas si no se creó entre comillas):
+SELECT DBMS_METADATA.GET_DDL('TABLE', 'TABLENAME') FROM dual;
 
 -- SQL Server:
 sp_helpconstraint 'tablename';
@@ -256,22 +298,26 @@ Objetivo: < 3s
 
 **Hallazgo típico**:
 - FK (customer_id): 30% overhead → Desactivable
-- UK (order_number): 15% overhead → Desactivable
-- Auditoría: 18% overhead → NO desactivable
+- UK (order_number): 15% overhead → No desactivable en PostgreSQL (es un índice único, no un trigger)
+- Auditoría (trigger): 18% overhead → NO desactivable (restricción de negocio)
 
 **Recomendación**:
 ```
-Fase 1 (Quick win, 8% ganancia):
-  ALTER TABLE orders DISABLE TRIGGER audit_trigger;
-  INSERT (batch 5000);
-  ENABLE TRIGGER;
+Fase 1 (Quick win, sin desactivar nada):
+  Lotes de 20 000 filas (el default de BulkCrud para el INSERT de PostgreSQL)
+  y la vía COPY de BulkCrud (requiere el driver psycopg 3 en el Engine).
 
-Fase 2 (Medium, 40% ganancia):
-  COPY orders FROM stdin (formarto CSV);
-  Validar FK/UK post-carga;
-  ENABLE TRIGGER audit;
+Fase 2 (Medium, solo si la Fase 1 no basta):
+  En PostgreSQL las FK se comprueban con triggers internos: DISABLE TRIGGER ALL
+  (lo que hace maintenance_scope) apaga también el trigger de auditoría, que aquí
+  no se puede desactivar. Alternativa sin tocar la auditoría:
+    ALTER TABLE orders DROP CONSTRAINT fk_customer_id;
+    -- carga
+    ALTER TABLE orders ADD CONSTRAINT fk_customer_id
+      FOREIGN KEY (customer_id) REFERENCES customers (id) NOT VALID;
+    ALTER TABLE orders VALIDATE CONSTRAINT fk_customer_id;  -- falla si hay huérfanas
 
-Mejora esperada: 5.2s → 2.1s (60% ganancia)
+Mejora esperada: la de la Fase 1, medida con el banco (ver «Benchmark»).
 ```
 
 ### Caso 2: Actualización masiva de 1M registros (Oracle)
@@ -294,14 +340,17 @@ Objetivo: < 25s
 **Recomendación**:
 ```
 Fase 1 (Quick win, 10% ganancia):
-  PRAGMA parallel DML (Oracle hint);
-  UPDATE batch_size 5000;
-  
+  ALTER SESSION ENABLE PARALLEL DML;
+  UPDATE en lotes de 5000;
+
 Fase 2 (Medium, 25% ganancia):
-  ALTER TABLE customers DISABLE CONSTRAINT uk_email NOVALIDATE;
+  ALTER TABLE customers DISABLE CONSTRAINT uk_email;
+  -- Oracle elimina el índice de la UNIQUE al desactivarla (salvo KEEP INDEX) y lo
+  -- reconstruye al reactivarla: el coste se traslada al ENABLE.
   UPDATE 1M registros;
-  ALTER TABLE customers ENABLE CONSTRAINT uk_email;
-  Validar: SELECT email, COUNT(*) FROM customers GROUP BY email HAVING COUNT(*) > 1;
+  Validar antes de reactivar:
+    SELECT email, COUNT(*) FROM customers GROUP BY email HAVING COUNT(*) > 1;
+  ALTER TABLE customers ENABLE VALIDATE CONSTRAINT uk_email;  -- lo que hace maintenance_scope
 
 Mejora esperada: 45s → 25s (44% ganancia)
 ```
@@ -320,15 +369,19 @@ Restricción: Máximo 120s downtime
 
 **Recomendación**:
 ```
-Paso 1: Desactivar índices (MSSQL trick)
-  ALTER INDEX ALL ON tablename DISABLE;
+Paso 1: Desactivar solo los índices NO CLUSTERED, uno a uno
+  ALTER INDEX ix_tabla_columna ON tablename DISABLE;
+  -- ALTER INDEX ALL ... DISABLE desactiva también el CLUSTERED y la tabla deja de
+  -- ser accesible: maintenance_scope solo lo hace en tablas sin índice CLUSTERED.
 
-Paso 2: BULK INSERT sin validación
-  BULK INSERT tablename FROM 'file.csv' WITH (CHECK_CONSTRAINTS = OFF);
+Paso 2: BULK INSERT sin la opción CHECK_CONSTRAINTS
+  BULK INSERT tablename FROM 'file.csv' WITH (TABLOCK);
+  -- Sin CHECK_CONSTRAINTS, BULK INSERT no comprueba CHECK ni FK y las marca como
+  -- no confiables (is_not_trusted = 1).
 
-Paso 3: Reconstruir índices + validar constraints
+Paso 3: Reconstruir índices + revalidar constraints
   ALTER INDEX ALL ON tablename REBUILD;
-  ALTER TABLE tablename WITH CHECK CHECK CONSTRAINT ALL;
+  ALTER TABLE tablename WITH CHECK CHECK CONSTRAINT ALL;  -- vuelven a ser confiables
 
 Mejora esperada: 180s → 80s (55% ganancia, dentro de downtime)
 ```
@@ -361,12 +414,13 @@ SELECT COUNT(*) FROM orders WHERE customer_id NOT IN (
 **Solución**:
 ```sql
 -- Validar UKs después de carga
-SELECT email, COUNT(*) FROM customers 
+SELECT email, COUNT(*) FROM customers
 GROUP BY email HAVING COUNT(*) > 1;  -- Debe ser empty
-
--- Si hay duplicados, DELETE antes de re-activar
-DELETE FROM customers WHERE id IN (SELECT MAX(id) FROM customers GROUP BY email HAVING COUNT(*) > 1);
 ```
+
+Si hay duplicados, decide qué fila conservar de cada grupo **antes** de reactivar la UK; no hay un borrado automático
+seguro (un `DELETE ... WHERE id IN (SELECT MAX(id) ...)` solo quita una fila por grupo y en MySQL/MariaDB ni siquiera se
+puede referenciar la misma tabla en la subconsulta). Si la carga no debía traer duplicados, lo correcto es deshacerla.
 
 ### Riesgo 3: Índices quedan inconsistentes (MSSQL)
 
@@ -384,46 +438,36 @@ DBCC CHECKDB (database_name);  -- Debe pasar sin errores
 
 **Problema**: Desactivaste triggers de auditoría, datos se cargan sin log.
 
-**Solución**:
-```python
-# NO desactives auditoría para operaciones críticas
-# En su lugar:
-# 1. Usa logging asincrónico (no ralentiza)
-# 2. O usa INSERT con auditoría integrada (validación post)
-# 3. O registra carga en tabla audit_metadata
-INSERT INTO audit_metadata (table_name, rows_loaded, timestamp)
-VALUES ('orders', 100000, NOW());
+**Solución**: no desactives los triggers de auditoría en operaciones críticas. En su lugar, registra la carga en una
+tabla propia, o usa la auditoría de `util_bbdd` (`BulkCrud(audit_csv_path=...)` o `audit_sink`, que registran cada
+operación al confirmarse, ver [Auditoría](../api/audit.md)):
+
+```sql
+INSERT INTO audit_metadata (table_name, rows_loaded, loaded_at)
+VALUES ('orders', 100000, CURRENT_TIMESTAMP);
 ```
 
 ---
 
 ## 🧪 Benchmark: Medir impacto real
 
-Después de la auditoría, valida con benchmark:
+Después de la auditoría, valida con el banco contra motores reales. No hay un banco con escenarios por constraint: se
+mide con los que existen.
 
 ```bash
-# Crear tabla de test con constraints
-python -m pytest tests/bulk/test_constraints_performance.py -v
+# Volcado completo (dump): "indexes" = manage_indexes=True; "nocheck" = rehabilitar sin revalidar los datos
+# (mide cuánto cuesta la validación al reactivar). Ver la guía de auditoría de rendimiento de dump, § «Uso del banco de rendimiento».
+python scripts/bench_dump.py setup --engines postgresql,mssql --volume medium
+python scripts/bench_dump.py run --engines postgresql,mssql --variants baseline,indexes,nocheck --volume medium --repeat 3 --out bench_results/constraints
+python scripts/bench_dump.py summarize bench_results/constraints/results.jsonl
 
-# Correr benchmark (requiere script disponible)
-python scripts/bench_bulk.py run \
-  --table orders \
-  --scenarios baseline,no_fk,no_uk,no_constraints,all \
-  --volume 100k,1m \
-  --out .ai/sessions/constraint_analysis
-
-# Ver resultados
-python scripts/bench_bulk.py summarize \
-  .ai/sessions/constraint_analysis/results.jsonl
+# Operaciones de BulkCrud por motor y tamaño (sin desactivar constraints): línea base de la carga
+python scripts/bench_bulk.py --engines postgresql --sizes 100000,1000000 --ops insert --repeat 3 --out bench_results/bulk
 ```
 
-**Resultado esperado**:
-```
-Baseline (todos activos): 5.2s
-Sin FK: 3.6s (30% ganancia)
-Sin UK: 4.4s (15% ganancia)
-Sin ninguno: 2.5s (52% ganancia)
-```
+`bench_bulk.py` escribe `results.csv`, `summary.md` y `environment.json` en `--out`. Para comparar con constraints
+desactivadas, mide tu propia carga dentro de `bulk_session()` + `maintenance_scope(...)` frente a la misma carga sin él.
+Los tests de comportamiento (no de rendimiento) de `maintenance_scope` están en `tests/unit/bulk/test_maintenance_scope.py`.
 
 ---
 
@@ -433,7 +477,8 @@ Si necesitas más ayuda:
 
 1. **Referencia técnica**: Lee `.github/prompts/performance_audit_constraints.prompt.md`
 2. **Workflow**: Lee `.github/prompts/performance_audit_constraints_agent.prompt.md`
-3. **Ejemplos de código**: Ver `tests/bulk/` y `src/util_bbdd/bulk/`
+3. **Código**: `src/util_bbdd/bulk/_execution/maintenance.py` (lo que hace `maintenance_scope` por motor) y sus tests en
+   `tests/unit/bulk/test_maintenance_scope.py`
 4. **Documentación de BBDD**:
    - [PostgreSQL: DISABLE TRIGGER](https://www.postgresql.org/docs/current/sql-altertable.html)
    - [MySQL: foreign_key_checks](https://dev.mysql.com/doc/refman/8.0/en/server-system-variables.html#sysvar_foreign_key_checks)
@@ -442,6 +487,6 @@ Si necesitas más ayuda:
 
 ---
 
-*Actualizado: 2026-09-26*  
+*Actualizado: 2026-10-10 (revisión de 1.1.0: SQL por motor corregido, banco real, qué hace ya la librería)*  
 *Versión*: 1.0.0  
 *Para preguntas*: Consulta `.ai/sessions/` de auditorías previas
