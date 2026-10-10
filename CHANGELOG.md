@@ -5,6 +5,27 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.41.1] - 2026-10-10
+
+Pendientes de la auditoría de `doc/` (`.ai/sessions/2026-10-09l-plan-pendientes-doc/`, bloques P1–P4).
+
+### Fixed
+
+- **metadata** (B-04): el DDL de tabla de HSQLDB fallaba siempre: `LISTAGG` sin `WITHIN GROUP` (HSQLDB 2.7.4 lo
+  rechaza) y una rama sobre `INFORMATION_SCHEMA.VIEWS.TEXT`, columna que no existe. Documentar HSQLDB con
+  `tablas.ddl=True` fallaba o dejaba el DDL vacío. Ahora las columnas salen en orden y sin el relleno de espacios que
+  añadía un `CASE` tipado como `CHAR`. El DDL de HSQLDB sigue sin incluir la clave primaria.
+- **doc/html** (S-02): el HTML mostraba el DDL con las entidades decodificadas (hasta 6 veces entre Python y
+  `sql-highlight.js`): una vista con `'&amp;<b>'` se veía como `'&<b>'`. Ningún motor devuelve DDL con entidades
+  (comprobado en los 7). Word y Excel ya lo mostraban bien.
+- **metadata**: las consultas de inventario de almacenamiento tienen un orden total (desempate por nombre en MySQL,
+  MariaDB, Oracle y SQL Server): las tablas del mismo tamaño ya no cambian de orden entre documentaciones.
+
+### Documentation
+
+- Los docstrings de `SQLAlchemyEngineFactory`, `SyncDatabaseManager` y `SyncLifecycleManager` citan `ConnectionError`
+  (decían `DatabaseConnectionError`, que no existe).
+
 ## [0.41.0] - 2026-10-09
 
 Auditoría y refactor de la arquitectura de `doc/` y `analysis/` (`/documentation-architecture-audit`;

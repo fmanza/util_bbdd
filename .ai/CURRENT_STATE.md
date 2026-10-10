@@ -2,7 +2,7 @@
 
 **Generado**: 2026-06-05 (cabecera, «Próximos pasos» y tests actualizados el 2026-10-09 al cerrar `drivers-connections-audit`)  
 **Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.39.1` (la tabla de abajo no recoge todas las versiones intermedias: el detalle está en el CHANGELOG)  
-**Versión**: `v0.41.0` (2026-10-09). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`, `v0.40.3`, `v0.41.0`  
+**Versión**: `v0.41.1` (2026-10-10). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`, `v0.40.3`, `v0.41.0`, `v0.41.1`  
 **Rama activa**: `develop`
 
 ---
@@ -55,6 +55,7 @@
 | `v0.39.0`–`v0.39.1` | Liberados 2026-10-09 — **TLS en MariaDB** (`ssl`, `ssl_ca`, `ssl_cert`, `ssl_key`, `ssl_verify_cert`) en sync, async, pools y Engine (B2); hotfix F1/F2 de la FASE 5. Decisiones en ADR-005; auditoría `drivers-connections-audit` cerrada | ✅ |
 | `v0.40.0`–`v0.40.3` | Liberados 2026-10-09 — URL de los Engine sync/async con la misma semántica; hotfixes de `EngineReadinessAdvisor`, `init_command` y reset del pool MariaDB | ✅ |
 | `v0.41.0` | Liberado 2026-10-09 — auditoría de `doc/` + `analysis/`: diagramas Graphviz por lotes (HTML 12,6×), un generador por documentación, inventario de almacenamiento declarativo, **API de `util_bbdd.doc` reducida** (`DatabaseDocumentation` + `DocumentationResult`, errores propios) | ✅ |
+| `v0.41.1` | Liberado 2026-10-10 — DDL de tabla de HSQLDB (fallaba siempre), DDL en HTML sin decodificar entidades, orden estable del inventario de almacenamiento | ✅ |
 | Zenical | Hecho — `migrate/zenical-pure` fusionada (PR #19, `c6d765a8`); `zensical` 0.0.44 es el generador del CI y lee `mkdocs.yml` (no se usa `zensical.toml`) | ✅ |
 
 PR #18 (`MySQLVariableValidator`): su código (`9a71e056`) está en `main` y `develop`; el estado de la PR en GitHub no se ha comprobado (sin `gh`) — cerrarla si sigue abierta.  
@@ -93,6 +94,7 @@ mismo `mkdocs.yml`; el CI publica con Zensical. Ver `ZENICAL.md`.
 
 ## Próximos pasos
 
+000000000. `v0.41.1` (2026-10-10): **pendientes de la auditoría de `doc/`** (`.ai/sessions/2026-10-09l-plan-pendientes-doc/`, P1–P4): B-04 DDL de HSQLDB, S-02 entidades en el DDL de HTML, orden total del inventario, docstrings. Siguen P5 (dorado Oracle), P6 (`mypy --strict` en renderers) y P7 (tests de matplotlib).
 00000000. `v0.41.0` (2026-10-09): **documentation-architecture-audit de `doc/` + `analysis/`** (`.ai/sessions/2026-10-09k-doc-architecture-audit/`): diagramas Graphviz por lotes (`GraphvizRelationshipGraphExt.prefetch`, `dot -O`; HTML con diagramas 75,7 s → 6,0 s con 120 tablas), un generador de grafos por documentación (el .docx ya no depende de los demás formatos), inventario de almacenamiento declarativo por motor (SQL Server sin aviso falso), API `util_bbdd.doc` = `DatabaseDocumentation` + `DocumentationResult` con `DocumentationConfigError`/`DocumentationRenderError` (rompe API). Pendientes en `.ai/sessions/2026-10-09l-plan-pendientes-doc/` (P1–P7, v0.41.1).
 0000000. `v0.40.3` (2026-10-09): **hotfix reset del pool MariaDB** (`.ai/sessions/2026-10-09j-hotfix-pool-reset/`): el pool nativo reaplica `init_command` en cada `get_connection()`; el reset de sesión de `mariadb.ConnectionPool` lo deshacía y, con el servidor en `latin1`, el catálogo fallaba con `SystemError … fetchrows`.
 000000. `v0.40.2` (2026-10-09): **hotfix `init_command`** (`.ai/sessions/2026-10-09i-hotfix-init-command/`): `init_command` de MariaDB con varias sentencias da `ValidationError` (antes, error de sintaxis del servidor sin nombrar el parámetro); `DatabaseConfigurationError` del manager sync con `db_type` correcto.

@@ -5,7 +5,7 @@
 - fecha: 2026-10-09
 - rama: develop
 - skill: PLAN + AUDIT_PLAN (pendientes de `documentation-architecture-audit`)
-- fase: PLAN + AUDIT_PLAN (solo lectura)
+- fase: PLAN + AUDIT_PLAN; tras la aprobación («Sí a todo», 2026-10-10): P0 (`v0.41.0`), P1–P4 (`v0.41.1`), P5–P7
 
 ## Prompt issued
 ```text
@@ -36,10 +36,25 @@ PLAN y AUDIT_PLAN de lo Pendiente
   `WITHIN GROUP (ORDER BY …)`; un `CASE` con literales de distinta longitud se tipa `CHAR` y rellena con espacios.
 - **[doc/entidades]**: ningún motor del banco devuelve DDL o definiciones con entidades HTML (comprobado con
   `'&amp;<b>'` en PostgreSQL, MySQL, MariaDB, SQL Server, Oracle y SQLite).
+- **[HSQLDB/DDL]**: un `CAST(CASE … END AS VARCHAR)` no quita el relleno: el `CHAR` ya está calculado; hay que tipar
+  como `VARCHAR` los literales de cada rama. Una columna `PRIMARY KEY` sin `NOT NULL` figura con `IS_NULLABLE = YES`.
 - **[Oracle/contexto]**: `MetadataContextResolver` usa el usuario conectado como schema en Oracle; documentar otro
   owner exige conectar como él.
 
+## Ejecución (2026-10-10)
+Decisiones: D1 (a) etiquetar 0.41.0 y publicar los arreglos en 0.41.1; D2 push; D3 (a) usuario Oracle propio; D4 (a);
+D5 (b).
+
+| Bloque | Commit | Evidencia |
+|---|---|---|
+| P0 | `ba387eee` (tag `v0.41.0`, push) | `python -m build`; `test_docs_version.py` |
+| P1 | `94a765a7` `hotfix(metadata)` | `tests/integration/test_hsqldb_server.py` (rojo antes, 5 verdes después, con `JAVA_HOME`); PK fuera de alcance del hotfix |
+| P2 | `45670f6a` `fix(doc)` | e2e SQLite con `'&amp;<b>'` (rojo antes); sonda de HSQLDB; dorados HTML sin cambios; `sql-highlight.js` probado con Node |
+| P3 | `c60a3fc3` `fix(metadata)` | test unitario de orden total; dos snapshots seguidos idénticos (MySQL, MariaDB, SQL Server, Oracle) |
+| P4 | `2e1c1bf3` `docs` | `grep DatabaseConnectionError src` vacío |
+
 ## Veredicto final
-Veredicto: GO_CONDICIONAL (AUDIT_PLAN)
+Veredicto: GO (P0–P4 cerrados en v0.41.1)
 Pendientes al cierre:
-- Decisiones D1–D5 del usuario antes de IMPLEMENT.
+- P5–P7 (ver § 2 del plan).
+- DDL de tabla de HSQLDB sin clave primaria (mejora, no entra en un hotfix).
