@@ -5,6 +5,29 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.42.1] - 2026-10-10
+
+Condiciones de `/audit-code` sobre v0.41.2–v0.42.0 (veredicto APROBADO CON CONDICIONES), en
+`.ai/sessions/2026-10-10-plan-pendientes-global/TRACEABILITY.md`.
+
+### Fixed
+
+- **CI** (CI-1): `integration.yml` instala MariaDB Connector/C (`libmariadb-dev`) y el extra `mariadb`;
+  `SyncDatabaseManager("mariadb")` lo necesita y sin él fallaban 7 tests `[mariadb]` de caracterización. Sin el
+  paquete, esos tests se saltan con motivo (`skip_reason()` en `tests/integration/metadata/characterization/_schemas.py`).
+  La contraseña de los contenedores de servicio se deriva de `github.run_id`.
+- **tests**: 12 tests unitarios fallaban con `pytest` sin las URL del banco desde v0.41.2/v0.41.3:
+  `_in_transaction` hacía `int()` sobre un `Mock` (ahora solo acepta `int`/`bool` del driver) y los `Inspector`
+  simulados de SQL Server no declaraban las tablas existentes que exige F3/F4. Los tests de integración de H1 se saltan
+  sin la URL (antes `KeyError`).
+
+### Tests
+
+- **metadata** (H1-MS): H1 en SQL Server, con pymssql y pyodbc. Los tres drivers (también aioodbc) tienen
+  `@@TRANCOUNT = 1` desde que conectan, así que no se puede distinguir una transacción del usuario y no se hace
+  `rollback`. Los tests fijan que, con READ COMMITTED, la lectura del catálogo no retiene bloqueos, no frena un `ALTER`
+  de otra sesión, ve el DDL externo tras `clear_cache()` y respeta la transacción del usuario.
+
 ## [0.42.0] - 2026-10-10
 
 Bloques Q4 y Q5 del plan de pendientes global (`.ai/sessions/2026-10-10-plan-pendientes-global/`).

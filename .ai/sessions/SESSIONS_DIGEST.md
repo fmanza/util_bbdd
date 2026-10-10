@@ -214,6 +214,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-10-10 | Plan de pendientes global → v0.41.2 (`2026-10-10-plan-pendientes-global`) | H1 confirmado con sondas y corregido (lecturas de catálogo sin fin de transacción: PostgreSQL `idle in transaction`, MySQL con metadatos obsoletos); H2 no reproducido; P5–P7 de doc publicados |
 | 2026-10-10 | Plan de pendientes global, Q3 → v0.41.3 (`2026-10-10-plan-pendientes-global`) | F3/F4 confirmados en SQL Server (PK/FK vacías para tablas inexistentes; mezcla de `Users`/`users` con collation CS) y corregidos; F5 (`clear_cache` dirigido con usuario Oracle entrecomillado) corregido; H2 fijado con test |
 | 2026-10-10 | Plan de pendientes global, Q4–Q5 → v0.42.0 (`2026-10-10-plan-pendientes-global`) | CI de integración (PostgreSQL/MySQL/MariaDB, manual y nocturno; simulado en local); DDL de HSQLDB con PK; `routine_parameters` indexado (0,91 s → 0,003 s con 2000 routines) |
+| 2026-10-10 | `/audit-code` de v0.41.2–v0.42.0 → v0.42.1 (`2026-10-10-plan-pendientes-global`) | APROBADO CON CONDICIONES → resueltas: CI con MariaDB Connector/C y `skip_reason()`; H1 en SQL Server fijado con tests (`@@TRANCOUNT` = 1 desde que conectan pymssql/pyodbc/aioodbc); 12 tests unitarios que fallaban sin el banco |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 

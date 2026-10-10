@@ -47,6 +47,8 @@ PLAN y ADUIT_PLAN de todo lo pendiente
   MSSQL/Oracle/HSQLDB y contenedores efímeros; sin eso la simulación da por buenos tests que fallan en el CI.
 - **[SQL Server/transacciones]**: pymssql abre `BEGIN TRAN` al conectar y tras cada commit/rollback; pyodbc/aioodbc
   también dan `@@TRANCOUNT = 1` antes de leer. No intentes detectar la transacción del usuario por `@@TRANCOUNT`.
+- **[puerta de calidad]**: ejecuta `pytest` también **sin** las URL del banco: con ellas cargadas, tests que fallan
+  en el CI unitario pueden pasar desapercibidos (pasó en v0.41.2–v0.42.0).
 - **[herramientas]**: aquí no hay `gh`: el estado del CI y de las PR de GitHub no se puede comprobar desde la sesión.
 
 ## Ejecución (IMPLEMENT, 2026-10-10)
@@ -67,6 +69,8 @@ Prompt: `IMPLEMENT` (sin decisiones explícitas: se aplicaron las recomendadas D
 | Release | `30e0f5d0` (tag `v0.42.0`) | `tests/integration` 577 pasan; puerta completa |
 | CI-1 | `b3db8526` | `integration.yml` instala `libmariadb-dev` + extra `mariadb`; `skip_reason()` salta los `[mariadb]` sin el paquete. Simulación fiel (sin CA, solo las 3 URL del CI): con `mariadb` 360 pasan, 0 fallos; sin `mariadb` 281 pasan, 0 fallos |
 | H1-MS | `320244ea` | sonda: pymssql/pyodbc/aioodbc con `@@TRANCOUNT = 1` desde que conectan → la detección propuesta no sirve; 4 tests fijan que la lectura no retiene bloqueos, no frena DDL externo y respeta la transacción del usuario |
+| Tests sin banco | `e1220d22` | 12 tests unitarios rotos desde v0.41.2/v0.41.3 (Mock en `_in_transaction`; Inspector simulado sin tablas tras F3/F4); las puertas anteriores se pasaron con las URL del banco cargadas. Ahora: sin banco 5512 pasan; con banco 6028 pasan, 7 saltados |
+| Release | tag `v0.42.1` | `zensical build --strict`, `python -m build`, mypy (331 ficheros), ruff |
 | Q6 | este documento | `Q6_PLAN_API_1_0.md` + `api_inventory.tsv` |
 
 ## Condiciones de /audit-code (2026-10-10)
@@ -76,7 +80,7 @@ CI-2 es la corrección de la fila Q4).
 ## Veredicto final
 Veredicto: GO (Q0–Q5 implementados en v0.41.2–v0.42.0; Q6 entregado como PLAN)
 Pendientes al cierre:
-- Push de `develop` y de los tags `v0.41.2`, `v0.41.3`, `v0.42.0` (no autorizado en esta orden).
+- Push de `develop` y de los tags `v0.41.2`, `v0.41.3`, `v0.42.0`, `v0.42.1` (no autorizado).
 - Decisiones A1–A6 de `Q6_PLAN_API_1_0.md`.
 - Comprobar en GitHub la primera ejecución de `integration.yml` (aquí no hay `gh`).
 - Externos: PR #18, issue ORA-03106.
