@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from ..._core.validation import StrPath
 from .._audit.errors import AuditError
 from .._audit.events import BulkAuditEvents
 from .._audit.record import AuditRecord
@@ -101,7 +102,7 @@ class BulkPersistenceManager:
         self.logger.debug(f"🟢 Nombre SQL generado: {sql_filename}")
         return sql_filename
 
-    def resolve_sql_output_path(self, path_sql: Path | None, table_name: str, operation: str) -> Path:
+    def resolve_sql_output_path(self, path_sql: StrPath | None, table_name: str, operation: str) -> Path:
         """Resuelve la ruta completa de salida para el fichero SQL generado."""
         output_path = resolve_sql_output_path(
             path_sql,

@@ -35,6 +35,7 @@ import pandas as pd
 from sqlalchemy import Engine, Table, text
 from sqlalchemy.exc import SQLAlchemyError
 
+from ..._core.validation import StrPath, validate_optional_path
 from ...audit.contracts import AuditSink
 from ...metadata import facts
 from .._audit.counters import AuditCounters
@@ -256,7 +257,7 @@ class ParallelBulkLoader:
         chunk_size: int | None = None,
         max_workers: int = 4,
         commit_every_n_chunks: int | None = None,
-        audit_csv_path: Path | None = None,
+        audit_csv_path: StrPath | None = None,
         enable_fast_executemany: bool = True,
         max_retries: int = 0,
         disable_constraints: bool = False,
@@ -266,7 +267,7 @@ class ParallelBulkLoader:
         retry_backoff: tuple[float, float] = (0.5, 30.0),
         retry_on: Callable[[BaseException], bool] | None = None,
         on_error: Literal["raise", "isolate"] = "raise",
-        rejects_csv_path: Path | None = None,
+        rejects_csv_path: StrPath | None = None,
         max_rejects: int | None = None,
         audit_sink: AuditSink | None = None,
         audit_run_id: str | None = None,
@@ -281,7 +282,7 @@ class ParallelBulkLoader:
                 MariaDB/MySQL. Ignorado si ``None``. Con ``max_retries > 0``, un reintento **reanuda** la partición
                 desde la última fila confirmada (``BulkCrud.rows_committed``): el lector debe devolver las filas en el
                 mismo orden en cada llamada. Hasta v0.23.x la combinación lanzaba ``ValueError`` (B-11).
-            audit_csv_path: Ruta para auditoría CSV compartida (thread-safe).
+            audit_csv_path: Ruta (``str`` o ``Path``) para auditoría CSV compartida (thread-safe).
             enable_fast_executemany: Activa ``cursor.fast_executemany`` en MSSQL/pyodbc.
             max_retries: Reintentos de una partición ante errores transitorios. Por defecto se decide por el código del
                 error (``is_retriable``): desconexiones, deadlocks, lock wait timeouts, serialización y timeouts. Los
@@ -314,7 +315,7 @@ class ParallelBulkLoader:
                 la partición) y aplica el resto. Si un intento que ya escribió rechazos falla después, la partición
                 **no se reintenta** aunque el error sea transitorio (reintentar los duplicaría en el CSV): queda en
                 ``partition_errors``. Ver ``PartitionResult.rows_rejected`` (Fase 3, sesión 2026-10-01t).
-            rejects_csv_path: CSV de rechazos compartido (ver ``BulkCrud``). Obligatorio con ``on_error="isolate"``.
+            rejects_csv_path: CSV de rechazos compartido (``str`` o ``Path``; ver ``BulkCrud``). Obligatorio con ``on_error="isolate"``.
             max_rejects: Filas que **cada partición** puede rechazar (con N particiones, hasta N × ``max_rejects`` en
                 total); la siguiente hace fallar esa partición. ``None``: sin límite.
             audit_sink: Destino opcional de eventos (:mod:`util_bbdd.audit`), compartido por las ``BulkCrud`` de las
@@ -343,15 +344,18 @@ class ParallelBulkLoader:
             raise ValueError(
                 f"retry_backoff debe ser (base, máximo) con números finitos ≥ 0, recibido: {retry_backoff!r}"
             )
-        validate_isolation(on_error, rejects_csv_path, max_rejects)  # antes del pool, como chunk_size
-        if audit_csv_path is not None:
+        # v1.1.0: las rutas aceptan str además de Path.
+        audit_path: Path | None = validate_optional_path(audit_csv_path, "audit_csv_path")
+        rejects_path: Path | None = validate_optional_path(rejects_csv_path, "rejects_csv_path")
+        validate_isolation(on_error, rejects_path, max_rejects)  # antes del pool, como chunk_size
+        if audit_path is not None:
             # PL-4 (audit-code de ParallelBulkLoader 2026-09-25): antes del pool, como chunk_size. Si no, cada
             # partición fallaba por separado y, con disable_constraints, el hoist se hacía para nada.
-            AuditManager(audit_csv_path)
+            AuditManager(audit_path)
         self._engine = engine
         self._chunk_size = chunk_size
         self._commit_every_n_chunks = commit_every_n_chunks
-        self._audit_csv_path = audit_csv_path
+        self._audit_csv_path: Path | None = audit_path
         self._enable_fast_executemany = enable_fast_executemany
         self._max_retries = max_retries
         self._disable_constraints = disable_constraints
@@ -361,7 +365,7 @@ class ParallelBulkLoader:
         self._retry_backoff: tuple[float, float] = (float(retry_backoff[0]), float(retry_backoff[1]))
         self._retry_on: Callable[[BaseException], bool] = retry_on or is_retriable
         self._on_error: Literal["raise", "isolate"] = on_error
-        self._rejects_csv_path: Path | None = rejects_csv_path
+        self._rejects_csv_path: Path | None = rejects_path
         self._max_rejects: int | None = max_rejects
         self._audit_sink: AuditSink | None = audit_sink
         self._audit_run_id: str | None = audit_run_id

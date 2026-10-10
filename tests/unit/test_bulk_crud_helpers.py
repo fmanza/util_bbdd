@@ -157,10 +157,14 @@ def test_validar_y_generar_path_sql_validates_input_type(sqlite_bulk_manager: Bu
     with pytest.raises(ValueError, match="path_sql es obligatorio"):
         _get_private_method(sqlite_bulk_manager, "_BulkCrud__validar_y_generar_path_sql")(None, "users", "insert")
 
-    with pytest.raises(ValueError, match="instancia de Path"):
-        _get_private_method(sqlite_bulk_manager, "_BulkCrud__validar_y_generar_path_sql")(
-            "not-a-path", "users", "insert"
-        )
+    # v1.1.0: un str es una ruta válida; otro tipo sigue siendo ValueError.
+    generated = _get_private_method(sqlite_bulk_manager, "_BulkCrud__validar_y_generar_path_sql")(
+        "salida", "users", "insert"
+    )
+    assert generated.parent == Path("salida")
+
+    with pytest.raises(ValueError, match=r"ruta \(str o Path\)"):
+        _get_private_method(sqlite_bulk_manager, "_BulkCrud__validar_y_generar_path_sql")(123, "users", "insert")
 
 
 def test_validar_y_generar_path_sql_joins_base_path_and_dynamic_name(

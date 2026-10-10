@@ -13,6 +13,8 @@ import pandas as pd
 
 from sqlalchemy import Column, Engine, Table
 
+from ..._core.validation import StrPath, validate_path
+
 
 @dataclass(frozen=True)
 class UpdatePlan:
@@ -31,7 +33,7 @@ def validate_engine(engine: Engine | None) -> Engine:
 
 
 def resolve_sql_output_path(
-    path_sql: Path | None,
+    path_sql: StrPath | None,
     *,
     table_name: str,
     operation: str,
@@ -40,9 +42,8 @@ def resolve_sql_output_path(
     """Valida el directorio de salida y le añade el nombre SQL generado."""
     if path_sql is None:
         raise ValueError("❌ path_sql es obligatorio cuando generar_sql=True")
-    if not isinstance(path_sql, Path):
-        raise ValueError(f"❌ path_sql debe ser una instancia de Path, se recibió {type(path_sql).__name__}")
-    return path_sql / generate_name(table_name, operation)
+    # v1.1.0: acepta str además de Path; otro tipo sigue siendo ValueError.
+    return validate_path(path_sql, "path_sql") / generate_name(table_name, operation)
 
 
 def normalize_identifier(name: str, dialect_name: str) -> str:

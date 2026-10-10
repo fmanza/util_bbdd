@@ -22,6 +22,7 @@ from typing import Any, Literal
 
 import pandas as pd
 
+from .._core.validation import StrPath, validate_optional_path
 from ..audit.analytics import AuditAnalyticsService
 from ..audit.exporters import AuditExporters
 from ..audit.legacy_csv import AUDIT_COLUMNS, AuditCsvRepository, AuditRecord, AuditRecordValidator
@@ -42,7 +43,7 @@ class AuditManager:
 
     def __init__(
         self,
-        audit_csv_path: Path | None = None,
+        audit_csv_path: StrPath | None = None,
         cache_enabled: bool = True,
         cache_ttl_seconds: int = 300,
         *,
@@ -50,7 +51,7 @@ class AuditManager:
     ) -> None:
         """
         Args:
-            audit_csv_path: CSV de auditoría. ``None`` deshabilita la escritura.
+            audit_csv_path: CSV de auditoría (``str`` o ``Path``). ``None`` deshabilita la escritura.
             cache_enabled: Cachear las lecturas del CSV.
             cache_ttl_seconds: Vigencia de la caché de lectura.
             warn_if_disabled: Si ``True`` (default), sin ``audit_csv_path`` la primera operación registrada emite un
@@ -62,7 +63,7 @@ class AuditManager:
         columnas_auditoria: list[str] = list(AUDIT_COLUMNS)
 
         self._repository: AuditCsvRepository = AuditCsvRepository(
-            audit_csv_path=audit_csv_path,
+            audit_csv_path=self._audit_path(audit_csv_path),
             columnas_auditoria=columnas_auditoria,
             logger=self.logger,
             cache_enabled=cache_enabled,
@@ -82,8 +83,16 @@ class AuditManager:
         return self._repository.audit_csv_path
 
     @audit_csv_path.setter
-    def audit_csv_path(self, value: Path | None) -> None:
-        self._repository.audit_csv_path = value
+    def audit_csv_path(self, value: StrPath | None) -> None:
+        self._repository.audit_csv_path = self._audit_path(value)
+
+    @staticmethod
+    def _audit_path(value: StrPath | None) -> Path | None:
+        """``value`` como ``Path`` (v1.1.0: también ``str``); otro tipo, ``AuditConfigError`` como una ruta inaccesible."""
+        try:
+            return validate_optional_path(value, "audit_csv_path")
+        except ValueError as error:
+            raise AuditConfigError(f"❌ No se puede acceder a la ruta de auditoría: {error}") from error
 
     @property
     def columnas_auditoria(self) -> list[str]:
@@ -245,13 +254,13 @@ class AuditManager:
             umbral_tiempo=umbral_tiempo,
         )
 
-    def exportar_resumen_json(self, output_path: Path | None = None) -> Path:
-        """Exportar resumen de auditoría a archivo JSON."""
-        return self._exporters.exportar_resumen_json(output_path=output_path)
+    def exportar_resumen_json(self, output_path: StrPath | None = None) -> Path:
+        """Exportar resumen de auditoría a archivo JSON (``output_path``: ``str`` o ``Path``)."""
+        return self._exporters.exportar_resumen_json(output_path=validate_optional_path(output_path, "output_path"))
 
-    def exportar_resumen_html(self, output_path: Path | None = None) -> Path:
-        """Exportar resumen de auditoría a archivo HTML interactivo."""
-        return self._exporters.exportar_resumen_html(output_path=output_path)
+    def exportar_resumen_html(self, output_path: StrPath | None = None) -> Path:
+        """Exportar resumen de auditoría a archivo HTML interactivo (``output_path``: ``str`` o ``Path``)."""
+        return self._exporters.exportar_resumen_html(output_path=validate_optional_path(output_path, "output_path"))
 
 
 __all__: list[str] = [

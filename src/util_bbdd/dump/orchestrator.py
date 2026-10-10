@@ -43,6 +43,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import sqltypes
 
 from util_bbdd._core.batching import resolve_write_batch_size
+from util_bbdd._core.validation import validate_optional_path, validate_path
 from util_bbdd.audit.counters import AuditCounters
 from util_bbdd.audit.events import AuditEvent
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader, RangePartitioner
@@ -193,12 +194,15 @@ class DumpOrchestrator:
     def _run_dump(self) -> DumpResult:
         """Cuerpo de :meth:`run` (mismas excepciones)."""
         cfg = self._cfg
+        # DumpConfig.__post_init__ ya las deja como Path; se repite por si se reasignaron después de construirla.
+        output_dir: Path = validate_path(cfg.output_dir, "output_dir")
+        bulk_audit_path: Path | None = validate_optional_path(cfg.bulk_audit_path, "bulk_audit_path")
         dump_inicio = datetime.now()
         self._reset_audit_tracking()
         # 3.4 (PF-08): tamaño del CSV de auditoría al empezar; el resumen solo lee lo añadido desde aquí.
-        self._audit_start_offset = DumpOrchestrator._file_size(cfg.bulk_audit_path)
-        self._audit_start_identity = DumpOrchestrator._file_identity(cfg.bulk_audit_path)
-        if cfg.bulk_audit_path is None and cfg.audit_sink is None:
+        self._audit_start_offset = DumpOrchestrator._file_size(bulk_audit_path)
+        self._audit_start_identity = DumpOrchestrator._file_identity(bulk_audit_path)
+        if bulk_audit_path is None and cfg.audit_sink is None:
             # M-4 (audit-code de ParallelBulkLoader 2026-09-25): un aviso por volcado, no uno por BulkCrud creada.
             self.logger.info("Auditoría bulk deshabilitada en el volcado (bulk_audit_path=None).")
 
@@ -316,7 +320,7 @@ class DumpOrchestrator:
         # sesiones de auditoría ya han terminado; la sincronización de PK no audita.
         # El resumen es informativo: un fallo inesperado no debe impedir el informe (la carga ya terminó).
         try:
-            audit_summary = self._summarize_audit(cfg.bulk_audit_path, dump_inicio)
+            audit_summary = self._summarize_audit(bulk_audit_path, dump_inicio)
         except Exception as exc:
             self.logger.warning("No se pudo resumir la auditoría del volcado: %s", exc, exc_info=True)
             audit_summary = None
@@ -326,7 +330,7 @@ class DumpOrchestrator:
             constraint_results=constraint_results,
             load_order=load_order,
             cycles_detected=cycles,
-            report=cfg.output_dir,  # se sustituye por la ruta del informe
+            report=output_dir,  # se sustituye por la ruta del informe
             audit_summary=audit_summary,
             pk_sync_results=pk_sync_results,
             index_results=index_results,
@@ -336,7 +340,7 @@ class DumpOrchestrator:
         # FASE 5b: Generar informe Excel (la hoja "Columnas Inexistentes" se deriva
         # de TableDumpResult.skipped_columns; no requiere comparación de esquemas)
         try:
-            dump_result.report = DumpReporter(cfg.output_dir).generate(
+            dump_result.report = DumpReporter(output_dir).generate(
                 table_results=table_results,
                 missing_tables=missing_in_dst,
                 constraint_results=constraint_results,
@@ -347,7 +351,7 @@ class DumpOrchestrator:
             )
         except DumpReportError as exc:
             # Sin esto, un fallo del informe perdía el resultado de una carga ya completada.
-            dump_result.report = exc.output_path or cfg.output_dir
+            dump_result.report = exc.output_path or output_dir
             exc.result = dump_result
             # Sin traza: la excepción se relanza y la lleva; el llamador la registraría dos veces.
             self.logger.error("Volcado completado, pero sin informe Excel: %s", exc)

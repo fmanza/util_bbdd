@@ -48,7 +48,7 @@ Propiedades: `audit_csv_path`, `cache_enabled`, `cache_ttl_seconds` (lectura y e
 
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
-| `audit_csv_path` | `Path \| None` | Fichero CSV de auditoría | `None` = auditoría desactivada |
+| `audit_csv_path` | `str \| Path \| None` | Fichero CSV de auditoría (desde v1.1.0 también `str`) | `None` = auditoría desactivada |
 | `cache_enabled` | `bool` | Cachear la lectura del CSV | Default `True` |
 | `cache_ttl_seconds` | `int` | Validez máxima de la caché | Default `300`; además se descarta si el fichero cambió |
 | `tabla`, `motor` | `str` | Tabla y motor de la operación | No vacíos |

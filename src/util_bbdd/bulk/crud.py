@@ -46,6 +46,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 
+from .._core.validation import StrPath, validate_optional_path
 from ..audit.contracts import AuditSink
 from ..connection.performance_advisor import EngineReadinessAdvisor
 from ..metadata import facts
@@ -197,7 +198,7 @@ class BulkCrud:
         self,
         engine: Engine | None,
         chunk_size: int | None = None,
-        audit_csv_path: Path | None = None,
+        audit_csv_path: StrPath | None = None,
         enable_fast_executemany: bool = True,
         insert_resolver: InsertStrategyResolver | None = None,
         commit_every_n_chunks: int | None = None,
@@ -208,7 +209,7 @@ class BulkCrud:
         reflect_foreign_keys: bool = True,
         prefetch_blocks: bool = False,
         on_error: Literal["raise", "isolate"] = "raise",
-        rejects_csv_path: Path | None = None,
+        rejects_csv_path: StrPath | None = None,
         max_rejects: int | None = None,
         audit_sink: AuditSink | None = None,
         audit_run_id: str | None = None,
@@ -223,7 +224,7 @@ class BulkCrud:
                 operaciones; el UPDATE de PostgreSQL empeora con lotes mayores). Con ``commit_every_n_chunks`` el
                 default es 5000 en todas las operaciones, para no cambiar cada cuántas filas se confirma. Un entero se
                 usa en todas las operaciones. Hasta v0.24.x el default era 5000 siempre.
-            audit_csv_path: Ruta del archivo CSV para auditoría. Por defecto es None.
+            audit_csv_path: Ruta (``str`` o ``Path``) del archivo CSV para auditoría. Por defecto es None.
             enable_fast_executemany: Si True (default) y el engine es mssql+pyodbc,
                 activa fast_executemany en el dialecto del engine, igual que
                 ``create_engine(..., fast_executemany=True)`` (afecta a todo el engine).
@@ -287,8 +288,9 @@ class BulkCrud:
                 siempre. Coste (INSERT de 1M filas): sin filas malas 1,00–1,02×; cada fila mala reenvía unas 2 veces su
                 lote (10 filas malas: 1,13–1,23×; PostgreSQL 1,65×, lotes de 20 000). Solo INSERT, UPDATE y DELETE ejecutados (no
                 ``generar_sql``). Ver :attr:`rows_rejected` (S-2, 2026-10-01).
-            rejects_csv_path: CSV de filas rechazadas (UTF-8, tabuladores; se crea con cabecera o se añade): ``timestamp``,
-                ``tabla``, ``operacion``, ``fila`` (posición base 0 en la entrada; en ``*_from_chunks``, en la secuencia),
+            rejects_csv_path: CSV de filas rechazadas (``str`` o ``Path``; UTF-8, tabuladores; se crea con cabecera o se
+                añade): ``timestamp``, ``tabla``, ``operacion``, ``fila`` (posición base 0 en la entrada; en
+                ``*_from_chunks``, en la secuencia),
                 ``error`` (primera línea del error del driver) y ``valores`` (JSON). Contiene datos de las filas.
                 Obligatorio con ``on_error="isolate"``.
             max_rejects: Con ``on_error="isolate"``, filas que una operación (o todas las de un :meth:`rejects_scope`)
@@ -311,7 +313,10 @@ class BulkCrud:
                 None ni un entero ≥ 0.
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
-        self._rejects: RejectsWriter | None = self.__rejects_writer(on_error, rejects_csv_path, max_rejects)
+        # v1.1.0: las rutas aceptan str además de Path (antes, audit_csv_path=str fallaba con AuditConfigError).
+        audit_path: Path | None = validate_optional_path(audit_csv_path, "audit_csv_path")
+        rejects_path: Path | None = validate_optional_path(rejects_csv_path, "rejects_csv_path")
+        self._rejects: RejectsWriter | None = self.__rejects_writer(on_error, rejects_path, max_rejects)
         self._max_rejects: int | None = optional_non_negative_int(max_rejects, "max_rejects")
         self._rows_rejected: int = 0
         #: Aislador de la operación en curso (``on_error="isolate"``); None fuera de una operación.
@@ -335,7 +340,7 @@ class BulkCrud:
         )
         # Con audit_sink la auditoría no está deshabilitada aunque no haya CSV: no se avisa.
         self.audit_manager: AuditManager = AuditManager(
-            audit_csv_path, warn_if_disabled=warn_if_audit_disabled and audit_sink is None
+            audit_path, warn_if_disabled=warn_if_audit_disabled and audit_sink is None
         )
         # Sin destino no hay eventos ni run_id, como en ParallelBulkLoader (audit-code 2026-10-02c, 3).
         self._audit_run_id: str | None = None if audit_sink is None else (audit_run_id or uuid.uuid4().hex)
@@ -430,7 +435,7 @@ class BulkCrud:
         """Verifica las condiciones de ejecución del motor una vez por engine (``EngineReadinessAdvisor.report_once``)."""
         EngineReadinessAdvisor().report_once(self.engine)
 
-    def __validar_y_generar_path_sql(self, path_sql: Path | None, tabla_destino: str, operacion: str) -> Path:
+    def __validar_y_generar_path_sql(self, path_sql: StrPath | None, tabla_destino: str, operacion: str) -> Path:
         """
         Valida path_sql y genera el nombre dinámico combinado con la ruta proporcionada.
 
@@ -443,7 +448,7 @@ class BulkCrud:
             Path completa con el nombre dinámico.
 
         Raises:
-            ValueError: Si path_sql es None o no es un Path válido.
+            ValueError: Si path_sql es None o no es una ruta (``str`` o ``Path``).
         """
         return self._persistence.resolve_sql_output_path(path_sql, tabla_destino, operacion)
 
@@ -453,7 +458,7 @@ class BulkCrud:
         df: pd.DataFrame,
         tabla_destino: str,
         generar_sql: bool = True,
-        path_sql: Path | None = None,
+        path_sql: StrPath | None = None,
         override_identity: bool = False,
         exclude_autoincrement_pk: bool = False,
     ) -> None:
@@ -464,7 +469,7 @@ class BulkCrud:
             df: DataFrame con los datos.
             tabla_destino: Nombre de la tabla destino.
             generar_sql: Si True, genera la sentencia SQL en texto.
-            path_sql: Ruta donde guardar el archivo SQL. Es obligatorio si generar_sql=True.
+            path_sql: Directorio (``str`` o ``Path``) del archivo SQL. Es obligatorio si generar_sql=True.
                      El nombre del archivo se genera dinámicamente y se combina con esta ruta.
             override_identity: Si True y el motor es PostgreSQL, genera INSERT con
                      OVERRIDING SYSTEM VALUE para columnas GENERATED ALWAYS AS IDENTITY.
@@ -497,7 +502,7 @@ class BulkCrud:
         df: pd.DataFrame,
         tabla_destino: str,
         generar_sql: bool = True,
-        path_sql: Path | None = None,
+        path_sql: StrPath | None = None,
     ) -> None:
         """
         Actualiza en bloque los registros del DataFrame en la tabla destino.
@@ -506,7 +511,7 @@ class BulkCrud:
             df: DataFrame con los datos a actualizar.
             tabla_destino: Nombre de la tabla destino.
             generar_sql: Si True, genera la sentencia SQL en texto.
-            path_sql: Ruta donde guardar el archivo SQL. Es obligatorio si generar_sql=True.
+            path_sql: Directorio (``str`` o ``Path``) del archivo SQL. Es obligatorio si generar_sql=True.
                      El nombre del archivo se genera dinámicamente y se combina con esta ruta.
 
         Raises:
@@ -529,7 +534,7 @@ class BulkCrud:
         df: pd.DataFrame,
         tabla_destino: str,
         generar_sql: bool = True,
-        path_sql: Path | None = None,
+        path_sql: StrPath | None = None,
     ) -> None:
         """
         Borra en bloque registros del DataFrame desde la tabla destino.
@@ -538,7 +543,7 @@ class BulkCrud:
             df: DataFrame con los datos a borrar (debe contener claves primarias).
             tabla_destino: Nombre de la tabla destino.
             generar_sql: Si True, genera la sentencia SQL en texto.
-            path_sql: Ruta donde guardar el archivo SQL. Es obligatorio si generar_sql=True.
+            path_sql: Directorio (``str`` o ``Path``) del archivo SQL. Es obligatorio si generar_sql=True.
                      El nombre del archivo se genera dinámicamente y se combina con esta ruta.
 
         Raises:
@@ -924,7 +929,7 @@ class BulkCrud:
         df: pd.DataFrame,
         tabla_destino: str,
         generar_sql: bool,
-        path_sql: Path | None,
+        path_sql: StrPath | None,
         strategy_key: Literal["insert", "update", "delete"],
         override_identity: bool = False,
         exclude_autoincrement_pk: bool = False,

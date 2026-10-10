@@ -42,16 +42,16 @@ flowchart TD
 | `tables` | `list[str] \| None` | `None` | Tablas a volcar; `None` = todas las del origen |
 | `chunk_size` | `int` | `5000` | Filas por chunk de lectura del origen; también el lote de escritura salvo lo que diga `write_batch_size` |
 | `write_batch_size` | `int \| None` | `None` | Filas por lote de escritura. `None`: 20 000 con destino PostgreSQL (`COPY`; −31 % a 3,5M filas) y `chunk_size` en el resto (en SQL Server los lotes grandes son más lentos); con `commit_every_n_chunks`, siempre `chunk_size`. Un entero fija el lote en todos los motores |
-| `output_dir` | `Path` | `Path()` | Directorio donde guardar el informe Excel |
+| `output_dir` | `str \| Path` | `Path()` | Directorio donde guardar el informe Excel; se guarda como `Path` (desde v1.1.0 también `str`) |
 | `truncate_target` | `bool` | `True` | Vaciar destino antes de cargar: `TRUNCATE TABLE`; en PostgreSQL, un único `TRUNCATE` con todas las tablas del volcado (tabla a tabla si falla); `DELETE FROM` en SQLite (no tiene `TRUNCATE`) y en las tablas de SQL Server referenciadas por FK |
 | `sync_pk_sequences` | `bool` | `True` | Resincronizar contadores PK tras la carga |
 | `manage_indexes` | `bool` | `False` | Deshabilitar/reconstruir índices secundarios no únicos (no aplica en MySQL/MariaDB). Medido a 3,5M filas con 2 índices secundarios: Oracle −14 %, SQL Server −8 %, PostgreSQL sin ganancia; compensa más con muchos índices |
 | `max_parallel_tables` | `int` | `1` | Tablas en paralelo dentro del mismo nivel FK |
 | `parallel_pk_ranges` | `int` | `1` | Rangos de PK para particionar tablas grandes (PK de una columna entera). Medido con 4 rangos a 3,5M filas frente a la carga secuencial: SQL Server −37 % (recomendado); PostgreSQL −9 % y Oracle −2 %; MySQL/MariaDB casi el doble de tiempo (no recomendado, WARNING); SQLite se fuerza a 1. Necesita un pool con capacidad ≥ rangos × `max_parallel_tables` |
-| `bulk_audit_path` | `Path \| None` | `None` | CSV de auditoría de los inserts en destino; `None` = sin auditoría |
+| `bulk_audit_path` | `str \| Path \| None` | `None` | CSV de auditoría de los inserts en destino (desde v1.1.0 también `str`); `None` = sin auditoría |
 | `bulk_audit_strict` | `bool` | `False` | Se pasa como `audit_strict` a cada `BulkCrud` y `ParallelBulkLoader`. `False`: un fallo al escribir el CSV no interrumpe la carga y se cuenta en `audit_summary.audit_failures`. `True`: el fallo deshace la carga de esa tabla (o partición) y queda como error de la tabla |
 | `on_error` | `"raise" \| "isolate"` | `"raise"` | Como en [`BulkCrud`](bulk_crud.md): con `"isolate"` las filas que el destino no admite (PK duplicada, NOT NULL, valor demasiado largo o fuera de precisión) se apartan a `rejects_csv_path` y el resto de la tabla se copia; la tabla queda `success` con `rows_rejected`. Durante la carga las constraints del destino están desactivadas: FK y CHECK no fallan aquí (una fila huérfana se copia y falla al rehabilitar la constraint). En SQL Server el valor demasiado largo no se aísla. La `fila` del CSV es la posición en la lectura del origen (`SELECT` sin `ORDER BY`, no se repite entre volcados); con `parallel_pk_ranges`, la del rango, que va en `particion` |
-| `rejects_csv_path` | `Path \| None` | `None` | CSV de rechazos común a todas las tablas; obligatorio con `on_error="isolate"` |
+| `rejects_csv_path` | `str \| Path \| None` | `None` | CSV de rechazos común a todas las tablas (desde v1.1.0 también `str`); obligatorio con `on_error="isolate"` |
 | `max_rejects` | `int \| None` | `None` | Filas que cada tabla (o cada rango) puede rechazar; la siguiente deja esa tabla en `error` y el volcado sigue |
 
 #### Dataclass `DumpResult`

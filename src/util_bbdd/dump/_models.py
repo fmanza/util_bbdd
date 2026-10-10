@@ -12,7 +12,7 @@ from typing import Literal
 
 from sqlalchemy import Engine
 
-from util_bbdd._core.validation import validate_batch_config
+from util_bbdd._core.validation import StrPath, validate_batch_config, validate_optional_path, validate_path
 from util_bbdd.audit.contracts import AuditSink
 from util_bbdd.bulk._models import PKSyncResult
 from util_bbdd.bulk._support.rejects import validate_isolation
@@ -78,10 +78,10 @@ class DumpConfig:
             defecto), produciendo ``Lost connection to server during query``. Reduce el
             valor (p.ej. ``chunk_size=500`` o ``chunk_size=100``) o aumenta
             ``max_allowed_packet`` en el servidor (``SET GLOBAL max_allowed_packet=67108864``).
-        output_dir: Directorio donde guardar el informe Excel.
+        output_dir: Directorio donde guardar el informe Excel (``str`` o ``Path``; se guarda como ``Path``).
         truncate_target: ``True`` (default) = limpiar tablas destino antes de cargar.
             Recomendado para volcados completos. ``False`` = modo append.
-        bulk_audit_path: Ruta del CSV de auditoría para los inserts en destino.
+        bulk_audit_path: Ruta (``str`` o ``Path``) del CSV de auditoría para los inserts en destino.
             ``None`` (default) = los inserts no se registran en auditoría.
         collect_row_counts: Si ``True`` (default), se ejecutan ``COUNT(*)`` sobre origen
             y destino por tabla para obtener la volumetría real. ``False`` los omite y
@@ -160,7 +160,8 @@ class DumpConfig:
     Raises:
         ValueError: Si ``chunk_size`` no es un entero ≥ 1, o si ``commit_every_n_chunks`` o ``write_batch_size`` no son
             ``None`` ni un entero ≥ 1, o si ``on_error``, ``rejects_csv_path`` y ``max_rejects`` no son una
-            combinación válida (las reglas de ``BulkCrud``). Se valida al construir, antes de tocar el destino.
+            combinación válida (las reglas de ``BulkCrud``), o si ``output_dir``, ``bulk_audit_path`` o
+            ``rejects_csv_path`` no son ``str`` ni ``Path``. Se valida al construir, antes de tocar el destino.
     """
 
     source_engine: Engine
@@ -169,9 +170,10 @@ class DumpConfig:
     target_schema: str | None = None
     tables: list[str] | None = None
     chunk_size: int = 5000
-    output_dir: Path = field(default_factory=Path)
+    # Rutas: aceptan str o Path y __post_init__ las deja como Path (v1.1.0).
+    output_dir: StrPath = field(default_factory=Path)
     truncate_target: bool = True
-    bulk_audit_path: Path | None = None
+    bulk_audit_path: StrPath | None = None
     collect_row_counts: bool = True
     sync_pk_sequences: bool = True
     commit_every_n_chunks: int | None = None
@@ -181,7 +183,7 @@ class DumpConfig:
     bulk_audit_strict: bool = False
     write_batch_size: int | None = None
     on_error: Literal["raise", "isolate"] = "raise"
-    rejects_csv_path: Path | None = None
+    rejects_csv_path: StrPath | None = None
     max_rejects: int | None = None
     audit_sink: AuditSink | None = None
 
@@ -191,6 +193,11 @@ class DumpConfig:
         # write_batch_size no se leía nada y la tabla quedaba vacía con estado "success".
         # Refactor v0.30.1: usa validador centralizado validate_batch_config().
         validate_batch_config(self.chunk_size, self.commit_every_n_chunks, self.write_batch_size)
+        # v1.1.0: con output_dir como str, run() cargaba los datos y fallaba al escribir el informe sin devolver el
+        # DumpResult; bulk_audit_path como str fallaba antes de cargar. Se normalizan aquí, antes de tocar el destino.
+        self.output_dir = validate_path(self.output_dir, "output_dir")
+        self.bulk_audit_path = validate_optional_path(self.bulk_audit_path, "bulk_audit_path")
+        self.rejects_csv_path = validate_optional_path(self.rejects_csv_path, "rejects_csv_path")
         validate_isolation(self.on_error, self.rejects_csv_path, self.max_rejects)
 
 

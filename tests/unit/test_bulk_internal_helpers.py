@@ -27,13 +27,21 @@ from util_bbdd.bulk._support.validation import build_update_plan, resolve_sql_ou
 from util_bbdd.bulk.audit import AuditManager
 
 
-def test_resolve_sql_output_path_requires_path_instance(tmp_path: Path) -> None:
+def test_resolve_sql_output_path_accepts_str_and_path_only(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="path_sql es obligatorio"):
         resolve_sql_output_path(None, table_name="users", operation="insert", generate_name=lambda *_: Path("x.sql"))
 
-    with pytest.raises(ValueError, match="instancia de Path"):
+    # v1.1.0: un str es una ruta válida; otro tipo sigue siendo ValueError.
+    assert (
         resolve_sql_output_path(
-            cast(Any, "invalid"),
+            "salida", table_name="users", operation="insert", generate_name=lambda *_: Path("x.sql")
+        )
+        == Path("salida") / "x.sql"
+    )
+
+    with pytest.raises(ValueError, match=r"ruta \(str o Path\)"):
+        resolve_sql_output_path(
+            cast(Any, 123),
             table_name="users",
             operation="insert",
             generate_name=lambda *_: Path("x.sql"),
