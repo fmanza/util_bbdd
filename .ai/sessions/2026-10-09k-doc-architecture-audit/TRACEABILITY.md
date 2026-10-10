@@ -82,10 +82,9 @@ Benchmark: Condicional
   desde el `java` del PATH). El DDL de tabla de HSQLDB falla en 2.7.4 (B-04, `metadata/ddl.py`).
 
 ## Veredicto final
-Veredicto: READY_FOR_RELEASE
+Veredicto: READY_FOR_RELEASE — cerrada como `v0.41.0` (`/version-closure`, 2026-10-10: `python -m build` correcto; tag y push autorizados por el usuario)
 Pendientes al cierre:
-- Tag `v0.41.0` y push (`/version-closure`); `.ai/CURRENT_STATE.md` refleja 0.41.0 sin tag.
-- B-04 (`metadata/ddl.py`, HSQLDB `LISTAGG`) → `/hotfix`.
+- Plan en `.ai/sessions/2026-10-09l-plan-pendientes-doc/PLAN_AUDIT_PLAN.md` (P1–P7, v0.41.1). B-04 (`metadata/ddl.py`, HSQLDB `LISTAGG`) → `/hotfix`.
 - S-02 (decodificación múltiple de entidades en el DDL de HTML), `mypy --strict` en renderers (81 errores),
   cobertura de `matplotlib_graph` (27 %), dorado de documentación de Oracle (schema no aislado).
 - Fuera de alcance: docstrings con `DatabaseConnectionError` (inexistente) en `managers/` y `factory/`; orden de

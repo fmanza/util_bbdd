@@ -2,7 +2,7 @@
 
 **Generado**: 2026-06-05 (cabecera, «Próximos pasos» y tests actualizados el 2026-10-09 al cerrar `drivers-connections-audit`)  
 **Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.39.1` (la tabla de abajo no recoge todas las versiones intermedias: el detalle está en el CHANGELOG)  
-**Versión**: `v0.41.0` en `develop` (2026-10-09, **sin tag**: pendiente de `/version-closure`). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`, `v0.40.3`  
+**Versión**: `v0.41.0` (2026-10-09). Últimos tags: `v0.35.5` a `v0.35.11`, `v0.36.0`, `v0.36.1`, `v0.37.0`, `v0.38.0`, `v0.39.0` a `v0.39.3`, `v0.40.0`, `v0.40.1`, `v0.40.2`, `v0.40.3`, `v0.41.0`  
 **Rama activa**: `develop`
 
 ---
@@ -53,12 +53,14 @@
 | `v0.37.0` | Liberado 2026-10-09 — validación única de `conn_params` desde las configs; **`AsyncDatabaseManager` lanza `ValidationError`** como el sync; `schema` por defecto (`public`/`dbo`/`PUBLIC`) en todos los caminos (B1; incompatible) | ✅ |
 | `v0.38.0` | Liberado 2026-10-09 — `catalog_charset_mode` (`auto`/`native`/`convert`) en MariaDB/MySQL (CS) | ✅ |
 | `v0.39.0`–`v0.39.1` | Liberados 2026-10-09 — **TLS en MariaDB** (`ssl`, `ssl_ca`, `ssl_cert`, `ssl_key`, `ssl_verify_cert`) en sync, async, pools y Engine (B2); hotfix F1/F2 de la FASE 5. Decisiones en ADR-005; auditoría `drivers-connections-audit` cerrada | ✅ |
+| `v0.40.0`–`v0.40.3` | Liberados 2026-10-09 — URL de los Engine sync/async con la misma semántica; hotfixes de `EngineReadinessAdvisor`, `init_command` y reset del pool MariaDB | ✅ |
+| `v0.41.0` | Liberado 2026-10-09 — auditoría de `doc/` + `analysis/`: diagramas Graphviz por lotes (HTML 12,6×), un generador por documentación, inventario de almacenamiento declarativo, **API de `util_bbdd.doc` reducida** (`DatabaseDocumentation` + `DocumentationResult`, errores propios) | ✅ |
 | Zenical | Hecho — `migrate/zenical-pure` fusionada (PR #19, `c6d765a8`); `zensical` 0.0.44 es el generador del CI y lee `mkdocs.yml` (no se usa `zensical.toml`) | ✅ |
 
 PR #18 (`MySQLVariableValidator`): su código (`9a71e056`) está en `main` y `develop`; el estado de la PR en GitHub no se ha comprobado (sin `gh`) — cerrarla si sigue abierta.  
 PR #19 (`migrate/zenical-pure`): fusionada.  
 
-**Tests actuales** (v0.39.1, 2026-10-09): 5397 passed, 497 skipped; `tests/integration` 552 passed, 10 skipped en 5 servidores; mypy sin errores (332 ficheros). Medición anterior: 5049 passed, 496 skipped con `pytest` completo sin URLs de servidor y el entorno de referencia `pip install -e ".[dev,docs]"` (v0.31.0, 2026-10-04); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 551 passed, 10 skipped en 5 servidores (menos que en v0.30.0: se retiraron los tests de los módulos eliminados). mypy sin errores (320 ficheros). Sin las dependencias del extra `dev` los recuentos bajan (módulos que se saltan enteros) y `tests/conftest.py` lo avisa: ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`.
+**Tests actuales** (v0.41.0, 2026-10-09): 5476 passed, 507 skipped; `tests/integration` 564 passed, 8 skipped (5 servidores + HSQLDB con `JAVA_HOME`); mypy sin errores (331 ficheros). Anterior (v0.39.1): 5397 passed, 497 skipped; integración 552 passed. Medición anterior: 5049 passed, 496 skipped con `pytest` completo sin URLs de servidor y el entorno de referencia `pip install -e ".[dev,docs]"` (v0.31.0, 2026-10-04); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 551 passed, 10 skipped en 5 servidores (menos que en v0.30.0: se retiraron los tests de los módulos eliminados). mypy sin errores (320 ficheros). Sin las dependencias del extra `dev` los recuentos bajan (módulos que se saltan enteros) y `tests/conftest.py` lo avisa: ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`.
 
 ---
 
@@ -91,7 +93,7 @@ mismo `mkdocs.yml`; el CI publica con Zensical. Ver `ZENICAL.md`.
 
 ## Próximos pasos
 
-00000000. `v0.41.0` (2026-10-09, sin tag): **documentation-architecture-audit de `doc/` + `analysis/`** (`.ai/sessions/2026-10-09k-doc-architecture-audit/`): diagramas Graphviz por lotes (`GraphvizRelationshipGraphExt.prefetch`, `dot -O`; HTML con diagramas 75,7 s → 6,0 s con 120 tablas), un generador de grafos por documentación (el .docx ya no depende de los demás formatos), inventario de almacenamiento declarativo por motor (SQL Server sin aviso falso), API `util_bbdd.doc` = `DatabaseDocumentation` + `DocumentationResult` con `DocumentationConfigError`/`DocumentationRenderError` (rompe API). Pendientes: tag, B-04 (`metadata/ddl.py`: DDL de HSQLDB con `LISTAGG`), S-02.
+00000000. `v0.41.0` (2026-10-09): **documentation-architecture-audit de `doc/` + `analysis/`** (`.ai/sessions/2026-10-09k-doc-architecture-audit/`): diagramas Graphviz por lotes (`GraphvizRelationshipGraphExt.prefetch`, `dot -O`; HTML con diagramas 75,7 s → 6,0 s con 120 tablas), un generador de grafos por documentación (el .docx ya no depende de los demás formatos), inventario de almacenamiento declarativo por motor (SQL Server sin aviso falso), API `util_bbdd.doc` = `DatabaseDocumentation` + `DocumentationResult` con `DocumentationConfigError`/`DocumentationRenderError` (rompe API). Pendientes en `.ai/sessions/2026-10-09l-plan-pendientes-doc/` (P1–P7, v0.41.1).
 0000000. `v0.40.3` (2026-10-09): **hotfix reset del pool MariaDB** (`.ai/sessions/2026-10-09j-hotfix-pool-reset/`): el pool nativo reaplica `init_command` en cada `get_connection()`; el reset de sesión de `mariadb.ConnectionPool` lo deshacía y, con el servidor en `latin1`, el catálogo fallaba con `SystemError … fetchrows`.
 000000. `v0.40.2` (2026-10-09): **hotfix `init_command`** (`.ai/sessions/2026-10-09i-hotfix-init-command/`): `init_command` de MariaDB con varias sentencias da `ValidationError` (antes, error de sintaxis del servidor sin nombrar el parámetro); `DatabaseConfigurationError` del manager sync con `db_type` correcto.
 00000. `v0.40.1` (2026-10-09): **hotfix tras `/audit-code` de un log de `pruebas_util`** (`.ai/sessions/2026-10-09h-hotfix-advisor-dispose/`): el informe de `EngineReadinessAdvisor` no presenta valores por defecto como leídos (H1); sin cierre de conexiones del Engine sync en la finalización del intérprete (H2). H3 log DEBUG de inicio en cada operación de `bulk`. Tests: 5433 passed, 507 skipped; mypy sin errores (332 ficheros).
