@@ -6,15 +6,15 @@ Genera las sentencias `ALTER TABLE ... AUTO_INCREMENT = MAX + 1` de un esquema M
 
 ```mermaid
 flowchart TD
-    A["Engine (SQLAlchemy)<br/>dialecto mysql / mariadb"] -->|inspect| B["UpdateAutoIncrement"]
-    B -->|get_table_names / get_columns| C["Catálogo del servidor"]
-    C -->|columna autoincrement| B
+    A["Engine (SQLAlchemy)<br/>dialecto mysql / mariadb"] --> B["UpdateAutoIncrement"]
+    B -->|"CatalogSource.snapshot(kinds=TABLES, COLUMNS)"| C["Catálogo del servidor"]
+    C -->|columna identity| B
     B -->|"SELECT MAX(columna)"| D["Tablas con AUTO_INCREMENT"]
     D -->|máximo| B
     B -->|salida_sql| E["list[str]<br/>ALTER TABLE ... AUTO_INCREMENT = n;"]
 ```
 
-Se importa como `from util_bbdd.bulk import UpdateAutoIncrement` (desde la sesión de centralización de metadatos; antes `util_bbdd.connection.mariadb`). Recibe el `Engine` por parámetro y lee tablas y columnas `AUTO_INCREMENT` del catálogo de `metadata/` con una consulta por tipo de objeto para todo el schema (ADR-003); solo el `MAX` de cada tabla se consulta tabla a tabla. Incluye las tablas MariaDB con `SYSTEM VERSIONING`.
+Se importa como `from util_bbdd.bulk import UpdateAutoIncrement` (desde v0.31.0; antes `util_bbdd.connection.mariadb`). Recibe el `Engine` por parámetro y lee tablas y columnas `AUTO_INCREMENT` del catálogo de `metadata/` con una consulta por tipo de objeto para todo el schema (ADR-003); solo el `MAX` de cada tabla se consulta tabla a tabla. Incluye las tablas MariaDB con `SYSTEM VERSIONING`.
 
 ## 2. Modelo de Datos / Contratos
 
@@ -51,7 +51,7 @@ Se importa como `from util_bbdd.bulk import UpdateAutoIncrement` (desde la sesi�
 | Tabla sin `AUTO_INCREMENT` | Se omite sin aviso |
 | `AUTO_INCREMENT` sobre tipo no entero (`FLOAT`, `DOUBLE`) | Se omite con `WARNING` en el log |
 
-> **Cambio de firma respecto a la versión anterior.** El constructor ya no recibe el `dict` de configuración, sino un `Engine`: `UpdateAutoIncrement(conf)` pasa a `UpdateAutoIncrement(SQLAlchemyEngineFactory.create_engine(db_type, conf, database))`.
+> **Cambio de firma respecto a la versión anterior.** El constructor ya no recibe el `dict` de configuración, sino un `Engine`: `UpdateAutoIncrement(conf)` pasa a `UpdateAutoIncrement(SQLAlchemyEngineFactory.create_engine(db_type, conf, database))` (`SQLAlchemyEngineFactory` se importa de `util_bbdd.factory`).
 
 ## 3. Componentes y Clases
 

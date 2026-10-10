@@ -1,12 +1,16 @@
-# Sistema de Validadores (DatabaseTypeValidator)
+# Sistema de Validadores (QueryParameterValidator)
 
-Define la interfaz abstracta `DatabaseTypeValidator` que todos los validadores de motor deben implementar, y expone `get_type_validator(db_type)` como punto de entrada para obtener el validador concreto de cada motor.
+Define la interfaz abstracta `QueryParameterValidator` que todos los validadores de parámetros de query deben implementar, y expone `get_type_validator(db_type)` como punto de entrada para obtener el validador concreto de cada motor. Se importan de `util_bbdd.validators`; `QueryResolver` los usa al resolver una query con nombre.
+
+!!! note "No confundir con `DatabaseTypeValidator`"
+    Hasta 2026-09-22 esta clase base se llamaba `DatabaseTypeValidator`; se renombró porque colisionaba con
+    `_drivers.validator.DatabaseTypeValidator`, que valida si un `db_type` está soportado (no parámetros de query).
 
 ## 1. Arquitectura y Diseño
 
 ```mermaid
 classDiagram
-    class DatabaseTypeValidator {
+    class QueryParameterValidator {
         <<abstract>>
         +db_type: str
         +validate_parameters(query_def, params) tuple[bool, list[str]]
@@ -35,19 +39,23 @@ classDiagram
         +db_type = "sqlserver"
         +validate_parameters(query_def, params)
     }
-    DatabaseTypeValidator <|-- MariaDBValidator
-    DatabaseTypeValidator <|-- OracleValidator
-    DatabaseTypeValidator <|-- PostgreSQLValidator
-    DatabaseTypeValidator <|-- SQLiteValidator
-    DatabaseTypeValidator <|-- HSQLDBValidator
-    DatabaseTypeValidator <|-- SQLServerValidator
+    class MySQLValidator {
+        +db_type = "mysql"
+    }
+    MariaDBValidator <|-- MySQLValidator
+    QueryParameterValidator <|-- MariaDBValidator
+    QueryParameterValidator <|-- OracleValidator
+    QueryParameterValidator <|-- PostgreSQLValidator
+    QueryParameterValidator <|-- SQLiteValidator
+    QueryParameterValidator <|-- HSQLDBValidator
+    QueryParameterValidator <|-- SQLServerValidator
 ```
 
 ## 2. Modelo de Datos / Contratos
 
 ### API pública
 
-#### Clase abstracta `DatabaseTypeValidator`
+#### Clase abstracta `QueryParameterValidator`
 
 | Elemento | Tipo | Descripción |
 |---|---|---|
@@ -58,7 +66,7 @@ classDiagram
 
 | Función | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `get_type_validator` | `(db_type)` | Obtiene el validador concreto para el motor | `DatabaseTypeValidator` |
+| `get_type_validator` | `(db_type)` | Obtiene el validador concreto para el motor (sin distinguir mayúsculas; una instancia cacheada por motor) | `QueryParameterValidator` |
 
 ### Contrato de entrada
 
@@ -80,7 +88,7 @@ classDiagram
 
 | Error | Cuándo ocurre |
 |---|---|
-| `KeyError` / `ValueError` | `get_type_validator` con `db_type` no registrado |
+| `ValueError` | `get_type_validator` con `db_type` no registrado (el mensaje lista los 7 soportados) |
 | `TypeError` | Subclase sin implementar `validate_parameters` al instanciarla |
 
 **Contrato crítico:** está prohibido lanzar excepciones dentro de `validate_parameters`. Los errores deben retornarse como `(False, [mensaje])`. Una excepción no controlada en un validador rompe el `QueryResolver`.
@@ -89,8 +97,9 @@ classDiagram
 
 | Clase | Responsabilidad |
 |---|---|
-| `DatabaseTypeValidator` | Interfaz abstracta; contrato para todos los validadores |
+| `QueryParameterValidator` | Interfaz abstracta; contrato para todos los validadores |
 | `MariaDBValidator` | Reglas de validación específicas para MariaDB |
+| `MySQLValidator` | Las de MariaDB (subclase) |
 | `OracleValidator` | Reglas de validación específicas para Oracle |
 | `PostgreSQLValidator` | Reglas de validación específicas para PostgreSQL |
 | `SQLiteValidator` | Reglas de validación específicas para SQLite |
@@ -105,5 +114,4 @@ classDiagram
 
 ## 5. Ejemplos Relacionados
 
-!!! info "Ejemplo en preparación"
-    Pendiente — crear ejemplo en docs/examples/validators_system.md
+- [Ejemplo: Patrón de Validadores](../examples/validators_pattern.md) — `get_type_validator`, casos válido, inválido y con avisos, motor no soportado y caché de instancias

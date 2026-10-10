@@ -37,21 +37,22 @@ flowchart TD
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
 | `generate_single_table_graph_ext` | `(table_name, output_file, format, ...)` | Grafo de una tabla → archivo en disco | `Path` |
-| `generate_all_tables_graphs_ext` | `(output_dir, format, skip_without_relations, ...)` | Grafos de todas las tablas → batch | `dict[str, dict]` |
+| `generate_all_tables_graphs_ext` | `(output_dir=None, format="png", skip_tables_without_relations=True, max_subnodes=10, ...)` | Grafos de todas las tablas → batch | `dict[str, dict]` |
 | `pipe_single_table_graph_ext` | `(table_name, format, ...)` | Grafo en memoria → bytes (sin I/O) | `bytes` |
 | `generate_graphviz_graph_paginated_ext` | `(table_name, output_dir, max_subnodes, ...)` | Grafos paginados → archivos | `list[Path]` |
-| `pipe_level_graphs_ext` / `pipe_paginated_graph_ext` | `(table_name, format, ...)` | Grafos por nivel / paginados en memoria | `dict` / `list[bytes]` |
+| `pipe_level_graphs_ext` / `pipe_paginated_graph_ext` | `(table_name, format, ...)` | Grafos por nivel (`summary`, `outgoing`, `incoming`) / paginados en memoria | `dict[str, Any]` / `list[bytes]` |
 | `prefetch` | `(render, table_names)` | Construye los grafos que `render(tabla)` va a pedir y los renderiza por lotes (`dot -O`, `render_workers` procesos a la vez); las llamadas `pipe_*` posteriores con los mismos argumentos recogen el resultado | `int` (grafos renderizados) |
 
 Constructor: además de las opciones de dibujo, `render_workers` (por defecto los núcleos, hasta 8) fija cuántos procesos
 `dot` lanza `prefetch` a la vez. Casi todo el coste de `dot` es arrancar (~0,25 s por proceso frente a ~0,01 s por
-grafo): con 120 tablas, la documentación HTML con diagramas pasó de 75,7 s a 6,2 s al renderizar por lotes.
+grafo): con 120 tablas, la documentación HTML con diagramas pasó de 75,7 s a 6,2 s al renderizar por lotes (medido en
+la sesión `2026-10-09k-doc-architecture-audit`; CHANGELOG 0.41.0).
 
 ```python
 gen = GraphvizRelationshipGraphExt(manager, max_depth=2, render_workers=4)
 render = lambda tabla: gen.pipe_level_graphs_ext(table_name=tabla, format="svg")
 gen.prefetch(render, ["clientes", "pedidos", "lineas"])  # 1 lote por proceso dot
-svg = gen.pipe_level_graphs_ext(table_name="pedidos", format="svg")  # ya renderizado
+grafos = gen.pipe_level_graphs_ext(table_name="pedidos", format="svg")  # ya renderizado: dict por nivel
 ```
 
 #### Clase `MatplotlibRelationshipGraph`
@@ -59,21 +60,21 @@ svg = gen.pipe_level_graphs_ext(table_name="pedidos", format="svg")  # ya render
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
 | `generate_matplotlib_graph_paginated` | `(table_name, output_dir, format, max_subnodes, ...)` | Grafos paginados → archivos | `list[Path]` |
-| `generate_all_tables_graphs` | `(output_dir, format, skip_without_relations, ...)` | Grafos de todas las tablas | `dict[str, dict]` |
+| `generate_all_tables_graphs` | `(output_dir=None, format="png", skip_tables_without_relations=True, max_subnodes=10, ...)` | Grafos de todas las tablas | `dict[str, dict]` |
 
 ### Contrato de entrada
 
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
 | `db_manager` | `RelationshipGraphSource` | Fuente de metadatos, normalmente un `SyncDatabaseManager` con conexión activa | Debe cumplir el contrato de abajo; no soporta `AsyncDatabaseManager` |
-| `max_depth` | `int` | Profundidad máxima de relaciones FK | Valores > 3 pueden generar grafos ilegibles |
+| `max_depth` | `int` | Profundidad máxima de relaciones FK | Default `1`; valores > 3 pueden generar grafos ilegibles |
 | `direction` | `LevelDirection` | `OUTGOING`, `INCOMING` o `BOTH` | Filtra el sentido de las relaciones |
 | `output_file` | `Path` | Fichero de salida SVG o PNG | La extensión determina el formato |
 | `format` | `str` | Formato de imagen | `"svg"`, `"png"`, u otros formatos Graphviz/Matplotlib |
 
 #### Protocol `RelationshipGraphSource`
 
-Lo que `analysis/` exige de `db_manager`; se importa de `util_bbdd.analysis`. `analysis/` no importa `managers/` (Regla #6): `SyncDatabaseManager` y el adaptador de `doc/` lo cumplen de forma estructural. Los parámetros son posicionales.
+Lo que `analysis/` exige de `db_manager`; se importa de `util_bbdd.analysis`. `analysis/` no importa `managers/` (Regla #6): `SyncDatabaseManager` y el adaptador de `doc/` lo cumplen de forma estructural. En `get_schema_metadata`, `kinds` va solo por nombre.
 
 | Miembro | Firma | Descripción |
 |---|---|---|
@@ -109,7 +110,7 @@ Lo que `analysis/` exige de `db_manager`; se importa de `util_bbdd.analysis`. `a
 
 | Dependencia | Propósito | Requerida | Comportamiento sin ella |
 |---|---|---|---|
-| `graphviz` (Python) + binarios `dot` | Renderización Graphviz | Solo para `GraphvizRelationshipGraphExt` | `DocumentationRenderError` al generar |
+| `graphviz` (Python) + binarios `dot` | Renderización Graphviz | Solo para `GraphvizRelationshipGraphExt` | `ImportError` al instanciar (sin el paquete); `graphviz.ExecutableNotFound` al renderizar (sin `dot`) |
 | `matplotlib` + `networkx` | Renderización Matplotlib | Solo para `MatplotlibRelationshipGraph` | `ImportError` al instanciar la clase (el módulo se importa igual) |
 | Extra `util_bbdd[analysis]` | Instala `graphviz` (Python) | Sí para `GraphvizRelationshipGraphExt` | Dependencias no disponibles |
 | Extra `util_bbdd[analysis-matplotlib]` | Instala `matplotlib` y `networkx` | Solo para `MatplotlibRelationshipGraph` | Dependencias no disponibles |

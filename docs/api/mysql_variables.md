@@ -6,26 +6,31 @@ Proporciona validación read-only de variables críticas MySQL/MariaDB antes de 
 
 ```mermaid
 flowchart TD
-    A["BulkCrud.__init__()"] -->|motor mysql/mariadb| B["MySQLVariableValidator"]
-    B -->|SHOW VARIABLES| C["MySQL/MariaDB SERVER"]
+    A["BulkCrud.__init__()"] -->|una vez por engine| P["EngineReadinessAdvisor.report_once"]
+    P -->|motor mysql/mariadb| B["MySQLVariableValidator"]
+    B -->|SHOW VARIABLES LIKE …| C["MySQL/MariaDB"]
     C -->|max_allowed_packet\ninnodb_buffer_pool_size| B
     B -->|read_variables| D["dict de valores actuales"]
-    B -->|validate| E["MySQLOptimalConfig.suggest"]
-    E -->|RECOMENDADO| F["Log INFO/WARNING"]
-    F -->|stdout/logs| G["Aplicación"]
+    B -->|validate required| E["dict variable → bool"]
+    S["MySQLOptimalConfig.suggest(num_rows)"] -->|valores mínimos| E
+    E --> F["Log INFO/WARNING"]
 ```
 
 ## 2. Modelo de Datos / Contratos
 
 ### API pública
 
+Ambas clases se importan de `util_bbdd.connection.mariadb` (válidas para MariaDB y MySQL).
+
 #### Clase `MySQLVariableValidator`
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `MySQLVariableValidator` | `(connection)` | Inicializa con conexión SQLAlchemy | `MySQLVariableValidator` |
-| `read_variables` | `()` | Lee variables críticas del servidor | `dict[str, int]` (bytes) |
+| `MySQLVariableValidator` | `(connection)` | Inicializa con una `Connection` de SQLAlchemy | `MySQLVariableValidator` |
+| `read_variables` | `()` | Lee `max_allowed_packet` e `innodb_buffer_pool_size` | `dict[str, int]` (bytes) |
 | `validate` | `(required: dict[str, int])` | Valida que valores actuales ≥ requeridos | `dict[str, bool]` |
+| `log_summary` | `(required=None)` | INFO con los valores actuales y, con `required`, WARNING de los insuficientes | `None` |
+| `format_bytes` | `(size_bytes)` | `"64.0 MB"`, `"1.0 GB"`… | `str` |
 
 #### Dataclass `MySQLOptimalConfig`
 
@@ -34,7 +39,7 @@ flowchart TD
 | `dev` | `()` *(estático)* | Config para desarrollo (< 50K filas) | `MySQLOptimalConfig` |
 | `production` | `()` *(estático)* | Config para producción (100K–1M filas) | `MySQLOptimalConfig` |
 | `high_volume` | `()` *(estático)* | Config para alto volumen (> 1M filas) | `MySQLOptimalConfig` |
-| `suggest` | `(num_rows, avg_row_bytes?)` *(estático)* | Sugiere config óptima según tamaño de dataset | `MySQLOptimalConfig` |
+| `suggest` | `(num_rows, avg_row_bytes=2000)` *(estático)* | Sugiere config óptima según tamaño de dataset | `MySQLOptimalConfig` |
 | `innodb_buffer_pool_size` | `int` | Bytes recomendados de InnoDB buffer pool | — |
 | `max_allowed_packet` | `int` | Bytes recomendados de max_allowed_packet | — |
 
@@ -57,8 +62,9 @@ flowchart TD
 | Error / Situación | Cuándo ocurre |
 |---|---|
 | `ValueError` | `connection=None` al crear el validador |
-| Variable no encontrada | DEBUG log; se omite del resultado sin error |
-| Permisos insuficientes en `INFORMATION_SCHEMA` | WARNING log; variable omitida del resultado |
+| Variable no encontrada | DEBUG log; se omite de `read_variables` sin error |
+| Valor no entero o error de SQLAlchemy al leerla | WARNING log; se omite de `read_variables` |
+| Variable requerida que no se pudo leer | `validate` la da como `False` (WARNING) |
 
 ## 3. Componentes y Clases
 
@@ -72,7 +78,7 @@ flowchart TD
 | Dependencia | Propósito | Requerida | Comportamiento sin ella |
 |---|---|---|---|
 | `sqlalchemy` | Conexión para ejecutar `SHOW VARIABLES` | Sí | Módulo no funciona |
-| Permisos sobre `INFORMATION_SCHEMA` | Leer variables del servidor | Sí (lectura) | WARNING en log; variables omitidas del resultado |
+| Ningún privilegio especial | `SHOW VARIABLES` lo puede ejecutar cualquier usuario conectado | — | — |
 
 ## 5. Ejemplos Relacionados
 

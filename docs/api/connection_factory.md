@@ -7,7 +7,7 @@ Factory centralizado para crear conexiones nativas sync y async según el tipo d
 ```mermaid
 flowchart TD
     A[Manager solicita conexión] --> B{Tipo de conexión}
-    B -->|sync| C[create_sync_connection]
+    B -->|sync| C[create_connection]
     B -->|async| D[create_async_connection]
     C --> E[Builder sync del driver]
     D --> F{Builder async registrado?}
@@ -30,30 +30,31 @@ flowchart TD
 
 | Función/Clase | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `ConnectionFactory` | — | Factory de solo métodos estáticos; no se instancia | — |
+| `ConnectionFactory` | — | Factory de solo métodos estáticos; no se instancia. Se importa de `util_bbdd.factory` (o `util_bbdd.connection`) | — |
 | `register_async_connection` | `(db_type, builder)` *(estático)* | Registra builder async para un motor | `None` |
 | `create_async_connection` | `async (db_type, conn_params, **kwargs)` *(estático)* | Crea conexión async con lazy loading | `Any` |
-| `create_sync_connection` | `(db_type, conn_params, **kwargs)` *(estático)* | Crea conexión sync nativa del motor | `Any` |
+| `create_connection` | `(db_type, conn_params, db_validator=None, sql_server_driver="pymssql", found_rows=False)` *(estático)* | Crea conexión sync nativa del motor. `sql_server_driver`: `"pymssql"` o `"pyodbc"` (los managers pasan el suyo); `found_rows`: `CLIENT.FOUND_ROWS` en MariaDB/MySQL | `Any` |
 
 ### Contrato de entrada
 
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
 | `db_type` | `str` | Tipo de motor | Se normaliza a minúsculas |
-| `conn_params` | `dict[str, Any]` | Parámetros de conexión nativos del driver | Estructura específica por motor |
+| `conn_params` | `dict[str, Any]` | Parámetros de conexión ya filtrados para el motor | Estructura específica por motor ([guía de conexión](../guides/connection_guide.md)) |
 | `builder` | `Callable[..., Any]` | Callable que recibe `conn_params` y retorna conexión o corrutina | Puede ser sync o async; `ConnectionFactory` detecta y adapta |
 
 ### Contrato de salida
 
 - **`create_async_connection`** — conexión async del driver (`asyncpg.Connection`, `aiomysql.Connection`, etc.); tipo opaco.
-- **`create_sync_connection`** — conexión sync del driver (`pyodbc.Connection`, etc.); tipo opaco.
+- **`create_connection`** — conexión sync del driver (`sqlite3.Connection`, `pyodbc.Connection`, etc.); tipo opaco.
 - **`register_async_connection`** — `None`; efecto secundario: registra el builder en el dict de clase compartido.
 
 ### Errores y casos especiales
 
 | Error | Cuándo ocurre |
 |---|---|
-| `NotImplementedError` | Motor sin soporte async declarado |
+| `InvalidDatabaseType` | `create_connection` con un `db_type` no soportado |
+| `NotImplementedError` | `create_async_connection` con un motor sin soporte async (HSQLDB) |
 | `ValueError` | Builder async no disponible y motor declarado como async soportado |
 | `ConnectionError` | Builder falla al crear la conexión (credenciales, servidor no alcanzable) |
 
@@ -88,5 +89,25 @@ para más detalles.
 
 ## 5. Ejemplos Relacionados
 
-!!! info "Ejemplo en preparación"
-    Pendiente — crear ejemplo en docs/examples/connection_factory.md
+Los managers usan la factoría internamente; llamarla directamente solo tiene sentido para obtener una conexión nativa
+sin pool:
+
+```python
+import asyncio
+
+from util_bbdd.factory import ConnectionFactory
+
+conn = ConnectionFactory.create_connection("sqlite", {"database": ":memory:"})
+print(conn.execute("SELECT 1").fetchone())  # (1,)
+conn.close()
+
+
+async def main() -> None:
+    aconn = await ConnectionFactory.create_async_connection("sqlite", {"database": ":memory:"})
+    cursor = await aconn.execute("SELECT 2")
+    print(await cursor.fetchone())  # (2,)
+    await aconn.close()
+
+
+asyncio.run(main())
+```

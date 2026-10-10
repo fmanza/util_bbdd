@@ -13,8 +13,7 @@ from util_bbdd.exceptions import DatabaseException, QueryNotFoundError
 DatabaseException
 ├── ConnectionError
 │   ├── PoolConnectionError
-│   │   ├── PoolExhaustedError
-│   │   └── (otras subclases de pool)
+│   │   └── PoolExhaustedError
 │   └── PoolTimeoutError
 ├── QueryError
 │   ├── QueryTimeoutError
@@ -34,13 +33,13 @@ DatabaseException
 │   ├── DriverNotFoundError
 │   └── DriverConfigurationError
 ├── DatabaseOperationError
-│   └── DatabaseConfigurationError
+├── DatabaseConfigurationError
 ├── ComparerError
 │   ├── SchemaDiffValidationError
 │   ├── MetadataIntrospectionError
 │   └── DiffReportGenerationError
 ├── DocumentationError
-│   ├── DocumentationConfigError
+│   ├── DocumentationConfigError    (también ValueError)
 │   └── DocumentationRenderError
 ├── DumpError
 │   ├── DumpConstraintError
@@ -54,12 +53,12 @@ DatabaseException
 ```
 
 !!! note "Auditoría de bulk (v0.18.0)"
-    `AuditError` y sus subclases se importan igual que antes (`util_bbdd.bulk`, `util_bbdd.bulk.audit`) y también desde
-    `util_bbdd`. Como ahora heredan de `DatabaseException`, un `except DatabaseException` alrededor de operaciones bulk
+    `AuditError` y sus subclases se importan de `util_bbdd.exceptions` (también `AuditError` de `util_bbdd.bulk`); desde
+    1.0.0 ya no de la raíz `util_bbdd`. Como heredan de `DatabaseException`, un `except DatabaseException` alrededor de operaciones bulk
     captura también los errores de auditoría (solo se lanzan al configurar o leer el CSV y, con `audit_strict=True`, al
     no poder escribirlo).
 
-    Desde la sesión 2026-10-02c los lanza el módulo común [`util_bbdd.audit`](audit.md); la jerarquía y los imports no
+    Desde v0.29.0 los lanza el módulo común [`util_bbdd.audit`](audit.md); la jerarquía y los imports no
     cambian. Con `audit_strict=True`, un fallo de un `audit_sink` llega como `OSError` o `AuditError`; cualquier otra excepción del destino se envuelve en `AuditError`.
 
 !!! tip "Capturar errores genéricamente"

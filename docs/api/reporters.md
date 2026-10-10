@@ -36,8 +36,8 @@ Mermaid paginados.
 
 ## SqlDiffReporter
 
-Script SQL de nivelación dialect-específico (7 dialectos: sqlite, postgresql,
-mariadb, mysql, oracle, mssql, hsqldb).
+Script SQL de nivelación por dialecto: `generic`, `mariadb`, `mysql`, `postgresql`,
+`sqlserver`, `oracle` y `sqlite` (otro valor lanza `SchemaDiffValidationError`).
 
 ::: util_bbdd.comparar.reporters.sql_reporter.SqlDiffReporter
     options:

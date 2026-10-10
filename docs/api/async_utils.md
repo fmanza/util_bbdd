@@ -59,8 +59,9 @@ El helper resuelve la heterogeneidad de los drivers sync/async sin obligar al ll
 `maybe_await` se emplea en las capas asíncronas que consumen drivers cuyo retorno puede ser
 síncrono o awaitable según el motor y la operación:
 
-- `managers/async_mgr.py` y `managers/_manager_lifecycle.py`
+- `managers/async_mgr.py`, `managers/_manager_lifecycle.py` y `managers/_catalog_executor.py`
 - `executors/async_query_executor.py`
+- `metadata/_charset_detection.py`
 - Pools async por motor: `connection/{mariadb,postgresql,oracle,sqlserver}/async_pool_connection_*.py`
 
 ```python

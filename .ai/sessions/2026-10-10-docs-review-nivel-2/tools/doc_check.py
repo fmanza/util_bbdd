@@ -159,10 +159,18 @@ def main() -> int:
     problems = 0
     unparsed = 0
     n_incl = 0
+    n_allowed = 0
+    allow_file = Path(__file__).with_name("doc_check_allow.txt")
+    allow = {
+        ln.strip() for ln in allow_file.read_text(encoding="utf-8").splitlines() if ln.strip() and ln[0] != "#"
+    }
     from util_bbdd import AsyncDatabaseManager, SyncDatabaseManager
 
     for f in lst:
         p = Path(f)
+        if not p.exists():
+            out_lines.append(f"{f}: (borrada o movida; se omite)")
+            continue
         text = p.read_text(encoding="utf-8")
         for start, lang, body in blocks(text):
             if lang not in CODE_LANGS:
@@ -197,6 +205,9 @@ def main() -> int:
             for mod, names in imports:
                 n_imp += 1
                 for e in check_import(mod, names):
+                    if f"{f}:{start}" in allow:
+                        n_allowed += 1
+                        continue
                     problems += 1
                     out_lines.append(f"{f_report}:{start}: IMPORT {e}")
             for var, attr, ln in access:
@@ -217,7 +228,7 @@ def main() -> int:
                         out_lines.append(f"{f_report}:{start + k}: METODO {m.group(1)}.{a} no existe en los managers")
     out_lines.append(
         f"páginas: {len(lst)}; inclusiones .py: {n_incl}; imports comprobados: {n_imp}; accesos a métodos: {n_meth}; "
-        f"bloques no parseables con util_bbdd: {unparsed}; problemas: {problems}"
+        f"bloques no parseables con util_bbdd: {unparsed}; excepciones registradas: {n_allowed}; problemas: {problems}"
     )
     report = "\n".join(out_lines)
     print(report)

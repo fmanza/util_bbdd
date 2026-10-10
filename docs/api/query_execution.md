@@ -33,18 +33,18 @@ sequenceDiagram
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `execute_query_many` | `(query_name, db_type, params, timeout)` | Query registrada → múltiples filas | `Rows` |
-| `execute_query_one` | `(query_name, db_type, params, timeout)` | Query registrada → una fila o `None` | `RowOrNone` |
-| `execute_custom_many` | `(sql, params, timeout)` | SQL libre → múltiples filas | `Rows` |
-| `execute_custom_one` | `(sql, params, timeout)` | SQL libre → una fila o `None` | `RowOrNone` |
+| `execute_query_many` | `(query_name, db_type, params, timeout=None)` | Query registrada → múltiples filas | `Rows` |
+| `execute_query_one` | `(query_name, db_type, params, timeout=None)` | Query registrada → una fila o `None` | `RowOrNone` |
+| `execute_custom_many` | `(sql, params=None, timeout=None)` | SQL libre → múltiples filas | `Rows` |
+| `execute_custom_one` | `(sql, params=None, timeout=None)` | SQL libre → una fila o `None` | `RowOrNone` |
 
 #### AsyncQueryExecutor
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `execute_query_many` | `async (query_name, db_type, params, deadline_seconds)` | Query registrada async → múltiples filas | `Rows` |
-| `execute_custom_many` | `async (sql, params, deadline_seconds)` | SQL libre async → múltiples filas | `Rows` |
-| `execute_custom_one` | `async (sql, params, deadline_seconds)` | SQL libre async → una fila o `None` | `RowOrNone` |
+| `execute_query_many` / `execute_query_one` | `async (query_name, db_type, params=None, deadline_seconds=None)` | Query registrada async → múltiples filas / una fila o `None` | `Rows` / `RowOrNone` |
+| `execute_custom_many` | `async (sql, params=None, deadline_seconds=None)` | SQL libre async → múltiples filas | `Rows` |
+| `execute_custom_one` | `async (sql, params=None, deadline_seconds=None)` | SQL libre async → una fila o `None` | `RowOrNone` |
 
 #### ResultNormalizer
 
@@ -62,13 +62,17 @@ sequenceDiagram
 | `connection_provider` | `Callable[[], Any]` | Devuelve una conexión activa | Requerido |
 | `connection_releaser` | `Callable[[Any], None]` | Libera la conexión | Requerido |
 | `registry` | `QueryRegistry \| None` | Registro de queries nombradas | Crea uno por defecto si `None` |
+| `resolver` | `QueryResolver \| None` | Resolución del SQL de las queries nombradas | Crea uno sobre `registry` si `None` |
+
+En `AsyncQueryExecutor`, `connection_provider` y `connection_releaser` son corrutinas. Los managers construyen sus
+ejecutores; normalmente se usan a través de `execute_query_*` / `execute_custom_*` del manager.
 
 #### Métodos de ejecución
 
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
 | `query_name` | `str` | Nombre de la query registrada | Debe existir en `QueryRegistry` |
-| `db_type` | `str` | Tipo de motor | Validado por `DatabaseTypeValidator` |
+| `db_type` | `str` | Motor cuya sección del JSON de queries se usa | — |
 | `params` | `dict[str, Any]` | Parámetros nombrados | Claves deben coincidir con `:param` en el SQL |
 | `timeout` / `deadline_seconds` | `float \| None` | Máximo en segundos | `None` = sin límite |
 | `sql` | `str` | SQL libre | No vacío |
@@ -84,9 +88,9 @@ sequenceDiagram
 | Error | Cuándo ocurre |
 |---|---|
 | `QueryNotFoundError` | Query no registrada en `QueryRegistry` |
-| `QueryValidationError` | Parámetros no coinciden con los placeholders del SQL |
+| `QueryValidationError` / `QueryParameterError` | Parámetros que no pasan la validación o placeholders sin valor (desde `QueryResolver`) |
 | `QueryTimeoutError` | Se supera el timeout o `deadline_seconds` configurado |
-| `DatabaseOperationError` | Error genérico de ejecución (conexión caída, SQL inválido) |
+| `DatabaseOperationError` | Cualquier otro error de ejecución (conexión caída, SQL inválido), con el original en `__cause__` |
 
 ## 3. Componentes y Clases
 

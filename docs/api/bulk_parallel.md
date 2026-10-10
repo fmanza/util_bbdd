@@ -48,8 +48,8 @@ Exportadas desde `util_bbdd.bulk`. Generan listas de particiones disjuntas para 
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `ParallelBulkLoader` | `(engine, *, chunk_size?, max_workers?, commit_every_n_chunks?, audit_csv_path?, enable_fast_executemany?, max_retries?, disable_constraints?, audit_strict?, strip_strings?, reflect_foreign_keys?, retry_backoff?, retry_on?, on_error?, rejects_csv_path?, max_rejects?)` | Crea instancia con engine y configuración de paralelismo | `ParallelBulkLoader` |
-| `load` | `(tabla_destino, partition_readers, *, override_identity?, exclude_autoincrement_pk?)` | Inserta todas las particiones en paralelo | `ParallelLoadResult` |
+| `ParallelBulkLoader` | `(engine, *, chunk_size?, max_workers=4, commit_every_n_chunks?, audit_csv_path?, enable_fast_executemany?, max_retries=0, disable_constraints?, audit_strict?, strip_strings?, reflect_foreign_keys?, retry_backoff?, retry_on?, on_error?, rejects_csv_path?, max_rejects?, audit_sink?, audit_run_id?)` | Crea instancia con engine y configuración de paralelismo | `ParallelBulkLoader` |
+| `load` | `(tabla_destino, partition_readers, *, partition_ranges?, override_identity?, exclude_autoincrement_pk?)` | Inserta todas las particiones en paralelo | `ParallelLoadResult` |
 | `update` | `(tabla_destino, partition_readers, *, partition_ranges?)` | Actualiza en paralelo (`bulk_update_from_chunks` por partición). Particiones disjuntas por PK. En PostgreSQL sin privilegio `TEMP` usa un solo hilo (WARNING) | `ParallelLoadResult` |
 | `delete` | `(tabla_destino, partition_readers, *, partition_ranges?)` | Borra en paralelo (`bulk_delete_from_chunks` por partición). Particiones disjuntas por PK | `ParallelLoadResult` |
 
@@ -58,8 +58,11 @@ Exportadas desde `util_bbdd.bulk`. Generan listas de particiones disjuntas para 
 | Atributo | Tipo | Descripción |
 |---|---|---|
 | `total_rows` | `int` | Suma de filas insertadas en todas las particiones |
+| `elapsed_seconds` | `float` | Duración total de la operación |
+| `audit_run_id` | `str \| None` | Identificador de la ejecución en los eventos de `audit_sink` ([auditoría](audit.md)) |
 | `partition_errors` | `list[str]` | Un mensaje por partición fallida; vacío si todo fue bien |
-| `partition_results` | `list[PartitionResult]` | Resultado de cada partición: `rows`, `elapsed_seconds`, `error`, `retries`, `retry_wait_seconds`, `rows_rejected` y los contadores de auditoría `audit_failures`, `audited_rows`, `unaudited_committed_rows` y `audit_uncommitted_records` |
+| `partition_results` | `list[PartitionResult]` | Resultado de cada partición: `index`, `rows`, `elapsed_seconds`, `error`, `retries`, `retry_wait_seconds`, `rows_rejected` y los contadores de auditoría `audit_failures`, `audited_rows`, `unaudited_committed_rows` y `audit_uncommitted_records` |
+| `rows_per_second` | `float` (propiedad) | `total_rows / elapsed_seconds` |
 | `audit_failures` | `int` (propiedad) | Registros de auditoría que no se pudieron escribir en el CSV, sumados de todas las particiones |
 | `audited_rows` | `int` (propiedad) | Filas que constan en el CSV de auditoría, sumadas de todas las particiones |
 | `unaudited_committed_rows` | `int` (propiedad) | Con `commit_every_n_chunks`: filas confirmadas en la BD que no constan en el CSV porque su operación no llegó a confirmarse entera antes de un fallo |
@@ -89,8 +92,10 @@ ya había escrito siguen en el CSV y en `rows_rejected`.
 | `max_retries` | `int` | Reintentos de una partición ante errores **transitorios**, decididos por el código del error: desconexiones, deadlocks (PostgreSQL `40P01`, MySQL 1213, SQL Server 1205, Oracle ORA-00060), lock wait timeout, serialización y timeouts. Los errores de datos, integridad, sintaxis o permisos no se reintentan (hasta v0.23.x se decidía por clase `OperationalError`) | Default `0`; ≥ 0. Con `commit_every_n_chunks`, el reintento **reanuda** la partición tras sus filas ya confirmadas (el lector debe dar las filas en el mismo orden en cada llamada); en modo atómico la reintenta entera. Hasta v0.23.x la combinación lanzaba `ValueError` |
 | `retry_backoff` | `tuple[float, float]` | `(base, máximo)` en segundos: antes de cada reintento espera un valor aleatorio entre 0 y `min(máximo, base · 2**(intento − 1))` (backoff exponencial con jitter completo). `(0, 0)` reintenta sin esperar | Default `(0.5, 30.0)`; números finitos ≥ 0 |
 | `retry_on` | `Callable[[BaseException], bool] \| None` | Criterio propio de reintento | Default `None` (`is_retriable`) |
-| `partition_readers` | `Sequence[Callable[[], Iterable[pd.DataFrame]]]` | Un callable por partición, invocado dentro de su hilo | Las particiones deben ser disjuntas |
-| `override_identity` | `bool` | Pasar por alto la columna IDENTITY/SERIAL al insertar | Default `False` |
+| `partition_readers` | `Sequence[PartitionReader]` (`Callable[[], Iterable[pd.DataFrame]]`) | Un callable por partición, invocado dentro de su hilo | Las particiones deben ser disjuntas |
+| `partition_ranges` | `Sequence[tuple[int, int]] \| None` | Rango de PK de cada partición, en el mismo orden que los lectores | Uno por lector y sin solapes (`ValueError` si no) |
+| `override_identity` | `bool` | Solo PostgreSQL: `INSERT … OVERRIDING SYSTEM VALUE` para columnas `GENERATED ALWAYS AS IDENTITY`; se ignora en el resto | Default `False` |
+| `exclude_autoincrement_pk` | `bool` | Quita del `INSERT` la PK autoincremental/identity (la genera la BD) | Default `False` |
 
 ### Contrato de salida
 

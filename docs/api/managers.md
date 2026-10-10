@@ -12,7 +12,7 @@ async son corrutinas). `SyncDatabaseManager.close_connection()` se retiró en 1.
 ## SyncDatabaseManager
 
 Manager sincrónico para operaciones de base de datos. Soporta todos los motores
-(MariaDB, PostgreSQL, Oracle, SQLite, SQL Server, HSQLDB).
+(MariaDB, MySQL, PostgreSQL, Oracle, SQLite, SQL Server, HSQLDB). Referencia curada: [Manager Síncrono](managers_sync.md).
 
 ::: util_bbdd.managers.sync_mgr.SyncDatabaseManager
     options:
@@ -27,8 +27,8 @@ Manager sincrónico para operaciones de base de datos. Soporta todos los motores
 
 ## AsyncDatabaseManager
 
-Manager asincrónico compatible con `asyncio`. Soporta PostgreSQL, SQLite, MariaDB,
-Oracle y SQL Server.
+Manager asincrónico compatible con `asyncio`. Soporta PostgreSQL, SQLite, MariaDB, MySQL,
+Oracle y SQL Server (HSQLDB no tiene driver async). Referencia curada: [Manager Asíncrono](managers_async.md).
 
 !!! warning "Inicialización requerida"
     Llamar a `await manager.init()` antes de cualquier operación.

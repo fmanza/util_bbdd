@@ -2,7 +2,7 @@
 
 `AuditManager` es la fachada del subsistema de auditoría de operaciones bulk: escribe una fila por operación en un CSV tabulado, lo relee con caché y ofrece estadísticas, filtros y exportación a Excel, JSON y HTML. `BulkCrud` lo usa internamente a través de `audit_csv_path`; también se puede usar directamente para consultar o exportar un CSV existente.
 
-Desde la sesión 2026-10-02c, el repositorio, la analítica y los exportadores viven en [`util_bbdd.audit`](audit.md) y `AuditManager` es su fachada en `bulk` (mismo formato, misma API, mismo logger `util_bbdd.bulk.audit`). Los eventos opcionales (`audit_sink`) se documentan allí.
+Desde v0.29.0, el repositorio, la analítica y los exportadores viven en [`util_bbdd.audit`](audit.md) y `AuditManager` es su fachada en `bulk` (mismo formato, misma API, mismo logger `util_bbdd.bulk.audit`). Los eventos opcionales (`audit_sink`) se documentan allí.
 
 ## 1. Arquitectura y Diseño
 
@@ -26,8 +26,8 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `AuditManager` | `(audit_csv_path?, cache_enabled?, cache_ttl_seconds?)` | Crea la fachada; crea el directorio del CSV si no existe | `AuditManager` |
-| `registrar_operacion` | `(tabla, motor, operacion, rowcount, elapsed, genero_sql?)` | Añade una fila al CSV. Sin `audit_csv_path` no hace nada (un WARNING por instancia) | `None` |
+| `AuditManager` | `(audit_csv_path=None, cache_enabled=True, cache_ttl_seconds=300, *, warn_if_disabled=True)` | Crea la fachada; crea el directorio del CSV si no existe | `AuditManager` |
+| `registrar_operacion` | `(tabla, motor, operacion, rowcount, elapsed, genero_sql=False)` | Añade una fila al CSV. Sin `audit_csv_path` no hace nada (un WARNING por instancia, salvo con `warn_if_disabled=False`) | `None` |
 | `leer_auditoria` | `(usar_cache?)` | Lee el CSV completo | `pd.DataFrame` |
 | `limpiar_cache` / `invalidar_cache` | `()` | Fuerza releer el CSV en la próxima lectura | `None` |
 | `obtener_estadisticas` | `()` | Totales, medias, máximos, tabla y motor más usados, periodo | `dict[str, Any]` |

@@ -67,7 +67,7 @@ Los modelos están en `util_bbdd.metadata.model` (dataclasses inmutables). Los c
 | Caso | Comportamiento |
 |---|---|
 | Tabla, vista o routine inexistente | Lista vacía, `None` o `""` según el método (no lanza) |
-| Fallo de conexión o de permisos al leer el catálogo | `MetadataError` (o el error del driver) desde `get_schema_metadata` |
+| Fallo de conexión o de permisos al leer el catálogo | Desde un manager: `MetadataError` (tras los reintentos), con el error del driver en `__cause__`. Desde `CatalogSource.from_engine`: el error de SQLAlchemy |
 | Snapshot sin un `Kind` pedido | `KindNotLoadedError` (solo si se usa `SchemaSnapshot` a mano con `kinds=` parciales) |
 
 ## 3. Componentes y Clases
@@ -108,7 +108,7 @@ source.invalidate("ventas")  # tras cambiar el esquema con DDL propio
 | `SchemaSnapshot` | `tables()`, `views()`, `routines()`, `columns(t)`, `primary_key(t)`, `uniques(t)`, `checks(t)`, `foreign_keys(t)`, `indexes(t)`, `identity(t)`, `routine_parameters(key)`, `database()`; pedir un `Kind` no cargado lanza `KindNotLoadedError` |
 | `SnapshotCache(max_schemas=8)` | Caché LRU por schema, compartible entre fuentes; una sola carga por clave en hilos y en `asyncio` |
 | `AsyncCatalogSource` | Misma API con `await snapshot(...)` sobre un `AsyncCatalogExecutor` |
-| `SqlAlchemyCatalogExecutor` / `DbapiCatalogExecutor` | Ejecutan el SQL de catálogo sobre un `Engine`/`Connection` de SQLAlchemy o sobre una conexión DB-API (traduce `:nombre` al `paramstyle` del driver) |
+| `SqlAlchemyCatalogExecutor` / `DbapiCatalogExecutor` | Ejecutan el SQL de catálogo sobre un `Engine`/`Connection` de SQLAlchemy o sobre una conexión DB-API (traduce `:nombre` al `paramstyle` del driver). `DbapiCatalogExecutor` se importa de `util_bbdd.metadata.source` |
 | `get_catalog_dialect(nombre)` | `CatalogDialect` por `db_type` o nombre de dialecto de SQLAlchemy |
 
 **Vista de reflexión.** Quien necesita tipos u objetos de SQLAlchemy (hoy `comparar`) usa
@@ -116,7 +116,7 @@ source.invalidate("ventas")  # tras cambiar el esquema con DDL propio
 Server (que no los agrupa), consultas por schema con el mismo resultado que `MSDialect` tabla a tabla, columnas
 incluidas.
 
-Referencia medida (banco del proyecto): el snapshot completo cuesta 12 consultas con 50, 500 o 5000 tablas; con 5000
+Referencia medida (banco del proyecto, sesión `2026-10-03-metadata-centralization`): el snapshot completo cuesta 12 consultas con 50, 500 o 5000 tablas; con 5000
 tablas, 1,2 s y 26 MB en PostgreSQL 17, 2,2 s en Oracle 23 Free y 2,8 s en SQL Server 2022 (MySQL 8.4 y MariaDB
 11.4: 15 y 14 consultas, 2,4 y 2,6 s). Antes de E2, recorrer 500 tablas con los `get_*` de
 los managers costaba 2503 consultas: 70 s en PostgreSQL, 121 s en SQL Server y 365 s en Oracle.
@@ -135,4 +135,5 @@ los managers costaba 2503 consultas: 70 s en PostgreSQL, 121 s en SQL Server y 3
 
 ## 6. Ejemplos Relacionados
 
-- [ADR-003: centralización de metadatos](../architecture.md) — capas y reglas de acceso a metadatos
+- [ADR-003: centralización de metadatos](../adr/ADR-003-metadata-centralizada.md) — decisión y alternativas
+- [Arquitectura](../architecture.md) — capas y reglas de acceso a metadatos

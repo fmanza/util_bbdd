@@ -40,7 +40,7 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `QueryResolver` | `(registry?, db_type?)` | Inicializa con registry opcional | `QueryResolver` |
+| `QueryResolver` | `(registry=None, *, db_type=None)` | Inicializa con registry opcional | `QueryResolver` |
 | `resolve` | `(query_name, params?)` | Valida, interpola y retorna SQL final | `ResolvedQuery` |
 | `bind` | `(db_type)` | Nuevo resolver ligado al motor con el mismo registry | `QueryResolver` |
 
@@ -48,15 +48,15 @@ flowchart TD
 
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
-| `queries_file` | `Path \| None` | Ruta al JSON de queries | `None` usa `data/sql_queries.json` del paquete (sin consultas) |
+| `queries_file` | `Path \| None` | Ruta al JSON de queries (`{"<db_type>": {"<nombre>": "<SQL>"}}`) | `None` usa `data/sql_queries.json` del paquete, que no trae consultas: sin `queries_file`, toda query por nombre da `QueryNotFoundError` |
 | `db_type` | `str` | Motor para resolver queries | Se normaliza a minúsculas |
 | `query_name` | `str` | Nombre de la query en el JSON | Snake_case; sensible al casing del JSON |
 | `params` | `dict[str, Any] \| None` | Parámetros a interpolar en el template | `None` equivale a `{}`; son identificadores, no valores de datos |
 
 ### Contrato de salida
 
-- **`QueryDefinition`** — dataclass: `name`, `db_type`, `sql_template`, `required_params`, `metadata`.
-- **`ResolvedQuery`** — dataclass: `final_sql` (SQL interpolado), `validated: bool`, `warnings: list[str]`, `metadata` (con `elapsed_ms` y `db_type`).
+- **`QueryDefinition`** (`util_bbdd.models`) — dataclass: `name`, `db_type`, `sql_template`, `required_params`, `optional_params`, `docstring`, `metadata`.
+- **`ResolvedQuery`** (`util_bbdd.models`) — dataclass: `query_definition`, `final_sql` (SQL interpolado), `validated: bool`, `warnings: list[str]`, `metadata` (con `elapsed_ms` y `db_type`).
 - **`get_available_queries`** — lista vacía si el `db_type` no existe (no lanza excepción).
 
 ### Errores y casos especiales
@@ -67,7 +67,7 @@ flowchart TD
 | `ValueError` | JSON inválido o estructura incorrecta |
 | `QueryNotFoundError` | `db_type` o `query_name` no en el JSON |
 | `QueryValidationError` | `is_valid=False` del validador |
-| `QueryParameterError` | Placeholder sin valor al interpolar |
+| `QueryParameterError` | Placeholder sin valor al interpolar; `resolve` en un resolver sin `db_type` (usar `bind`) |
 
 ## 3. Componentes y Clases
 

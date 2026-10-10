@@ -24,14 +24,14 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `DumpReporter` | `(output_dir: Path)` | Inicializa; crea `output_dir` si no existe | `DumpReporter` |
+| `DumpReporter` | `(output_dir: Path)` | Inicializa; `generate()` crea `output_dir` si no existe | `DumpReporter` |
 | `generate` | `(table_results, missing_tables, constraint_results, cycles, index_results?, audit_summary?, pk_sync_results?)` | Genera el fichero Excel con auditoría completa | `Path` |
 
 ### Contrato de entrada
 
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
-| `output_dir` | `Path` | Directorio donde guardar el Excel | Se crea si no existe |
+| `output_dir` | `Path` | Directorio donde guardar el Excel | Se crea al generar si no existe |
 | `table_results` | `list[TableDumpResult]` | Resultado por tabla volcada | Estado, volumetría, columnas omitidas, errores |
 | `missing_tables` | `list[str]` | Tablas en origen sin equivalente en destino | — |
 | `constraint_results` | `list[ConstraintResult]` | Resultados de rehabilitación de constraints | — |
@@ -42,11 +42,11 @@ flowchart TD
 
 ### Contrato de salida
 
-- Retorna `Path` del fichero Excel generado con nombre `dump_report_YYYYMMDD_HHMMSS.xlsx`.
-- **Hoja 1 — Auditoría Tablas**: tabla, posición de carga, FK circular, filas origen/destino antes/después, estado, columnas omitidas, error.
+- Retorna `Path` del fichero Excel generado con nombre `dump_report_YYYYMMDD_HHMMSS.xlsx` (`_2`, `_3`… si ya existe).
+- **Hoja 1 — Auditoría Tablas**: tabla, posición de carga, FK circular, filas origen/destino antes/después, filas rechazadas, estado, columnas omitidas, error. Debajo, si las hay, las constraints con estado `FAILED` o `UNVERIFIED` al rehabilitarlas (tabla, constraint, dialect, estado, mensaje).
 - **Hoja 2 — Tablas Faltantes**: tablas presentes en origen pero ausentes en destino.
 - **Hoja 3 — Columnas Inexistentes**: columnas en origen sin equivalente en destino, agrupadas por tabla.
-- **Hoja 4 — Índices** (solo si `index_results` no es `None`): nombre, acción (`REBUILT`, `RECREATED`, `FAILED`, `UNSUPPORTED`), error si aplica.
+- **Hoja 4 — Índices** (solo si `index_results` no es `None`): tabla, índice, dialect, acción (`REBUILT`, `RECREATED`, `FAILED`, `UNSUPPORTED`) y mensaje.
 - **Hoja 5 — Auditoría Bulk** (solo si `audit_summary` no es `None`): métrica y valor. Ruta del CSV, operaciones y filas del CSV, filas escritas por el volcado (`audited_rows`), tiempos, tablas auditadas y tabla más activa, y los contadores de incidencia. Se resaltan en rojo `audit_failures` y `audit_uncommitted_records` mayores que 0, en naranja `unaudited_committed_rows` mayor que 0, y en amarillo las filas del CSV y las del volcado cuando no coinciden.
 - **Hoja 6 — Secuencias PK** (solo si `pk_sync_results` no es `None`): tabla, columna PK, dialect, `MAX(PK)` (`—` si la tabla estaba vacía), estado y mensaje. Estado en verde (`SYNCED`, `NO_ROWS`), amarillo (`SKIPPED`: sin secuencia, p.ej. PK natural), naranja (`UNSUPPORTED`) o rojo (`ERROR`).
 - Las hojas opcionales van siempre detrás de las fijas, en el orden 4-5-6, para no mover las existentes.
@@ -56,7 +56,7 @@ flowchart TD
 
 | Error | Cuándo ocurre |
 |---|---|
-| Error de escritura | Permisos insuficientes en `output_dir` |
+| `DumpReportError` | Cualquier fallo al generar el informe: crear `output_dir`, escribir el fichero (permisos, disco lleno, fichero abierto) o un valor que openpyxl no admite; `exc.output_path` lleva la ruta prevista |
 
 ## 3. Componentes y Clases
 

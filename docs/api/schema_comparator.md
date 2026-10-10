@@ -34,20 +34,21 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `SchemaDiffReporter` | `(word_template_path?, sql_dialect?, sql_source_inspector?, sql_source_schema?)` | Crea fachada de reportes | `SchemaDiffReporter` |
-| `render` | `(diff, output_dir, format, filename?)` | Genera reporte en un formato | `Path` |
-| `render_all` | `(diff, output_dir, formats?, raise_on_error?)` | Genera reportes en múltiples formatos | `list[Path]` |
+| `SchemaDiffReporter` | `(word_template_path=None, sql_dialect="generic", sql_source_inspector=None, sql_source_schema=None)` | Crea fachada de reportes (se importa de `util_bbdd.comparar`) | `SchemaDiffReporter` |
+| `render` | `(diff, output_dir, format, filename=None)` | Genera reporte en un formato | `Path` |
+| `render_all` | `(diff, output_dir, formats=None, raise_on_error=False)` | Genera reportes en múltiples formatos | `list[Path]` |
 
 #### Modelos de datos (todos `frozen=True`)
 
 | Modelo | Campos principales |
 |---|---|
-| `SchemaDiff` | `table_diffs`, `view_diffs`, `routine_diffs`, `summary`, `has_differences`, `total_differences` |
+| `SchemaDiff` | `source_label`, `target_label`, `table_diffs`, `view_diffs`, `routine_diffs`, `summary`; propiedades `has_differences`, `total_differences`, `total_leaf_differences` |
 | `TableDiff` | `table_name`, `status`, `column_diffs`, `index_diffs`, `fk_diffs`, `comment_diffs` |
 | `ColumnDiff` | `column_name`, `attribute`, `source_value`, `target_value` |
-| `IndexDiff` | `index_name`, `table_name`, `status`, `source_columns`, `target_columns` |
+| `IndexDiff` | `index_name`, `table_name`, `status`, `source_columns`, `target_columns`, `source_unique`, `target_unique` |
 | `ViewDiff` | `view_name`, `status`, `source_definition`, `target_definition` |
-| `RoutineDiff` | `routine_name`, `routine_type`, `status` |
+| `RoutineDiff` | `routine_name`, `routine_type`, `status`, `source_definition`, `target_definition` |
+| `ForeignKeyDiff` / `CommentDiff` | Diferencias de FK y de comentarios dentro de `TableDiff` |
 
 ### Contrato de entrada
 
@@ -86,8 +87,8 @@ flowchart TD
 
 | Error | Cuándo ocurre |
 |---|---|
-| `SchemaDiffValidationError` | `render()` con `format` no soportado |
-| `DiffReportGenerationError` | Error interno al generar un reporter específico |
+| `SchemaDiffValidationError` | `render()` con `format` no soportado; `sql_dialect` no soportado; ruta de Word que no es un `.docx` |
+| Excepción del reporter | En `render()`, se propaga tal cual. En `render_all()`, se registra (ERROR) y se sigue con el siguiente formato; con `raise_on_error=True` se relanza la primera |
 | `FileNotFoundError` | `WordDiffReporter` con `template_path` inexistente |
 | Warning `Se omite la comparación de routines` | Con `include_routines=True`, un lado no permite listar sus routines (conexión, permisos u Oracle sin `schema`): `routine_diffs` queda vacío en lugar de dar falsos «añadida/eliminada» |
 

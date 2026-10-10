@@ -7,8 +7,8 @@ con registro de auditoría automático en CSV y soporte de carga paralela por pa
 
 ## BulkCrud
 
-Clase principal para operaciones CRUD en lote. El alias legacy `bulk_crud` sigue disponible
-por compatibilidad pero la referencia canónica es `BulkCrud`.
+Clase principal para operaciones CRUD en lote (`from util_bbdd import BulkCrud`). Guía completa:
+[BulkCrud](bulk_crud.md).
 
 ::: util_bbdd.bulk.crud.BulkCrud
     options:

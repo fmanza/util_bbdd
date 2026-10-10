@@ -23,7 +23,7 @@ constraints → limpieza → carga → rehabilitación → informe Excel.
 
 ## DumpConfig
 
-Configuración inmutable de un volcado. Se pasa al constructor de `DumpOrchestrator`.
+Configuración de un volcado. Se pasa al constructor de `DumpOrchestrator`.
 
 ::: util_bbdd.dump._models.DumpConfig
     options:
