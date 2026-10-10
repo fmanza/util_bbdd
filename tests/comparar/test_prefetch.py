@@ -108,6 +108,11 @@ class TestTableMetadata:
         assert meta.prefetched == {}
 
 
+#: Tablas que existen en los Inspector simulados de SQL Server: desde F3/F4 (v0.41.3) solo se precargan los nombres
+#: pedidos que existen (``get_table_names``/``get_view_names``).
+_MSSQL_EXISTING = ["c", "p", "t", "sin_pk", "sin_ix", "vacia", "sin"]
+
+
 class TestSqlServerForeignKeys:
     @staticmethod
     def _inspector(rows: list[tuple[Any, ...]], default_schema: str = "dbo") -> tuple[MagicMock, MagicMock]:
@@ -120,6 +125,8 @@ class TestSqlServerForeignKeys:
         insp.dialect.name = "mssql"
         insp.bind = engine
         insp.default_schema_name = default_schema
+        insp.get_table_names.return_value = _MSSQL_EXISTING
+        insp.get_view_names.return_value = []
         insp.get_multi_foreign_keys.side_effect = AssertionError("no debe usarse get_multi_foreign_keys")
         return insp, conn
 
@@ -199,6 +206,8 @@ class TestSqlServerPkIndexesComments:
         insp.dialect.name = "mssql"
         insp.bind = engine
         insp.default_schema_name = "dbo"
+        insp.get_table_names.return_value = _MSSQL_EXISTING
+        insp.get_view_names.return_value = []
         for method in ("get_multi_pk_constraint", "get_multi_indexes", "get_multi_table_comment"):
             getattr(insp, method).side_effect = AssertionError(f"no debe usarse {method}")
         return insp

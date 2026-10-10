@@ -163,19 +163,24 @@ def _in_transaction(connection: Any) -> bool | None:
     ``@@TRANCOUNT`` tampoco distingue una transacción del usuario; no se hace ``rollback``. Con READ COMMITTED la lectura
     no retiene bloqueos y el DDL de otra sesión se ve tras ``clear_cache()`` (``test_catalog_transaction_end.py``).
     """
+    # Solo valores int/bool reales: un atributo con otro tipo (p. ej. un Mock) no informa del estado.
     status = getattr(getattr(connection, "info", None), "transaction_status", None)
-    if status is not None:
-        return int(status) != 0  # TransactionStatus.IDLE
+    if isinstance(status, int):
+        return status != 0  # TransactionStatus.IDLE (IntEnum)
     get_status = getattr(connection, "get_transaction_status", None)
     if callable(get_status):
-        return int(get_status()) != 0  # TRANSACTION_STATUS_IDLE
+        value = get_status()
+        if isinstance(value, int):
+            return value != 0  # TRANSACTION_STATUS_IDLE
     for attribute in ("transaction_in_progress", "in_transaction"):
         value = getattr(connection, attribute, None)
         if isinstance(value, bool):
             return value
     is_in_transaction = getattr(connection, "is_in_transaction", None)
     if callable(is_in_transaction):
-        return bool(is_in_transaction())
+        value = is_in_transaction()
+        if isinstance(value, bool):
+            return value
     server_status = getattr(connection, "server_status", None)
     if isinstance(server_status, int):
         return bool(server_status & _SERVER_STATUS_IN_TRANS)

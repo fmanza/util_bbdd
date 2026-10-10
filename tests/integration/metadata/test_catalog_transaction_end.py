@@ -43,6 +43,8 @@ def _params(env: str) -> dict[str, Any]:
 
 
 def _admin(env: str) -> Any:
+    if not os.environ.get(env):
+        pytest.skip(f"{env} no definida")
     return create_engine(os.environ[env], isolation_level="AUTOCOMMIT")
 
 
