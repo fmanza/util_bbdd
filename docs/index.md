@@ -17,7 +17,7 @@ Está dirigida a **desarrolladores, ingenieros de datos y DBAs** que necesitan m
 - ✅ **Gestión de conexiones** sync (`SyncDatabaseManager`) y async (`AsyncDatabaseManager`) con pool
 - ✅ **CRUD en lote** desde DataFrames (insert/update/delete masivo) con auditoría automática en CSV
 - ✅ **Carga masiva paralela** (`ParallelBulkLoader`)
-- ✅ **Introspección de metadatos** (`SyncMetadataProvider`, `AsyncMetadataProvider`) con caché de sesión
+- ✅ **Introspección de metadatos** por lotes (`manager.get_schema_metadata()` → `SchemaSnapshot`, una consulta por tipo de objeto; contratos `SyncMetadataProvider`/`AsyncMetadataProvider`), cacheada en el manager hasta `clear_cache()`
 - ✅ **Comparación de esquemas** (`SchemaComparator`, `SchemaDiff`) con reportes HTML/Excel/Word/Markdown/SQL
 - ✅ **Migración DDL** entre motores (`MigrationPlanner`, `MigrationPlan`)
 - ✅ **Volcado de datos** entre esquemas/motores (`DumpOrchestrator`, `DumpConfig`)

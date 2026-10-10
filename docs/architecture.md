@@ -49,7 +49,7 @@ src/util_bbdd/
   factory/       # ConnectionFactory, PoolFactory
   connection/    # build_conn_params, configuración por motor
   executors/     # ejecutores de queries (sync/async)
-  metadata/      # SyncMetadataProvider, AsyncMetadataProvider, caché de sesión
+  metadata/      # CatalogSource → SchemaSnapshot por lotes (ADR-003), CatalogDialect por motor, contratos *MetadataProvider
   bulk/          # CRUD masivo desde DataFrame + auditoría + ParallelBulkLoader
   comparar/      # SchemaComparator, SchemaDiff, reporters (SQL/HTML/Word/Excel/MD)
   dump/          # DumpOrchestrator, DumpConfig (volcado entre esquemas/motores)
