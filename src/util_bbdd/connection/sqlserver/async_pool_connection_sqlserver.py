@@ -36,7 +36,11 @@ class AsyncSQLServerPool:
         try:
             import aioodbc
 
-            pool_config = ConnectionParamsManager.get_pool_config("sqlserver", conn_params)
+            # aioodbc siempre es pyodbc: sin indicarlo, la config tomaba pymssql por defecto, omitía driver_name y la
+            # cadena usaba el Driver 17 aunque se pidiera otro (hotfix 1.1.0; la conexión directa ya lo hacía así).
+            pool_config = ConnectionParamsManager.get_pool_config(
+                "sqlserver", {**conn_params, "sql_server_driver": "pyodbc"}
+            )
             sanitized_pool_params: dict[str, Any] = pool_config.to_driver_kwargs()
             close_timeout_seconds: float | None = pool_config.close_timeout
 
