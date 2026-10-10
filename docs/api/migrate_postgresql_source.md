@@ -1,6 +1,6 @@
 # API — Migración PostgreSQL como Origen
 
-Orquesta la migración DDL desde PostgreSQL hacia Oracle, MariaDB o SQL Server en tres capas desacopladas: extracción vía `INFORMATION_SCHEMA` y `pg_catalog`, transformación al modelo canónico IR y emisión del script DDL.
+Orquesta la migración DDL desde PostgreSQL hacia Oracle, MariaDB, MySQL o SQL Server en tres capas desacopladas: extracción vía `INFORMATION_SCHEMA` y `pg_catalog`, transformación al modelo canónico IR y emisión del script DDL.
 
 ## 1. Arquitectura y Diseño
 
@@ -29,7 +29,7 @@ flowchart TD
 | `MigrationPlanner` | `(source_engine, target_engine, ...)` | Orquestador principal | instancia |
 | `MigrationPlanner.plan` | `(connection, schema: str)` | Extrae, transforma y consolida en plan ejecutable | `MigrationPlan` |
 | `MigrationPlan.emit_ddl` | `()` | Script DDL completo listo para guardar en `.sql` | `str` |
-| `MigrationPlan.execute` | `(target_connection)` | Ejecuta cada sentencia DDL contra el motor destino | `None` |
+| `MigrationPlan.execute` | `(target_connection, *, audit_sink=None)` | Ejecuta cada sentencia DDL contra el motor destino; con `audit_sink`, un evento por sentencia ([auditoría](audit.md)) | `None` |
 | `MigrationPlan.error_count` | propiedad | Número de warnings con severidad `ERROR` | `int` |
 | `format_plan_text` | `(plan: MigrationPlan)` | Reporte de texto plano con avisos | `str` |
 | `format_plan_markdown` | `(plan: MigrationPlan)` | Reporte Markdown con tabla de avisos | `str` |
@@ -39,7 +39,7 @@ flowchart TD
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
 | `source_engine` | `str` | Motor origen | `"postgresql"` para este flujo |
-| `target_engine` | `str` | Motor destino | `"oracle"`, `"mariadb"` o `"sqlserver"` |
+| `target_engine` | `str` | Motor destino | `"oracle"`, `"mariadb"`, `"mysql"` o `"sqlserver"` |
 | `charset` | `str` | CHARACTER SET MariaDB | Solo si `target_engine="mariadb"` |
 | `sql_server_collation` | `str \| None` | COLLATE para SQL Server | Solo si `target_engine="sqlserver"` |
 | `oracle_identity_mode` | `Literal["sequence_trigger","identity_by_default_on_null"]` | Modo columnas SERIAL en Oracle destino | Solo si `target_engine="oracle"` |
@@ -56,7 +56,8 @@ flowchart TD
 | Error | Cuándo ocurre |
 |---|---|
 | `ValueError` | Motor origen/destino no soportado |
-| `SQLAlchemyError` | Error al consultar `INFORMATION_SCHEMA` o `pg_catalog` |
+| `MetadataError` | Error al leer el catálogo del origen (envuelve el error del driver) |
+| `TypeError` | `connection` no es un manager de `util_bbdd` ni una `MetadataSource` |
 
 Tipos sin equivalente directo (`ARRAY`, `TSVECTOR`, `USER-DEFINED`) se mapean a tipos LOB con severidad `ERROR` en los warnings; el script DDL sigue generándose.
 
@@ -73,7 +74,7 @@ Tipos sin equivalente directo (`ARRAY`, `TSVECTOR`, `USER-DEFINED`) se mapean a 
 | Dependencia | Propósito | Requerida | Comportamiento sin ella |
 |---|---|---|---|
 | `SyncDatabaseManager` con engine PostgreSQL | Acceso a `INFORMATION_SCHEMA` y `pg_catalog` | Sí | Extracción imposible |
-| `psycopg2` o `psycopg3` | Driver Python de PostgreSQL | Sí | `DriverError` al conectar |
+| `psycopg` 3 (extra `util_bbdd[postgresql]`) | Driver del manager sync de PostgreSQL | Sí | `DriverError` al crear el manager |
 
 ## 5. Ejemplos Relacionados
 

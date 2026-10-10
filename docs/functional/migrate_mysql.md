@@ -12,7 +12,8 @@ existen en MariaDB y el ancho de visualización de los enteros.
 
 **Precondiciones:**
 
-- Conexión activa al servidor origen con permisos de lectura sobre su catálogo (`INFORMATION_SCHEMA` en MySQL)
+- Un `SyncDatabaseManager` del motor origen (o una `MetadataSource`) con permisos de lectura sobre su catálogo
+  (`INFORMATION_SCHEMA` en MySQL)
 - Nombre del schema a migrar (en MySQL, la base de datos: `TABLE_SCHEMA`)
 - Motor destino decidido: Oracle, SQL Server, PostgreSQL, MariaDB o MySQL (MySQL 8.0 o superior)
 - Opcional: conexión activa al servidor destino si se desea ejecución directa

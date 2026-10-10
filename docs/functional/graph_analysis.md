@@ -13,7 +13,7 @@ Soporta dos motores de visualización: Graphviz (nodos con columnas y cardinalid
 - Gestor síncrono de BD configurado y conectado a la base de datos a analizar
 - Para Graphviz: binarios de Graphviz instalados en el sistema (`dot` en PATH) y paquete Python `graphviz`
 - Para Matplotlib: paquetes `matplotlib` y `networkx` instalados
-- Extra de instalación: `pip install util_bbdd[analysis]`
+- Extra de instalación: `pip install "util_bbdd[analysis] @ git+https://github.com/fmanza/util_bbdd.git@v1.0.0"` (ver [Instalación](../installation.md))
 - Las tablas analizadas deben tener claves foráneas definidas para que aparezcan relaciones en el grafo
 
 ## 2. Reglas de Negocio
@@ -60,7 +60,7 @@ sequenceDiagram
 - No soporta gestores asíncronos; requiere el gestor síncrono de BD
 - El motor Matplotlib no muestra columnas ni cardinalidad en los nodos
 - No genera documentación HTML ni Word
-- Los binarios de Graphviz del sistema operativo no se instalan con `pip install util_bbdd[analysis]`
+- Los binarios de Graphviz del sistema operativo no se instalan con el extra `analysis`
 
 ## 4. Glosario y Términos
 

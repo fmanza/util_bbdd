@@ -2,15 +2,16 @@
 
 ## 1. Descripción General
 
-Genera automáticamente el script SQL de creación de estructura (DDL) de un schema MariaDB completo, listo para ejecutarse en Oracle, SQL Server o PostgreSQL. Cubre tablas, columnas, claves primarias, claves foráneas, índices, vistas y tipos de datos, adaptando cada elemento a las reglas del motor destino sin modificar la base de datos origen ni la de destino hasta que el usuario lo autorice.
+Genera automáticamente el script SQL de creación de estructura (DDL) de un schema MariaDB completo, listo para ejecutarse en Oracle, MySQL, SQL Server o PostgreSQL. Cubre tablas, columnas, claves primarias, claves foráneas, índices, vistas y tipos de datos, adaptando cada elemento a las reglas del motor destino sin modificar la base de datos origen ni la de destino hasta que el usuario lo autorice.
 
 Responde a la pregunta "¿cómo paso mi estructura MariaDB a otro motor sin reescribir el DDL a mano?" de forma reproducible y auditada: cada decisión de conversión queda registrada como aviso con nivel de severidad.
 
 **Precondiciones:**
 
-- Conexión activa al servidor MariaDB con permisos de lectura sobre `INFORMATION_SCHEMA` del schema a migrar
+- Un `SyncDatabaseManager` del MariaDB origen (o una `MetadataSource`), con permisos de lectura sobre
+  `INFORMATION_SCHEMA` del schema a migrar: `MigrationPlanner(...).plan(manager, schema)`
 - Nombre del schema MariaDB a migrar identificado (equivale a `TABLE_SCHEMA`)
-- Motor destino decidido: Oracle, SQL Server o PostgreSQL
+- Motor destino decidido: Oracle, MySQL, SQL Server o PostgreSQL
 - Opcional: conexión activa al servidor destino si se desea ejecución directa
 
 ## 2. Reglas de Negocio
@@ -18,7 +19,7 @@ Responde a la pregunta "¿cómo paso mi estructura MariaDB a otro motor sin rees
 | Regla | Descripción | Impacto si se viola |
 |---|---|---|
 | Nombres preservados por defecto | Tablas, columnas, índices y FKs conservan el nombre original MariaDB | Solo se truncan si superan el límite del motor destino |
-| Truncado determinista de identificadores | Nombres demasiado largos se recortan con sufijo hash de 4 chars; límites: Oracle 30, SQL Server 128, PostgreSQL 63 | El sufijo garantiza unicidad; cada truncado queda en el plan como aviso |
+| Truncado determinista de identificadores | Nombres demasiado largos se recortan con sufijo hash de 4 chars; límites: Oracle 30 bytes, SQL Server 128 caracteres, PostgreSQL 63 bytes, MySQL 64 caracteres | El sufijo garantiza unicidad; cada truncado queda en el plan como aviso |
 | `AUTO_INCREMENT` → equivalente destino | Columnas `AUTO_INCREMENT` se convierten al mecanismo equivalente del motor destino | El mecanismo de autoincremento queda funcional en el motor destino |
 | `TEXT`/`LONGTEXT` → tipos equivalentes | Tipos de texto largo se mapean al tipo más cercano del motor destino | Posible cambio de límite máximo de caracteres; aviso registrado en plan |
 | FKs que referencian tablas externas omitidas | Claves foráneas fuera del schema migrado se excluyen del script | Aviso registrado; el desarrollador gestiona esas referencias manualmente |
@@ -62,9 +63,10 @@ sequenceDiagram
 
 **Límites y exclusiones:**
 
-- Solo soporta MariaDB como motor origen (destinos: Oracle, SQL Server, PostgreSQL)
+- Destinos: Oracle, MySQL, SQL Server y PostgreSQL (origen y destino no pueden ser el mismo motor)
 - No migra filas de datos, solo la estructura (DDL)
-- No migra stored procedures, funciones ni triggers
+- Los procedimientos y funciones se emiten verbatim (pass-through, aviso `ROUTINE_PASSTHROUGH`): la sintaxis no se
+  traduce. No migra triggers
 - Las vistas se reescriben con sqlglot (extra `util_bbdd[migrate]`); sin él, se copian sin reescribir ([reescritura de vistas](migrate_views.md))
 - No modifica ni consulta la base de datos MariaDB de forma destructiva
 

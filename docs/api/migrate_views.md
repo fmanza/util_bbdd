@@ -38,7 +38,7 @@ reescribir con un aviso.
 | Clase / Función | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
 | `MigrationPlanner` | `(source_engine, target_engine, ..., view_strategy="auto")` | Estrategia de vistas del plan | instancia |
-| `MigrationPlan.validate_views` | `(target_connection=None, *, include_tables=True)` | Valida las vistas del plan en el destino sin dejar cambios | `list[ViewValidationResult]` |
+| `MigrationPlan.validate_views` | `(target_connection=None, *, include_tables=True, audit_sink=None)` | Valida las vistas del plan en el destino sin dejar cambios | `list[ViewValidationResult]` |
 | `ViewValidationResult` | dataclass `(view, valid, method, error)` | Resultado por vista | — |
 | `ViewStrategy` | `Literal["auto", "transpile", "passthrough"]` | Tipo de `view_strategy` | — |
 | `migrate.views.resolve_view_strategy` | `(strategy: str)` | Normaliza la estrategia; `"auto"` → `"transpile"` o `"passthrough"` | `str` |

@@ -1,6 +1,6 @@
 # API — Migración MariaDB como Origen
 
-Orquesta la migración DDL desde MariaDB hacia Oracle, SQL Server o PostgreSQL en tres capas desacopladas: extracción vía `INFORMATION_SCHEMA`, transformación al modelo canónico IR y emisión del script DDL.
+Orquesta la migración DDL desde MariaDB hacia Oracle, MySQL, SQL Server o PostgreSQL en tres capas desacopladas: extracción vía `INFORMATION_SCHEMA`, transformación al modelo canónico IR y emisión del script DDL.
 
 ## 1. Arquitectura y Diseño
 
@@ -29,7 +29,7 @@ flowchart TD
 | `MigrationPlanner` | `(source_engine, target_engine, ...)` | Orquestador principal | instancia |
 | `MigrationPlanner.plan` | `(connection, schema: str)` | Extrae, transforma y consolida en plan ejecutable | `MigrationPlan` |
 | `MigrationPlan.emit_ddl` | `()` | Script DDL completo listo para guardar en `.sql` | `str` |
-| `MigrationPlan.execute` | `(target_connection)` | Ejecuta cada sentencia DDL contra el motor destino | `None` |
+| `MigrationPlan.execute` | `(target_connection, *, audit_sink=None)` | Ejecuta cada sentencia DDL contra el motor destino; con `audit_sink`, un evento por sentencia ([auditoría](audit.md)) | `None` |
 | `MigrationPlan.error_count` | propiedad | Número de warnings con severidad `ERROR` | `int` |
 | `format_plan_text` | `(plan: MigrationPlan)` | Reporte de texto plano con avisos | `str` |
 | `format_plan_markdown` | `(plan: MigrationPlan)` | Reporte Markdown con tabla de avisos | `str` |
@@ -39,7 +39,7 @@ flowchart TD
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
 | `source_engine` | `str` | Motor origen | `"mariadb"` para este flujo |
-| `target_engine` | `str` | Motor destino | `"oracle"`, `"sqlserver"` o `"postgresql"` |
+| `target_engine` | `str` | Motor destino | `"oracle"`, `"mysql"`, `"sqlserver"` o `"postgresql"` |
 | `sql_server_collation` | `str \| None` | COLLATE para SQL Server | Solo si `target_engine="sqlserver"` |
 | `pg_schema` | `str \| None` | Schema PostgreSQL | Solo si `target_engine="postgresql"` |
 | `connection` | `SyncDatabaseManager` o `MetadataSource` | Manager MariaDB activo | Lee el catálogo con `metadata_source` (snapshot de `metadata/`, una consulta por tipo de objeto; ADR-003) |
@@ -55,7 +55,8 @@ flowchart TD
 | Error | Cuándo ocurre |
 |---|---|
 | `ValueError` | Motor origen/destino no soportado |
-| `SQLAlchemyError` | Error al consultar `INFORMATION_SCHEMA` |
+| `MetadataError` | Error al leer el catálogo del origen (envuelve el error del driver) |
+| `TypeError` | `connection` no es un manager de `util_bbdd` ni una `MetadataSource` |
 
 ## 3. Componentes y Clases
 
@@ -70,7 +71,7 @@ flowchart TD
 | Dependencia | Propósito | Requerida | Comportamiento sin ella |
 |---|---|---|---|
 | `SyncDatabaseManager` con engine MariaDB | Acceso a `INFORMATION_SCHEMA` | Sí | Extracción imposible |
-| `pymysql` u otro driver MariaDB | Conexión nativa | Sí (motor-específico) | `DriverError` al conectar |
+| `mariadb` (MariaDB Connector/Python, extra `util_bbdd[mariadb]`) | Driver del manager sync de MariaDB | Sí | `DriverError` al crear el manager |
 
 ## 5. Ejemplos Relacionados
 

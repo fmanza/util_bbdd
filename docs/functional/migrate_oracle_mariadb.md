@@ -2,15 +2,15 @@
 
 ## 1. Descripción General
 
-Genera automáticamente el script SQL de creación de estructura (DDL) de un schema Oracle completo, listo para ejecutarse en MariaDB, SQL Server o PostgreSQL. Cubre tablas, columnas, claves primarias, claves foráneas, índices, vistas y tipos de datos, adaptando cada elemento a las reglas del motor destino sin modificar la base de datos origen ni la de destino hasta que el usuario lo autorice.
+Genera automáticamente el script SQL de creación de estructura (DDL) de un schema Oracle completo, listo para ejecutarse en MariaDB, MySQL, SQL Server o PostgreSQL. Cubre tablas, columnas, claves primarias, claves foráneas, índices, vistas y tipos de datos, adaptando cada elemento a las reglas del motor destino sin modificar la base de datos origen ni la de destino hasta que el usuario lo autorice.
 
 Responde a la pregunta "¿cómo paso mi estructura Oracle a otro motor sin reescribir el DDL a mano?" de forma reproducible y auditada: cada decisión de conversión queda registrada como aviso con nivel de severidad.
 
 **Precondiciones:**
 
-- Conexión activa al servidor Oracle con permisos de lectura sobre `ALL_TABLES`, `ALL_TAB_COLUMNS`, `ALL_CONSTRAINTS`, `ALL_INDEXES` y `ALL_VIEWS` del schema a migrar
+- Un `SyncDatabaseManager` del Oracle origen (o una `MetadataSource`) con permisos de lectura sobre `ALL_TABLES`, `ALL_TAB_COLUMNS`, `ALL_CONSTRAINTS`, `ALL_INDEXES` y `ALL_VIEWS` del schema a migrar
 - Nombre del schema/owner Oracle a migrar identificado
-- Motor destino decidido: MariaDB, SQL Server o PostgreSQL
+- Motor destino decidido: MariaDB, MySQL, SQL Server o PostgreSQL
 - Opcional: conexión activa al servidor destino si se desea ejecución directa
 
 ## 2. Reglas de Negocio
@@ -62,7 +62,7 @@ sequenceDiagram
 
 **Límites y exclusiones:**
 
-- Solo soporta Oracle como motor origen (destinos: MariaDB, SQL Server, PostgreSQL)
+- Destinos: MariaDB, MySQL, SQL Server y PostgreSQL (origen y destino no pueden ser el mismo motor)
 - No migra filas de datos, solo la estructura (DDL)
 - No migra secuencias Oracle como objetos independientes (se incorporan como autoincremento)
 - Las rutinas se emiten verbatim (pass-through): la sintaxis PL/SQL no se traduce automáticamente

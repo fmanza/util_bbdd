@@ -86,7 +86,7 @@ el único punto autorizado para SQL de introspección.
 | Dependencia | Propósito | Requerida | Comportamiento sin ella |
 |---|---|---|---|
 | `SyncDatabaseManager` con `db_type="mysql"` | Acceso a `INFORMATION_SCHEMA` (origen MySQL) | Sí, si el origen es MySQL | Extracción imposible |
-| `pymysql` (extra `util_bbdd[mysql]`) | Driver de MySQL | Sí, para conectar con MySQL | `DriverError` al conectar |
+| `pymysql` (extra `util_bbdd[mysql]`) | Driver de MySQL | Sí, para conectar con MySQL | `DriverError` al crear el manager |
 | MySQL 8.0+ | Destino | Sí | `utf8mb4_0900_ai_ci` no existe en versiones anteriores |
 
 ## 5. Ejemplos Relacionados
