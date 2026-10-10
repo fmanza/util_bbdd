@@ -38,6 +38,10 @@ Aparcados sin reabrir: S-1 y las dos limitaciones de driver (ADR-005).
 | D5 | P5: ubicación de `constraints_*`/`performance_audit_*` | (a) moverlas a `docs/guides/` (convención) con sus enlaces y `nav`; (b) dejarlas | **(a)**, en el mismo bloque de docs; `zensical build --strict` detecta enlaces rotos |
 | D6 | Versionado | (a) una sola **1.1.0** con B2–B5 (los tests y el refactor no exigen versión propia); (b) 1.0.1 (B2+B4) y 1.1.0 (B3+B5) | **(a)** |
 
+**Decisión del usuario (2026-10-10): D1–D6 según la recomendación.** D1 (a) con autorización de push de `main`
+(sin tags); D2 (a) re-alcance; D3 (a) todas las rutas en 1.1.0; D4 (a), D5 (a), D6 (a). Tag y push de 1.1.0: siguen
+requiriendo autorización.
+
 ## 3. PLAN por bloques
 
 | # | Bloque | Contenido | Flujo | Versión | Commit |
