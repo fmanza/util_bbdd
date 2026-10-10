@@ -3,7 +3,8 @@
 Antes, con la conexión única del manager: PostgreSQL quedaba ``idle in transaction`` y MySQL (REPEATABLE READ) no veía
 una tabla creada desde fuera ni después de ``clear_cache()``. La transacción del usuario en la misma conexión se respeta.
 
-Requiere ``UTIL_BBDD_TEST_POSTGRESQL_URL`` / ``UTIL_BBDD_TEST_MYSQL_URL`` (``scripts/bench_env.example.sh``).
+SQL Server (H1-MS): ver la sección final. Requiere ``UTIL_BBDD_TEST_POSTGRESQL_URL`` / ``UTIL_BBDD_TEST_MYSQL_URL`` /
+``UTIL_BBDD_TEST_MSSQL_URL`` (``scripts/bench_env.example.sh``).
 """
 
 from __future__ import annotations
@@ -105,4 +106,79 @@ def test_user_transaction_on_the_shared_connection_survives_a_catalog_read(env: 
     finally:
         manager.close()
         with _admin(env).connect() as conn:
+            conn.execute(text(f"DROP TABLE IF EXISTS {table}"))
+
+
+# --- SQL Server (H1-MS, v0.42.1) -------------------------------------------------------------------------------------
+# pymssql, pyodbc y aioodbc dejan @@TRANCOUNT = 1 desde que conectan (pymssql abre BEGIN TRAN al conectar y tras cada
+# commit/rollback; los ODBC trabajan con transacciones implícitas): no se puede saber si la transacción es del usuario,
+# así que el ejecutor no hace rollback. Lo que importa de H1 se cumple igual con READ COMMITTED: la lectura no retiene
+# bloqueos, no frena el DDL de otra sesión y el catálogo ve ese DDL tras clear_cache().
+
+MSSQL_ENV = "UTIL_BBDD_TEST_MSSQL_URL"
+_ODBC_DRIVER = "ODBC Driver 18 for SQL Server"
+
+
+def _mssql_params(driver: str) -> dict[str, Any]:
+    params = _params(MSSQL_ENV)
+    if driver == "pymssql":
+        return params
+    pyodbc = pytest.importorskip("pyodbc")
+    if _ODBC_DRIVER not in pyodbc.drivers():
+        pytest.skip(f"{_ODBC_DRIVER} no instalado")
+    return {**params, "sql_server_driver": "pyodbc", "driver_name": _ODBC_DRIVER, "trust_cert": True}
+
+
+def _mssql_locks(spid: int) -> list[Any]:
+    with _admin(MSSQL_ENV).connect() as conn:
+        sql = (
+            "SELECT resource_type FROM sys.dm_tran_locks WHERE request_session_id = :s AND resource_type <> 'DATABASE'"
+        )
+        return list(conn.execute(text(sql), {"s": spid}).fetchall())
+
+
+@pytest.mark.parametrize("driver", ["pymssql", "pyodbc"])
+def test_sqlserver_catalog_read_holds_no_locks_and_sees_external_ddl(driver: str) -> None:
+    table = f"zz_h1ms_{uuid.uuid4().hex[:8]}"
+    with _admin(MSSQL_ENV).connect() as conn:
+        conn.execute(text(f"CREATE TABLE {table} (id INT)"))
+    manager = SyncDatabaseManager("sqlserver", _mssql_params(driver), use_pool=False)
+    try:
+        manager.get_schema_metadata(kinds={Kind.TABLES, Kind.COLUMNS})
+        cursor = manager.get_connection().cursor()
+        cursor.execute("SELECT @@SPID")
+        spid = int(cursor.fetchone()[0])
+        cursor.close()
+        assert _mssql_locks(spid) == []
+        with _admin(MSSQL_ENV).connect() as conn:
+            conn.execute(text("SET LOCK_TIMEOUT 3000"))
+            conn.execute(text(f"ALTER TABLE {table} ADD extra INT"))  # sin bloqueo de la lectura anterior
+            conn.execute(text(f"CREATE TABLE {table}_b (id INT)"))
+        manager.clear_cache()
+        assert f"{table}_b" in {t.name for t in manager.get_schema_metadata(kinds={Kind.TABLES}).tables()}
+    finally:
+        manager.close()
+        with _admin(MSSQL_ENV).connect() as conn:
+            conn.execute(text(f"DROP TABLE IF EXISTS {table}"))
+            conn.execute(text(f"DROP TABLE IF EXISTS {table}_b"))
+
+
+@pytest.mark.parametrize("driver", ["pymssql", "pyodbc"])
+def test_sqlserver_user_transaction_survives_a_catalog_read(driver: str) -> None:
+    table = f"zz_h1ms_user_{uuid.uuid4().hex[:8]}"
+    with _admin(MSSQL_ENV).connect() as conn:
+        conn.execute(text(f"CREATE TABLE {table} (id INT)"))
+    manager = SyncDatabaseManager("sqlserver", _mssql_params(driver), use_pool=False)
+    try:
+        connection = manager.get_connection()
+        cursor = connection.cursor()
+        cursor.execute(f"INSERT INTO {table} VALUES (1)")  # transacción del usuario, sin confirmar
+        cursor.close()
+        manager.get_schema_metadata(kinds={Kind.TABLES})
+        connection.commit()
+        with _admin(MSSQL_ENV).connect() as conn:
+            assert conn.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar() == 1
+    finally:
+        manager.close()
+        with _admin(MSSQL_ENV).connect() as conn:
             conn.execute(text(f"DROP TABLE IF EXISTS {table}"))

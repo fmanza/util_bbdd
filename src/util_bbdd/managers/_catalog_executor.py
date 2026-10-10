@@ -158,6 +158,10 @@ def _in_transaction(connection: Any) -> bool | None:
     psycopg 3 (``info.transaction_status``), psycopg2 (``get_transaction_status()``), python-oracledb
     (``transaction_in_progress``), sqlite3/aiosqlite (``in_transaction``), asyncpg (``is_in_transaction()``) y
     PyMySQL/aiomysql (``server_status``). El resto (pyodbc, pymssql, jaydebeapi…) devuelve ``None``.
+
+    SQL Server (H1-MS, v0.42.1): pymssql, pyodbc y aioodbc tienen ``@@TRANCOUNT = 1`` desde que conectan, así que
+    ``@@TRANCOUNT`` tampoco distingue una transacción del usuario; no se hace ``rollback``. Con READ COMMITTED la lectura
+    no retiene bloqueos y el DDL de otra sesión se ve tras ``clear_cache()`` (``test_catalog_transaction_end.py``).
     """
     status = getattr(getattr(connection, "info", None), "transaction_status", None)
     if status is not None:
