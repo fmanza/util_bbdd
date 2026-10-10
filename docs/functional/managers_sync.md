@@ -2,28 +2,43 @@
 
 ## 1. Descripción General
 
-Permite conectar a cualquiera de los motores de base de datos habituales en una organización — MariaDB, Oracle, PostgreSQL, SQLite, HSQLDB y SQL Server — con una única forma de trabajo, sin cambiar el código según el motor utilizado. El responsable de datos o el desarrollador configura el tipo de base de datos y las credenciales una sola vez; a partir de ahí puede listar tablas, obtener columnas, leer índices, consultar el DDL de cualquier objeto y ejecutar consultas propias, sin conocer los dialectos internos de cada motor.
+Permite conectar a cualquiera de los motores soportados — MariaDB, MySQL, Oracle, PostgreSQL, SQL Server, SQLite y
+HSQLDB — con una única forma de trabajo, sin cambiar el código según el motor utilizado. El responsable de datos o el
+desarrollador configura el tipo de base de datos y las credenciales una sola vez; a partir de ahí puede listar tablas,
+obtener columnas, leer índices, consultar el DDL de cualquier objeto y ejecutar consultas propias, sin conocer los
+dialectos internos de cada motor.
 
-Las consultas repetidas al mismo objeto no vuelven a la base de datos durante la sesión: el gestor mantiene una caché interna que reduce la carga sobre los servidores en flujos de introspección intensivos o en generación de documentación de esquemas.
+Los metadatos se leen por lotes (una consulta por tipo de objeto para todo el schema) y se guardan en una caché del
+gestor: pedir las columnas de otra tabla no vuelve a la base de datos. Esto reduce la carga sobre los servidores en
+flujos de introspección intensivos o en generación de documentación de esquemas.
 
 **Precondiciones:**
 
-- Servidor de base de datos accesible en red (host, puerto y credenciales válidas)
-- Driver Python del motor instalado en el entorno (`pyodbc` para SQL Server, `oracledb` para Oracle, `psycopg` (v3) y `psycopg-pool` para PostgreSQL (`pip install "util_bbdd[postgresql]"`), `mariadb` (Connector/Python) para MariaDB, `pymysql` para MySQL, etc.)
-- Tipo de motor declarado explícitamente: `mariadb`, `oracle`, `postgresql`, `sqlite`, `hsqldb` o `sqlserver`
-- Parámetros de conexión mínimos: `database` (requerido en todos los motores)
-- Para Oracle: disponibilidad de Oracle Instant Client si se usa conexión nativa
+- Servidor de base de datos accesible en red (salvo SQLite)
+- Driver Python del motor instalado en el entorno: `mariadb` (Connector/Python) para MariaDB y `pymysql` para MySQL
+  (extras `mariadb` / `mysql`), `psycopg` (v3) y `psycopg-pool` para PostgreSQL (extra `postgresql`), `oracledb` para
+  Oracle (incluido en la instalación base), `pymssql` para SQL Server (o `pyodbc` con `sql_server_driver="pyodbc"`),
+  `jaydebeapi` y Java para HSQLDB. Instalación con extras:
+  `pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v1.1.0"`
+- Tipo de motor declarado explícitamente: `mariadb`, `mysql`, `oracle`, `postgresql`, `sqlserver`, `sqlite` o `hsqldb`
+- Parámetros de conexión obligatorios del motor: `host`, `user`, `password` y `database` (MariaDB, MySQL, PostgreSQL,
+  SQL Server); `user` y `password` (Oracle); `user`, `jdbc_url` y `jdbc_jar` (HSQLDB); `database` (SQLite)
+- Oracle: Oracle Instant Client solo si se activa el modo thick (`oracle_thick_mode=True` + `oracle_client_path`); el
+  modo por defecto (thin) no lo necesita
+- Permisos de lectura sobre el catálogo del sistema para la introspección
 
 ## 2. Reglas de Negocio
 
 | Regla | Descripción | Impacto si se viola |
 |---|---|---|
-| `database` obligatorio | El nombre de la base de datos debe estar presente en los parámetros de conexión | Error de configuración al inicializar; el gestor no se crea |
-| Tipo de motor válido | El tipo de BD debe coincidir exactamente con uno de los seis soportados | Error de validación en inicio; la conexión no se intenta |
+| Parámetros obligatorios | Cada motor exige sus parámetros de conexión (ver precondiciones) | Error de validación al inicializar; el gestor no se crea |
+| Tipo de motor válido | El tipo de BD debe ser uno de los siete soportados (sin distinguir mayúsculas) | Error de validación en inicio; la conexión no se intenta |
+| Una instancia, un motor | Cada gestor queda ligado a un único tipo de base de datos durante toda su vida | Para otro motor hay que crear otro gestor |
 | Driver instalado | El driver Python del motor debe estar disponible en el entorno de ejecución | Error de driver en tiempo de inicialización; sin fallback automático |
-| Pool con fallback automático | Si el motor no admite pool de conexiones, el gestor usa conexión directa sin interrupción | Advertencia en log, pero la operación continúa; sin pérdida de datos |
-| Caché por sesión | Los metadatos se cachean en memoria durante toda la vida del gestor | Cambios en la BD realizados por otros procesos durante la sesión no se reflejan |
-| Cierre explícito requerido | Si el gestor no se cierra correctamente, las conexiones del pool permanecen abiertas | Agotamiento del pool de conexiones en el servidor de BD |
+| Conexión comprobada al crear | Con pool, el gestor pide y devuelve una conexión de prueba al inicializarse | Credenciales o servidor incorrectos fallan al crear el gestor, no en la primera consulta |
+| Motor sin pool | HSQLDB no tiene pool: el gestor usa una conexión única | Advertencia en log; la operación continúa |
+| Caché de metadatos | Los metadatos se cachean durante toda la vida del gestor; las consultas propias (`execute_*`) no se cachean nunca | Cambios de esquema hechos por otros procesos no se ven hasta invalidar la caché (`clear_cache()`) |
+| Cierre explícito requerido | Si el gestor no se cierra, las conexiones del pool permanecen abiertas | Agotamiento de conexiones en el servidor de BD |
 
 ## 3. Casos de Uso
 
@@ -37,43 +52,50 @@ sequenceDiagram
 
     Dev->>Gestor: Crear gestor (tipo de motor + credenciales)
     Gestor->>Gestor: Validar tipo de motor y parámetros
-    Gestor->>BD: Abrir conexión (pool o directa según motor)
+    Gestor->>BD: Abrir pool y probar una conexión (o conexión única)
     BD-->>Gestor: Conexión establecida
 
-    loop Por cada operación de consulta
-        Dev->>Gestor: Solicitar tablas / columnas / DDL / query
-        alt Resultado ya en caché
-            Gestor-->>Dev: Devuelve resultado cacheado (sin ir a BD)
-        else Primera consulta del objeto
-            Gestor->>BD: Ejecutar consulta de metadatos o SQL
+    loop Por cada operación
+        Dev->>Gestor: Solicitar tablas / columnas / DDL
+        alt Tipo de objeto ya leído
+            Gestor-->>Dev: Devuelve resultado de la caché (sin ir a BD)
+        else Primera lectura de ese tipo de objeto
+            Gestor->>BD: Una consulta de catálogo para todo el schema
             BD-->>Gestor: Filas de resultado
-            Gestor->>Gestor: Guardar en caché de sesión
+            Gestor->>Gestor: Guardar en caché
             Gestor-->>Dev: Devuelve resultado
         end
+        Dev->>Gestor: Ejecutar consulta propia
+        Gestor->>BD: Siempre contra la base de datos
+        BD-->>Gestor: Filas
+        Gestor-->>Dev: Filas
     end
 
     Dev->>Gestor: Cerrar gestor
-    Gestor->>BD: Liberar conexión / devolver al pool
+    Gestor->>BD: Cerrar pool y conexiones
 ```
 
 ### Flujos alternativos
 
-**Uso como context manager (recomendado):** El gestor puede usarse con `with`, lo que garantiza el cierre automático de la conexión al salir del bloque, incluso si se produce una excepción.
+**Uso como context manager (recomendado):** El gestor puede usarse con `with`, lo que garantiza el cierre automático
+de la conexión al salir del bloque, incluso si se produce una excepción.
 
-**Motor sin pool:** Algunos motores no admiten pool de conexiones. El gestor detecta esta situación automáticamente y usa una conexión directa, registrando una advertencia en el log.
+**Motor sin pool:** HSQLDB no admite pool de conexiones. El gestor lo detecta y usa una conexión única, registrando una
+advertencia en el log. Con `use_pool=False` se fuerza la conexión única en cualquier motor.
 
 **Límites y exclusiones:**
 
 - No admite operaciones asíncronas: para código `async/await` utilizar el gestor asíncrono equivalente
 - No realiza inserción, actualización ni borrado masivo de datos: esas operaciones corresponden al módulo de operaciones bulk
-- No genera documentación de esquemas en ningún formato
-- No compara esquemas entre dos bases de datos distintas
+- No genera documentación de esquemas ni compara esquemas (módulos de documentación y de comparación)
+- No coordina transacciones entre varias bases de datos
 - Solo los motores declarados (MariaDB, MySQL, Oracle, PostgreSQL, SQL Server, SQLite y HSQLDB)
 
 ## 4. Glosario y Términos
 
 | Término | Definición |
 |---|---|
+| Sesión | Período de vida de una instancia del gestor, desde su creación hasta el cierre |
 | Pool de conexiones | Conjunto de conexiones a la BD mantenidas abiertas y reutilizadas para evitar el coste de abrir/cerrar por cada operación |
 | Context manager | Patrón Python (`with gestor:`) que garantiza que el método `close()` se llame automáticamente al salir del bloque |
-| Caché de sesión | Almacenamiento en memoria de metadatos consultados durante la sesión, para evitar viajes repetidos a la BD |
+| Caché de metadatos | Snapshot en memoria del catálogo por schema y tipo de objeto, para evitar viajes repetidos a la BD |

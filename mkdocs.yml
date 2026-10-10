@@ -16,7 +16,6 @@ nav:
   - Documentación Funcional:
       - Managers:
           - Gestión de Conexiones (Sync): functional/managers_sync.md
-          - Ciclo de vida de sesión sincrónica: functional/managers_sync_session_lifecycle.md
           - Gestión de Conexiones (Async): functional/managers_async.md
       - Metadatos e Introspección:
           - Extracción de Metadatos: functional/metadata_extraction.md

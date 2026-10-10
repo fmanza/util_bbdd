@@ -16,6 +16,13 @@ ejemplos) con lista de excepciones `tools/doc_check_allow.txt`. Logs: `build/log
 | Tabla de errores incompleta: sin `InvalidDatabaseType` ni `DatabaseConfigurationError`; «`ConnectionError` si no se puede conectar» | `api/managers_sync.md` | Probado: `db_type="foo"` → `InvalidDatabaseType`; falta de parámetros → `ValidationError`; PostgreSQL inalcanzable con pool → `DatabaseConfigurationError` (tras el timeout del pool, 30 s); `ConnectionError` solo en conexión única |
 | Faltaban `execute_query_one`, `init`, `get_connection`/`release_connection`, `clear_cache`, `queries_file`; `ValueError` de `get_storage_inventory` sin `tablespace` en Oracle/PostgreSQL | `api/managers_sync.md` | Añadidos con su firma (`inspect.signature`) |
 
+## C2 — consolidación de `functional/managers_sync_session_lifecycle.md` (D2, aprobada)
+
+| Hallazgo | Dónde | Corrección |
+|---|---|---|
+| Afirmaciones falsas: «no valida credenciales al inicializar» (con pool, `_init_pool` pide y devuelve una conexión de prueba en `__init__`), «no paraleliza; usa una cola de espera» (hay pool), «timeout de reconexión»; lo demás repetía `managers_sync.md` | `functional/managers_sync_session_lifecycle.md` | Borrada y fuera del `nav` (sin enlaces entrantes); sus tres puntos verdaderos (una instancia = un motor; `execute_*` sin caché; sin transacciones entre BD) pasan a `managers_sync.md` |
+| Motores sin MySQL (3 sitios); «seis soportados»; «`database` obligatorio en todos los motores»; `pyodbc` como driver de SQL Server (por defecto es `pymssql`); Instant Client «si se usa conexión nativa» (solo en modo thick); instalación con la forma de PyPI | `functional/managers_sync.md` | 7 motores; obligatorios por motor; drivers según `DriverValidator`; instalación desde git |
+
 ## Tanda 1 — `docs/api/` (25 páginas)
 
 Comprobador: `build/logs/docsn2_t1_doc_check_{before,after}.txt` (0 hallazgos). Build: `docsn2_t1_build.txt`. Ejemplos
