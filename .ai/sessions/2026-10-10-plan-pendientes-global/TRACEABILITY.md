@@ -62,7 +62,7 @@ Prompt: `IMPLEMENT` (sin decisiones explícitas: se aplicaron las recomendadas D
 | Q5 HPK | `4569c290` | tests de integración HSQLDB (PK de sistema, sin PK, compuesta) |
 | Q5 F7 | `fa749104` | 0,91 s → 0,003 s (2000 routines); test de equivalencia |
 | Release | `30e0f5d0` (tag `v0.42.0`) | `tests/integration` 577 pasan; puerta completa |
-| Q6 | este documento | `Q6_PLAN_API_1_0.md` + `build/logs/api_inventory.tsv` |
+| Q6 | este documento | `Q6_PLAN_API_1_0.md` + `api_inventory.tsv` |
 
 ## Veredicto final
 Veredicto: GO (Q0–Q5 implementados en v0.41.2–v0.42.0; Q6 entregado como PLAN)

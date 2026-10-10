@@ -1,7 +1,7 @@
 # Q6 — PLAN + AUDIT_PLAN de la API pública 1.0
 
 Fecha: 2026-10-10 · Base: `develop` @ v0.42.0 · Solo lectura. Origen: `2026-10-04-api-single-entry-point-audit`
-(Opción A hecha; B y C pendientes). Inventario: `build/logs/api_inventory.tsv` (cada símbolo de `util_bbdd.__all__`
+(Opción A hecha; B y C pendientes). Inventario: `api_inventory.tsv` (en esta carpeta) (cada símbolo de `util_bbdd.__all__`
 con el número de ficheros de `docs/`, ejemplos, `tests/` y `src/` que lo nombran).
 
 ## 1. Situación medida
