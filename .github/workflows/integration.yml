@@ -1,0 +1,84 @@
+name: Integration
+
+# Tests de integración contra motores reales (Q4 del plan 2026-10-10-plan-pendientes-global): PostgreSQL, MySQL y
+# MariaDB como contenedores de servicio. SQL Server, Oracle y HSQLDB siguen en el banco local (docker-compose.bench*.yml):
+# sus tests se saltan aquí porque no se definen sus UTIL_BBDD_TEST_*_URL. Manual y nocturno, para no alargar cada push.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      # Contraseña de prueba de los contenedores efímeros de este job (no es la del banco local).
+      UTIL_BBDD_TEST_POSTGRESQL_URL: postgresql+psycopg://bench:ci_bench_pw@127.0.0.1:5432/bench
+      UTIL_BBDD_TEST_MYSQL_URL: mysql+pymysql://root:ci_bench_pw@127.0.0.1:3306/bench
+      UTIL_BBDD_TEST_MARIADB_URL: mariadb+pymysql://root:ci_bench_pw@127.0.0.1:3307/bench
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: bench
+          POSTGRES_PASSWORD: ci_bench_pw
+          POSTGRES_DB: bench
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U bench -d bench"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci_bench_pw
+          MYSQL_DATABASE: bench
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pci_bench_pw"
+          --health-interval 5s --health-timeout 5s --health-retries 30
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: ci_bench_pw
+          MARIADB_DATABASE: bench
+        ports: ["3307:3306"]
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s --health-timeout 5s --health-retries 30
+
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+        cache: pip
+
+    - name: Configure git credentials for private deps
+      run: |
+        if [ -n "${{ secrets.GH_PAT }}" ]; then
+          git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+        else
+          git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+        fi
+      shell: bash
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+        python -m pip install -e ".[dev,postgresql,mysql]"
+
+    - name: Integration tests (PostgreSQL, MySQL, MariaDB)
+      run: python -m pytest tests/integration -m integration -q -rs
