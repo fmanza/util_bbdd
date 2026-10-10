@@ -62,8 +62,15 @@ class DatabaseManagerSharedMixin:
         if context is None:
             cache.invalidate(self._catalog_source_id())
             return
-        schema = "main" if self.db_type == "sqlite" else context
-        cache.invalidate(self._catalog_source_id(), get_catalog_dialect(self.db_type).normalize_name(schema))
+        default_schema: str = self._catalog_default_schema()
+        if self.db_type == "sqlite" or context == default_schema:
+            # El schema propio, con la clave con que lo guardó get_schema_metadata() sin argumento: sin normalizar. F5
+            # (v0.41.3): un usuario Oracle entrecomillado en minúsculas («"zz_f5"») se guardaba como «zz_f5» y se
+            # invalidaba «ZZ_F5», así que clear_cache(table=…) no descartaba nada.
+            schema = default_schema
+        else:
+            schema = get_catalog_dialect(self.db_type).normalize_name(context)
+        cache.invalidate(self._catalog_source_id(), schema)
 
     def clear_cache(
         self,
