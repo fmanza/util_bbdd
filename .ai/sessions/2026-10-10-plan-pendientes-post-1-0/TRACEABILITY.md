@@ -32,7 +32,8 @@ páginas `constraints_*` consolidadas en la guía; el fallo de asyncpg como `/ho
 | B4 | `0b0ba205`, `c9bb3598` | `TableMaintenance` (`bulk/_execution/maintenance.py`) y `RejectsCoordinator` (`bulk/_support/rejects.py`); código movido idéntico salvo nombres (`postv1_b4_moved_diff.txt`, `postv1_b4b_moved_diff.txt`); `crud.py` 1943 → 1564 |
 | B5 | `e14dd441`, `ac605edc` | 18 páginas + barrido (ver `02_DOC_REVIEW.md`); 2 guías a `docs/guides/`, 3 páginas consolidadas |
 | Hotfix | `d369c8e3` | asyncpg en `AsyncQueryExecutor` (`fetch`/`fetchrow`, `%(n)s`/`:n` → `$n`); 7 unitarios (6 rojos con el error de producción) + 4 de integración |
-| B7 | (este cierre) | 1.1.0 en `pyproject.toml`, CHANGELOG, README, `docs/index.md`, `docs/roadmap.md`, pie de `docs/architecture.md`, instalación `@v1.1.0`; `CURRENT_STATE`, `SESSIONS_DIGEST` |
+| Hotfix 2 y 3 | `cf7abb78`, `1c83041b` | Tras instalar el usuario el ODBC Driver 18: `ResultNormalizer` convierte en tupla las filas de driver que son secuencias (`pyodbc.Row` no define `__iter__`); el pool async de SQL Server lee la config con `sql_server_driver="pyodbc"`. 10 + 2 unitarios (4 rojos) y 4 de integración (`test_sqlserver_pyodbc_rows.py`) |
+| B7 | `da605e0e` + notas | 1.1.0 en `pyproject.toml`, CHANGELOG, README, `docs/index.md`, `docs/roadmap.md`, pie de `docs/architecture.md`, instalación `@v1.1.0`; `CURRENT_STATE`, `SESSIONS_DIGEST` |
 
 Desviaciones del plan: `TableMaintenance` va en `_execution/` y no en `_support/` (usa `SessionScope`/`CommitCadence`;
 `_support` no importa de `_execution`). B3 cubrió también `AuditManager` (público en `util_bbdd.bulk`). El hotfix no
@@ -43,7 +44,8 @@ Errores propios corregidos durante la sesión: la primera versión de la fixture
 dos expectativas del test de integración de asyncpg suponían interpolación en el cliente.
 
 Puerta de VERSION: ruff, ruff format, mypy (334 ficheros) limpios; pytest sin banco 5718 passed, 527 skipped
-(`postv1_gate_pytest_sin_banco.txt`); con banco + `JAVA_HOME` 6238 passed, 7 skipped (`postv1_gate_pytest_con_banco.txt`);
+(`postv1_gate_pytest_sin_banco.txt`); con banco + `JAVA_HOME` 6238 passed, 7 skipped (`postv1_gate_pytest_con_banco.txt`).
+Tras los hotfix 2 y 3: 5730 passed, 531 skipped sin banco; 6254 passed, 7 skipped con banco (`postv1_hotfix2_pytest_*.txt`);
 `zensical build --strict` sin incidencias; `python -m build` → `util_bbdd-1.1.0`.
 
 ## Artefactos generados
@@ -78,6 +80,8 @@ Puerta de VERSION: ruff, ruff format, mypy (334 ficheros) limpios; pytest sin ba
   (`benchmarks.md`) tenían tablas inventadas. Ejecutar los ejemplos tocados contra el banco: así apareció el fallo de
   asyncpg.
 - **[git]**: mover `main` a un commit sin cambiar de rama: `git fetch . <sha>:main` (solo fast-forward).
+- **[results]**: `pyodbc.Row` (y la de aioodbc) no es `tuple` ni define `__iter__`: se itera por `__getitem__`. Un
+  doble de test de una fila de driver debe imitar eso; el primero que escribí tenía `__iter__` y pasaba con el fallo.
 - **[shell]**: los heredocs de Bash quitan un nivel de `\`; los scripts con regex o `\|` se escriben con Write.
 
 ## Veredicto final
@@ -85,5 +89,5 @@ Veredicto: CLOSED (v1.1.0 en local)
 Pendientes al cierre:
 - Tag `v1.1.0`, push de `develop` y fast-forward de `main`: solo con autorización explícita.
 - Nivel 2 de la revisión de docs (~85 páginas) y `docs/examples/migrate_*`.
-- `AsyncDatabaseManager("sqlserver")` sin sondear (falta el driver ODBC de aioodbc en esta máquina).
+- `driver_name` por defecto de SQL Server = ODBC Driver 17: con solo el 18 instalado hay que indicarlo (decisión).
 - Externos (usuario): PR #18, issue del ORA-03106, `docs-release.yml` de los tags, `integration.yml`, PR de dependabot.

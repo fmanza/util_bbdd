@@ -26,6 +26,12 @@ Sesión `.ai/sessions/2026-10-10-plan-pendientes-post-1-0/`. Sin cambios incompa
   asyncpg, ejecuta con `fetch`/`fetchrow` y envía `%(nombre)s` o `:nombre` como `$1`, `$2`… asyncpg tipa los
   parámetros en el servidor: uno sin contexto de tipo (`SELECT %(n)s`) es `text` y necesita un cast
   ([managers async](docs/api/managers_async.md)).
+- **results** (hotfix): con SQL Server y pyodbc (`sql_server_driver="pyodbc"` en sync; aioodbc en async)
+  `execute_custom_one` devolvía `((1, 'a'),)` y `execute_custom_many` una sola «fila» con todas las filas dentro
+  (desde v0.5.0): `pyodbc.Row` no es `tuple` y se envolvía en otra. Ahora cualquier fila de driver que sea una
+  secuencia (también `sqlite3.Row`) se convierte en una tupla.
+- **connection** (hotfix): el pool async de SQL Server ignoraba `driver_name` y usaba siempre el ODBC Driver 17
+  (`IM002` con solo el 18 instalado); sin pool sí lo respetaba. El valor por defecto sigue siendo el Driver 17.
 - **dump**: `DumpConfig(output_dir="out")` cargaba los datos y fallaba después al escribir el informe con `TypeError`,
   sin devolver el `DumpResult`; `DumpConfig(bulk_audit_path="audit.csv")` fallaba con `AttributeError` antes de cargar.
 - **bulk**: `BulkCrud(audit_csv_path="audit.csv")` y `ParallelBulkLoader(audit_csv_path=...)` con `str` fallaban con
