@@ -32,7 +32,13 @@ def _params(env: str) -> dict[str, Any]:
     if not os.environ.get(env):
         pytest.skip(f"{env} no definida")
     url = make_url(os.environ[env])
-    return {"host": url.host, "port": url.port, "user": url.username, "password": url.password, "database": url.database}
+    return {
+        "host": url.host,
+        "port": url.port,
+        "user": url.username,
+        "password": url.password,
+        "database": url.database,
+    }
 
 
 def _admin(env: str) -> Any:
