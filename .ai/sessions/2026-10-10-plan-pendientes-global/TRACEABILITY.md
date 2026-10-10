@@ -42,8 +42,11 @@ PLAN y ADUIT_PLAN de todo lo pendiente
   transacción (`_in_transaction`, por driver). MySQL 8 no marca `SERVER_STATUS_IN_TRANS` al leer `information_schema`.
 - **[SQL Server/precarga]**: `metadata/reflection._resolve_requested` resuelve los nombres pedidos contra tablas y vistas
   existentes; con collation sensible a mayúsculas `Users` y `users` son tablas distintas.
-- **[CI]**: `integration.yml` no tiene el paquete `mariadb` ni la CA de `build/bench_tls/`: los tests de TLS propio y
-  del conector MariaDB se saltan allí.
+- **[CI]**: `integration.yml` no tiene la CA de `build/bench_tls/` (los tests de TLS propio se saltan) y sí el paquete
+  `mariadb` (Connector/C por apt). Para simular el CI en local de verdad: ocultar `build/bench_tls/`, quitar las URL de
+  MSSQL/Oracle/HSQLDB y contenedores efímeros; sin eso la simulación da por buenos tests que fallan en el CI.
+- **[SQL Server/transacciones]**: pymssql abre `BEGIN TRAN` al conectar y tras cada commit/rollback; pyodbc/aioodbc
+  también dan `@@TRANCOUNT = 1` antes de leer. No intentes detectar la transacción del usuario por `@@TRANCOUNT`.
 - **[herramientas]**: aquí no hay `gh`: el estado del CI y de las PR de GitHub no se puede comprobar desde la sesión.
 
 ## Ejecución (IMPLEMENT, 2026-10-10)
@@ -58,11 +61,17 @@ Prompt: `IMPLEMENT` (sin decisiones explícitas: se aplicaron las recomendadas D
 | Q3 F5 | `a1190d02` | test unitario rojo → verde |
 | Q3 H2 | `c2a16ac9` | no reproducido; test que lo fija |
 | Release | `1da796d6` (tag `v0.41.3`) | `tests/integration` 577 pasan |
-| Q4 | `9f121eb5` | `integration.yml`; simulado en local con los mismos contenedores: 363 pasan, 217 saltados (4 fallos de TLS solo locales por la CA de `build/`) |
+| Q4 | `9f121eb5` | `integration.yml`. **Corregido tras /audit-code (CI-2):** la simulación de entonces no era fiel (en local estaban el paquete `mariadb` y la CA de `build/bench_tls/`); la fiel daba 7 fallos `[mariadb]` (CI-1). Ver «Condiciones de /audit-code» |
 | Q5 HPK | `4569c290` | tests de integración HSQLDB (PK de sistema, sin PK, compuesta) |
 | Q5 F7 | `fa749104` | 0,91 s → 0,003 s (2000 routines); test de equivalencia |
 | Release | `30e0f5d0` (tag `v0.42.0`) | `tests/integration` 577 pasan; puerta completa |
+| CI-1 | `b3db8526` | `integration.yml` instala `libmariadb-dev` + extra `mariadb`; `skip_reason()` salta los `[mariadb]` sin el paquete. Simulación fiel (sin CA, solo las 3 URL del CI): con `mariadb` 360 pasan, 0 fallos; sin `mariadb` 281 pasan, 0 fallos |
+| H1-MS | `320244ea` | sonda: pymssql/pyodbc/aioodbc con `@@TRANCOUNT = 1` desde que conectan → la detección propuesta no sirve; 4 tests fijan que la lectura no retiene bloqueos, no frena DDL externo y respeta la transacción del usuario |
 | Q6 | este documento | `Q6_PLAN_API_1_0.md` + `api_inventory.tsv` |
+
+## Condiciones de /audit-code (2026-10-10)
+Veredicto de la auditoría: APROBADO CON CONDICIONES (CI-1, H1-MS, CI-2). Las tres resueltas (filas CI-1 y H1-MS;
+CI-2 es la corrección de la fila Q4).
 
 ## Veredicto final
 Veredicto: GO (Q0–Q5 implementados en v0.41.2–v0.42.0; Q6 entregado como PLAN)
