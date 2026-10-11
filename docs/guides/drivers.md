@@ -10,16 +10,15 @@ Esta guía cubre la selección y configuración de drivers para cada base de dat
 
 ### Introducción
 
-Las conexiones a Oracle requieren una librería cliente de Oracle. util_bbdd soporta dos modos:
+Oracle se conecta con `python-oracledb` (dependencia base, `oracledb>=3.4`). util_bbdd soporta sus dos modos:
 
-- **Thin Mode** (predeterminado): Python puro, requiere Python 3.8+, solo asincrónico, Oracle 12c en adelante
-- **Thick Mode** (recomendado para 11g): Requiere Oracle Instant Client, solo sincrónico, soporta Oracle 11g a 23c
+- **Thin Mode** (predeterminado): Python puro, sin Oracle Instant Client; managers **sync y async**; Oracle 12.1 en adelante
+- **Thick Mode** (`oracle_thick_mode=True`): requiere Oracle Instant Client; solo managers **sync**; necesario para Oracle 11g
 
 ### Thin Mode
 
 **Recomendado para:**
-- Aplicaciones asincrónicas con Oracle 12c o posterior
-- Desarrollo y pruebas
+- Cualquier uso con Oracle 12.1 o posterior, sync o async
 - Entornos donde Instant Client no está disponible
 
 **Configuración:**
@@ -40,9 +39,10 @@ manager = AsyncDatabaseManager(
 snapshot = await manager.get_schema_metadata()
 ```
 
+Con `SyncDatabaseManager` es igual (sin `await`): thin es el modo por defecto también en sync.
+
 **Limitaciones:**
-- Sin soporte para Oracle 11g (usa protocolo Python puro; Oracle 11g es anterior a este protocolo)
-- Solo asincrónico (sin conexión sincrónica)
+- Sin soporte para Oracle 11g: el modo thin de python-oracledb conecta con Oracle 12.1 o posterior
 
 ---
 
@@ -54,26 +54,11 @@ snapshot = await manager.get_schema_metadata()
 - Aplicaciones que necesitan características completas del cliente Oracle
 
 **Requisitos:**
-1. **Oracle Instant Client 19** o versión compatible (ver tabla de compatibilidad más abajo)
-2. **python-oracledb** 1.0+
-3. **Solo código sincrónico** (asincrónico no es compatible con thick mode)
-
-#### Matriz de Compatibilidad de Oracle Instant Client
-
-| Versión de Base de Datos Oracle | Versión de Instant Client | Versión de python-oracledb | Notas |
-|---|---|---|---|
-| 11g (11.2.0.x) | 19.x | 1.0+ | Recomendado para soporte de 11g |
-| 11g (11.2.0.x) | 23.x | 1.0+ | Puede funcionar pero 19.x es preferido |
-| 12c (12.1.x) | 19.x–23.x | 1.0+ | Soporte completo |
-| 12c R2 (12.2.x) | 19.x–23.x | 1.0+ | Soporte completo |
-| 19c | 19.x–23.x | 1.0+ | Soporte completo |
-| 21c | 21.x–23.x | 1.0+ | Soporte completo |
-| 23c | 23.x | 1.0+ | Soporte completo; driver debe ser 23.x o posterior |
-
-**Puntos clave:**
-- La versión de Instant Client debe ser ≥ versión mínima soportada por la base de datos destino
-- Para Oracle 11g, Instant Client 19 es la opción recomendada
-- Instant Client 23 puede funcionar con 11g pero recibe menos pruebas
+1. **Oracle Instant Client** compatible con la versión de la base de datos (para 11g, un cliente que conecte con 11.2;
+   consultar la matriz de interoperabilidad cliente/servidor de Oracle)
+2. **python-oracledb** (dependencia base)
+3. **Solo código sincrónico**: con thick mode inicializado en el proceso, las conexiones async de Oracle fallan con
+   `ConnectionError`
 
 #### Instalación
 
@@ -97,10 +82,7 @@ snapshot = await manager.get_schema_metadata()
    export LD_LIBRARY_PATH=$HOME/oracle/instantclient_19_x:$LD_LIBRARY_PATH
    ```
 
-4. **Instala python-oracledb:**
-   ```bash
-   pip install oracledb
-   ```
+4. **python-oracledb** ya viene con util_bbdd (dependencia base); no hace falta instalarlo aparte.
 
 #### Configuración
 
@@ -129,29 +111,12 @@ snapshot = manager.get_schema_metadata()
 - `oracle_thick_mode` (bool, predeterminado=False): Habilita thick mode
 - `oracle_client_path` (str): Ruta al directorio de Oracle Instant Client (requerido si oracle_thick_mode=True)
 
-**Identificadores de Conexión:**
-Para Oracle 11g, prefiere `service_name` sobre `dsn` o `sid`:
+**Identificadores de Conexión:** además de `user` y `password`, uno de `service_name`, `sid`, `dsn` o `database`
+(con `host` y `port` salvo con `dsn`):
 ```python
-# Recomendado para 11g
-conn_params = {
-    "user": "scott",
-    "service_name": "ORCL",
-    ...
-}
-
-# Alternativa (11g)
-conn_params = {
-    "user": "scott",
-    "sid": "ORCL",
-    ...
-}
-
-# No recomendado para 11g
-conn_params = {
-    "user": "scott",
-    "dsn": "oracle-host:1521/ORCL",
-    ...
-}
+conn_params = {"user": "scott", "password": "tiger", "host": "oracle-host", "service_name": "ORCL"}
+conn_params = {"user": "scott", "password": "tiger", "host": "oracle-host", "sid": "ORCL"}
+conn_params = {"user": "scott", "password": "tiger", "dsn": "oracle-host:1521/ORCL"}
 ```
 
 #### Seguridad de Hilos
@@ -159,7 +124,7 @@ conn_params = {
 La inicialización de thick mode es **segura para hilos** mediante bloqueo interno:
 - La primera llamada a `init_oracle_thick_mode()` tiene éxito y bloquea el modo
 - Las llamadas posteriores desde otros hilos se devuelven sin re-inicializar
-- El código asincrónico no puede inicializar thick mode (lanza `ConnectionError`)
+- Con thick mode ya inicializado, una conexión async de Oracle en el mismo proceso lanza `ConnectionError`
 
 Ejemplo (multi-hilo):
 ```python
@@ -198,7 +163,7 @@ for t in threads:
 |---|---|---|
 | `DPI-1047: Cannot locate a 32-bit Oracle Client` | Arquitectura incorrecta | Descarga Instant Client que coincida con tu intérprete Python (64-bit para x86_64, etc.) |
 | `ORA-00000: Oracle client library initialization failed` | Instant Client no encontrado | Verifica que `oracle_client_path` apunte al directorio de Instant Client extraído |
-| `ConnectionError: El modo asincrónico no es compatible con thick mode` | Se intentó async con thick mode | Usa código sincrónico o desactiva thick mode (usa thin mode en su lugar) |
+| `ConnectionError: El modo asincrónico de Oracle no es compatible con thick mode en el mismo proceso` | Conexión async en un proceso que ya inicializó thick mode | Usar el manager sync, o thin mode (sin `oracle_thick_mode`) en todo el proceso |
 | `ORA-12154: TNS:could not resolve the connect identifier` | Nombre de servicio inválido | Verifica el nombre del servicio de base de datos y la configuración de red |
 
 ---
@@ -232,7 +197,7 @@ sirve para Engines propios `postgresql+psycopg2://` (p. ej. la estrategia `execu
 
 **Instalación:**
 ```bash
-pip install "util_bbdd[postgresql]"  # psycopg[binary], psycopg-pool y asyncpg
+pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v1.1.0"  # psycopg[binary], psycopg-pool y asyncpg
 ```
 
 **Configuración:**
@@ -257,8 +222,10 @@ Desde v0.19.0 son dos motores distintos, con las mismas claves de `conn_params`:
 
 | `db_type` | Driver sync | Driver async | Instalación |
 |---|---|---|---|
-| `mariadb` | `mariadb` (MariaDB Connector/Python) | `aiomysql` | `pip install "util_bbdd[mariadb]"` |
-| `mysql` | `pymysql` | `aiomysql` | `pip install "util_bbdd[mysql]"` |
+| `mariadb` | `mariadb` (MariaDB Connector/Python) | `aiomysql` | extra `mariadb` |
+| `mysql` | `pymysql` | `aiomysql` | extra `mysql` |
+
+Instalación de un extra: `pip install "util_bbdd[mariadb] @ git+https://github.com/fmanza/util_bbdd.git@v1.1.0"`.
 
 **Limitación del driver (MariaDB):** MariaDB Connector/Python no tiene `ssl_verify_identity`. Con `ssl_ca` verifica
 la CA y el hostname a la vez, sin forma de verificar solo la CA: el nombre o la IP con que conectas debe figurar en el
@@ -344,4 +311,4 @@ manager = SyncDatabaseManager(
 
 ---
 
-*Última actualización: 2025-01-15*
+*Última actualización: 2026-10-11*

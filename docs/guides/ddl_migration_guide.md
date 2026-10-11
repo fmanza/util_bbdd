@@ -21,8 +21,10 @@ la estructura, usa la [guía de volcado de datos](dump_guide.md).
 ## 2. Requisitos Previos
 
 - Python 3.12+ con `util_bbdd` y el driver del motor **origen** instalado (ver [Instalación](../installation.md)).
-- Un `SyncDatabaseManager` **activo** del motor origen con permisos de lectura sobre sus catálogos de metadatos (p. ej. en Oracle: `ALL_TABLES`, `ALL_TAB_COLUMNS`, `ALL_CONSTRAINTS`, `ALL_INDEXES`, `ALL_VIEWS`).
-- El nombre del **schema/owner** a migrar (sensible a mayúsculas en Oracle; en SQL Server es el `TABLE_SCHEMA`, p. ej. `dbo`).
+- Un `SyncDatabaseManager` **activo** del motor origen (o un `MetadataSource`) con permiso para leer su catálogo: el
+  usuario debe ver los objetos del schema (en Oracle, en las vistas `ALL_*` del owner).
+- El nombre del **schema/owner** a migrar (en Oracle, en mayúsculas; en SQL Server, el schema, p. ej. `dbo`; en
+  MariaDB/MySQL, la base de datos).
 - Opcional: un manager del motor **destino** si se desea ejecutar el DDL directamente.
 
 ## 3. Pasos
@@ -50,7 +52,7 @@ planner = MigrationPlanner(
     source_engine="oracle",
     target_engine="mariadb",
     number_fallback="DOUBLE",   # tipo para NUMBER Oracle sin precisión
-    charset="utf8mb4",                  # solo aplica a destino MariaDB (por defecto)
+    charset="utf8mb4",                  # solo aplica a destino MariaDB/MySQL (por defecto)
     collation="utf8mb4_uca1400_ai_ci",  # por defecto; requiere MariaDB ≥ 10.10
 )
 ```
@@ -84,7 +86,7 @@ plan = planner.plan(connection=source, schema="HR")
 
 ```python
 ddl = plan.emit_ddl()                       # script SQL completo (str)
-nombre = plan.suggested_filename()          # p. ej. hr_oracle_to_mariadb_20260604.sql
+nombre = plan.suggested_filename()          # <schema>_<origen>_to_<destino>.sql: hr_oracle_to_mariadb.sql
 with open(nombre, "w", encoding="utf-8") as f:
     f.write(ddl)
 ```
@@ -107,7 +109,7 @@ El SQL de cada vista se reescribe al dialecto destino con [sqlglot](https://gith
 dependencia **opcional**:
 
 ```bash
-pip install "util_bbdd[migrate]"
+pip install "util_bbdd[migrate] @ git+https://github.com/fmanza/util_bbdd.git@v1.1.0"
 ```
 
 El parámetro `view_strategy` decide cómo se migran las vistas:
@@ -211,6 +213,7 @@ Cada aviso (`MigrationWarning`) indica **qué** es con `category` y, cuando trat
 | `AUTO_INCREMENT_NO_SEQUENCE` | `AUTO_INCREMENT` | Oracle destino sin `SEQUENCE`/`TRIGGER` para el autoincremental |
 | `FK_DEFERRED` | `FOREIGN_KEY` | FK de un ciclo, añadida con `ALTER TABLE` al final |
 | `FK_ON_UPDATE_IGNORED` | `FOREIGN_KEY` | `ON UPDATE` sin equivalente en Oracle |
+| `INDEX_EXPRESSION_SKIPPED` | `INDEX` | Índice sobre expresiones que no se migra (crearlo a mano) |
 | `VIEW_PASSTHROUGH` | `VIEW` | Vista copiada sin reescribir por la estrategia `"passthrough"` (o sin sqlglot) |
 | `VIEW_NOT_REWRITTEN` | `VIEW` | Vista sin traducción fiable, copiada sin reescribir (motivo en `message`) |
 | `VIEW_REWRITTEN` | `VIEW` | Vista reescrita con sqlglot (`INFO`) |
@@ -254,7 +257,7 @@ print(format_plan_text(plan))          # resumen de avisos por severidad
 | `plan.error_count > 0` | Tipos sin equivalente directo en el destino | Revisa los avisos `ERROR`, ajusta `number_fallback` o edita el DDL antes de ejecutar |
 | Pérdida de exactitud en `NUMBER` (Oracle) | `NUMBER` sin precisión usa el fallback por defecto (`DOUBLE`) | Usa `number_fallback="DECIMAL(38,10)"` |
 | Stored procedures sin traducir | El cuerpo de las rutinas no se traduce (pass-through, aviso `ROUTINE_PASSTHROUGH`). Entre MySQL y MariaDB se crean con `execute()` (el `CREATE` se reconstruye desde `INFORMATION_SCHEMA`, sin `DEFINER`); en el resto de pares van comentadas en el script y `execute()` no las envía | Adapta manualmente las rutinas comentadas al dialecto destino. Para crear **funciones** en MySQL con el binlog activo hace falta `SUPER` o `log_bin_trust_function_creators=1` (error 1419) |
-| Vistas sin reescribir | sqlglot no instalado, `view_strategy="passthrough"` o construcción sin traducción fiable (aviso `VIEW (sin reescribir)`) | `pip install "util_bbdd[migrate]"`; si persiste, adapta esa vista a mano |
+| Vistas sin reescribir | sqlglot no instalado, `view_strategy="passthrough"` o construcción sin traducción fiable (aviso `VIEW (sin reescribir)`) | Instalar el extra `migrate` (§3.5); si persiste, adapta esa vista a mano |
 | Vista reescrita con otro resultado | Semántica distinta entre motores (Oracle: cadena vacía = `NULL`) | Revisa los avisos `VIEW (semántica Oracle)` y los datos con cadenas vacías |
 | FKs a tablas fuera del schema migrado | Referencias externas excluidas del script | Gestiona esas FKs manualmente tras la migración |
 | Identificadores demasiado largos | Superan el límite del motor destino | Se truncan con sufijo hash determinista; cada truncado queda como aviso |

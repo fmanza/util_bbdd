@@ -15,7 +15,6 @@ necesitas crear primero la estructura en otro motor, usa la
 ## 2. Requisitos Previos
 
 - Python 3.12+ con `util_bbdd` instalado y los drivers de **ambos** motores (ver [Instalación](../installation.md)).
-- `pandas` y `openpyxl` disponibles (dependencias del módulo de volcado; `openpyxl` es necesario para el informe Excel).
 - Dos engines SQLAlchemy **conectables**:
     - Origen: permiso `SELECT` sobre las tablas a volcar.
     - Destino: permisos `INSERT`, `DELETE`/`TRUNCATE` y gestión de constraints.
@@ -54,7 +53,7 @@ config = DumpConfig(
     source_schema="public",   # None = schema por defecto del engine
     target_schema="dbo",
     tables=None,              # None = todas las tablas del origen
-    chunk_size=5000,          # baja a 500 si el destino MariaDB tiene columnas TEXT/JSON
+    chunk_size=5000,          # bájalo si en MariaDB/MySQL un lote con TEXT/JSON supera max_allowed_packet
     truncate_target=True,     # vaciar destino antes de cargar (full refresh)
     output_dir=Path("reports"),
 )
@@ -87,7 +86,7 @@ for t in errores:
 El volcado es correcto cuando: `errores` está vacío, `result.report` apunta a un fichero
 `reports/dump_report_<timestamp>.xlsx` existente, y sus hojas **Auditoría Tablas**,
 **Tablas Faltantes** y **Columnas Inexistentes** no listan incidencias inesperadas. Con `bulk_audit_path`, la hoja
-**Auditoría Bulk** no debe tener celdas resaltadas en rojo ni naranja. Con `sync_pk_sequences=True`, la hoja
+**Auditoría Bulk** no debe tener celdas resaltadas en rojo ni naranja. Con `sync_pk_sequences=True` (por defecto), la hoja
 **Secuencias PK** no debe tener estados `ERROR`.
 
 ## 5. Variantes y Solución de Problemas
@@ -99,7 +98,7 @@ El volcado es correcto cuando: `errores` está vacío, `result.report` apunta a 
 | `Server has gone away` (MariaDB) | Engine sin `pool_pre_ping` y chunks grandes | Usa `get_sqlalchemy_engine()` y baja `chunk_size` a 500 |
 | Duplicados tras el volcado | `truncate_target=False` (append) sobre datos ya existentes | Usa `truncate_target=True` para un full refresh |
 | Volcado lento con millones de filas | Carga secuencial y atómica por defecto | Activa palancas opt-in (ver abajo) |
-| Error al generar el informe | Falta `openpyxl` | `pip install openpyxl` |
+| `DumpReportError` al terminar | No se pudo escribir el Excel (permisos, fichero abierto, disco lleno); la carga ya se hizo | Recuperar el resultado de `exc.result` y revisar `exc.output_path` |
 
 **Palancas de rendimiento (opt-in, todas desactivadas por defecto y combinables):**
 

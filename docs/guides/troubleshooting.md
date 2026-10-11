@@ -8,7 +8,6 @@ Diagnosticar y resolver los errores más frecuentes de conexión, pool, drivers 
 
 - `util_bbdd` instalado y el driver del motor configurado (ver [Guía de Instalación](../installation.md))
 - Acceso al log de Python habilitado (`logging.basicConfig(level=logging.DEBUG)`) para diagnóstico de errores de pool y conexión
-- Para errores de pool async: Python 3.10+ con `asyncio`
 
 ## 3. Pasos
 
@@ -38,13 +37,16 @@ except Exception as e:
 
 ### Aumentar tamaño del pool para errores de concurrencia
 
+Los parámetros de pool van en `conn_params` y dependen del motor (en PostgreSQL no existe `max_overflow`: daría
+`ValidationError`; tabla por motor en la [guía async](async_guide.md#paso-3-configurar-el-pool-segun-el-workload)):
+
 ```python
 manager = SyncDatabaseManager(
     db_type="postgresql",
     conn_params={
         "host": "...", "database": "...", "user": "...", "password": "...",
         "pool_size": 20,
-        "max_overflow": 10,
+        "pool_timeout": 60,
     },
 )
 ```
@@ -56,7 +58,7 @@ manager = SyncDatabaseManager(
 python -c "import psycopg; print('psycopg OK')"     # PostgreSQL (psycopg 3; async: asyncpg)
 python -c "import mariadb; print('mariadb OK')"      # MariaDB (Connector/Python)
 python -c "import pymysql; print('pymysql OK')"      # MySQL
-python -c "import pyodbc; print('pyodbc OK')"        # SQL Server
+python -c "import pymssql; print('pymssql OK')"      # SQL Server (por defecto; o pyodbc)
 
 # Verificar conectividad básica con util_bbdd
 python -c "
@@ -70,11 +72,10 @@ with SyncDatabaseManager('sqlite', {'database': ':memory:'}) as m:
 
 | Error / Síntoma | Causa probable | Solución |
 |---|---|---|
-| `PoolExhaustedError: Pool agotado` | `pool_size` insuficiente para la concurrencia real | Aumentar `pool_size`; para async usar `asyncio.Semaphore(n)` para limitar |
-| `PoolTimeoutError: Timeout esperando conexión` | Pool agotado + timeout de espera; o queries lentas bloqueando | Aumentar `pool_timeout`; optimizar queries lentas; revisar índices |
-| `ConnectionError: No se pudo conectar` | Servidor no alcanzable, credenciales incorrectas, listener apagado | Verificar host/port/credenciales; ejecutar `telnet host port` para probar conectividad |
+| `PoolTimeoutError` (pool sync de PostgreSQL, MySQL o SQL Server) | Pool agotado durante `pool_timeout` segundos: más hilos que conexiones, o consultas lentas que las retienen | Aumentar `pool_size` o `pool_timeout`; optimizar las consultas lentas. En async no hay error por esperar: limitar con `asyncio.Semaphore(n)` |
+| `DatabaseConfigurationError` (con pool) o `ConnectionError` (conexión única) al crear el manager | Servidor no alcanzable, credenciales incorrectas, listener apagado | Verificar host/port/credenciales; probar la conectividad de red con el puerto |
 | `InvalidDatabaseType` | `db_type` escrito incorrectamente | Usar exactamente: `mariadb`, `mysql`, `oracle`, `postgresql`, `sqlite`, `hsqldb`, `sqlserver` |
-| `No module named 'psycopg'` | Driver no instalado en el entorno virtual activo | `pip install "util_bbdd[postgresql]"` en el entorno virtual correcto (los managers usan psycopg 3, no `psycopg2`) |
+| `No module named 'psycopg'` | Driver no instalado en el entorno virtual activo | Instalar el extra `postgresql` en el entorno virtual correcto: `pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v1.1.0"` (los managers usan psycopg 3, no `psycopg2`) |
 | `CERT_E_CN_NO_MATCH` o error de conexión TLS con `ssl_ca` en MariaDB | El hostname de conexión no figura en el certificado. MariaDB Connector/Python no tiene `ssl_verify_identity`: verifica CA y hostname a la vez (límite del driver) | Conectar con un nombre o IP que esté en el certificado (ver [Guía: Conexión § TLS en MariaDB](connection_guide.md#tls-en-mariadb-ssl-ssl_ca-ssl_cert-ssl_key-ssl_verify_cert-desde-v0390)) |
 | WARNING `trust_cert no tiene efecto con pymssql` | pymssql no admite `trust_cert`; la validación del certificado depende de FreeTDS (límite del driver) | `sql_server_driver="pyodbc"` (ver [Guía: Conexión § TLS en SQL Server](connection_guide.md#tls-en-sql-server-encryption-y-trust_cert)) |
 | `pyodbc.Error: ('IM002'...)` SQL Server | ODBC driver nativo no instalado en el SO | Instalar Microsoft ODBC Driver for SQL Server (ver installation.md) |
@@ -83,4 +84,5 @@ with SyncDatabaseManager('sqlite', {'database': ':memory:'}) as m:
 | `UnicodeDecodeError: 'latin1' codec can't decode...` MariaDB | Servidor configurado en `latin1` pero cliente intenta leer UTF-8 de `information_schema` | Verificar `init_command` (por defecto `SET NAMES utf8mb4`) en `conn_params` (ver [Guía: Conexión § 6](connection_guide.md#6-parametros-especiales-de-mariadb-init_command-y-encoding_errors)); activo por defecto desde v0.35.0 |
 | `PythonFinalizationError` al cerrar | Conexiones no cerradas explícitamente | Usar `with SyncDatabaseManager(...) as m:` o llamar `manager.close()` explícitamente |
 | `InterfaceError: Lost connection` durante INSERT MariaDB | `chunk_size` demasiado alto para columnas TEXT/JSON extensas | Reducir `chunk_size` a 100–500 para tablas con columnas `TEXT`, `BLOB` o `JSON` |
-| `GraphRenderError` / `FileNotFoundError` en grafos | Binarios de Graphviz no en PATH | Instalar Graphviz del sistema (`apt install graphviz` / `brew install graphviz`) |
+| `graphviz.ExecutableNotFound` al generar grafos | Binarios de Graphviz (`dot`) no en el PATH | Instalar Graphviz del sistema (`apt install graphviz` / `brew install graphviz`) |
+| `ImportError` al crear `GraphvizRelationshipGraphExt` | Falta el paquete `graphviz` de Python | Instalar el extra `analysis` |

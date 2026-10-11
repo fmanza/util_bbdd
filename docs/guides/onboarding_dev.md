@@ -13,9 +13,9 @@
 | Git | 2.x | `git --version` | Necesario para clonar y gestionar ramas |
 | pip | 23.x | `pip --version` | Incluido con Python 3.12+ |
 | Acceso a GitHub | — | `git ls-remote https://github.com/fmanza/util.git HEAD` | Requerido para la dependencia privada `util` (ver §4) |
-| Graphviz | 0.20 | `dot -V` | **Opcional** — solo para `analysis/` (grafos). Extra: `.[analysis]` |
+| Graphviz (binario `dot`) | — | `dot -V` | **Opcional** — solo para `analysis/` (grafos). El paquete Python `graphviz>=0.20` va en el extra `.[analysis]` |
 
-> **Sin Docker ni BD externa**: los tests usan SQLite en memoria (`:memory:`). El entorno completo corre sin servicios externos.
+> **Sin Docker ni BD externa**: los tests unitarios usan SQLite en memoria (`:memory:`) y corren sin servicios externos. Los de integración contra motores reales se saltan si no hay URLs del banco (ver §8 › Tests).
 
 ---
 
@@ -78,11 +78,14 @@ El flag `-e` instala en modo editable: los cambios en `src/` se reflejan sin rei
 
 | Extra | Comando | Incluye |
 |---|---|---|
-| Desarrollo | `pip install -e ".[dev]"` | ruff, mypy, pytest, pytest-cov, pytest-asyncio, aiosqlite, pandas-stubs |
+| Desarrollo | `pip install -e ".[dev]"` | pytest, pytest-cov, pytest-asyncio, aiosqlite, ruff, mypy, build, stubs de tipos (pandas, networkx, PyMySQL, openpyxl), sqlglot, psycopg2-binary, black, isort |
 | Documentación | `pip install -e ".[docs]"` | zensical, mkdocs-material, mkdocstrings |
+| Drivers por motor | `pip install -e ".[postgresql]"` / `".[mariadb]"` / `".[mysql]"` | psycopg 3 + psycopg-pool + asyncpg / mariadb + aiomysql / pymysql + aiomysql |
+| Migración DDL (vistas) | `pip install -e ".[migrate]"` | sqlglot |
 | Grafos (Graphviz) | `pip install -e ".[analysis]"` | graphviz >= 0.20 |
+| Grafos (Matplotlib) | `pip install -e ".[analysis-matplotlib]"` | matplotlib, networkx |
 | SVG→PNG en Word | `pip install -e ".[doc-svg]"` | cairosvg >= 2.7 |
-| Todo a la vez | `pip install -e ".[dev,docs,analysis]"` | Entorno completo |
+| Entorno de referencia | `pip install -e ".[dev,docs]"` | El que usan los recuentos de tests y mypy (`SHARED_INSTRUCTIONS.md`) |
 
 **Errores frecuentes en la instalación**:
 
@@ -98,7 +101,7 @@ El flag `-e` instala en modo editable: los cambios en `src/` se reflejan sin rei
 
 ## 5. Infraestructura Local (Base de Datos / Servicios)
 
-*No aplica para este proyecto — los tests usan SQLite en memoria (`:memory:`); no se requiere base de datos, contenedor Docker ni ningún servicio externo. La suite completa de tests corre en un entorno completamente offline tras instalar las dependencias.*
+*No aplica para el desarrollo básico — los tests unitarios usan SQLite en memoria (`:memory:`); no se requiere base de datos, contenedor Docker ni ningún servicio externo. Para los tests de integración y los benchmarks contra motores reales hay un banco de contenedores opcional: `scripts/bench_env.example.sh` (o `.ps1`) exporta sus URLs.*
 
 ---
 
@@ -134,6 +137,7 @@ src/util_bbdd/
 ├── core/               # capabilities.py — capacidades por motor (async, features)
 │
 │  # ── Level 2: Capas de acceso (Services) ─────────────────────────────
+├── audit/              # Auditoría común de bulk, dump y migrate (AuditEvent, AuditSink, CSV heredado)
 ├── connection/         # build_conn_params(); adaptadores y pools por motor
 ├── executors/          # Ejecutores sync y async (SyncQueryExecutor, AsyncQueryExecutor)
 ├── factory/            # SQLAlchemy engine factory (sync/async)
@@ -152,9 +156,12 @@ src/util_bbdd/
 ├── migrate/            # MigrationPlanner — migración DDL entre motores
 │
 │  # ── Módulos raíz ─────────────────────────────────────────────────────
-├── __init__.py         # API pública canónica — punto de entrada recomendado
+├── __init__.py         # API pública canónica — punto de entrada recomendado (13 símbolos)
+├── exceptions.py       # Módulo público de excepciones (re-exporta _core/exceptions.py)
 ├── async_utils.py      # maybe_await() — helper transparente sync/async
-└── models.py           # Modelos de datos compartidos
+├── models.py           # Modelos de datos compartidos
+├── docs_build_plugin.py  # Plugin de build de la documentación (ZIP offline)
+└── data/               # database_types.json, sql_queries.json (datos empaquetados)
 ```
 
 **Regla de imports crítica**: Level 2 NO importa de Level 3; Level 1 NO importa de Level 2 ni Level 3; un paquete importa solo de capas de número menor y los de una misma capa son independientes (lo vigila `tests/unit/test_architecture_import_rules.py`). `async_utils.py` y `models.py` cuentan como Level 1: no importan nada de la librería. El punto de entrada recomendado para código externo es `from util_bbdd import <Clase>`.
@@ -167,7 +174,7 @@ src/util_bbdd/
 | Modificar CRUD masivo | `bulk/crud.py`, `bulk/_execution/` |
 | Nuevo formato de reporte de comparación | `comparar/reporters/` |
 | Nueva sección en documentación de BD generada | `doc/infrastructure/renderers/`, `doc/templates/` |
-| Añadir query nombrada | `query/` + fichero JSON correspondiente |
+| Añadir query nombrada | Fichero JSON propio (`queries_file`); el empaquetado `data/sql_queries.json` está vacío desde ADR-003 |
 | Cambiar comportamiento de conexión | `connection/`, `factory/` |
 
 ---
@@ -216,21 +223,22 @@ python -m pytest tests/ --cov=src/util_bbdd --cov-report=html
 python -m pytest tests/unit/bulk/ -v
 ```
 
-Tests de integración (que sí requieren BD reales) están en `tests/integration/`, marcados con `pytest.mark.integration`, y no se ejecutan en CI estándar.
+Tests de integración (que sí requieren BD reales) están en `tests/integration/`, marcados con `pytest.mark.integration`; sin las URLs del banco se saltan. En CI corren en el workflow `integration.yml` (nocturno y manual), no en el de cada push. Para ejecutarlos en local: `source scripts/bench_env.example.sh` (con `UTIL_BBDD_BENCH_PASSWORD` definida) y `python -m pytest`.
 
 ### Docstrings
 
 Google-style obligatorio en clases y métodos públicos:
 
 ```python
-def get_tables(self, schema: str | None = None) -> list[str]:
-    """Lista las tablas del esquema activo.
+def contar_filas(self, tabla: str, schema: str | None = None) -> int:
+    """Cuenta las filas de una tabla.
 
     Args:
+        tabla: Nombre de la tabla.
         schema: Nombre del esquema. Si None, usa el esquema por defecto.
 
     Returns:
-        Lista de nombres de tabla en orden alfabético.
+        Número de filas.
     """
 ```
 
@@ -239,11 +247,17 @@ def get_tables(self, schema: str | None = None) -> list[str]:
 ```
 feat:     nueva funcionalidad
 fix:      corrección de bug
+hotfix:   corrección urgente P1/P2 (flujo /hotfix)
+security: remediación de un hallazgo de seguridad
+perf:     mejora de rendimiento sin cambio funcional
 refactor: cambio sin impacto funcional
 test:     solo tests
 docs:     solo documentación
 chore:    mantenimiento (deps, config, herramientas)
+release:  cierre de versión (release: vX.Y.Z - <resumen>)
 ```
+
+Scope opcional con el módulo: `fix(dump): …`. Lista canónica: `.github/SHARED_INSTRUCTIONS.md` § «Formato de commits».
 
 ---
 
@@ -307,7 +321,7 @@ Ejecuta estos comandos en orden. Si todos producen el output esperado, el entorn
 | Verificación | Comando | Output esperado |
 |---|---|---|
 | Python versión correcta | `python --version` | `Python 3.12.x` (o 3.13 / 3.14) |
-| Paquete instalado | `python -c "from importlib.metadata import version; print(version('util_bbdd'))"` | `0.10.0` |
+| Paquete instalado | `python -c "from importlib.metadata import version; print(version('util_bbdd'))"` | La versión de `pyproject.toml` (p. ej. `1.1.0`) |
 | Manager sync funciona | `python -c "from util_bbdd import SyncDatabaseManager; m = SyncDatabaseManager(db_type='sqlite', conn_params={'database': ':memory:'}); print(m.get_tables()); m.close()"` | `[]` |
 | ruff sin errores | `python -m ruff check src tests` | Sin output (sin errores) |
 | mypy sin errores | `python -m mypy src tests/unit/test_protocol_conformance.py` | `Success: no issues found in N source files` |
@@ -325,10 +339,10 @@ Si este comando termina con código 0 y sin errores, el entorno está operativo.
 
 ```bash
 pip install -e ".[docs]"
-mkdocs build --strict
+zensical build --strict   # el del CI; mkdocs build --strict es equivalente
 ```
 
-Output esperado: `INFO - Documentation built in Xs` sin warnings.
+Output esperado: `No issues found`.
 
 ---
 
@@ -363,4 +377,4 @@ Estos ficheros son la fuente canónica para asistentes de código (no están pub
 
 ---
 
-*Guía generada para util_bbdd v0.10.0 · Verificada: 2026-06-08 · Arquetipo 7 — Onboarding Desarrolladores*
+*Guía revisada para util_bbdd v1.1.0 · Verificada: 2026-10-11 · Arquetipo 7 — Onboarding Desarrolladores*

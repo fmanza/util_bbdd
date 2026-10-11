@@ -106,6 +106,28 @@ sin las tablas temporales no se probaba nada).
 Sin cambios tras ejecutarlos: `exception_handling`, `validators_pattern`, `update_auto_increment_example` (MariaDB y
 MySQL del banco; reduce 500 → 8, como avisa la página).
 
+## Tanda 4a — guías de uso (9 páginas)
+
+`api_1_0_migration`, `async_guide`, `connection_guide`, `ddl_migration_guide`, `drivers`, `dump_guide`, `exceptions`,
+`troubleshooting`, `onboarding_dev`. Comprobador: `docsn2_t4a_doc_check_after.txt` (0 hallazgos). Build:
+`docsn2_t4a_build.txt`. Ejecutado contra el banco: conexión sync PostgreSQL y Oracle (thin), async PostgreSQL con
+`gather()` (ejemplos de `connection_guide` y `async_guide`).
+
+| Hallazgo | Dónde | Corrección |
+|---|---|---|
+| Tabla de pool con `max_overflow`/`pool_recycle` y «throughput aprox.» sin fuente; con PostgreSQL esas claves dan `ValidationError` (probado); `PoolExhaustedError` (nunca se lanza); «`init()` obligatorio»; Python 3.10+; sin Oracle async | `async_guide.md` | Tabla de parámetros por motor desde los `*PoolConfig`; errores reales |
+| «Thin mode solo asíncrono» (es el modo por defecto también en sync: conectado en sync al Oracle del banco); matriz de compatibilidad de Instant Client sin fuente verificable; `python-oracledb 1.0+`; «`dsn` no recomendado para 11g» | `drivers.md` | Modos según el código y python-oracledb; matriz retirada (remisión a la de Oracle) |
+| «Un fallo de credenciales o red es `SQLAlchemyError`» (es `DatabaseConfigurationError` con pool o `ConnectionError`); `DPY-2014` como «Instant Client no encontrado» (es «parámetro duplicado»; el de Instant Client es `DPI-1047`); «pyodbc requiere `driver_name`» (tiene valor por defecto) | `connection_guide.md` | Corregido |
+| Árbol de excepciones duplicado e incompleto; «retry» capturando `ConnectionError` (una consulta fallida llega como `DatabaseOperationError`: probado); `PoolExhaustedError`, `DriverNotFoundError`, `DiffReportGenerationError` como errores habituales (no se lanzan) | `guides/exceptions.md` (y `api/managers_sync.md`: «`QueryError` en `execute_*`» → `DatabaseOperationError`) | Tabla por momento + enlace al árbol de la API; patrón de reintento sobre `DatabaseOperationError` |
+| Ejemplo de pool con `max_overflow` en PostgreSQL; `PoolExhaustedError`; `GraphRenderError` (no existe) | `troubleshooting.md` | `pool_timeout`; `PoolTimeoutError` real; `graphviz.ExecutableNotFound` |
+| Vistas `ALL_*` inventadas, `TABLE_SCHEMA`, nombre sugerido con fecha, `charset` «solo MariaDB» (también MySQL), código `INDEX_EXPRESSION_SKIPPED` ausente | `ddl_migration_guide.md` | Contra `WarningCode`, `planner.py` e `ir/models.py` |
+| «Falta `openpyxl`» como error del informe (es dependencia base; el error real es `DumpReportError`) | `dump_guide.md` | Corregido |
+| Mapa del código sin `audit/` ni `exceptions.py`; 5 extras ausentes y contenido de `dev` desfasado; versión esperada `0.10.0`; Conventional Commits incompletos; docstring de ejemplo con una firma de `get_tables` inexistente; verificación con `mkdocs` | `onboarding_dev.md` | Contra `pyproject.toml`, `src/` y `SHARED_INSTRUCTIONS.md` |
+| `pip install "util_bbdd[x]"` (forma PyPI) | `connection_guide`, `drivers`, `ddl_migration_guide`, `troubleshooting`, `async_guide` | `git+…@v1.1.0` |
+
+Sin cambios tras verificarla: `api_1_0_migration.md` (13 símbolos de la raíz y todos los nombres de su tabla
+importables desde donde dice; cifra de importación con fuente en el CHANGELOG).
+
 ## Fuera de alcance (registrado)
 
 - `SyncDatabaseManager.__init__` documenta `ConnectionError` si falla la conexión inicial, pero con pool (lo habitual)
@@ -121,3 +143,6 @@ MySQL del banco; reduce 500 → 8, como avisa la página).
 - `PoolExhaustedError` está en la API pública pero ningún código la lanza (igual que `DiffReportGenerationError`).
 - `DatabaseDocumentation.generate()`: un fallo al preparar la carpeta de salida llega como `OSError` crudo, no como
   `DocumentationRenderError` (registrado en el hotfix `ae1e8098`).
+- Entorno local de esta sesión: `importlib.metadata.version('util_bbdd')` devuelve `0.29.0` (instalación editable de
+  entonces); el código se carga de `src/`. Reinstalar con `pip install -e ".[dev,docs]"` para que la verificación de
+  `onboarding_dev.md` muestre la versión actual.

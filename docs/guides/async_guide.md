@@ -6,28 +6,30 @@ Configurar `AsyncDatabaseManager` y usar patrones de concurrencia async/await en
 
 ## 2. Requisitos Previos
 
-- Python 3.10+ con soporte `asyncio`
+- Python 3.12+
 - Driver async instalado para el motor objetivo:
-  - PostgreSQL: `asyncpg`
-  - MariaDB (`db_type="mariadb"`) y MySQL (`db_type="mysql"`): `aiomysql`
-  - SQL Server: `aioodbc`
+  - PostgreSQL: `asyncpg` (extra `postgresql`)
+  - MariaDB (`db_type="mariadb"`) y MySQL (`db_type="mysql"`): `aiomysql` (extras `mariadb` / `mysql`)
+  - Oracle: `oracledb` (instalación base)
+  - SQL Server: `aioodbc` (y un driver ODBC de Microsoft)
   - SQLite: `aiosqlite`
+  - HSQLDB no tiene driver async: `AsyncDatabaseManager("hsqldb", ...)` falla con `NotImplementedError`
 - Familiaridad con `async/await` y el event loop de Python
-- **Diferencia crítica respecto al manager síncrono**: el constructor de `AsyncDatabaseManager` NO conecta. Es obligatorio `await manager.init()` o usar `async with` antes de cualquier operación.
+- **Diferencia respecto al manager síncrono**: el constructor de `AsyncDatabaseManager` NO conecta. Conecta en `await manager.init()`, al entrar en `async with` o, si no, en la primera operación. Llamar a `init()` al arrancar hace que un error de conexión aparezca ahí y no en la primera consulta.
 
 ## 3. Pasos
 
 ### Paso 1 — Instalar el driver async del motor
 
 ```bash
-# PostgreSQL
-pip install asyncpg
+# PostgreSQL (psycopg 3 + asyncpg)
+pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v1.1.0"
 
-# MariaDB/MySQL
-pip install aiomysql
+# MariaDB / MySQL (incluyen aiomysql)
+pip install "util_bbdd[mariadb] @ git+https://github.com/fmanza/util_bbdd.git@v1.1.0"
 
-# SQL Server
-pip install aioodbc
+# SQL Server y SQLite async (no van en ningún extra)
+pip install aioodbc aiosqlite
 ```
 
 ### Paso 2 — Configurar el manager async
@@ -52,15 +54,20 @@ await manager.init()
 
 ### Paso 3 — Configurar el pool según el workload
 
-| Escenario | `pool_size` | `max_overflow` | `pool_recycle` | Throughput aprox. |
-|---|---|---|---|---|
-| Desarrollo local | 5 | 0 | 3600 | ~100 req/s |
-| API pequeña | 10 | 5 | 3600 | ~500 req/s |
-| API mediana | 20 | 10 | 1800 | ~2000 req/s |
-| API grande | 40 | 20 | 900 | ~5000 req/s |
-| Batch job paralelo | 8 | 4 | 600 | 8 workers |
+Los parámetros del pool van en `conn_params` y dependen del motor; una clave que el motor no admite da
+`ValidationError` al crear el manager (p. ej. `max_overflow` o `pool_recycle` en PostgreSQL):
 
-**Regla práctica**: `pool_size = CPU_cores × 2 + conexiones_por_request` para APIs web.
+| Motor | Parámetros de pool (default) |
+|---|---|
+| PostgreSQL | `pool_size` (5), `pool_timeout` (30), `max_idle` (300) |
+| MariaDB | `pool_size` (5), `pool_name`, `pool_recycle` (3600) |
+| MySQL | `pool_size` (5), `max_overflow` (10), `pool_timeout` (30), `pool_recycle` (3600) |
+| SQL Server | `pool_size` (5), `max_overflow` (10), `pool_timeout` (30) |
+| Oracle | `pool_size` (5), `max_lifetime` (3600) |
+| SQLite | Una sola conexión: las operaciones se serializan |
+
+`pool_size` limita cuántas operaciones van a la base de datos a la vez; dimensionarlo según la concurrencia real
+(y el límite de conexiones del servidor). Detalle por motor: [Conexión y Drivers](connection_guide.md).
 
 ### Paso 4 — Patrones de concurrencia
 
@@ -124,8 +131,8 @@ Output esperado: `Conexión async OK. Tablas: N`
 
 | Error / Síntoma | Causa probable | Solución |
 |---|---|---|
-| `ConnectionError` en primera operación | Constructor no conecta; se olvidó `await init()` | Usar `async with` o llamar `await manager.init()` antes de operar |
-| `PoolExhaustedError` | Más corrutinas concurrentes que conexiones en pool | Aumentar `pool_size` o usar `asyncio.Semaphore(n)` para limitar concurrencia |
-| `PoolTimeoutError` | Pool agotado + timeout de espera | Aumentar `pool_timeout` o revisar queries lentas que retienen conexiones |
-| Driver no soporta async | Motor configurado sin driver async | Instalar el driver async correspondiente (ver Paso 1) |
-| `NotImplementedError` al crear pool | Motor sin soporte pool async | El manager cae automáticamente a conexión directa; comportamiento esperado |
+| Error de conexión en la primera consulta | Sin `init()` explícito, el manager conecta en la primera operación | Llamar a `await manager.init()` al arrancar para detectarlo antes |
+| Corrutinas que esperan | Más corrutinas concurrentes que conexiones en el pool: esperan a que se libere una (no se lanza error por esperar) | Aumentar `pool_size` o limitar la concurrencia con `asyncio.Semaphore(n)` |
+| `ValidationError` al crear el manager | Parámetro de pool que el motor no admite (`max_overflow` en PostgreSQL…) | Usar los parámetros de la tabla del Paso 3 |
+| `ModuleNotFoundError` del driver | Driver async no instalado | Instalar el driver correspondiente (ver Paso 1) |
+| `NotImplementedError` al inicializar | Motor sin soporte async (HSQLDB) | Usar `SyncDatabaseManager` |

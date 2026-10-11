@@ -78,7 +78,8 @@ flowchart TD
 | `ConnectionError` | Falla la conexión única (sin pool o HSQLDB) |
 | `DatabaseConfigurationError` | Cualquier otro fallo al construir el manager, incluido el de crear el pool (p. ej. servidor inalcanzable con `use_pool=True`) |
 | `QueryNotFoundError` | `execute_query_*` con un nombre que el motor no tiene registrado |
-| `QueryError` | Error en ejecución de `execute_custom_*` o `execute_query_*` |
+| `DatabaseOperationError` | Error al ejecutar `execute_custom_*` o `execute_query_*` (SQL inválido, conexión caída…), con el error del driver en `__cause__` |
+| `QueryTimeoutError` | Se supera `timeout` |
 
 Todas heredan de `DatabaseException` y se importan desde `util_bbdd.exceptions`.
 

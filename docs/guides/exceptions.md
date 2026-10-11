@@ -17,47 +17,33 @@ Importar y usar la jerarquía de excepciones de `util_bbdd` para capturar errore
 ```python
 from util_bbdd.exceptions import (
     DatabaseException,        # Base de todas las excepciones (también en la raíz: from util_bbdd import ...)
-    ConnectionError,          # Errores de conexión y pool
-    PoolExhaustedError,       # Pool agotado
-    PoolTimeoutError,         # Timeout esperando conexión
-    QueryError,               # Errores en ejecución de queries
+    ConnectionError,          # Falla la conexión única al crear el manager
+    DatabaseConfigurationError,  # Falla la creación del manager (incluido el pool)
+    PoolTimeoutError,         # Pool sync agotado durante pool_timeout
     QueryTimeoutError,        # Query superó el timeout
     QueryNotFoundError,       # Query nombrada no registrada
     ValidationError,          # Parámetros de configuración inválidos
     DriverError,              # Driver Python no disponible
-    DatabaseOperationError,   # Error genérico de operación
+    DatabaseOperationError,   # Error al ejecutar una consulta (SQL inválido, conexión caída…)
 )
 ```
 
 ### Paso 2 — Jerarquía de excepciones
 
-```
-DatabaseException (base)
-├── ConnectionError
-│   ├── PoolExhaustedError
-│   └── PoolTimeoutError
-├── QueryError
-│   ├── QueryTimeoutError
-│   ├── QueryNotFoundError
-│   ├── QueryValidationError
-│   └── QueryParameterError
-├── ValidationError
-│   ├── InvalidDatabaseType
-│   └── InvalidConnectionConfig
-├── DriverError
-│   └── DriverNotFoundError
-├── DatabaseOperationError
-├── ComparerError
-│   └── DiffReportGenerationError
-└── DocumentationError
-    └── DocumentationRenderError
-```
+Todas heredan de `DatabaseException`. El árbol completo (generado desde `util_bbdd.exceptions`) está en la
+[referencia de excepciones](../api/exceptions.md). Las que más se capturan:
+
+| Momento | Excepción |
+|---|---|
+| Crear el manager | `InvalidDatabaseType`, `ValidationError`, `DriverError`, `DatabaseConfigurationError`, `ConnectionError` |
+| Ejecutar una consulta | `DatabaseOperationError` (con el error del driver en `__cause__`), `QueryTimeoutError`, `QueryNotFoundError` |
+| Esperar conexión de un pool sync | `PoolTimeoutError` |
 
 ### Paso 3 — Patrón de manejo recomendado
 
 ```python
 from util_bbdd import SyncDatabaseManager, DatabaseException
-from util_bbdd.exceptions import QueryTimeoutError, ConnectionError
+from util_bbdd.exceptions import DatabaseOperationError, QueryTimeoutError
 
 with SyncDatabaseManager("postgresql", conn_params) as manager:
     try:
@@ -65,9 +51,9 @@ with SyncDatabaseManager("postgresql", conn_params) as manager:
     except QueryTimeoutError as e:
         # Timeout específico: reintentar con timeout mayor o registrar
         print(f"Query superó timeout: {e}")
-    except ConnectionError as e:
-        # Error de red o pool: reintentar o escalar
-        print(f"Error de conexión: {e}")
+    except DatabaseOperationError as e:
+        # Fallo de la consulta: el error del driver está en e.__cause__
+        print(f"Error ejecutando la consulta: {e} ({type(e.__cause__).__name__})")
     except DatabaseException as e:
         # Fallback para cualquier otra excepción de util_bbdd
         print(f"Error inesperado: {e}")
@@ -77,18 +63,22 @@ with SyncDatabaseManager("postgresql", conn_params) as manager:
 
 ```python
 import time
-from util_bbdd import DatabaseException
-from util_bbdd.exceptions import ConnectionError
+
+from util_bbdd.exceptions import DatabaseOperationError, QueryTimeoutError
 
 def ejecutar_con_retry(manager, sql, max_reintentos=3, delay=1.0):
     for intento in range(1, max_reintentos + 1):
         try:
             return manager.execute_custom_many(sql)
-        except ConnectionError:
+        except (DatabaseOperationError, QueryTimeoutError):
             if intento == max_reintentos:
                 raise
             time.sleep(delay * intento)
 ```
+
+`DatabaseOperationError` envuelve también errores permanentes (SQL inválido, permisos): para reintentar solo los
+transitorios, decide por el error del driver (`e.__cause__`). Las cargas de `ParallelBulkLoader` ya lo hacen con
+`max_retries` (desconexiones, deadlocks, timeouts).
 
 ## 4. Verificación
 
@@ -113,10 +103,10 @@ except Exception as e:
 
 | Excepción | Causa típica | Solución |
 |---|---|---|
-| `InvalidDatabaseType` | `db_type` no reconocido | Usar exactamente: `mariadb`, `oracle`, `postgresql`, `sqlite`, `hsqldb`, `sqlserver` |
-| `DriverNotFoundError` | Driver Python del motor no instalado | Instalar el driver correspondiente (ver installation.md) |
-| `PoolExhaustedError` | Más conexiones concurrentes que `pool_size` | Aumentar `pool_size` o usar semáforo para limitar concurrencia |
+| `InvalidDatabaseType` | `db_type` no reconocido | Usar uno de: `mariadb`, `mysql`, `oracle`, `postgresql`, `sqlite`, `hsqldb`, `sqlserver` |
+| `DriverError` | Driver Python del motor no instalado | Instalar el driver correspondiente (ver [Instalación](../installation.md)) |
+| `PoolTimeoutError` | Pool sync agotado durante `pool_timeout` | Aumentar `pool_size`/`pool_timeout` o limitar la concurrencia |
 | `QueryTimeoutError` | La query supera el timeout configurado | Aumentar el timeout o optimizar la query |
-| `QueryNotFoundError` | Query por nombre no registrada en `QueryRegistry` | Registrar la query antes de usarla o usar `execute_custom_*` |
-| `QueryValidationError` | Parámetros no coinciden con los placeholders del SQL | Verificar que los nombres de parámetros coincidan con los `:nombre` en el SQL |
-| `DiffReportGenerationError` | Fallo al generar un formato de reporte | Verificar que las dependencias opcionales están instaladas (`openpyxl`, `python-docx`, `Jinja2`) |
+| `QueryNotFoundError` | Query por nombre que no está en el JSON de `queries_file` (la librería no trae ninguna) | Añadirla al fichero o usar `execute_custom_*` |
+| `QueryValidationError` | Parámetros que no pasan el validador del motor | Verificar los parámetros requeridos de la query |
+| `DatabaseOperationError` | La consulta falla en la base de datos | Ver el error del driver en `e.__cause__` |

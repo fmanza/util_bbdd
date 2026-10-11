@@ -24,13 +24,16 @@ HSQLDB**. HSQLDB solo dispone de modo **síncrono** (sus factorías async lanzan
 
 | Motor (`db_type`) | Driver sync | Driver async | Instalación |
 |---|---|---|---|
-| `postgresql` | `psycopg` (v3) + `psycopg-pool` | `asyncpg` | `pip install "util_bbdd[postgresql]"` |
-| `mariadb` | `mariadb` (MariaDB Connector/Python) | `aiomysql` | `pip install "util_bbdd[mariadb]"` |
-| `mysql` | `pymysql` | `aiomysql` | `pip install "util_bbdd[mysql]"` |
+| `postgresql` | `psycopg` (v3) + `psycopg-pool` | `asyncpg` | extra `postgresql` |
+| `mariadb` | `mariadb` (MariaDB Connector/Python) | `aiomysql` | extra `mariadb` |
+| `mysql` | `pymysql` | `aiomysql` | extra `mysql` |
 | `oracle` | `oracledb` (incluido) | `oracledb` (incluido) | — (dependencia base) |
-| `sqlserver` | `pyodbc` / `pymssql` | `aioodbc` | `pip install pyodbc aioodbc` + ODBC driver del SO |
+| `sqlserver` | `pymssql` (por defecto) / `pyodbc` | `aioodbc` | `pip install pymssql` o `pip install pyodbc`; async: `pip install aioodbc`. `pyodbc` y `aioodbc` necesitan el ODBC Driver de Microsoft |
 | `sqlite` | `sqlite3` (stdlib) | `aiosqlite` | `pip install aiosqlite` |
 | `hsqldb` | `jaydebeapi` | N/A (sin async) | `pip install jaydebeapi` + Java |
+
+Un extra se instala desde el repositorio (no está en PyPI):
+`pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v1.1.0"`.
 
 ### 3.2 Construir `conn_params` del motor
 
@@ -51,7 +54,7 @@ my = {"host": "localhost", "port": 3306, "user": "app",
 ora = {"host": "ora-host", "port": 1521, "service_name": "ORCLPDB1",
        "user": "hr", "password": "<reemplazar>"}
 
-# SQL Server  (driver pymssql por defecto; pyodbc requiere driver_name)
+# SQL Server  (driver pymssql por defecto; con pyodbc, driver_name = "ODBC Driver 17 for SQL Server" por defecto)
 ss = {"host": "localhost", "port": 1433, "user": "sa",
       "password": "<reemplazar>", "database": "ventas",
       "sql_server_driver": "pymssql"}
@@ -93,8 +96,9 @@ print("Conexión OK")
 ```
 
 Si `db_type` no es válido, la librería lanza `InvalidDatabaseType` **antes** de conectar. Si el
-driver no está instalado, lanza un error de driver (ver §5). Un fallo de credenciales o red se
-manifiesta como `SQLAlchemyError` al abrir el manager.
+driver no está instalado, lanza `DriverError` (ver §5). Un fallo de credenciales o red aparece al
+abrir el manager: `DatabaseConfigurationError` si falla la creación del pool (lo habitual, `use_pool=True`) o
+`ConnectionError` con conexión única.
 
 ## 5. Variantes y Solución de Problemas
 
@@ -114,10 +118,10 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 
 | Escenario / Error | Causa probable | Solución |
 |---|---|---|
-| `No module named 'psycopg'` / `'mariadb'` / `'pymysql'` | Driver no instalado | `pip install "util_bbdd[postgresql]"` / `pip install "util_bbdd[mariadb]"` / `pip install "util_bbdd[mysql]"` |
+| `No module named 'psycopg'` / `'mariadb'` / `'pymysql'` | Driver no instalado | Instalar el extra `postgresql` / `mariadb` / `mysql` (ver §3.1) |
 | MySQL 8 contra servidor MySQL con `db_type="mariadb"` | Funciona: el conector de MariaDB también conecta con MySQL | Para usar PyMySQL y el catálogo de MySQL, `db_type="mysql"` |
 | `pyodbc.Error: ('IM002'...)` | ODBC driver de SQL Server no instalado en el SO | Instalar el [Microsoft ODBC Driver](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server); usar `pymssql` si no es posible |
-| `oracledb.DatabaseError: DPY-2014` | Oracle Instant Client no encontrado | Configurar `oracle_client_path` en `conn_params` |
+| `DPI-1047: Cannot locate a 64-bit Oracle Client library` | Modo thick (`oracle_thick_mode=True`) sin Oracle Instant Client localizable | Indicar `oracle_client_path`, o usar el modo thin (por defecto), que no necesita Instant Client |
 | MySQL async con `ssl_*` en Windows: `Can't connect to MySQL server` (`SSLWantReadError`) | aiomysql no negocia TLS con el `ProactorEventLoop` por defecto de Windows (también sin util_bbdd) | `asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())` antes de crear el loop |
 | `encryption='mandatory' pero la sesión pymssql no va cifrada` | El FreeTDS de pymssql (p. ej. el wheel de Windows) acepta `require` y no cifra | `sql_server_driver="pyodbc"` con ODBC Driver 17/18 (`Encrypt=yes`) |
 | `Para oracle debe informar 'dsn' o 'service_name' o 'sid' o 'database'` | Falta el identificador de servicio Oracle | Añadir una de esas 4 claves |
