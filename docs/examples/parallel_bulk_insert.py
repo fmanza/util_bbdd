@@ -178,7 +178,7 @@ start_time = time.time()
 from util_bbdd.bulk import BulkCrud
 
 bcm = BulkCrud(engine=target_engine, chunk_size=5_000)
-bcm.bulk_insert_from_df(df_source, tabla_destino="sales_data")
+bcm.bulk_insert_from_df(df_source, tabla_destino="sales_data", generar_sql=False)
 
 sequential_elapsed = time.time() - start_time
 

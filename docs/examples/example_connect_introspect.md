@@ -16,7 +16,7 @@ Resuelve el primer paso de cualquier trabajo con `util_bbdd`: verificar conectiv
 
 Aspectos críticos:
 
-- **`db_type`**: debe ser exactamente uno de los valores soportados. Errores comunes: `"mysql"` en lugar de `"mariadb"`, `"postgre"` en lugar de `"postgresql"`.
+- **`db_type`**: debe ser uno de los valores soportados (`mariadb`, `mysql`, `oracle`, `postgresql`, `sqlserver`, `sqlite`, `hsqldb`; sin distinguir mayúsculas). Error común: `"postgre"` o `"postgres"` en lugar de `"postgresql"` (`InvalidDatabaseType`).
 - **`execute_custom_many` vs `execute_custom_one`**: el primero retorna `list[tuple]` (siempre, incluso si hay 0 filas), el segundo retorna `tuple | None`.
 - **Context manager**: usar `with SyncDatabaseManager(...) as manager:` garantiza que `close()` se llame automáticamente, incluso si se produce una excepción.
 - **Parámetros nombrados**: usar siempre `:nombre` en las queries, nunca concatenación de strings. Los parámetros se pasan como `params={"nombre": valor}`.
@@ -54,7 +54,7 @@ Tablas: ['usuarios']
   id: INTEGER
   nombre: TEXT
   email: TEXT
-Fila: {'id': 1, 'nombre': 'Ana', 'email': 'ana@example.com'}
+Fila: (1, 'Ana', 'ana@example.com')
 ```
 
 ## 5. Referencias Relacionadas

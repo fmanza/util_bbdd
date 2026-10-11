@@ -2,7 +2,7 @@
 
 ## 1. Contexto del Ejemplo
 
-Genera automáticamente el script DDL de un schema SQL Server para ejecutarlo en Oracle, MariaDB o PostgreSQL, adaptando tipos de datos, columnas `IDENTITY` y vistas T-SQL al dialecto destino.
+Genera automáticamente el script DDL de un schema SQL Server para ejecutarlo en Oracle, MariaDB, MySQL o PostgreSQL, adaptando tipos de datos, columnas `IDENTITY` y vistas T-SQL al dialecto destino.
 
 Resuelve el caso de migrar una aplicación SQL Server a un motor de BD open-source, preservando índices, FKs y autoincremento sin reescribir el DDL manualmente.
 
@@ -16,11 +16,11 @@ Resuelve el caso de migrar una aplicación SQL Server a un motor de BD open-sour
 
 Aspectos críticos:
 
-- **`schema`**: corresponde al `TABLE_SCHEMA` en `INFORMATION_SCHEMA` de SQL Server (habitualmente `'dbo'`).
-- **Columnas `IDENTITY`**: detectadas via `COLUMNPROPERTY(OBJECT_ID(...), col, 'IsIdentity')`. El planificador activa `auto_increment=True` y genera el equivalente en el motor destino.
-- **Tipos `MAX` (`VARCHAR(MAX)`, `NVARCHAR(MAX)`)**: SQL Server usa `-1` como sentinel en `CHARACTER_MAXIMUM_LENGTH`. El extractor lo detecta y emite el tipo LOB apropiado en destino.
+- **`schema`**: el schema de SQL Server (habitualmente `'dbo'`).
+- **Columnas `IDENTITY`**: se leen del catálogo `sys.*` (`is_identity`), una consulta por tipo de objeto (ADR-003). El planificador activa `auto_increment=True` y genera el equivalente en el motor destino.
+- **Tipos `MAX` (`VARCHAR(MAX)`, `NVARCHAR(MAX)`)**: SQL Server los marca con longitud `-1`. El extractor lo detecta y emite el tipo LOB apropiado en destino.
 - **Vistas reescritas**: el SQL de las vistas (`GETDATE()`, `ISNULL()`, `TOP`, etc.) se reescribe al dialecto destino con sqlglot (extra `util_bbdd[migrate]`; ver [reescritura de vistas](../functional/migrate_views.md)). El plan emite un aviso de revisión por cada vista.
-- **`VIEW_DEFINITION` truncada**: en SQL Server < 2019, las vistas con definición > 4000 chars pueden quedar truncadas. Verificar manualmente si el script incluye vistas largas.
+- **Definición completa de las vistas**: se lee con `OBJECT_DEFINITION` (sin el límite de 4000 caracteres de `INFORMATION_SCHEMA.VIEW_DEFINITION`); una vista cifrada (`WITH ENCRYPTION`) no tiene definición legible.
 
 Para SQL Server → Oracle:
 
@@ -46,7 +46,7 @@ planner = MigrationPlanner(
 # Validación sintáctica
 python -m py_compile docs/examples/migrate_sqlserver_source.py
 
-# Ejecución (requiere servidor SQL Server accesible; driver pymssql instalado)
+# Ejecución (requiere servidor SQL Server accesible; driver pymssql instalado; verificado contra el banco)
 # Sustituir credenciales antes de ejecutar
 python docs/examples/migrate_sqlserver_source.py
 ```

@@ -27,7 +27,7 @@ Aspectos críticos:
 # Validación sintáctica
 python -m py_compile docs/examples/schema_comparison.py
 
-# Ejecución (requiere dos BDs accesibles)
+# Ejecución (crea dos BDs SQLite en memoria; no requiere servidor externo)
 python docs/examples/schema_comparison.py
 ```
 

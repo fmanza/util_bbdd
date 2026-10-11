@@ -1,13 +1,16 @@
 """
-Ejemplo: Bulk insert desde CSV con lectura de auditoría y análisis de timing.
-Requisitos: pandas, util_bbdd
+Ejemplo: Bulk insert desde CSV con auditoría y lectura del historial de operaciones.
+Requisitos: util_bbdd con el extra postgresql (o el driver del motor que uses)
 """
 
 from pathlib import Path
 
 import pandas as pd
 
-from util_bbdd.managers import SyncDatabaseManager
+from sqlalchemy import text
+
+from util_bbdd import BulkCrud, DatabaseException, SyncDatabaseManager
+from util_bbdd.bulk import AuditManager
 
 # Crear datos de ejemplo
 df_data = pd.DataFrame(
@@ -19,41 +22,50 @@ df_data = pd.DataFrame(
 )
 
 # Guardar CSV temporal
-csv_input = "usuarios_input.csv"
+csv_input = Path("usuarios_input.csv")
 df_data.to_csv(csv_input, index=False)
 
-# Obtener engine SQLAlchemy
+# Engine SQLAlchemy del manager (replace with real credentials)
 mgr = SyncDatabaseManager(
     db_type="postgresql",
-    conn_params={"host": "localhost", "port": 5432, "user": "postgres", "password": "secret", "database": "test_db"},
+    conn_params={
+        "host": "localhost",
+        "port": 5432,
+        "user": "postgres",
+        "password": "secret",
+        "database": "test_db",
+    },
 )
 engine = mgr.get_sqlalchemy_engine()
 
-# Bulk insert usando BulkCrud
-from util_bbdd.bulk import BulkCrud
+# Tabla destino (BulkCrud no crea tablas)
+with engine.begin() as conn:
+    conn.execute(
+        text("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY, nombre VARCHAR(50), email VARCHAR(100))")
+    )
+    conn.execute(text("DELETE FROM usuarios"))
 
-audit_csv_path = Path("./audit_bulk")
-audit_csv_path.mkdir(exist_ok=True)
+# Bulk insert con auditoría: audit_csv_path es la ruta del fichero CSV (el directorio se crea si falta)
+audit_csv = Path("audit_bulk") / "auditoria.csv"
+bcm = BulkCrud(engine=engine, audit_csv_path=audit_csv)
+try:
+    df = pd.read_csv(csv_input)
+    bcm.bulk_insert_from_df(df, tabla_destino="usuarios", generar_sql=False)
+except DatabaseException as exc:
+    print(f"Error de base de datos: {exc}")
+    raise
 
-bcm = BulkCrud(engine=engine, audit_csv_path=audit_csv_path)
-df = pd.read_csv(csv_input)
-bcm.bulk_insert_from_df(df, tabla_destino="usuarios")
+# === ANÁLISIS DE AUDITORÍA ===
+print("\n=== Audit Report ===")
+audit = AuditManager(audit_csv)
+df_audit = audit.leer_auditoria()  # el CSV es tabulado y con coma decimal: leerlo con AuditManager
+print(df_audit[["operacion", "tabla", "total_filas", "tiempo_seg", "timestamp"]].tail(1))
 
-# === ANÁLISIS DE AUDITORÍA CON TIMING ===
-print("\n=== Audit Report con Timing ===")
-
-# Leer CSV de auditoría generado
-audit_files = list(audit_csv_path.glob("audit_insert_*.csv"))
-if audit_files:
-    df_audit = pd.read_csv(audit_files[-1])
-    print(df_audit[["operacion", "tabla", "total_filas", "tiempo_seg", "timestamp"]])
-
-    # Estadísticas
-    print(f"\n✓ Filas insertadas: {df_audit['total_filas'].sum()}")
-    print(f"✓ Tiempo total: {df_audit['tiempo_seg'].sum():.3f} segundos")
-    print(f"✓ Tiempo promedio por fila: {(df_audit['tiempo_seg'].sum() / df_audit['total_filas'].sum()) * 1000:.2f} ms")
-    print(f"✓ Motor: {df_audit['motor'].iloc[0]}")
+stats = audit.obtener_estadisticas()
+print(f"\n✓ Operaciones registradas: {stats['total_operaciones']}")
+print(f"✓ Filas insertadas (última operación): {int(df_audit['total_filas'].iloc[-1])}")
+print(f"✓ Motor: {df_audit['motor'].iloc[-1]}")
 
 # Limpieza
-Path(csv_input).unlink()
+csv_input.unlink()
 mgr.close()

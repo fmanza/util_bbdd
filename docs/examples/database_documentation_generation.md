@@ -50,7 +50,8 @@ python -m py_compile docs/examples/database_documentation_generation.py
 python docs/examples/database_documentation_generation.py
 ```
 
-Los ficheros se generan en `generated_docs/` bajo subdirectorios `HTML/`, `WORD/` y `EXCEL/`.
+Los ficheros se generan en `generated_docs/<nombre>/` bajo subdirectorios `HTML/`, `WORD/` y `EXCEL/` (con el ejemplo,
+`generated_docs/demo-sqlite/`).
 
 ## 5. Referencias Relacionadas
 

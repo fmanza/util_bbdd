@@ -4,7 +4,7 @@
 
 Demuestra cómo usar `ParallelBulkLoader` para cargar 100K filas en 4 particiones paralelas desde un CSV, comparando el throughput paralelo vs. secuencial.
 
-Resuelve el cuello de botella de inserción en procesos ETL de alto volumen: un data mart que tarda 30 minutos en recargarse secuencialmente puede reducirse a 8 minutos con paralelismo por particiones de PK.
+Resuelve el cuello de botella de inserción en procesos ETL de alto volumen cuando una sola tabla domina el tiempo de carga. La ganancia depende del motor: ver [benchmarks](../guides/benchmarks.md#carga-paralela-por-particiones).
 
 ## 2. Implementación de Referencia
 
@@ -34,13 +34,13 @@ Aspectos críticos:
 --8<-- "examples/database/reader_factory.py"
 ```
 
-**Commit cadence**: para cargas masivas en MySQL/MariaDB, comitear cada N lotes acota el undo log y mantiene la latencia lineal:
+**Commit cadence**: comitear cada N lotes acota el undo log y permite reanudar una partición tras un fallo (no acelera la carga; ver [benchmark](benchmark_commit_cadence.md)):
 
 ```python
 --8<-- "examples/database/commit_cadence.py"
 ```
 
-**Throughput esperado con SQLite** (motor del ejemplo): 1.5× sobre secuencial. Con PostgreSQL/MySQL en producción el speedup típico es 2.5–3.5× con 4 workers.
+**Throughput**: el ejemplo usa SQLite, que admite un solo escritor: la carga paralela no gana (en la revisión de 2026-10-11, este ejemplo tardó 0,53 s en paralelo frente a 0,27 s en secuencial). Lo medido con 4 hilos y 1M filas: SQL Server ≈ 2,7×, MySQL/MariaDB ≈ 1,7×, PostgreSQL con psycopg 3 1,05×, Oracle 1,14× ([benchmarks](../guides/benchmarks.md#carga-paralela-por-particiones)).
 
 **`RangePartitioner` — PK entera, DataFrame en memoria:**
 
@@ -79,19 +79,13 @@ readers = [lambda p=part: iter([p]) for part in partitions]
 result = ParallelBulkLoader(engine, max_workers=4).load("orders", readers)
 ```
 
-**`maintenance_scope` — deshabilitar FKs e índices para cargas >1 M filas:**
+**Constraints desactivadas durante la carga (cargas >1 M filas):**
 
 ```python
-from util_bbdd.bulk import BulkCrud
-
-bulk = BulkCrud(engine)
-loader = ParallelBulkLoader(engine, max_workers=4)
-
-with bulk.bulk_session():
-    with bulk.maintenance_scope("orders", disable_indexes=True):
-        # Las FKs y los índices secundarios están deshabilitados durante la carga
-        result = loader.load("orders", readers)
-# Al salir del bloque maintenance_scope se restauran automáticamente
+# Cada worker desactiva las constraints en su propia sesión (maintenance_scope) y las restaura al terminar.
+# No envolver loader.load() en el maintenance_scope de otra BulkCrud: en MySQL/MariaDB FOREIGN_KEY_CHECKS es
+# de sesión y no alcanzaría a las conexiones de los workers.
+result = ParallelBulkLoader(engine, max_workers=4, disable_constraints=True).load("orders", readers)
 ```
 
 ## 4. Ejecución y Pruebas
@@ -104,13 +98,14 @@ python -m py_compile docs/examples/parallel_bulk_insert.py
 python docs/examples/parallel_bulk_insert.py
 ```
 
-Resultado esperado:
+Resultado esperado (las cifras de tiempo y throughput dependen de la máquina):
 
 ```
-✅ Filas cargadas: 100,000
-⏱️  Throughput: 45,000 filas/seg
-⏱️  Tiempo total: 2.22s
-✅ Todas las particiones cargadas exitosamente
+✅ Carga completada
+   Filas cargadas: 100,000
+   Throughput: <n> filas/seg
+   Tiempo total: <s>s (wall-clock: <s>s)
+   ✓ Todas las particiones cargadas exitosamente
 ```
 
 Ver [API Reference: ParallelBulkLoader](../api/bulk_parallel.md) y [Benchmark: Commit Cadence](benchmark_commit_cadence.md).

@@ -17,7 +17,7 @@ Resuelve la necesidad de ejecutar queries de forma desacoplada del gestor de BD:
 Aspectos críticos:
 
 - **`execute_custom_many` vs `execute_custom_one`**: el primero retorna siempre `list[tuple]` (vacío si no hay filas, nunca `None`); el segundo retorna `tuple | None`.
-- **`execute_query_*`**: requiere que la query esté registrada en `QueryRegistry`. Si no está, lanza `QueryNotFoundError`. Útil para centralizar el SQL y evitar duplicación.
+- **`execute_query_*`**: requiere que la query esté en el JSON de `QueryRegistry(queries_file)` (`{motor: {nombre: SQL}}`; la librería no trae consultas). Si no está, lanza `QueryNotFoundError`. Útil para centralizar el SQL y evitar duplicación.
 - **`connection_provider` y `connection_releaser`**: callables que el executor invoca para obtener y liberar conexiones. Permite usar cualquier tipo de conexión (pool, directa, mock en tests).
 - **Parámetros nombrados**: usar siempre `:nombre` como placeholders. El executor pasa los parámetros al driver como bind params (no interpolación de strings), previniendo inyección SQL.
 

@@ -1,9 +1,11 @@
-# Calcular rangos automáticamente
-def calculate_ranges(source_engine, pk_column: str, n_partitions: int):
-    """Calcular rangos de particiones basado en rango de PK."""
-    with source_engine.connect() as conn:
-        min_pk = conn.execute(text(f"SELECT MIN({pk_column}) FROM table")).scalar()
-        max_pk = conn.execute(text(f"SELECT MAX({pk_column}) FROM table")).scalar()
+# Calcular rangos de partición a partir del MIN/MAX de la PK
+from sqlalchemy import text
 
-    step = (max_pk - min_pk) // n_partitions
-    return [(min_pk + i * step, min_pk + (i + 1) * step) for i in range(n_partitions)]
+from util_bbdd.bulk import RangePartitioner
+
+
+def calculate_ranges(source_engine, table: str, pk_column: str, n_partitions: int) -> list[tuple[int, int]]:
+    """Rangos (lo, hi) inclusivos, disjuntos y que cubren [MIN(pk), MAX(pk)]."""
+    with source_engine.connect() as conn:
+        min_pk, max_pk = conn.execute(text(f"SELECT MIN({pk_column}), MAX({pk_column}) FROM {table}")).one()
+    return RangePartitioner.partition_ranges(min_pk, max_pk, n_partitions)

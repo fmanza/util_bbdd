@@ -29,7 +29,7 @@ Aspectos críticos:
 # Validación sintáctica
 python -m py_compile docs/examples/diff_reporters.py
 
-# Ejecución (requiere dos BDs accesibles)
+# Ejecución (crea dos BDs SQLite de ejemplo; no requiere servidor externo)
 python docs/examples/diff_reporters.py
 ```
 

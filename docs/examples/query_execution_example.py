@@ -1,6 +1,10 @@
 """Ejemplo: Consultas libres y registradas con SyncQueryExecutor sobre SQLite en memoria."""
 
+import json
 import sqlite3
+import tempfile
+
+from pathlib import Path
 
 from util_bbdd.executors import SyncQueryExecutor
 from util_bbdd.query import QueryRegistry
@@ -34,11 +38,13 @@ print("Usuario 3:", fila)
 # → ('Eva',)
 
 # --- Consulta registrada (con QueryRegistry) ---
-registry = QueryRegistry()
-registry.register(
-    "get_usuario",
-    {"sqlite": "SELECT id, nombre FROM usuarios WHERE id = :id"},
+# Las queries con nombre se leen de un JSON {motor: {nombre: SQL}}; la librería no trae ninguna.
+queries_file = Path(tempfile.mkdtemp()) / "queries.json"
+queries_file.write_text(
+    json.dumps({"sqlite": {"get_usuario": "SELECT id, nombre FROM usuarios WHERE id = :id"}}),
+    encoding="utf-8",
 )
+registry = QueryRegistry(queries_file)
 
 executor_named = SyncQueryExecutor(
     connection_provider=lambda: conn,

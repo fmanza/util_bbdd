@@ -2,7 +2,7 @@
 
 ## 1. Contexto del Ejemplo
 
-Genera automáticamente el script DDL de un schema MariaDB para ejecutarlo en Oracle, SQL Server o PostgreSQL, adaptando tipos de datos, `AUTO_INCREMENT` y vistas al dialecto destino.
+Genera automáticamente el script DDL de un schema MariaDB para ejecutarlo en MySQL, Oracle, SQL Server o PostgreSQL, adaptando tipos de datos, `AUTO_INCREMENT` y vistas al dialecto destino.
 
 Resuelve el caso de migrar una aplicación MariaDB a un motor de BD corporativo sin reescribir el DDL manualmente: el plan registra cada decisión de conversión con nivel de severidad.
 
@@ -16,8 +16,8 @@ Resuelve el caso de migrar una aplicación MariaDB a un motor de BD corporativo 
 
 Aspectos críticos:
 
-- **`schema`**: corresponde al `TABLE_SCHEMA` en `INFORMATION_SCHEMA` de MariaDB (equivale al nombre de la base de datos). Para una BD llamada `ventas`, usar `schema="ventas"`.
-- **`AUTO_INCREMENT` → equivalentes**: el planificador convierte automáticamente: MariaDB `AUTO_INCREMENT` → Oracle `SEQUENCE+TRIGGER`, SQL Server `IDENTITY(1,1)`, PostgreSQL `SERIAL/BIGSERIAL`.
+- **`schema`**: en MariaDB es el nombre de la base de datos. Para una BD llamada `ventas`, usar `schema="ventas"`.
+- **`AUTO_INCREMENT` → equivalentes**: el planificador convierte automáticamente: MariaDB `AUTO_INCREMENT` → Oracle `SEQUENCE+TRIGGER` (por defecto; `oracle_identity_mode="identity_by_default_on_null"` en 12c+), SQL Server `IDENTITY(1,1)`, PostgreSQL `SERIAL/BIGSERIAL`.
 - **Vistas reescritas**: el SQL de las vistas se reescribe al dialecto destino con sqlglot (extra `util_bbdd[migrate]`; ver [reescritura de vistas](../functional/migrate_views.md)). El plan emite un aviso de revisión por cada vista.
 - **`plan.error_count`**: verificar antes de ejecutar contra el destino. Errores indican tipos sin equivalente directo que requieren intervención manual.
 
@@ -42,7 +42,7 @@ planner = MigrationPlanner(
 # Validación sintáctica
 python -m py_compile docs/examples/migrate_mariadb_source.py
 
-# Ejecución (requiere servidor MariaDB accesible)
+# Ejecución (requiere servidor MariaDB accesible; verificado contra el banco del proyecto)
 # Sustituir credenciales antes de ejecutar
 python docs/examples/migrate_mariadb_source.py
 ```

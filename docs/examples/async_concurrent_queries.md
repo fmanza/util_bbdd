@@ -17,9 +17,9 @@ Resuelve el caso habitual en servicios web de alta concurrencia: necesito consul
 Aspectos críticos del patrón:
 
 - **`asyncio.gather()`**: lanza todas las corrutinas simultáneamente. El tiempo total es el máximo de las duraciones individuales, no la suma.
-- **Pool async**: `AsyncDatabaseManager` mantiene un pool de conexiones async; cada corrutina de `gather()` obtiene su propia conexión del pool sin bloquear a las demás.
-- **`PoolExhaustedError`**: si hay más corrutinas concurrentes que conexiones en el pool, se lanza este error. Dimensionar el pool según la concurrencia esperada.
-- **Inicialización lazy**: el manager no conecta en el constructor; es obligatorio `await init()` o usar `async with` antes de cualquier operación.
+- **Pool async**: en PostgreSQL, MariaDB, MySQL, Oracle y SQL Server cada corrutina de `gather()` toma su propia conexión del pool (`pool_size` en `conn_params`). En SQLite el pool async es una sola conexión: las consultas se serializan y `gather()` no reduce el tiempo, como muestra la medición del ejemplo.
+- **Pool agotado**: con más corrutinas que conexiones, las sobrantes esperan a que se libere una (en PostgreSQL, hasta `pool_timeout`, 30 s por defecto). No se lanza ningún error por el mero hecho de esperar; dimensionar el pool según la concurrencia esperada.
+- **Inicialización**: el manager no conecta en el constructor. Conecta en `await init()`, al entrar en `async with` o, si no, en la primera operación; llamar a `init()` al arrancar hace que un error de conexión aparezca ahí.
 
 ## 4. Ejecución y Pruebas
 
@@ -27,7 +27,7 @@ Aspectos críticos del patrón:
 # Validación sintáctica
 python -m py_compile docs/examples/async_concurrent_queries.py
 
-# Ejecución (requiere BD con driver async instalado)
+# Ejecución (usa SQLite con aiosqlite; no requiere servidor externo)
 python docs/examples/async_concurrent_queries.py
 ```
 

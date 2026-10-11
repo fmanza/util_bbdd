@@ -75,6 +75,37 @@ Comprobador: `build/logs/docsn2_t2_doc_check_after.txt` (0 hallazgos; estas pág
 Sin cambios tras verificarlas: `audit.md` (test de formato congelado `tests/unit/audit/test_legacy_format.py`; vista
 previa de 120 caracteres), `metadata_extraction.md`.
 
+## Tanda 3 — `docs/examples/` (17 páginas, todos los ejemplos ejecutados)
+
+Comprobador: `build/logs/docsn2_t3_doc_check_after.txt` (21 inclusiones `.py`, 38 imports, 38 accesos; 0 hallazgos).
+Build: `docsn2_t3_build.txt`. Ejecuciones: `docsn2_t3_sqlite_runs.txt` (9 con SQLite) y `docsn2_t3_bench_runs.txt`
+(banco). Con el banco (D5): tablas `docsn2_clientes`/`docsn2_pedidos` + vista `docsn2_v_pedidos` en MariaDB, Oracle,
+PostgreSQL y SQL Server, `docsn2_ai` en MariaDB/MySQL y `docsn2_usuarios` en PostgreSQL; borradas al terminar
+(comprobado: 0 restos). Los `migrate_*` planificaron 2 tablas + 1 vista cada uno (los schemas del banco estaban vacíos:
+sin las tablas temporales no se probaba nada).
+
+**Fallo de la librería encontrado** (el usuario eligió `/hotfix` aparte): `DatabaseDocumentation.generate()` sin
+`fichero_salida` sobre SQLite `:memory:` → `OSError` WinError 123 en Windows. Hotfix `ae1e8098`
+(sesión `2026-10-11-hotfix-doc-auto-filename`); el fragmento de la página funciona después.
+
+| Hallazgo | Dónde | Corrección |
+|---|---|---|
+| `QueryRegistry.register(...)` no existe (el ejemplo fallaba con `AttributeError`) | `query_execution_example.py` | `QueryRegistry(queries_file)` con un JSON temporal; ejecutado |
+| `bulk_insert_from_df` sin `generar_sql=False` (desde 1.0 exige `path_sql`: `ValueError`) | `parallel_bulk_insert.py`, `bulk_insert_csv.py` | `generar_sql=False`; ejecutados |
+| `audit_csv_path` como **directorio**, ficheros `audit_insert_*.csv` inventados, CSV leído con coma (es tabulado y con coma decimal); captura de `ValidationError` que el código no tenía; «normalización de identificadores por motor» | `bulk_insert_csv.py` / `.md` | Reescrito: fichero CSV, `AuditManager.leer_auditoria()`, crea la tabla; ejecutado contra PostgreSQL |
+| Mocks que responden en orden fijo a un `frozenset` (valores cruzados: `max_allowed_packet` = 1024 MB) y se agotan en `validate()` (`StopIteration`, tragado por un `try/except` con código 0); logs de `BulkCrud` inventados; imports privados; «v0.10.0+»; «requiere `INFORMATION_SCHEMA`»; umbral `dev()` < 50K (es ≤ 100K) | `mysql_variables_example.py` / `.md` | Reescrito: mock por nombre de variable, imports de `util_bbdd.connection.mariadb`, ejemplo 6 real con `UTIL_BBDD_EXAMPLE_URL` (probado en MariaDB del banco: «ENGINE READINESS REPORT») |
+| Tiempos «simulados» impresos (~100 ms / ~400 ms); `PoolExhaustedError` (ningún código la lanza: con el pool lleno se espera); `pool_size` en SQLite (el pool async de SQLite es una conexión con semáforo: `gather()` no paraleliza); «inicialización obligatoria» | `async_concurrent_queries.py` / `.md` | Tiempos medidos (`gather()` y secuencial iguales en SQLite, como se explica) |
+| Cifras sin fuente («30 → 8 minutos», «SQLite 1,5×», «PostgreSQL/MySQL 2,5–3,5×») que contradicen los benchmarks; `maintenance_scope` externo envolviendo `loader.load()`; resultado esperado inventado | `parallel_bulk_insert.md` | Cifras de `guides/benchmarks.md` + la medida de esta revisión; `disable_constraints=True`; salida real |
+| `FROM table` literal, falta `import text`, último tramo de PK fuera por la división entera; `psycopg2` | `examples/database/partition_ranges.py`, `pool_setup.py` | `RangePartitioner.partition_ranges` (probado: cubre 1–102); `postgresql+psycopg://` |
+| `psycopg2` en la URL de origen | `dump_data_export.py` | psycopg 3; ejecutado PostgreSQL → SQL Server (2 tablas `success`, 1 `missing_target`) |
+| «`"mysql"` en lugar de `"mariadb"` es un error común» (`mysql` es un motor válido); fila esperada como `dict` (es `tuple`) | `example_connect_introspect.md` | Corregido contra la salida real |
+| «Requiere dos BDs accesibles» (usan SQLite en memoria) | `diff_reporters.md`, `schema_comparison.md` | Corregido |
+| Destinos sin MySQL; extracción descrita con `INFORMATION_SCHEMA`/`COLUMNPROPERTY`/`pg_index` (desde ADR-003 es el catálogo de `metadata/`); «`VIEW_DEFINITION` truncada» (se usa `OBJECT_DEFINITION`); `number_fallback` sin `DECIMAL(18,4)`; nombre sugerido con fecha (no la lleva) | `migrate_*.md` (4) | Contra `planner.py`, `metadata/*/catalog.py`, `ir/models.py` y los mapas de tipos |
+| Carpeta de salida `generated_docs/` (es `generated_docs/<nombre>/`) | `database_documentation_generation.md` | Corregido |
+
+Sin cambios tras ejecutarlos: `exception_handling`, `validators_pattern`, `update_auto_increment_example` (MariaDB y
+MySQL del banco; reduce 500 → 8, como avisa la página).
+
 ## Fuera de alcance (registrado)
 
 - `SyncDatabaseManager.__init__` documenta `ConnectionError` si falla la conexión inicial, pero con pool (lo habitual)
@@ -87,3 +118,6 @@ previa de 120 caracteres), `metadata_extraction.md`.
 - El docstring de `QueryParameterValidator` lista 6 subclases (falta `MySQLValidator`).
 - `ConstraintManager.__exit__` registra y no propaga un fallo al reactivar constraints en `dump`: `DumpResult` no lo
   refleja (`constraint_results` vacío). Revisar si debería marcarse en el resultado.
+- `PoolExhaustedError` está en la API pública pero ningún código la lanza (igual que `DiffReportGenerationError`).
+- `DatabaseDocumentation.generate()`: un fallo al preparar la carpeta de salida llega como `OSError` crudo, no como
+  `DocumentationRenderError` (registrado en el hotfix `ae1e8098`).

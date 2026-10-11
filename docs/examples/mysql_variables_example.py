@@ -1,49 +1,57 @@
 """
 Ejemplos ejecutables: Validación de Variables MySQL/MariaDB
 
-Este módulo demuestra cómo usar MySQLVariableValidator y MySQLOptimalConfig
-en diferentes escenarios de producción.
+Este módulo demuestra cómo usar MySQLVariableValidator y MySQLOptimalConfig.
 
-Advertencia: Estos ejemplos usan conexiones mockeadas para no requerir
-una BD real durante la ejecución. Reemplaza las conexiones mock con
-conexiones reales según tu entorno.
+Los ejemplos 1, 2 y 5 usan una conexión simulada (mock) que responde a ``SHOW VARIABLES LIKE '<nombre>'``,
+así que no necesitan servidor. El ejemplo 6 crea una ``BulkCrud`` real si se define la variable de entorno
+UTIL_BBDD_EXAMPLE_URL con la URL SQLAlchemy de un MySQL o MariaDB de pruebas
+(p. ej. ``mysql+pymysql://usuario:clave@servidor/bd``).
 
 Uso:
     python mysql_variables_example.py
 """
 
+import logging
+import os
+
 from unittest.mock import MagicMock
+
+from util_bbdd.connection.mariadb import MySQLOptimalConfig, MySQLVariableValidator
+
+
+def _mock_connection(values: dict[str, int]) -> MagicMock:
+    """Conexión simulada: responde a SHOW VARIABLES LIKE '<nombre>' con el valor de ``values``."""
+
+    def execute(statement: object) -> MagicMock:
+        result = MagicMock()
+        name = str(statement).split("'")[1]
+        result.fetchall.return_value = [(name, str(values[name]))] if name in values else []
+        return result
+
+    connection = MagicMock()
+    connection.execute.side_effect = execute
+    return connection
+
 
 # ============================================================================
 # Función 1: Lectura de variables sin BulkCrud (standalone)
 # ============================================================================
 
 
-def example_1_standalone_read():
+def example_1_standalone_read() -> None:
     """Lee variables MySQL sin usar BulkCrud."""
     print("\n" + "=" * 70)
     print("Ejemplo 1: Lectura Standalone de Variables MySQL")
     print("=" * 70)
 
-    # Simular conexión MySQL con mock
-    from util_bbdd.connection.mariadb._variables import MySQLVariableValidator
-
-    mock_connection = MagicMock()
-    mock_result = MagicMock()
-    mock_result.fetchall.side_effect = [
-        [("max_allowed_packet", "67108864")],  # 64 MB
-        [("innodb_buffer_pool_size", "1073741824")],  # 1 GB
-    ]
-    mock_connection.execute.return_value = mock_result
-
-    # Crear validador y leer
-    validator = MySQLVariableValidator(mock_connection)
+    connection = _mock_connection({"max_allowed_packet": 67_108_864, "innodb_buffer_pool_size": 1_073_741_824})
+    validator = MySQLVariableValidator(connection)
     vars_actual = validator.read_variables()
 
     print("\nVariables leídas desde servidor:")
-    for name, value in vars_actual.items():
-        mb = value / 1_048_576
-        print(f"  {name}: {mb:.1f} MB")
+    for name, value in sorted(vars_actual.items()):
+        print(f"  {name}: {validator.format_bytes(value)}")
 
 
 # ============================================================================
@@ -51,39 +59,28 @@ def example_1_standalone_read():
 # ============================================================================
 
 
-def example_2_validate_against_recommended():
+def example_2_validate_against_recommended() -> None:
     """Valida variables actuales contra configuración recomendada."""
     print("\n" + "=" * 70)
     print("Ejemplo 2: Validación contra Configuración Recomendada")
     print("=" * 70)
 
-    from util_bbdd.connection.mariadb._config import MySQLOptimalConfig
-    from util_bbdd.connection.mariadb._variables import MySQLVariableValidator
-
-    # Mock: servidor con valores bajos
-    mock_connection = MagicMock()
-    mock_result = MagicMock()
-    mock_result.fetchall.side_effect = [
-        [("max_allowed_packet", "16777216")],  # 16 MB (insuficiente)
-        [("innodb_buffer_pool_size", "268435456")],  # 256 MB (insuficiente)
-    ]
-    mock_connection.execute.return_value = mock_result
-
-    validator = MySQLVariableValidator(mock_connection)
+    # Servidor con valores bajos: 16 MB y 256 MB
+    connection = _mock_connection({"max_allowed_packet": 16_777_216, "innodb_buffer_pool_size": 268_435_456})
+    validator = MySQLVariableValidator(connection)
     actual = validator.read_variables()
 
-    # Obtener recomendación para 1M filas
+    # Recomendación para 1M filas
     recommended = MySQLOptimalConfig.suggest(num_rows=1_000_000)
 
     print("\nValores actuales:")
-    for name, value in actual.items():
-        print(f"  {name}: {value / 1_048_576:.1f} MB")
+    for name, value in sorted(actual.items()):
+        print(f"  {name}: {validator.format_bytes(value)}")
 
     print("\nValores recomendados (para 1M filas):")
-    print(f"  max_allowed_packet: {recommended.max_allowed_packet / 1_048_576:.1f} MB")
-    print(f"  innodb_buffer_pool_size: {recommended.innodb_buffer_pool_size / 1_048_576:.1f} MB")
+    print(f"  innodb_buffer_pool_size: {validator.format_bytes(recommended.innodb_buffer_pool_size)}")
+    print(f"  max_allowed_packet: {validator.format_bytes(recommended.max_allowed_packet)}")
 
-    # Validar
     is_valid = validator.validate(
         {
             "max_allowed_packet": recommended.max_allowed_packet,
@@ -92,7 +89,7 @@ def example_2_validate_against_recommended():
     )
 
     print("\nEstado de validación:")
-    for var, valid in is_valid.items():
+    for var, valid in sorted(is_valid.items()):
         status = "✓ VÁLIDO" if valid else "✗ INSUFICIENTE"
         print(f"  {var}: {status}")
 
@@ -102,13 +99,11 @@ def example_2_validate_against_recommended():
 # ============================================================================
 
 
-def example_3_configuration_profiles():
+def example_3_configuration_profiles() -> None:
     """Demuestra los tres perfiles predefinidos."""
     print("\n" + "=" * 70)
     print("Ejemplo 3: Perfiles de Configuración Predefinidos")
     print("=" * 70)
-
-    from util_bbdd.connection.mariadb._config import MySQLOptimalConfig
 
     profiles = {
         "Desarrollo": MySQLOptimalConfig.dev(),
@@ -130,13 +125,11 @@ def example_3_configuration_profiles():
 # ============================================================================
 
 
-def example_4_suggest_heuristic():
+def example_4_suggest_heuristic() -> None:
     """Demuestra la heurística de suggest() según número de filas."""
     print("\n" + "=" * 70)
     print("Ejemplo 4: Heurística de suggest() por Volumen de Datos")
     print("=" * 70)
-
-    from util_bbdd.connection.mariadb._config import MySQLOptimalConfig
 
     test_cases = [
         (50_000, "Local (< 50K)"),
@@ -156,61 +149,52 @@ def example_4_suggest_heuristic():
 
 
 # ============================================================================
-# Función 5: Simulación de error (conexión None)
+# Función 5: Manejo de errores (conexión None)
 # ============================================================================
 
 
-def example_5_error_handling():
+def example_5_error_handling() -> None:
     """Demuestra cómo se manejan errores (ej. conexión None)."""
     print("\n" + "=" * 70)
     print("Ejemplo 5: Manejo de Errores")
     print("=" * 70)
 
-    from util_bbdd.connection.mariadb._variables import MySQLVariableValidator
-
     print("\nIntentando crear validador con connection=None...")
     try:
-        validator = MySQLVariableValidator(None)
+        MySQLVariableValidator(None)
         print("ERROR: Debería haber lanzado ValueError")
     except ValueError as e:
         print(f"✓ ValueError capturado: {e}")
 
 
 # ============================================================================
-# Función 6: Simulación de BulkCrud validando automáticamente
+# Función 6: BulkCrud revisando el servidor al crearse
 # ============================================================================
 
 
-def example_6_bulk_crud_auto_validation():
-    """Simula BulkCrud con validación automática de MySQL."""
+def example_6_bulk_crud_auto_validation() -> None:
+    """BulkCrud revisa el motor una vez por engine al crearse (EngineReadinessAdvisor)."""
     print("\n" + "=" * 70)
     print("Ejemplo 6: BulkCrud con Validación Automática")
     print("=" * 70)
 
-    # Mock de engine MySQL
-    mock_engine = MagicMock()
-    mock_engine.dialect.name = "mysql"
+    url = os.environ.get("UTIL_BBDD_EXAMPLE_URL")
+    if not url:
+        print("\nDefine UTIL_BBDD_EXAMPLE_URL (MySQL o MariaDB de pruebas) para ver el informe real.")
+        print("Con un engine MySQL/MariaDB, BulkCrud(engine) registra un 'ENGINE READINESS REPORT' con")
+        print("innodb_buffer_pool_size y max_allowed_packet (OK o WARN con el SET GLOBAL recomendado).")
+        return
 
-    mock_connection = MagicMock()
-    mock_result = MagicMock()
-    mock_result.fetchall.side_effect = [
-        [("max_allowed_packet", "67108864")],  # 64 MB
-        [("innodb_buffer_pool_size", "1073741824")],  # 1 GB
-    ]
-    mock_connection.execute.return_value = mock_result
-    mock_engine.connect.return_value.__enter__.return_value = mock_connection
+    from sqlalchemy import create_engine
 
-    # Nota: Aquí simularíamos el init de BulkCrud, pero en un entorno real:
-    # bulk = BulkCrud(engine=mock_engine)
-    # En su __init__, automáticamente:
-    # 1. Detectaría motor = 'mysql'
-    # 2. Crearía MySQLVariableValidator
-    # 3. Leería variables y validaría
-    # 4. Emitiría logs INFO/WARNING
+    from util_bbdd import BulkCrud
 
-    print("\nEn un escenario real con BulkCrud(engine), verías logs como:")
-    print("INFO: MySQL variables: max_allowed_packet=64 MB, innodb_buffer_pool_size=1 GB")
-    print("INFO: Configuración óptima para ~1M filas: max_allowed_packet=64 MB, innodb_buffer_pool_size=1 GB")
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    engine = create_engine(url)
+    try:
+        BulkCrud(engine)  # el informe sale en el log (INFO/WARNING) la primera vez por engine
+    finally:
+        engine.dispose()
 
 
 # ============================================================================
@@ -218,33 +202,23 @@ def example_6_bulk_crud_auto_validation():
 # ============================================================================
 
 
-def main():
+def main() -> None:
     """Ejecuta todos los ejemplos."""
     print("\n")
     print("╔" + "=" * 68 + "╗")
-    print("║" + " " * 68 + "║")
-    print("║" + "  Ejemplos: Validación de Variables MySQL/MariaDB (v0.10.0+)".center(68) + "║")
-    print("║" + " " * 68 + "║")
+    print("║" + "  Ejemplos: Validación de Variables MySQL/MariaDB".center(68) + "║")
     print("╚" + "=" * 68 + "╝")
 
-    try:
-        example_1_standalone_read()
-        example_2_validate_against_recommended()
-        example_3_configuration_profiles()
-        example_4_suggest_heuristic()
-        example_5_error_handling()
-        example_6_bulk_crud_auto_validation()
+    example_1_standalone_read()
+    example_2_validate_against_recommended()
+    example_3_configuration_profiles()
+    example_4_suggest_heuristic()
+    example_5_error_handling()
+    example_6_bulk_crud_auto_validation()
 
-        print("\n" + "=" * 70)
-        print("✓ Todos los ejemplos ejecutados correctamente")
-        print("=" * 70)
-        print()
-
-    except Exception as e:
-        print(f"\n✗ Error durante ejecución: {e}")
-        import traceback
-
-        traceback.print_exc()
+    print("\n" + "=" * 70)
+    print("✓ Todos los ejemplos ejecutados correctamente")
+    print("=" * 70)
 
 
 if __name__ == "__main__":

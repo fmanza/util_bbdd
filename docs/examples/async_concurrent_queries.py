@@ -2,27 +2,29 @@
 Async Concurrent Queries — Ejecutar múltiples queries en paralelo
 
 Este ejemplo muestra cómo:
-1. Configurar AsyncDatabaseManager con pool
-2. Ejecutar queries en paralelo con asyncio.gather()
-3. Recolectar resultados
-4. Validar pool exhaustion
+1. Configurar AsyncDatabaseManager
+2. Lanzar queries independientes a la vez con asyncio.gather()
+3. Recolectar resultados y medir el tiempo frente a la ejecución secuencial
+
+Se ejecuta con SQLite (sin servidor). En SQLite el pool async es una sola conexión: las queries se
+serializan y gather() no gana tiempo. En los motores con pool real (PostgreSQL, MariaDB, MySQL,
+Oracle, SQL Server) cada corrutina toma su propia conexión, hasta pool_size a la vez.
 """
 
 import asyncio
+import time
 
 from util_bbdd import AsyncDatabaseManager, DatabaseException
-from util_bbdd.exceptions import PoolExhaustedError
 
 
 async def demonstrate_concurrent_queries():
     """Ejecutar queries concurrentes de forma segura."""
 
-    # 1. Crear manager con pool configurado.
-    # pool_size se declara dentro de conn_params; no es argumento del constructor.
+    # 1. Crear manager. En los motores servidor, el tamaño del pool va en conn_params
+    # (p. ej. {"pool_size": 5, ...}); no es argumento del constructor.
     manager = AsyncDatabaseManager(
         db_type="sqlite",
-        conn_params={"database": "async_queries_demo.db", "pool_size": 5},
-        use_pool=True,
+        conn_params={"database": "async_queries_demo.db"},
     )
 
     await manager.init()
@@ -68,29 +70,29 @@ async def demonstrate_concurrent_queries():
         result = await manager.execute_custom_one("SELECT COUNT(*) FROM products")
         return f"Total de productos: {result[0]}"
 
-    # 4. Ejecutar todas en paralelo
-    print("Ejecutando 4 queries en paralelo...\n")
+    queries = (get_cheap_products, get_expensive_products, get_average_price, get_product_count)
+
+    # 4. Ejecutar todas a la vez
+    print("Ejecutando 4 queries con asyncio.gather()...\n")
 
     try:
-        results = await asyncio.gather(
-            get_cheap_products(),
-            get_expensive_products(),
-            get_average_price(),
-            get_product_count(),
-        )
+        start = time.perf_counter()
+        results = await asyncio.gather(*(query() for query in queries))
+        concurrent_ms = (time.perf_counter() - start) * 1000
 
         for i, result in enumerate(results, 1):
             print(f"   {i}. {result}")
 
-    except PoolExhaustedError as e:
-        print(f"Pool exhausted: {e}")
+        # 5. Mismas queries una tras otra, para comparar
+        start = time.perf_counter()
+        for query in queries:
+            await query()
+        sequential_ms = (time.perf_counter() - start) * 1000
+
+        print(f"\n   gather():   {concurrent_ms:.1f} ms")
+        print(f"   secuencial: {sequential_ms:.1f} ms (en SQLite, similares: una sola conexión)")
     except DatabaseException as e:
         print(f"Database error: {e}")
-
-    # 5. Resumen
-    print("\nComparacion de tiempos (simulado):")
-    print("   - Paralelo: ~100ms (todas simultáneamente)")
-    print("   - Secuencial: ~400ms (una por una)")
 
     await manager.close()
 

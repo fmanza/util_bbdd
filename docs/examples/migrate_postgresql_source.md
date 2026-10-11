@@ -2,7 +2,7 @@
 
 ## 1. Contexto del Ejemplo
 
-Genera automáticamente el script DDL de un schema PostgreSQL para ejecutarlo en Oracle, MariaDB o SQL Server, adaptando tipos de datos (incluyendo `SERIAL`, tipos sin equivalente directo y `pg_catalog`) al dialecto destino.
+Genera automáticamente el script DDL de un schema PostgreSQL para ejecutarlo en Oracle, MariaDB, MySQL o SQL Server, adaptando tipos de datos (incluyendo `SERIAL`, tipos sin equivalente directo y `pg_catalog`) al dialecto destino.
 
 Resuelve el caso de migrar un esquema PostgreSQL a un motor de BD corporativo preservando las relaciones, índices y autoincremento, sin reescribir el DDL manualmente.
 
@@ -16,11 +16,11 @@ Resuelve el caso de migrar un esquema PostgreSQL a un motor de BD corporativo pr
 
 Aspectos críticos:
 
-- **`schema`**: corresponde al `TABLE_SCHEMA` en `INFORMATION_SCHEMA` de PostgreSQL (habitualmente `'public'`).
-- **Detección de `SERIAL`**: las columnas `SERIAL`, `BIGSERIAL` y `SMALLSERIAL` se detectan por su `COLUMN_DEFAULT = nextval(...)`. El planificador activa `auto_increment=True` y genera el equivalente en el motor destino.
+- **`schema`**: el schema de PostgreSQL (habitualmente `'public'`).
+- **Autoincremento**: las columnas `SERIAL`/`BIGSERIAL`/`SMALLSERIAL` (default `nextval(...)`) y las `GENERATED … AS IDENTITY` se marcan como `auto_increment=True` y se emite el equivalente en el motor destino.
 - **`CHARACTER VARYING` sin límite**: `character varying` sin longitud (sin límite en PostgreSQL) se mapea a `CLOB` (Oracle), `LONGTEXT` (MariaDB) o `NVARCHAR(MAX)` (SQL Server).
-- **Índices desde `pg_catalog`**: `INFORMATION_SCHEMA` no expone índices en PostgreSQL; el extractor usa `pg_catalog.pg_index` para obtenerlos correctamente.
-- **Tipos sin equivalente**: `ARRAY`, `TSVECTOR`, `USER-DEFINED` se mapean a tipos LOB con severidad `ERROR` en los warnings; el script DDL sigue generándose.
+- **Metadatos desde `pg_catalog`**: tablas, columnas, claves, índices y vistas se leen de `pg_catalog`, una consulta por tipo de objeto (ADR-003). Las vistas materializadas no se migran.
+- **Tipos sin equivalente**: `ARRAY`, `TSVECTOR`, `USER-DEFINED` se mapean a texto largo (`LONGTEXT`, `NVARCHAR(MAX)`, `CLOB`) con severidad `ERROR` en los avisos; el script DDL sigue generándose.
 
 Para PostgreSQL → Oracle:
 
@@ -37,7 +37,7 @@ planner = MigrationPlanner(
 # Validación sintáctica
 python -m py_compile docs/examples/migrate_postgresql_source.py
 
-# Ejecución (requiere servidor PostgreSQL accesible)
+# Ejecución (requiere servidor PostgreSQL accesible; verificado contra el banco del proyecto)
 # Sustituir credenciales antes de ejecutar
 python docs/examples/migrate_postgresql_source.py
 ```

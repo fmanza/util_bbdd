@@ -8,7 +8,7 @@ from util_bbdd.dump import DumpConfig, DumpOrchestrator
 
 # 1. Engines (replace with real credentials)
 src_engine = create_engine(
-    "postgresql+psycopg2://user:password@prod-server:5432/production_db"
+    "postgresql+psycopg://user:password@prod-server:5432/production_db"  # psycopg 3
 )
 dst_engine = create_engine(
     "mssql+pymssql://user:password@analytics-server/analytics_db"

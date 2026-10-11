@@ -16,7 +16,7 @@ Resuelve el caso de actualizar un entorno de analítica con datos de producción
 
 Aspectos críticos:
 
-- **`DumpConfig.chunk_size`**: para destinos MariaDB con columnas `TEXT`/`JSON`, reducir a 500 o menos para no superar `max_allowed_packet`. Para otros motores, 5000–10000 filas/chunk es óptimo.
+- **`DumpConfig.chunk_size`**: filas por lectura del origen (default 5000; el ejemplo usa 1000). En destinos MariaDB/MySQL con filas grandes (`TEXT`/`JSON`), reducirlo si un lote supera `max_allowed_packet`.
 - **`truncate_target=True`**: vacía el destino antes de cargar en orden inverso topológico (respetando FKs). Con `False`, los datos se añaden al existente (modo append); riesgo de duplicados si las PKs ya existen.
 - **`SyncDatabaseManager.get_sqlalchemy_engine()`**: para destino MariaDB, usar este método en lugar de `create_engine()` directamente, ya que incluye automáticamente `pool_pre_ping=True` y `pool_recycle=3600` para evitar `Server has gone away`.
 - **Best-effort**: un fallo en una tabla no detiene el volcado. Revisar el informe Excel para identificar las tablas con `ERROR` o `MISSING_TARGET`.
@@ -45,11 +45,11 @@ config = DumpConfig(
 # Validación sintáctica
 python -m py_compile docs/examples/dump_data_export.py
 
-# Ejecución (requiere engines de origen y destino accesibles)
+# Ejecución (requiere engines de origen y destino accesibles, con las tablas ya creadas en el destino; verificado contra el banco)
 python docs/examples/dump_data_export.py
 ```
 
-El informe Excel `reports/dump_report_<timestamp>.xlsx` contiene hojas de Auditoría Tablas, Tablas Faltantes y Columnas Inexistentes, y, si aplican, Auditoría Bulk (con `bulk_audit_path`) y Secuencias PK (con `sync_pk_sequences=True`).
+El informe Excel `reports/dump_report_<timestamp>.xlsx` contiene hojas de Auditoría Tablas, Tablas Faltantes y Columnas Inexistentes, y, si aplican, Índices (con `manage_indexes=True`), Auditoría Bulk (con `bulk_audit_path`) y Secuencias PK (con `sync_pk_sequences=True`, el valor por defecto).
 
 ## 5. Referencias Relacionadas
 
