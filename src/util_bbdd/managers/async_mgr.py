@@ -228,7 +228,8 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
             Lista de filas resultantes.
 
         Raises:
-            QueryError: Si hay error en la ejecución de la query.
+            DatabaseOperationError: Si falla la ejecución (el error del driver queda en ``__cause__``).
+            QueryTimeoutError: Si se supera el plazo.
 
         Example:
             Ejecutar una query personalizada (async):
@@ -275,7 +276,8 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
             Una tupla (fila) si encuentra resultado, None si no hay filas.
 
         Raises:
-            QueryError: Si hay error en la ejecución de la query.
+            DatabaseOperationError: Si falla la ejecución (el error del driver queda en ``__cause__``).
+            QueryTimeoutError: Si se supera el plazo.
 
         Example:
             Obtener un registro único (async):

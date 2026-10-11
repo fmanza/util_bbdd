@@ -13,7 +13,7 @@ from util_bbdd.exceptions import DatabaseException, QueryNotFoundError
 DatabaseException
 ├── ConnectionError
 │   ├── PoolConnectionError
-│   │   └── PoolExhaustedError
+│   │   └── PoolExhaustedError      (reservada: no se lanza; se retirará en 2.0.0)
 │   └── PoolTimeoutError
 ├── QueryError
 │   ├── QueryTimeoutError
@@ -37,7 +37,7 @@ DatabaseException
 ├── ComparerError
 │   ├── SchemaDiffValidationError
 │   ├── MetadataIntrospectionError
-│   └── DiffReportGenerationError
+│   └── DiffReportGenerationError   (reservada: no se lanza; se retirará en 2.0.0)
 ├── DocumentationError
 │   ├── DocumentationConfigError    (también ValueError)
 │   └── DocumentationRenderError

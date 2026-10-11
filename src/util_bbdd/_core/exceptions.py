@@ -66,7 +66,11 @@ class PoolConnectionError(ConnectionError):
 
 
 class PoolExhaustedError(PoolConnectionError):
-    """Pool de conexiones agotado (sin conexiones disponibles)."""
+    """Pool de conexiones agotado (sin conexiones disponibles).
+
+    Reservada: la librería no la lanza (un pool sync agotado da ``PoolTimeoutError`` al vencer ``pool_timeout``; en
+    async se espera sin error). Se retirará en 2.0.0.
+    """
 
     def __init__(
         self,
@@ -304,6 +308,9 @@ class DiffReportGenerationError(ComparerError):
     - Excel Reporter falla al escribir celdas
     - Markdown Reporter falla al formatear
     - I/O error escribiendo archivo de salida
+
+    Reservada: la librería no la lanza (``SchemaDiffReporter.render()`` propaga la excepción original del reporter y
+    ``render_all()`` la registra o, con ``raise_on_error=True``, la relanza). Se retirará en 2.0.0.
     """
 
     pass

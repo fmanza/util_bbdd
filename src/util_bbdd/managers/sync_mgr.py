@@ -58,7 +58,7 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
     Clase para manejar conexiones y operaciones de base de datos.
 
     Soporta logging y manejo de excepciones propias.
-    Bases de datos soportadas: MariaDB, Oracle, PostgreSQL, SQLite, HSQLDB, SQL Server
+    Bases de datos soportadas: MariaDB, MySQL, Oracle, PostgreSQL, SQLite, HSQLDB, SQL Server
     """
 
     _SYNC_QUERY_EXECUTOR_NOT_INITIALIZED = (
@@ -80,15 +80,18 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         Inicializa el gestor de base de datos con soporte de pool de conexiones
 
         Args:
-            db_type: Tipo de base de datos ('mariadb', 'oracle', 'postgresql', 'sqlite', 'hsqldb', 'sqlserver')
+            db_type: Tipo de base de datos ('mariadb', 'mysql', 'oracle', 'postgresql', 'sqlite', 'hsqldb', 'sqlserver')
             conn_params: Parámetros de conexión (debe incluir 'database'; Oracle acepta 'oracle_client_path')
             queries_file: Ruta al archivo JSON con consultas (opcional)
             use_pool: Habilita pool de conexiones (default True)
 
         Raises:
-            DatabaseValidationError: Si la validación de parámetros falla
-            DatabaseDriverError: Si un driver requerido no está disponible
-            ConnectionError: Si la conexión inicial falla
+            InvalidDatabaseType: Si ``db_type`` no está soportado (subclase de ``ValidationError``)
+            ValidationError: Si la validación de parámetros falla
+            DriverError: Si un driver requerido no está disponible
+            ConnectionError: Si falla la conexión única (``use_pool=False`` o motor sin pool)
+            DatabaseConfigurationError: Si falla la creación del pool (p. ej. servidor inalcanzable) u otro error
+                inesperado al inicializar
         """
         # Inicializar logger
         self.logger: logging.Logger = logging.getLogger(__name__)
@@ -436,7 +439,8 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             Lista de filas resultantes.
 
         Raises:
-            QueryError: Si hay error en la ejecución de la query.
+            DatabaseOperationError: Si falla la ejecución (el error del driver queda en ``__cause__``).
+            QueryTimeoutError: Si se supera ``timeout``.
 
         Example:
             Ejecutar una query personalizada:
@@ -488,7 +492,8 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             Una tupla (fila) si encuentra resultado, None si no hay filas.
 
         Raises:
-            QueryError: Si hay error en la ejecución de la query.
+            DatabaseOperationError: Si falla la ejecución (el error del driver queda en ``__cause__``).
+            QueryTimeoutError: Si se supera ``timeout``.
 
         Example:
             Obtener un registro único:

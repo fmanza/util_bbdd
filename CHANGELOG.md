@@ -17,6 +17,21 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   existe como fichero, o sin permisos) llegaba como `OSError` crudo; ahora llega como `DocumentationRenderError`, con
   el `OSError` en `__cause__`, como ya ocurría con los fallos de escritura de cada formato. Quien capturase `OSError`
   debe capturar `DocumentationRenderError` (o `DatabaseException`).
+- **docs**: revisión página a página de las 82 páginas restantes de `docs/` (sesión
+  `2026-10-10-docs-review-nivel-2`): firmas, excepciones y parámetros contrastados con el código, ejemplos que fallaban
+  corregidos y ejecutados (SQLite y motores reales), cifras sin fuente retiradas, instalación desde git. Dos páginas
+  consolidadas: `api/managers_sync_technical.md` y `functional/managers_sync_session_lifecycle.md` (contenido en
+  `api/managers_sync.md` y `functional/managers_sync.md`).
+- **managers, validators** (docstrings): `SyncDatabaseManager` lista MySQL y las excepciones reales (con pool, un fallo
+  de conexión al crearlo es `DatabaseConfigurationError`; `ConnectionError` solo con conexión única); los
+  `execute_custom_*` sync y async documentan `DatabaseOperationError` (no `QueryError`); `QueryParameterValidator`
+  menciona `MySQLValidator`.
+
+### Deprecated
+
+- **exceptions**: `PoolExhaustedError` y `DiffReportGenerationError` se documentan como reservadas: la librería no las
+  lanza. Se retirarán en 2.0.0. Para un pool sync agotado se recibe `PoolTimeoutError`; los fallos de un reporter de
+  `comparar` llegan con su excepción original.
 
 ## [1.1.0] - 2026-10-10
 

@@ -44,7 +44,7 @@ class SyncLifecycleManager:
         Valida y normaliza parámetros de conexión.
 
         Raises:
-            DatabaseValidationError: Si la validación falla.
+            ValidationError: Si la validación falla.
         """
         try:
             from .._drivers.driver_validator import DriverValidator

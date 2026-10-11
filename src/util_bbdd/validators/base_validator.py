@@ -28,7 +28,7 @@ class QueryParameterValidator(ABC):
     parámetros de query) — superficie de import confusa entre ambas.
 
     Subclases:
-    - MariaDBValidator
+    - MariaDBValidator (y MySQLValidator, que hereda de ella)
     - OracleValidator
     - PostgreSQLValidator
     - HSQLDBValidator

@@ -68,6 +68,10 @@ en el driver. Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md).
 ## Futuro
 
 - **`v1.0.0`** — ✅ entregado el 2026-10-10: API estable bajo SemVer y cobertura de tests ≥ 85 % (91 % medido con `pytest --cov` sin el banco).
+- **`v1.2.0`** (propuesta) — `DumpResult` informa del fallo general al reactivar las constraints del destino (hoy solo
+  queda en el log): campo nuevo, aditivo.
+- **`v2.0.0`** (propuesta) — retirar `PoolExhaustedError` y `DiffReportGenerationError`, públicas pero que la librería
+  nunca lanza (documentadas como reservadas desde 1.1.1).
 Ideas exploradas pero **fuera de alcance** por ahora (registradas en el
 [plan de tipos v0.8.0](v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md)):
 validación completa de JSON Schema, generación de dataclasses/TypeScript, motores no relacionales
