@@ -152,6 +152,25 @@ def test_database_documentation_generates_with_sqlite_memory_without_output_name
     assert result.outputs["html"].parent.name.startswith("_memory_-")
 
 
+def test_database_documentation_output_dir_error_is_documentation_render_error(tmp_path: Path) -> None:
+    """Hotfix 2026-10-11 (D3.2): un fallo al preparar la carpeta de salida llegaba como ``OSError`` crudo; el contrato
+    de ``generate()`` es ``DocumentationRenderError`` con la causa en ``__cause__``."""
+    from util_bbdd import SyncDatabaseManager
+    from util_bbdd.doc import DatabaseDocumentation
+    from util_bbdd.exceptions import DocumentationRenderError
+
+    not_a_dir = tmp_path / "salida.txt"
+    not_a_dir.write_text("no soy un directorio", encoding="utf-8")
+    with SyncDatabaseManager("sqlite", {"database": ":memory:"}, use_pool=False) as manager:
+        doc = DatabaseDocumentation(
+            db_manager=manager, directorio_salida=not_a_dir, fichero_salida=Path("demo"), formatos=["html"]
+        )
+        with pytest.raises(DocumentationRenderError) as exc_info:
+            doc.generate()
+
+    assert isinstance(exc_info.value.__cause__, OSError)
+
+
 def test_resolve_document_output_filename_uses_manager_context_when_missing(tmp_path: Path) -> None:
     cache: dict[tuple[str, str], tuple[float, str]] = {}
     output_runtime = DocumentationOutputRuntime()

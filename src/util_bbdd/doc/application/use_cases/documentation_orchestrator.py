@@ -379,8 +379,16 @@ class DocumentationOrchestrator:
             graph_generator = self._graph_generator_factory(
                 self._session.db_manager, dict(self._session.imprimir_config.get("grafo", {}))
             )
+        try:
+            plans: list[DocumentationFormatPlan] = self._planner.build_plans()
+        except OSError as error:
+            # Hotfix 2026-10-11: crear las carpetas de salida (mkdir) podía escapar como OSError crudo; el contrato de
+            # generate() es DocumentationRenderError, como en los fallos de los renderers.
+            raise DocumentationRenderError(
+                f"Error preparando la salida de la documentación: {error}", operation="DOCUMENTATION"
+            ) from error
         outputs: dict[str, Path] = {}
-        for plan in self._planner.build_plans():
+        for plan in plans:
             self._dispatch_plan(plan, graph_generator)
             outputs[plan.output_format] = plan.output_path
         return outputs

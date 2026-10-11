@@ -13,6 +13,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   123) si el identificador de la base de datos llevaba un carácter prohibido en nombres de fichero, p. ej. SQLite
   `":memory:"`: el nombre automático de la carpeta solo sustituía espacios y barras. Ahora sustituye también `<>:"|?*`
   y los caracteres de control por `_` (`:memory:` → `_memory_-<fecha>`).
+- **doc** (hotfix): un fallo al crear la carpeta de salida en `DatabaseDocumentation.generate()` (p. ej. una ruta que
+  existe como fichero, o sin permisos) llegaba como `OSError` crudo; ahora llega como `DocumentationRenderError`, con
+  el `OSError` en `__cause__`, como ya ocurría con los fallos de escritura de cada formato. Quien capturase `OSError`
+  debe capturar `DocumentationRenderError` (o `DatabaseException`).
 
 ## [1.1.0] - 2026-10-10
 

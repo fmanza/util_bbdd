@@ -106,7 +106,8 @@ class DatabaseDocumentation:
             Ruta de salida de cada formato y número de tablas, vistas y rutinas documentadas.
 
         Raises:
-            DocumentationRenderError: Falló la escritura de un formato (la causa queda en ``__cause__``).
+            DocumentationRenderError: Falló la preparación de la carpeta de salida o la escritura de un formato (la
+                causa queda en ``__cause__``).
             DatabaseException: Error leyendo el catálogo (con su propia clase, p. ej. ``DatabaseOperationError``).
 
         Example:

@@ -74,7 +74,7 @@ Opciones de `imprimir["grafo"]` relevantes para el rendimiento:
 | Error | Cuándo ocurre |
 |---|---|
 | `DocumentationConfigError` (también `ValueError`) | Al crear la instancia: formato no soportado, `imprimir` que no es un diccionario, fichero de cabeceras inexistente o mal formado, plantilla Word que no existe (solo si se pide Word) |
-| `DocumentationRenderError` | En `generate()`: falla la escritura de un formato; la causa queda en `__cause__` |
+| `DocumentationRenderError` | En `generate()`: falla la creación de la carpeta de salida (desde 1.1.1; antes, `OSError`) o la escritura de un formato; la causa queda en `__cause__` |
 | Error de `SyncDatabaseManager` (`DatabaseException`) | En `generate()`: conexión caída o permisos insuficientes al leer el catálogo; no se envuelve |
 
 ## 3. Componentes y Clases
