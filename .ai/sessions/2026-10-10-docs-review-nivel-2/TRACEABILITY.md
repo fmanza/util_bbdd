@@ -4,7 +4,7 @@
 - id: 2026-10-10-docs-review-nivel-2
 - fecha: 2026-10-10 / 2026-10-11
 - rama: develop
-- skill: documentation (+ `/hotfix` aparte, sesión `2026-10-11-hotfix-doc-auto-filename`)
+- skill: documentation (+ `/hotfix` × 2 y `/version-closure` → v1.1.1)
 - fase: PLAN + AUDIT_PLAN + IMPLEMENT (C1, C2 y 4 tandas) + puerta de cierre + VERSION (esta traza; sin release)
 
 ## Prompt issued
@@ -31,6 +31,14 @@ páginas), pegado por el usuario.
 - `.ai/CURRENT_STATE.md`: D2 hecho; H2 (hotfix sin publicar) y D3 (hallazgos de código) añadidos.
 - Puerta de cierre: ruff, ruff format, mypy (334 ficheros), `python -m build`, pytest sin URLs del banco (5734 passed,
   531 skipped; `build/logs/docsn2_close_pytest_sin_banco.txt`) y con ellas + `JAVA_HOME` jdk-25 (6258 passed, 7 skipped, 1 aviso de jaydebeapi; `docsn2_close_pytest_con_banco.txt`); `zensical build --strict` y comprobador sin hallazgos en las 82 páginas.
+
+- Tras el cierre, decisiones del usuario sobre D3 (2026-10-11): D3.1 excepciones reservadas (retirada en 2.0.0),
+  D3.2 hotfix `2e23e8bb` (sesión `2026-10-11-hotfix-doc-render-error`), D3.3 a 1.2.0, D3.4 docstrings (`69445300`).
+  Subido el `NEXT_SESSION_PROMPT.md` de `2026-10-10-api-1-0-final` (`82b88fd7`).
+- VERSION 1.1.1 (`/version-closure`): `pyproject.toml`, CHANGELOG `[1.1.1] - 2026-10-11`, README, `docs/index.md`,
+  `docs/roadmap.md`, pie de `docs/architecture.md`, `CURRENT_STATE.md` y `SESSIONS_DIGEST.md`. Puerta: ruff, format,
+  mypy, `zensical build --strict`, `python -m build` (1.1.1), pytest sin banco 5735 passed / 531 skipped
+  (`build/logs/v111_pytest_sin_banco.txt`) y con banco 6259 passed / 7 skipped (`v111_pytest_con_banco.txt`).
 
 ## Artefactos generados
 
@@ -76,5 +84,5 @@ páginas), pegado por el usuario.
 ## Veredicto final
 Veredicto: CLOSED
 Pendientes al cierre:
-- Publicar: commits locales en `develop` (7 de docs + el de cierre de esta sesión, y el hotfix `ae1e8098`); push, tag y release requieren autorización.
+- Publicar v1.1.1: commits locales en `develop` (docs, los hotfix `ae1e8098` y `2e23e8bb`, D3 y la release); push, tag y release requieren autorización.
 - D3 (hallazgos de código, en `02_DOC_REVIEW.md` § Fuera de alcance) y A2 (`driver_name` de SQL Server): por decidir.

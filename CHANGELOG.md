@@ -5,7 +5,10 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.1] - 2026-10-11
+
+Sesiones `.ai/sessions/2026-10-10-docs-review-nivel-2/`, `2026-10-11-hotfix-doc-auto-filename/` y
+`2026-10-11-hotfix-doc-render-error/`. Sin cambios incompatibles en la API pública.
 
 ### Fixed
 

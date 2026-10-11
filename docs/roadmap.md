@@ -7,12 +7,12 @@ El detalle exhaustivo de cada cambio vive en el
 [Keep a Changelog](https://keepachangelog.com/) + [SemVer](https://semver.org/)); esta página
 es la vista panorámica.
 
-> **Versión vigente: v1.1.0.** API pública estable bajo SemVer: la raíz `util_bbdd` (13 puntos de entrada) y sus
+> **Versión vigente: v1.1.1.** API pública estable bajo SemVer: la raíz `util_bbdd` (13 puntos de entrada) y sus
 > submódulos públicos solo cambian de forma incompatible en una versión MAJOR. Las series `0.x` eran pre-estables.
 
 ## En curso (`develop`)
 
-Sin trabajo abierto tras v1.1.0. Lo que se
+Sin trabajo abierto tras v1.1.1. Lo que se
 añada a `develop` antes del próximo tag aparecerá en el
 [CHANGELOG](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md).
 
