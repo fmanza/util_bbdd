@@ -1,7 +1,7 @@
 # Auditoría de Operaciones Bulk
 
-!!! note "Auditoría centralizada (sesión 2026-10-02c)"
-    El CSV de auditoría vive desde esta versión en el módulo común [`util_bbdd.audit`](audit.md), con el mismo formato y
+!!! note "Auditoría centralizada (v0.29.0)"
+    El CSV de auditoría vive desde v0.29.0 en el módulo común [`util_bbdd.audit`](audit.md), con el mismo formato y
     el mismo comportamiento. Ese módulo añade, de forma opcional, eventos de auditoría comunes a `bulk`, `dump` y
     `migrate` (parámetro `audit_sink`).
 

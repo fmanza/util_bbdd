@@ -22,7 +22,7 @@ Casos de uso típicos: refrescar un data lake con datos de un data warehouse; mi
 | Nº de workers ≤ pool capacity | El número de workers no debe exceder la capacidad del pool de conexiones | Bloqueo de workers; degradación exponencial de latencia |
 | Thread-safety del lector | Cada lector de partición se ejecuta en su propio hilo; si accede a estado compartido sin locks, hay condición de carrera | Lectura inconsistente; filas duplicadas o perdidas |
 | Distribución equilibrada de volumen | Cada partición debe tener un volumen similar para distribución equilibrada de carga. Usar `RangePartitioner` (PKs enteras/datetime) o `HashPartitioner` (PKs tipo string/UUID) para generarlas automáticamente | Desbalanceo: tiempo total = máx(tiempos de worker) |
-| Best-effort, no atómico | Un error en una partición no cancela las demás; el volcado continúa | Datos parcialmente cargados; requiere validación post-carga |
+| Best-effort, no atómico | Un error en una partición no cancela las demás; la carga continúa | Datos parcialmente cargados; requiere validación post-carga |
 
 ## 3. Casos de Uso
 
@@ -67,7 +67,7 @@ sequenceDiagram
 
 **Límites y exclusiones:**
 
-- No apto para cargas < 100K filas (overhead de paralelización supera el beneficio)
+- En cargas pequeñas el coste de lanzar hilos y conexiones no compensa; la ganancia depende del motor (ver [benchmarks](../guides/benchmarks.md#carga-paralela-por-particiones))
 - No apto para datos con solapamiento de PK entre particiones
 - Reintento automático solo ante errores transitorios (`max_retries`, por defecto 0): desconexiones, deadlocks y timeouts; los errores de datos o de permisos no se reintentan. Con commits periódicos (`commit_every_n_chunks`) el reintento continúa tras las filas ya confirmadas, sin duplicarlas
 - `update` y `delete` siguen las mismas reglas que la carga (particiones disjuntas por PK); `disable_constraints` solo afecta a `load`
@@ -86,15 +86,22 @@ sequenceDiagram
 
 ### Preparación de tabla para alta carga (`maintenance_scope`)
 
-Para cargas >1 M de filas conviene deshabilitar temporalmente las comprobaciones de integridad antes de insertar. `BulkCrud.maintenance_scope` se encarga de ello dentro del `bulk_session` activo:
+Para cargas >1 M de filas conviene deshabilitar temporalmente las comprobaciones de integridad antes de insertar. En la
+carga paralela se activa con `ParallelBulkLoader(engine, disable_constraints=True)`: cada worker abre su sesión y
+usa `BulkCrud.maintenance_scope` sobre su propia conexión (en MySQL/MariaDB `FOREIGN_KEY_CHECKS` es de sesión, así que
+envolver `loader.load(...)` en el `maintenance_scope` de otra `BulkCrud` no afectaría a los workers). Solo se aplica a
+`load`; los índices no se desactivan en paralelo (en SQL Server bloquearía la tabla).
 
-```
-with bulk.bulk_session():
-    with bulk.maintenance_scope("pedidos", disable_indexes=True):
-        loader.load("pedidos", readers)
+```python
+loader = ParallelBulkLoader(engine, max_workers=4, disable_constraints=True)
+result = loader.load("pedidos", readers)
 ```
 
-Soporte por motor: MariaDB/MySQL (`FOREIGN_KEY_CHECKS`, `DISABLE KEYS`), PostgreSQL (`DISABLE TRIGGER ALL`, requiere propietario), SQL Server (`NOCHECK CONSTRAINT ALL` + `ALTER INDEX … DISABLE`). Las restricciones se restauran siempre al salir del bloque, incluso si se produce una excepción.
+Con una sola `BulkCrud`, el mismo efecto se obtiene con `bulk_session()` + `maintenance_scope("pedidos")`.
+
+Soporte por motor: MariaDB/MySQL (`FOREIGN_KEY_CHECKS`), Oracle (`DISABLE CONSTRAINT` de FK, CHECK y UNIQUE),
+PostgreSQL (`DISABLE TRIGGER ALL`, requiere propietario), SQL Server (`NOCHECK CONSTRAINT ALL`); SQLite no lo admite y
+carga sin optimización. Las restricciones se restauran siempre al salir, incluso si se produce una excepción.
 
 ## 4. Glosario y Términos
 
@@ -106,4 +113,4 @@ Soporte por motor: MariaDB/MySQL (`FOREIGN_KEY_CHECKS`, `DISABLE KEYS`), Postgre
 | Best-effort | Estrategia de carga que continúa aunque falle alguna partición, en lugar de cancelar todo ante el primer error |
 | `RangePartitioner` | Helper que divide un DataFrame (o genera tuplas `(lo, hi)`) en N rangos disjuntos ordenados por una PK entera o `datetime64` |
 | `HashPartitioner` | Helper que asigna filas a N buckets usando `hash(pk_col) % N`; admite cualquier tipo hashable pero no garantiza particiones de igual tamaño |
-| `maintenance_scope` | Context manager de `BulkCrud` que deshabilita FKs, triggers e índices durante la carga y los restaura al salir, incluso ante excepciones |
+| `maintenance_scope` | Context manager de `BulkCrud` que deshabilita constraints (y, opcionalmente, índices) durante la carga y los restaura al salir, incluso ante excepciones |

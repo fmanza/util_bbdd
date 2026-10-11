@@ -2,14 +2,14 @@
 
 ## 1. Descripción General
 
-Permite lanzar consultas SQL sobre cualquier motor soportado (MariaDB, PostgreSQL, Oracle, SQLite, SQL Server, HSQLDB) sin gestionar manualmente la conexión, el cursor ni la conversión del resultado. El consumidor elige entre ejecutar una consulta registrada por nombre o un SQL libre, y obtiene siempre un resultado normalizado en tipos estables.
+Permite lanzar consultas SQL sobre cualquier motor soportado (MariaDB, MySQL, PostgreSQL, Oracle, SQLite, SQL Server, HSQLDB) sin gestionar manualmente la conexión, el cursor ni la conversión del resultado. El consumidor elige entre ejecutar una consulta registrada por nombre o un SQL libre, y obtiene siempre un resultado normalizado en tipos estables.
 
 Cubre tanto flujos síncronos (aplicaciones estándar, scripts, tests) como asíncronos (servidores web, pipelines concurrentes).
 
 **Precondiciones:**
 
 - Un gestor de BD (síncrono o asíncrono) configurado y conectado
-- Para consultas por nombre: al menos una query registrada en el registro de queries
+- Para consultas por nombre: un fichero de queries propio (`queries_file`); la librería no trae consultas registradas
 - Los parámetros deben ser diccionario clave-valor o nulos; no se aceptan listas posicionales
 - Timeout expresado en segundos o nulo para sin límite
 

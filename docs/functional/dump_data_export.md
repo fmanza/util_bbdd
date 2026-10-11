@@ -26,7 +26,7 @@ La carga sigue 7 fases automáticas: introspección → análisis topológico FK
 | Columnas faltantes se saltan | Si una columna existe en origen pero no en destino, se omite de la SELECT y se informa | No hay error; la columna se registra como omitida en el informe |
 | Comparación case-insensitive | Nombres de tabla y columna se comparan sin distinguir mayúsculas/minúsculas entre motores | Necesario para interoperabilidad entre motores (PostgreSQL lowercase ↔ Oracle UPPERCASE) |
 | Errores de tabla no detienen el volcado | Cada tabla es independiente; se registra el error y se continúa con la siguiente | Carga best-effort; validar integridad post-volcado |
-| Rehabilitación de constraints siempre se ejecuta | El gestor de constraints actúa como context manager y garantiza la rehabilitación aunque la carga falle | Las constraints quedan activas incluso en caso de error parcial |
+| Rehabilitación de constraints siempre se ejecuta | El gestor de constraints actúa como context manager y garantiza el intento de rehabilitación aunque la carga falle | Las constraints que no se puedan rehabilitar (p. ej. por filas huérfanas) salen en el informe; un fallo general al reactivarlas queda como ERROR en el log |
 | Informe Excel siempre se genera | Se genera independientemente de si hubo errores parciales | El informe refleja el estado real de cada tabla, incluidos los errores |
 
 ## 3. Casos de Uso
@@ -68,10 +68,11 @@ flowchart TD
 **Límites y exclusiones:**
 
 - Sin transacción global: cada tabla se inserta en su propia transacción
-- Resincronización de secuencias/identidades: soportada para PostgreSQL, SQL Server, MariaDB y Oracle ≥ 12c
-- Gestión de constraints solo en SQL Server, MariaDB, PostgreSQL y Oracle
+- Resincronización de secuencias/identidades: PostgreSQL, SQL Server, MariaDB, MySQL y Oracle ≥ 12c (en SQLite y HSQLDB queda como `unsupported`)
+- Gestión de constraints en SQL Server, MariaDB, MySQL, PostgreSQL y Oracle; en SQLite y HSQLDB se carga sin desactivarlas (WARNING)
+- Gestión de índices (`manage_indexes`) en SQL Server, Oracle y PostgreSQL; en MySQL/MariaDB no se aplica
 - Paralelismo por rangos PK solo para tablas con PK de una única columna entera
-- El informe Excel requiere `openpyxl` instalado
+- El informe Excel usa `openpyxl` (dependencia de la librería, incluida en la instalación base)
 
 ## 4. Glosario y Términos
 

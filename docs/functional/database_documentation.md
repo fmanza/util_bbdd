@@ -4,7 +4,7 @@
 
 Automatiza la generación de documentación técnica de bases de datos en múltiples formatos (Word, Excel, HTML) a partir de una conexión activa, sin que el usuario tenga que escribir SQL ni conocer el esquema de antemano. El resultado es un documento listo para compartir con equipos de arquitectura, auditoría o soporte.
 
-Soporta MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB. Puede generar diagramas de relaciones mediante Graphviz y dividir la salida Word en varios ficheros cuando el esquema es grande.
+Soporta MariaDB, MySQL, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB. Puede generar diagramas de relaciones mediante Graphviz y dividir la salida Word en varios ficheros cuando el esquema es grande.
 
 **Precondiciones:**
 
@@ -20,10 +20,10 @@ Soporta MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB. Puede generar 
 | Regla | Descripción | Impacto si se viola |
 |---|---|---|
 | Delegación de metadatos | El módulo no consulta BD directamente; toda la introspección la hace el gestor proporcionado | Si el gestor no está inicializado o la conexión cae, la generación falla en la primera consulta |
-| Inicialización sin generación | El constructor solo valida la configuración (no consulta la base de datos); el catálogo se lee y los ficheros se escriben al llamar a `generate()`, que devuelve la ruta de cada formato | Si se omite `generate()`, no se crea ninguna salida documental |
+| Inicialización sin generación | El constructor solo valida la configuración (no consulta la base de datos); el catálogo se lee y los ficheros se escriben al llamar a `generate()`, que devuelve un `DocumentationResult` con la ruta de cada formato y los recuentos | Si se omite `generate()`, no se crea ninguna salida documental |
 | Formatos normalizados | Solo acepta `word`, `excel` y `html`; elimina duplicados y rechaza valores no soportados | Un formato inválido detiene la ejecución con error de validación |
 | Auto-naming de ficheros | Si no se especifica nombre de fichero, se genera automáticamente con identificador de BD y timestamp | En ejecuciones cercanas del mismo destino se puede reutilizar el nombre |
-| Tablas por documento Word | Por defecto se generan 50 tablas por documento; esquemas grandes producen varios ficheros numerados | Valores muy altos pueden generar documentos Word difíciles de abrir |
+| Tablas por documento Word | Por defecto se generan 50 tablas por documento (`imprimir["tablas_por_documento"]`); esquemas grandes producen varios ficheros numerados | Valores muy altos pueden generar documentos Word difíciles de abrir |
 | Grafos: profundidad máxima | La profundidad máxima de relaciones en los grafos controla la complejidad visual | Valores superiores a 3 en esquemas con muchas FK generan grafos ilegibles |
 
 ## 3. Casos de Uso

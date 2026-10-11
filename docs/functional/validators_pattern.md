@@ -8,7 +8,7 @@ El resultado es que cualquier componente que use el sistema de queries recibe un
 
 **Precondiciones:**
 
-- Tipo de motor conocido y mapeado a su validador concreto (MariaDB, Oracle, PostgreSQL, HSQLDB, SQL Server, SQLite)
+- Tipo de motor conocido y mapeado a su validador concreto (MariaDB, MySQL, Oracle, PostgreSQL, HSQLDB, SQL Server, SQLite)
 - Definición de query disponible con los parámetros requeridos declarados
 - Parámetros proporcionados por el llamador en forma de diccionario
 
@@ -17,8 +17,8 @@ El resultado es que cualquier componente que use el sistema de queries recibe un
 | Regla | Descripción | Impacto si se viola |
 |---|---|---|
 | Sin excepciones | Los validadores deben retornar siempre `(bool, list[str])`, nunca lanzar excepciones | Una excepción en la validación rompe el resolvedor de queries sin mensaje útil para el llamador |
-| Advertencias, no errores fatales | Los problemas se acumulan en la lista de advertencias; el llamador decide si bloquear o continuar | Permite validaciones permisivas en contextos de compatibilidad o migración sin romper el flujo |
-| Un validador por motor | Cada motor tiene su clase concreta registrada; no se comparte lógica entre motores distintos | Reglas específicas de un motor (ej.: Oracle requiere `schema`) no contaminan la validación de otros |
+| Resultado, no excepción | Los problemas se acumulan en la lista de mensajes junto a un `bool`; el resolvedor de queries bloquea con `QueryValidationError` si es `False` y deja pasar los avisos si es `True` | Quien llama al validador directamente decide qué hacer con `(False, avisos)` |
+| Un validador por motor | Cada motor tiene su clase concreta registrada; las comprobaciones comunes (parámetros requeridos, identificadores) están en la clase base y MySQL reutiliza el de MariaDB | Reglas específicas de un motor (ej.: Oracle valida `esquema`/`schema` como identificador) no contaminan la validación de otros |
 | Interfaz abstracta | El validador base define el método como abstracto | Cualquier subclase sin implementar el método lanzará error al instanciarse, no en tiempo de validación |
 
 ## 3. Casos de Uso
@@ -50,9 +50,9 @@ sequenceDiagram
 
 ### Flujos alternativos
 
-**Validación permisiva:** En contextos de migración o compatibilidad, el llamador puede recibir `(False, [avisos])` y decidir continuar de todas formas, registrando los avisos en el log en lugar de bloquear la ejecución.
+**Validación directa:** Quien usa un validador fuera del resolvedor (por ejemplo, para comprobar parámetros antes de construir una query) recibe `(False, [avisos])` y decide si continuar; dentro del resolvedor, `False` bloquea la ejecución.
 
-**Motor sin validador registrado:** Si se solicita un validador para un motor no registrado, el sistema devuelve un error controlado antes de llegar a la validación de parámetros.
+**Motor sin validador registrado:** Si se solicita un validador para un motor no registrado, `get_type_validator` lanza `ValueError` antes de llegar a la validación de parámetros.
 
 **Límites y exclusiones:**
 

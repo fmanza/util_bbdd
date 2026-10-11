@@ -22,7 +22,7 @@ Es el componente que responde a la pregunta "¿qué ha cambiado entre producció
 | Comparación estructural, no de datos | Solo se comparan definiciones del esquema, no filas ni contenidos de tablas | El resultado no refleja diferencias en datos de negocio |
 | Resultado inmutable | El objeto de diferencias es inmutable una vez generado | Imposible modificar el resultado tras la comparación; crear una nueva comparación si se necesita actualizar |
 | Normalización DDL para vistas | El DDL de vistas se normaliza antes de comparar (elimina artefactos motor-específicos) | Diferencias puramente de decoradores no generan vista diferente; solo diferencias semánticas |
-| Rutinas deshabilitadas por defecto | La comparación de rutinas no se activa por defecto; habilitarlas en esquemas grandes puede multiplicar las queries | Habilitar solo cuando realmente se necesite comparar procedures/funciones |
+| Rutinas deshabilitadas por defecto | La comparación de rutinas no se activa por defecto (`include_routines=False`); al activarla se leen con una consulta por lado | Activarla cuando se necesite comparar procedures/funciones; en Oracle exige `schema` |
 | HSQLDB sin rutinas | HSQLDB no expone DDL portable de rutinas; la comparación retorna lista vacía sin error | No indica ausencia de rutinas; indica que no se pueden comparar con este motor |
 | Índices sin nombre ignorados | Índices anónimos no se incluyen en la comparación | Puede haber diferencias de índices en BD que no se detecten si no tienen nombre |
 

@@ -111,7 +111,7 @@ except DumpReportError as exc:
 | `SQLAlchemyError` | Al crear el `DumpOrchestrator`, si no se puede conectar al origen o al destino |
 | `ValueError` | Al crear `DumpConfig`: `chunk_size`, `commit_every_n_chunks`, `write_batch_size` o la combinación `on_error`/`rejects_csv_path`/`max_rejects` no válidos |
 | `DumpError` | En `run()`, si falla la lectura de las tablas de origen o destino (con el `SQLAlchemyError` en `__cause__`) |
-| `DumpConstraintError` (subclase de `DumpError`) | En `run()`, si no se pueden desactivar o reactivar las constraints del destino |
+| `DumpConstraintError` (subclase de `DumpError`) | En `run()`, si no se pueden desactivar las constraints del destino. Un fallo al reactivarlas no se lanza: se registra como ERROR en el log |
 | `DumpReportError` | No se pudo generar el informe Excel (directorio, permisos, fichero abierto, disco lleno). La carga ya terminó: `exc.result` lleva el `DumpResult` |
 | Error capturado en `TableDumpResult.error` | Fallo en carga de una tabla individual; el resto continúa |
 | Origen SQLite (WARNING al crear el orquestador) | SQLite no tiene tipos de columna: las fechas se leen como texto y los DECIMAL como `float`. Un destino servidor convierte las fechas; con destino SQLite, las tablas con columnas de fecha terminan en `error`. Los DECIMAL pueden perder precisión |

@@ -8,7 +8,7 @@ Esto permite que los gestores y otros componentes sean independientes del driver
 
 **Precondiciones:**
 
-- Driver Python instalado para el motor objetivo (`psycopg`, `asyncpg`, `oracledb`, `pymssql`/`pyodbc`, `mariadb` para MariaDB, `pymysql` para MySQL, `aiomysql` para ambos en async, etc.)
+- Driver Python instalado para el motor objetivo (`psycopg`, `asyncpg`, `oracledb`, `pymssql`/`pyodbc`, `mariadb` para MariaDB, `pymysql` para MySQL, `aiomysql` para ambos en async, `jaydebeapi` para HSQLDB, etc.)
 - Tipo de motor reconocido: MariaDB, MySQL, PostgreSQL, Oracle, SQL Server, SQLite o HSQLDB
 - Parámetros de conexión completos según el motor (host, port, database, user, password y cualquier parámetro driver-específico)
 
@@ -19,7 +19,7 @@ Esto permite que los gestores y otros componentes sean independientes del driver
 | Lazy loading de builders | Los builders async se cargan bajo demanda la primera vez que se solicita el motor | Si el driver no está instalado, el error aparece en la primera petición, no al importar la librería |
 | Registro extensible | Nuevos motores se añaden mediante registro sin modificar la factoría | Sin registrar el builder, el motor no estará disponible para conexiones async |
 | Normalización del tipo de motor | El tipo de motor se convierte a minúsculas antes de buscar el builder | Usar `"PostgreSQL"` y `"postgresql"` produce el mismo resultado |
-| Error controlado para async no soportado | Si el motor no tiene soporte async declarado, se indica con error controlado | Los gestores async capturan este error y caen a conexión directa sync |
+| Error controlado para async no soportado | Si el motor no tiene soporte async (HSQLDB), se indica con `NotImplementedError` | El gestor async no se puede usar con ese motor: hay que usar el gestor síncrono |
 
 ## 3. Casos de Uso
 
@@ -52,7 +52,7 @@ sequenceDiagram
 
 ### Flujos alternativos
 
-**Motor async no soportado:** Cuando el gestor asíncrono solicita una conexión para un motor sin soporte async declarado, recibe un error controlado y puede caer de forma transparente a una conexión directa síncrona.
+**Motor async no soportado:** Cuando el gestor asíncrono solicita una conexión para un motor sin soporte async (HSQLDB), `init()` falla con `NotImplementedError`; no hay caída a una conexión síncrona.
 
 **Límites y exclusiones:**
 

@@ -53,6 +53,28 @@ ejecutados en el scratchpad (SQLite): `prefetch` de `analysis.md`, auditoría de
 
 Sin cambios tras verificarlas: `audit.md` (ejemplo ejecutado), `comparator.md` (autodoc).
 
+## Tanda 2 — `docs/functional/` (14 páginas tras C2)
+
+Comprobador: `build/logs/docsn2_t2_doc_check_after.txt` (0 hallazgos; estas páginas no tienen código Python). Build:
+`docsn2_t2_build.txt`. Probados en el scratchpad: `ParallelBulkLoader(..., disable_constraints=True)` (SQLite),
+`AsyncDatabaseManager` sin `init()` (inicialización perezosa) y con `conn_params` incompletos (`ValidationError`),
+`AsyncDatabaseManager("hsqldb")` (`NotImplementedError`).
+
+| Hallazgo | Dónde | Corrección |
+|---|---|---|
+| Patrón de `maintenance_scope` que no funciona: envolver `loader.load(...)` en el `maintenance_scope` de otra `BulkCrud` (en MySQL/MariaDB `FOREIGN_KEY_CHECKS` es de sesión y los workers usan sus conexiones); motores sin Oracle ni SQLite; «no apto para < 100K filas» sin fuente | `bulk_parallel_loading.md` | `ParallelBulkLoader(disable_constraints=True)` (ejecutado), motores según el docstring, remisión a benchmarks |
+| «HSQLDB: el gestor usa estrategia síncrona transparente» y «cae a conexión directa si no hay pool async» (falla con `NotImplementedError`; los 6 motores async tienen pool); «inicialización obligatoria» y a la vez «perezosa»; Python 3.10+; «hasta reiniciar el gestor» (`clear_cache()`) | `managers_async.md` | Probado y corregido |
+| «Los gestores async caen a conexión directa sync» | `drivers_selection.md` | `NotImplementedError`, sin caída |
+| «Normalización de identificadores por motor… usar el case incorrecto provoca errores» (desde PD-01 las columnas se emparejan sin distinguir mayúsculas); «no soporta UPSERT nativo en todos los motores» (no hay UPSERT en ningún motor) | `bulk_operations.md` | `align_dataframe_columns`; UPSERT inexistente |
+| Motores de constraints y de resincronización de PK sin MySQL; sin los motores de `manage_indexes`; «rehabilitación garantizada» (un fallo general al reactivar solo se registra) | `dump_data_export.md` (y `api/dump.md`: `DumpConstraintError` solo al desactivar) | Contra `_constraints.py`, `pk_sync.py`, `_indexes.py` |
+| «El resolvedor decide si bloquear o continuar» con `(False, avisos)` (bloquea con `QueryValidationError`); «no se comparte lógica entre motores» (clase base común, MySQL hereda de MariaDB); «Oracle requiere `schema`» (lo valida si viene) | `query_registry.md`, `validators_pattern.md` | Contra `resolver.py` y los validadores |
+| «Rutinas: activarlas puede multiplicar las consultas» (una consulta por lado, ADR-003) | `schema_comparison.md` | Corregido |
+| Motores sin MySQL | `query_execution.md`, `database_documentation.md`, `validators_pattern.md` | 7 motores |
+| «Sesión 2026-10-02c» | `bulk_audit.md` | v0.29.0 |
+
+Sin cambios tras verificarlas: `audit.md` (test de formato congelado `tests/unit/audit/test_legacy_format.py`; vista
+previa de 120 caracteres), `metadata_extraction.md`.
+
 ## Fuera de alcance (registrado)
 
 - `SyncDatabaseManager.__init__` documenta `ConnectionError` si falla la conexión inicial, pero con pool (lo habitual)
@@ -63,3 +85,5 @@ Sin cambios tras verificarlas: `audit.md` (ejemplo ejecutado), `comparator.md` (
 - `DiffReportGenerationError` está en la API pública (`util_bbdd.exceptions`, `util_bbdd.comparar`) pero ningún código
   la lanza. Candidata a usarse en `render_all` o a retirarse en 2.0.
 - El docstring de `QueryParameterValidator` lista 6 subclases (falta `MySQLValidator`).
+- `ConstraintManager.__exit__` registra y no propaga un fallo al reactivar constraints en `dump`: `DumpResult` no lo
+  refleja (`constraint_results` vacío). Revisar si debería marcarse en el resultado.

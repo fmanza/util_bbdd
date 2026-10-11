@@ -51,7 +51,7 @@ sequenceDiagram
 
 **Query no encontrada:** Si se solicita una query para un motor que no la tiene definida, el resolvedor devuelve un error claro indicando el nombre y el motor buscados.
 
-**Parámetros inválidos:** El validador devuelve `(False, [lista de avisos])` en lugar de lanzar excepción. El resolvedor decide si bloquear la ejecución o continuar con advertencias, según el contexto.
+**Parámetros inválidos:** El validador devuelve `(False, [lista de avisos])` en lugar de lanzar excepción, y el resolvedor bloquea la ejecución con `QueryValidationError`. Con `(True, [avisos])` la query se resuelve y los avisos quedan en el resultado.
 
 **Límites y exclusiones:**
 

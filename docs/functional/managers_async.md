@@ -8,19 +8,18 @@ Es el punto de entrada recomendado para servicios web de alta concurrencia y pip
 
 **Precondiciones:**
 
-- Python 3.10+ con soporte `asyncio`
-- Driver async instalado para el motor objetivo (`asyncpg` para PostgreSQL, `aiomysql` para MariaDB y MySQL, etc.)
-- Parámetros de conexión válidos incluyendo `database`
+- Python 3.12+
+- Driver async instalado para el motor objetivo (`asyncpg` para PostgreSQL, `aiomysql` para MariaDB y MySQL, `aiosqlite` para SQLite, `aioodbc` para SQL Server, `oracledb` para Oracle)
+- Parámetros de conexión obligatorios del motor (los mismos que en el gestor síncrono)
 - Tipo de motor declarado: MariaDB, MySQL, PostgreSQL, Oracle, SQL Server o SQLite
-- El gestor no conecta en el constructor: es obligatorio inicializarlo explícitamente o usar el context manager async antes de cualquier operación
+- El gestor no conecta en el constructor: conecta en `await init()`, al entrar en `async with` o, si no, en la primera operación
 
 ## 2. Reglas de Negocio
 
 | Regla | Descripción | Impacto si se viola |
 |---|---|---|
-| Inicialización obligatoria | El constructor no conecta; toda operación sin inicialización activa una inicialización perezosa automática | Sin inicialización explícita, la primera operación puede fallar con error de conexión sin contexto claro |
-| Pool con fallback | Si el motor no soporta pool async, cae silenciosamente a conexión directa | El comportamiento es correcto pero sin pool la concurrencia no se beneficia del pool |
-| Caché de metadatos por sesión | Los metadatos de esquema se cachean en memoria desde la primera consulta | Cambios de esquema durante la sesión no se reflejan hasta reiniciar el gestor |
+| Inicialización perezosa | El constructor no conecta; si no se llama a `init()`, la primera operación inicializa el gestor | Sin `init()` explícito, un error de conexión aparece en la primera operación en lugar de al arrancar |
+| Caché de metadatos por sesión | Los metadatos de esquema se cachean en memoria desde la primera consulta | Cambios de esquema durante la sesión no se reflejan hasta invalidar la caché (`clear_cache()`) |
 | Cierre explícito recomendado | Usar cierre explícito o context manager async garantiza liberación de recursos del pool | Sin cierre, el pool puede quedarse abierto hasta que el recolector de basura lo recoja |
 | Validación de `conn_params` en el constructor | Desde v0.37.0, igual que el gestor sync: rechaza claves que el motor no admite, exige los parámetros requeridos de cada motor (p. ej. `host`, `user`, `password` y `database` en MariaDB, MySQL, PostgreSQL y SQL Server) y valida los valores (`schema`, `charset`, `sslmode`…) | `ValidationError` al construir el gestor; antes las claves desconocidas se descartaban sin aviso |
 | `schema` por defecto | Sin `schema`, PostgreSQL usa `public` (también como `search_path` de la sesión), SQL Server `dbo` y HSQLDB `PUBLIC`, igual que el gestor sync | Antes de v0.37.0 el gestor async leía los metadatos del schema con el nombre de la base de datos |
@@ -43,7 +42,7 @@ sequenceDiagram
     Pool-->>Mgr: Pool listo
 
     loop Operaciones concurrentes
-        App->>Mgr: await obtener_tablas() / await ejecutar_query()
+        App->>Mgr: await get_tables() / await execute_custom_many()
         Mgr->>Pool: Adquirir conexión
         Pool-->>Mgr: Conexión
         Mgr->>BD: Consultar
@@ -60,15 +59,13 @@ sequenceDiagram
 
 **Uso como async context manager (recomendado):** Con `async with gestor:` se garantiza la inicialización y el cierre automáticos, incluso si se produce una excepción durante las operaciones.
 
-**Motor sin pool async:** El gestor detecta que el motor no soporta pool async y cae automáticamente a conexión directa, sin error para el llamador.
-
 **Límites y exclusiones:**
 
 - No apto para código síncrono: todos sus métodos son corrutinas (`await` obligatorio)
 - No realiza operaciones bulk (INSERT/UPDATE/DELETE masivo desde DataFrame): usar el módulo de operaciones bulk con el engine de SQLAlchemy
 - No genera documentación ni informes
 - No compara esquemas
-- HSQLDB (motor in-memory): el gestor lo detecta y usa estrategia síncrona de forma transparente
+- HSQLDB no tiene driver async: `AsyncDatabaseManager("hsqldb", ...)` falla con `NotImplementedError` al inicializarse; usar el gestor síncrono
 
 ## 4. Glosario y Términos
 
