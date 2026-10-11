@@ -113,6 +113,45 @@ def test_generate_auto_output_filename_reuses_recent_name_within_batch_window(tm
     assert third == Path("demo-20260401_100200")
 
 
+@pytest.mark.parametrize(
+    ("db_type", "database", "expected"),
+    [
+        ("sqlite", ":memory:", "_memory_"),
+        ("postgresql", 'a<b>c:d"e|f?g*h', "a_b_c_d_e_f_g_h"),
+        ("postgresql", "tab\there", "tab_here"),
+    ],
+)
+def test_generate_auto_output_filename_replaces_characters_invalid_on_windows(
+    tmp_path: Path, db_type: str, database: str, expected: str
+) -> None:
+    """Hotfix 2026-10-11: ``:memory:`` daba la carpeta ``:memory:-<fecha>`` y ``generate()`` fallaba en Windows
+    (WinError 123): solo se sustituían espacios y barras."""
+    name = DocumentationOutputRuntime().generate_auto_output_filename(
+        db_type=db_type,
+        database=database,
+        conn_params={},
+        output_dir=tmp_path,
+        output_cache={},
+        batch_window_seconds=90,
+        current_datetime=datetime(2026, 4, 1, 10, 0, 0),
+    )
+
+    assert name == Path(f"{expected}-20260401_100000")
+    (tmp_path / name).mkdir()  # creable en cualquier sistema
+
+
+def test_database_documentation_generates_with_sqlite_memory_without_output_name(tmp_path: Path) -> None:
+    """Hotfix 2026-10-11: el caso mínimo de la documentación (SQLite ``:memory:`` sin ``fichero_salida``)."""
+    from util_bbdd import SyncDatabaseManager
+    from util_bbdd.doc import DatabaseDocumentation
+
+    with SyncDatabaseManager("sqlite", {"database": ":memory:"}, use_pool=False) as manager:
+        result = DatabaseDocumentation(db_manager=manager, directorio_salida=tmp_path, formatos=["html"]).generate()
+
+    assert result.outputs["html"].is_dir()
+    assert result.outputs["html"].parent.name.startswith("_memory_-")
+
+
 def test_resolve_document_output_filename_uses_manager_context_when_missing(tmp_path: Path) -> None:
     cache: dict[tuple[str, str], tuple[float, str]] = {}
     output_runtime = DocumentationOutputRuntime()

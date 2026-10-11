@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 
 from datetime import datetime
@@ -9,6 +10,10 @@ from pathlib import Path
 
 from ...application.ports import ConnectionParams, OutputCache, OutputNamingContextPort, OutputPolicyPort
 from ...domain.services import DocumentationContextDomainService
+
+#: Caracteres que no pueden ir en el nombre automático de la carpeta: espacio, barras, los prohibidos en Windows
+#: (``<>:"|?*``) y los de control.
+_UNSAFE_NAME_CHARS: re.Pattern[str] = re.compile(r'[ /\\<>:"|?*\x00-\x1f]')
 
 _DEFAULT_SUPPORTED_OUTPUT_FORMATS: set[str] = {"word", "excel", "html"}
 _DEFAULT_FORMAT_FOLDER_MAP: dict[str, str] = {
@@ -75,7 +80,8 @@ class DocumentationOutputRuntime(OutputPolicyPort):
         timestamp: str = resolved_datetime.strftime("%Y%m%d_%H%M%S")
         normalized_conn_params: ConnectionParams = conn_params if isinstance(conn_params, dict) else {}
         identifier: str = self.resolve_output_filename_identifier(db_type, database, normalized_conn_params)
-        safe_identifier: str = identifier.replace(" ", "_").replace("/", "_").replace("\\", "_")
+        # Hotfix 2026-10-11: también los caracteres prohibidos en Windows (``:memory:`` daba WinError 123).
+        safe_identifier: str = _UNSAFE_NAME_CHARS.sub("_", identifier)
         cache_key: tuple[str, str] = (str(output_dir), safe_identifier)
         now: float = current_time if current_time is not None else time.time()
         cached: tuple[float, str] | None = output_cache.get(cache_key)

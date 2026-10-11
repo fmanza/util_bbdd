@@ -5,6 +5,15 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **doc** (hotfix): `DatabaseDocumentation.generate()` sin `fichero_salida` fallaba en Windows con `OSError` (WinError
+  123) si el identificador de la base de datos llevaba un carácter prohibido en nombres de fichero, p. ej. SQLite
+  `":memory:"`: el nombre automático de la carpeta solo sustituía espacios y barras. Ahora sustituye también `<>:"|?*`
+  y los caracteres de control por `_` (`:memory:` → `_memory_-<fecha>`).
+
 ## [1.1.0] - 2026-10-10
 
 Sesión `.ai/sessions/2026-10-10-plan-pendientes-post-1-0/`. Sin cambios incompatibles.
