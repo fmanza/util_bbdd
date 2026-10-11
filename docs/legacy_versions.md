@@ -14,10 +14,10 @@ Este archivo explica dónde encontrar información sobre versiones anteriores de
 | Necesitas… | Consulta |
 |---|---|
 | Cambios entre versiones | [`CHANGELOG.md`](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md) |
-| Estado actual de la librería | [Inicio](index.md) y [README](index.md) |
+| Estado actual de la librería | [Inicio](index.md) y [README](https://github.com/fmanza/util_bbdd/blob/main/README.md) |
 | Migrar código de 0.x a 1.0 | [guides/api_1_0_migration.md](guides/api_1_0_migration.md) |
 | Migrar código anterior a v0.6.3 | [guides/migration_guide.md](guides/migration_guide.md) |
-| Migración v0.5 → v0.6 | [guides/migration_guide_v0.6.7.md](guides/migration_guide_v0.6.7.md) |
+| Migración v0.6.6 → v0.6.7 | [guides/migration_guide_v0.6.7.md](guides/migration_guide_v0.6.7.md) |
 | Detalle de un PR o decisión de diseño antigua | Historial de git (`git log`) y `CHANGELOG.md` |
 | Resolver un error en código antiguo | [guides/troubleshooting.md](guides/troubleshooting.md) |
 
@@ -34,7 +34,15 @@ v0.5.0 – v0.5.6  (Adición de funcionalidades)
    ↓
 v0.6.0 – v0.7.0  (Madurez / estable)
    ↓
-v0.8.0 – v0.10.0  (Actual: sistema de tipos + rendimiento de bulk/dump)
+v0.8.0 – v0.10.0  (Sistema de tipos + rendimiento de bulk/dump)
+   ↓
+v0.11.0 – v0.42.x  (Auditoría común en v0.29, metadatos centralizados por lotes en v0.31 — ver CHANGELOG)
+   ↓
+v0.43.0 – v0.44.0  (Superficie pública 1.0 con alias obsoletos)
+   ↓
+v1.0.0  (API pública estable bajo SemVer)
+   ↓
+v1.1.0  (Actual)
 ```
 
 La vista panorámica de versiones está en el [Roadmap](roadmap.md); los detalles de cada hito,
@@ -43,16 +51,17 @@ en el [`CHANGELOG.md`](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.m
 ## ⚠️ Notas Importantes
 
 1. **No uses documentación histórica como referencia de código nuevo** — consulta siempre
-   [Inicio](index.md) y el [README](index.md) para la API vigente (v0.10.0).
-2. **Breaking changes** — si ves un error de import/API en código antiguo, revisa
+   [Inicio](index.md) para la API vigente (1.x).
+2. **Breaking changes** — si ves un error de import/API en código antiguo, revisa primero
+   [Migración a la API 1.0](guides/api_1_0_migration.md) y, para código anterior a v0.6.3,
    [guides/migration_guide.md](guides/migration_guide.md).
 3. **Reportes de issues** — indica tu versión de util_bbdd
-   (`import util_bbdd; print(util_bbdd.__version__)`).
+   (`python -c "from importlib.metadata import version; print(version('util_bbdd'))"`).
 4. **Contribuciones** — lee [CONTRIBUTING.md](https://github.com/fmanza/util_bbdd/blob/main/.github/CONTRIBUTING.md).
 
 ## 🔗 Enlaces Útiles
 
 - **Actual:** [Inicio](index.md) · [Referencia Técnica](api/intro.md)
-- **Migración:** [guides/migration_guide.md](guides/migration_guide.md) · [guides/migration_guide_v0.6.7.md](guides/migration_guide_v0.6.7.md)
+- **Migración:** [guides/api_1_0_migration.md](guides/api_1_0_migration.md) · [guides/migration_guide.md](guides/migration_guide.md) · [guides/migration_guide_v0.6.7.md](guides/migration_guide_v0.6.7.md)
 - **Histórico de cambios:** [CHANGELOG.md](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md)
 - **Issues:** [guides/troubleshooting.md](guides/troubleshooting.md)

@@ -155,10 +155,8 @@ UnicodeDecodeError: 'utf8' codec can't decode byte 0xc3 in position 42
 
 **Causas potenciales (en orden de probabilidad):**
 
-1. **Driver mariadb < 1.1.4**: No soporta `encoding_errors`. Actualizar:
-   ```bash
-   pip install --upgrade "mariadb>=1.1.4"
-   ```
+1. **`encoding_errors`**: ningún driver de MariaDB lo admite (ver el aviso al principio de esta guía); actualizar el
+   driver no lo activa. Usar `catalog_charset_mode` ([Guía de conexión § 6](connection_guide.md#6-parametros-especiales-de-mariadb-init_command-y-encoding_errors)).
 
 2. **`init_command` ignorado silenciosamente**: Servidor no ejecuta comandos custom. Verificar:
    ```sql
@@ -211,19 +209,16 @@ with SyncDatabaseManager("mariadb", conn_params) as db:
     print("✅ Migrations successful, no UnicodeDecodeError")
 ```
 
-### Rollback a v0.34.x (si necesario)
+### Rollback a v0.34.x (histórico)
 
-```bash
-pip install "util-bbdd==0.34.1"
-```
+El repositorio no tiene tags `v0.34.x` (el primero publicado de la serie es `v0.35.2`), y util_bbdd no está en PyPI.
+En versiones < 0.35.0, `init_command` y `encoding_errors` no existían en `conn_params`.
 
-Los parámetros `init_command` y `encoding_errors` en `conn_params` serán ignorados en versiones < 0.35.0.
+## 8. Lo que vino después
 
-## 8. Roadmap y futuras mejoras
-
-- **v0.36.0+**: Potencial optimización de `encoding_errors` con detección automática del estado
-  de charset (usando `CharsetStateDetector` de v0.33.0+).
-- **Monitoreo**: Logging de advertencia si `@@character_set_results != utf8mb4` al abrir conexión.
+- **v0.35.7**: `encoding_errors` queda sin efecto (ningún driver lo admite).
+- **v0.38.0**: `catalog_charset_mode` (`auto`/`native`/`convert`) decide cómo leer el catálogo; en `auto` diagnostica el
+  charset del servidor (ver [Guía de conexión § 6](connection_guide.md#6-parametros-especiales-de-mariadb-init_command-y-encoding_errors)).
 
 ---
 

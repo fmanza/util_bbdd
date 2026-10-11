@@ -31,7 +31,7 @@ Claude Code carga automáticamente en cada sesión:
 |---|---|
 | `CLAUDE.md` | Siempre, en cada conversación |
 | `.claude/commands/*.md` | Al invocar el slash command correspondiente |
-| `.claude/settings.json` | Al iniciar sesión (hooks y permisos) |
+| `.claude/settings.json` | Al iniciar sesión (solo hooks compartidos; los permisos van en `.claude/settings.local.json`) |
 
 El fichero `CLAUDE.md` fija la política transversal del repositorio. Los slash commands añaden flujos estructurados para tareas concretas.
 
@@ -48,7 +48,13 @@ Escribe el comando en el chat para activar el flujo estructurado:
 | `/security-review` | Quieres auditoría de seguridad independiente |
 | `/tech-debt` | Quieres inventariar deuda técnica |
 | `/maturity-assessment` | Quieres evaluar readiness del repositorio |
+| `/performance-audit-bulk` / `-dump` / `-constraints` | Quieres auditar el rendimiento de `bulk/`, `dump/` o la desactivación de constraints |
+| `/metadata-centralization` | Trabajas en la extracción de metadatos |
+| `/documentation-architecture-audit` | Quieres auditar la arquitectura de `doc/` y `analysis/` |
+| `/config-review` | Cambias la configuración IA del repositorio |
 | `/version-closure` | Cierras una versión o bloque de cambios |
+
+Fases y veredicto de cada uno: tabla de `CLAUDE.md` (fuente única).
 
 ### Paso 4 — Flujo obligatorio para cambios no triviales
 
@@ -85,7 +91,7 @@ python -m pytest
 python scripts/build_docs_zip.py
 # → dist/util_bbdd-docs-{version}.zip
 # Opciones: --builder mkdocs | --no-strict | --no-build | --output-dir <dir>
-# Ver docs/docs_offline_zip_guide.md para la guía completa.
+# Ver docs/guides/docs_offline_zip_guide.md para la guía completa.
 
 # Regenerar el diagrama de capas e imports de docs/architecture.md tras cambiar imports entre paquetes de src/
 python scripts/gen_arquitectura_capas.py
@@ -93,7 +99,9 @@ python scripts/gen_arquitectura_capas.py
 # Ver docs/guides/architecture_diagram_guide.md para la guía completa.
 ```
 
-Para confirmar que los hooks de Claude Code están activos, crea o edita un archivo en `src/` y verifica que los hooks de `ruff` y `mypy` se ejecutan automáticamente al guardar.
+Para confirmar que los hooks de Claude Code están activos, pide a Claude que edite un archivo en `src/` y comprueba que
+tras el `Edit`/`Write` aparecen las salidas de `ruff`, `mypy` y la recogida de `pytest`. Son informativos: no
+bloquean ni ejecutan la suite.
 
 ## 5. Variantes y Solución de Problemas
 
@@ -101,6 +109,6 @@ Para confirmar que los hooks de Claude Code están activos, crea o edita un arch
 |---|---|---|
 | Claude no encuentra `CLAUDE.md` | No estás en la raíz del repositorio | Abrir VS Code desde la raíz del repositorio (`code .`) |
 | Slash command no disponible | Claude Code no instalado o no activado | Verificar que la extensión está activa y autenticada |
-| Hook de ruff falla al guardar | Código con errores de estilo | Revisar la salida del terminal y corregir los errores indicados |
+| El hook de ruff muestra errores tras una edición | Código con errores de lint | Corregirlos; el hook informa pero no bloquea |
 | Claude inventa APIs o módulos | Prompt sin contexto de código real | Añadir la ruta del archivo al prompt (`Lee src/...`) |
 | `mkdocs build` falla con links rotos | Documentación generada con rutas incorrectas | Revisar las rutas relativas del `.md` generado |

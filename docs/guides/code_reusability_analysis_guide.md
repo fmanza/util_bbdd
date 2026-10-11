@@ -13,7 +13,7 @@ Hay **dos prompts gemelos** para realizar un análisis arquitectónico profundo 
 
 | Prompt | Ubicación | Tamaño | Uso |
 |--------|-----------|--------|-----|
-| **Completo** | `.github/prompts/code_reusability_architecture.prompt.md` | 350+ líneas | Lectura completa, contexto detallado |
+| **Completo** | `.github/prompts/code_reusability_architecture.prompt.md` | ~290 líneas | Lectura completa, contexto detallado |
 | **Quick** | `.github/prompts/code_reusability_architecture_quick.prompt.md` | 50 líneas | Copiar/pegar rápido en chat |
 
 Ambos producen el **mismo análisis** de 9 secciones, solo difieren en presentación.
@@ -76,8 +76,8 @@ En la ventana de chat de Claude Code, pega el contenido completo del prompt segu
 ```
 Objetivo: Analizar bulk/ y dump/ para reutilización de código y mantenibilidad.
 
-Alcance: src/util_bbdd/bulk/ (5-10 archivos, ~2K LOC) 
-         src/util_bbdd/dump/ (5-7 archivos, ~1K LOC)
+Alcance: src/util_bbdd/bulk/ (41 archivos, ~8,7K líneas en v1.1.0)
+         src/util_bbdd/dump/ (11 archivos, ~3,3K líneas en v1.1.0)
 
 Contexto: .ai/architecture.md, .ai/CURRENT_STATE.md, .github/SHARED_INSTRUCTIONS.md
 
@@ -166,6 +166,11 @@ Consulta también:
 ## 📊 Estructura del Análisis Esperado
 
 El análisis siempre entrega **9 secciones** en Markdown:
+
+!!! warning "Ejemplos ilustrativos"
+    Los fragmentos de salida de esta sección y de «Ejemplo Completo» (hallazgos, porcentajes, `SQLNormalizer`,
+    funciones duplicadas) muestran el **formato** del informe. No son hallazgos medidos sobre el código: ni
+    `util_bbdd._support.sql_normalizer` existe ni las cifras proceden de una medición.
 
 ### 1. 🎯 **Ejecutivo**
 Resumen de 3-5 hallazgos principales + impacto en mantenibilidad
@@ -464,8 +469,8 @@ git push origin refactor/sql-normalizer
 ### ¿Puedo reutilizar el análisis anterior?
 Sí, si han pasado menos de 2 semanas y no hay cambios importantes en bulk/ o dump/. Después, ejecutar nuevamente.
 
-### ¿Es compatible con v0.15.0+?
-Sí, el prompt es agnóstico a versión. Actualizar manual si cambia estructura de directorios.
+### ¿Depende de la versión de la librería?
+No, el prompt es agnóstico a versión. Actualizarlo a mano si cambia la estructura de directorios de `bulk/` o `dump/`.
 
 ---
 

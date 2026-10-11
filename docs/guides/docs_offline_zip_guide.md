@@ -15,7 +15,7 @@ El script `scripts/build_docs_zip.py` encadena dos pasos en un solo comando:
 
 ## 2. Requisitos previos
 
-- Python 3.11+ (usa `tomllib` de la stdlib; no requiere dependencias adicionales).
+- Python 3.12+ (el del proyecto; el script usa `tomllib` de la stdlib y no requiere dependencias adicionales).
 - Entorno virtual activado con las dependencias de documentación instaladas:
 
     ```bash
@@ -77,6 +77,7 @@ Acepta rutas absolutas y relativas a la raíz del repositorio.
 | `--no-strict` | _(strict activo)_ | Omite `--strict` en el comando de build |
 | `--no-build` | _(build activo)_ | Salta el build; zipea `site/` existente |
 | `--output-dir DIR` | `dist/` | Directorio de salida del ZIP |
+| `--in-site` | _(desactivado)_ | Escribe `site/util_bbdd-docs-latest.zip` (+ `.sha256`) en lugar del ZIP versionado, para que el sitio publicado ofrezca la descarga ([Descargas](../downloads.md)) |
 
 ---
 
@@ -84,8 +85,13 @@ Acepta rutas absolutas y relativas a la raíz del repositorio.
 
 ```
 dist/
-└── util_bbdd-docs-0.10.0.zip   ← contiene el volcado de site/
+├── util_bbdd-docs-1.1.0.zip          ← contiene el volcado de site/
+├── util_bbdd-docs-1.1.0.zip.sha256   ← hash SHA256 y nombre del ZIP
+└── CHECKSUMS.txt                     ← histórico de hashes
 ```
+
+Comprobar la integridad: `sha256sum -c util_bbdd-docs-1.1.0.zip.sha256` (Linux/macOS) o
+`Get-FileHash util_bbdd-docs-1.1.0.zip -Algorithm SHA256` (PowerShell).
 
 El ZIP replica la estructura de `site/` en su raíz. Para usar offline, basta descomprimirlo
 y abrir `index.html` en un navegador.
@@ -107,15 +113,19 @@ Disparador: push de tag v*  →  build + ZIP  →  adjunto en GitHub Release
 **Cómo publicar una release con ZIP:**
 
 ```bash
-git tag v0.10.1
-git push origin v0.10.1
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
+
+Aparte, `.github/workflows/docs-zip-release.yml`, en cada push a `main` o `develop` que toque `docs/`, `mkdocs.yml` o
+`pyproject.toml`, genera el ZIP como artefacto del workflow y crea o actualiza la release `docs-v<versión>` con el ZIP,
+su `.sha256` y `CHECKSUMS.txt`.
 
 El workflow:
 
 1. Instala las dependencias de documentación.
 2. Ejecuta `python scripts/build_docs_zip.py --builder zensical`.
-3. Sube `dist/util_bbdd-docs-*.zip` como adjunto de la release correspondiente al tag.
+3. Sube `dist/util_bbdd-docs-*.zip` y su `.sha256` como adjuntos de la release correspondiente al tag.
 
 El ZIP queda disponible en la pestaña **Releases** de GitHub para cualquier usuario del proyecto.
 

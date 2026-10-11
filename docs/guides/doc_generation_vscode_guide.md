@@ -37,7 +37,8 @@ Instalar la extensión `GitHub Copilot` desde el Marketplace. Activar la suscrip
 
 **Codex:**
 
-Instalar la extensión `Codex` de OpenAI desde el Marketplace. Configurar la API Key de OpenAI en los ajustes de la extensión.
+Instalar la extensión de Codex de OpenAI desde el Marketplace y autenticarse según la documentación de OpenAI
+(*pendiente de verificación: el método de autenticación de la extensión actual*).
 
 ### Paso 2 — Seleccionar el tipo de documentación a generar
 
@@ -45,7 +46,7 @@ Instalar la extensión `Codex` de OpenAI desde el Marketplace. Configurar la API
 |---|---|---|---|
 | Funcional | Jefes de proyecto, QA | `functional_doc.prompt.md` | `docs/functional/` |
 | Técnica | Desarrolladores | `technical_doc.prompt.md` | `docs/api/` |
-| Guía | Usuarios finales | `guide_doc.prompt.md` | `docs/` raíz |
+| Guía | Usuarios finales | `guide_doc.prompt.md` | `docs/guides/` |
 | Ejemplo | Desarrolladores | `example_doc.prompt.md` | `docs/examples/` |
 
 ### Paso 3 — Ejecutar el prompt correspondiente
@@ -110,10 +111,10 @@ zensical serve
 
 Navegar a `http://127.0.0.1:8000` y comprobar que la nueva página aparece en la navegación y que los diagramas Mermaid se renderizan correctamente.
 
-Output esperado de un build correcto:
+Output esperado de un build correcto con Zensical:
 
 ```
-INFO    -  Documentation built in X.X seconds
+No issues found
 ```
 
 ## 5. Variantes y Solución de Problemas
@@ -124,5 +125,4 @@ INFO    -  Documentation built in X.X seconds
 | La herramienta IA inventa capacidades | El prompt no referencia el código real | Añadir `#file:src/...` al prompt o especificar la ruta del módulo explícitamente |
 | Diagrama Mermaid no se renderiza | Sintaxis Mermaid inválida | Validar el bloque `mermaid` en [mermaid.live](https://mermaid.live) antes de guardar |
 | La página no aparece en el sitio | Entrada faltante en `mkdocs.yml` | Añadir la ruta bajo `nav:` en `mkdocs.yml` |
-| `zensical: command not found` | Zensical no instalado | `pip install zensical` |
-| `mkdocs: command not found` | MkDocs no instalado | `pip install mkdocs-material mkdocstrings[python]` |
+| `zensical: command not found` / `mkdocs: command not found` | Extra de documentación no instalado | `pip install -e ".[docs]"` (zensical, mkdocs-material, mkdocstrings) |

@@ -4,19 +4,21 @@
 
 Comprobar, antes de publicar, que la configuración del generador estático y el HTML producido son correctos.
 
-Existen dos opciones complementarias, ambas opt-in, que se activan incluyéndolas en el mensaje al agente `Documentation Generator`:
+Existen dos opciones complementarias, ambas opt-in, que se activan incluyéndolas en el mensaje al agente
+`Documentation Generator` (`.github/agents/documentation-generator.agent.md`; en Claude Code se invoca en lenguaje
+natural: «Usa Documentation Generator…»):
 
 | Opción | Qué comprueba | Cuándo usarla |
 |---|---|---|
-| `--verify-tools` | Compatibilidad de plugins y directivas de `mkdocs.yml` / `zensical.toml` contra las webs oficiales | Tras actualizar el generador o añadir un plugin nuevo |
+| `--verify-tools` | Compatibilidad de plugins y directivas de `mkdocs.yml` contra las webs oficiales | Tras actualizar el generador o añadir un plugin nuevo |
 | `--verify-build` | Calidad del HTML generado: autodoc expandido, snippets resueltos, Mermaid presente, nav sin huérfanos | Tras generar o actualizar documentación |
 | `--verify-build --serve` | Lo mismo que `--verify-build`, pero con el servidor activo para ver Mermaid como SVG | Cuando necesitas confirmar el renderizado final completo |
 
 ## 2. Requisitos Previos
 
 - Repositorio `util_bbdd` con `zensical` o `mkdocs-material` instalado en el entorno virtual.
-- Al menos un fichero de configuración presente: `zensical.toml` o `mkdocs.yml`.
-- Claude Code activo con el agente `Documentation Generator` disponible.
+- `mkdocs.yml` (fuente única; el proyecto no usa `zensical.toml`).
+- Un asistente con acceso al agente `Documentation Generator` (Claude Code o Copilot Chat).
 - Para `--verify-build --serve`: puerto `8000` libre en localhost.
 
 ## 3. Pasos
@@ -26,7 +28,7 @@ Existen dos opciones complementarias, ambas opt-in, que se activan incluyéndola
 Invoca el agente incluyendo el modificador en el mensaje:
 
 ```
-@Documentation Generator
+Usa Documentation Generator:
 
 Comprueba la configuración del proyecto. --verify-tools
 ```
@@ -48,7 +50,7 @@ El resultado es una lista de discrepancias clasificadas por severidad:
 ### Opción B — Verificar build, Modo A (sin servidor)
 
 ```
-@Documentation Generator
+Usa Documentation Generator:
 
 Verifica el output del build. --verify-build
 ```
@@ -73,7 +75,7 @@ A continuación lee los ficheros HTML de `site/` y comprueba:
 ### Opción C — Verificar build, Modo B (con servidor)
 
 ```
-@Documentation Generator
+Usa Documentation Generator:
 
 Verifica el sitio con el servidor activo. --verify-build --serve
 ```
@@ -91,7 +93,7 @@ Una vez activo, usa `WebFetch` sobre `http://localhost:8000/` para comprobar las
 Es posible combinar ambos modificadores en un solo mensaje:
 
 ```
-@Documentation Generator
+Usa Documentation Generator:
 
 Actualiza docs/api/managers.md y verifica configuración y build. --verify-tools --verify-build
 ```

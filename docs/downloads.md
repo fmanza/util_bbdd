@@ -106,28 +106,16 @@ util_bbdd-docs-X.Y.Z.zip
 ├── start-server.py                 # Servidor local (búsqueda offline)
 ├── README_OFFLINE.txt              # Instrucciones de uso sin conexión
 ├── index.html                      # Página de inicio
-├── installation/index.html         # Guía de instalación
-├── api/
-│   ├── managers_sync/index.html
-│   ├── bulk_crud/index.html
-│   └── ... (referencias técnicas)
-├── functional/
-│   ├── bulk_operations/index.html
-│   └── ... (documentación funcional)
-├── examples/
-│   ├── bulk_insert_csv/index.html
-│   └── ... (ejemplos prácticos)
-├── css/
-│   ├── material.css               # Tema Material Design 3
-│   ├── mermaid.css
-│   └── nav.css
-├── js/
-│   ├── mermaid.min.js             # Diagrams Mermaid
-│   ├── search.js                  # Búsqueda offline
-│   └── instant.js
-└── search/
-    └── search_index.json          # Índice de búsqueda
+├── installation/  api/  functional/  examples/  guides/  adr/ …   # una carpeta por página (index.html)
+├── assets/
+│   ├── css/                        # mermaid.css, nav.css, arquitectura-capas.css
+│   ├── javascripts/                # bundle del tema y workers de búsqueda
+│   ├── js/                         # mermaid.js y scripts propios
+│   └── stylesheets/                # estilos del tema
+└── search.json                     # Índice de búsqueda
 ```
+
+(Estructura del `site/` que genera Zensical; los nombres exactos de los ficheros del tema cambian entre versiones.)
 
 ---
 
@@ -185,14 +173,16 @@ documentation_zip = "util_bbdd.docs_build_plugin:DocumentationZipPlugin"
 
 Todas las versiones publicadas están disponibles en:
 - **GitHub Releases**: [fmanza/util_bbdd/releases](https://github.com/fmanza/util_bbdd/releases)
-- Cada release incluye el ZIP de documentación adjunto
+- Las releases de versión (`vX.Y.Z`, workflow `docs-release.yml`) y las de documentación (`docs-vX.Y.Z`, workflow
+  `docs-zip-release.yml`, actualizada en cada cambio de docs en `main`/`develop`) llevan el ZIP y su `.sha256`
 
 ---
 
 ## ❓ FAQ
 
 - **¿Cómo buscar en el ZIP offline?**  
-  Abre `index.html` y usa el campo de búsqueda en la esquina superior (requiere JavaScript habilitado).
+  Arranca `python start-server.py` y usa el campo de búsqueda en `http://localhost:8000`. Abriendo `index.html`
+  directamente la búsqueda no funciona (el navegador no permite sus Web Workers desde `file:///`).
 
 - **¿Puedo actualizar el ZIP?**  
   Sí. Descargar la última versión desde esta página. También puedes construir uno personalizado siguiendo los pasos de "Para Desarrolladores".
@@ -217,4 +207,4 @@ Todas las versiones publicadas están disponibles en:
 
 ---
 
-*Última actualización: 2026-06-06*
+*Última actualización: 2026-10-11*

@@ -38,7 +38,7 @@ La colocación de los nodos, la capa de cada paquete y las marcas numeradas (hoy
         [gen_arquitectura_capas] wrote docs/assets/diagrams/arquitectura-capas.svg
         [gen_arquitectura_capas] wrote docs/assets/css/arquitectura-capas.css
         [gen_arquitectura_capas] wrote docs/assets/diagrams/arquitectura-capas-tabla.txt
-        [gen_arquitectura_capas] measured 339 files; 9 packages import from Foundation.
+        [gen_arquitectura_capas] measured 334 files; 14 packages import from Foundation.
         [gen_arquitectura_capas] Update the figcaption in docs/architecture.md if the version, date or file count changed.
         ```
 
@@ -57,7 +57,7 @@ La colocación de los nodos, la capa de cada paquete y las marcas numeradas (hoy
     - `render_svg()`: nodos (`s.node`), flechas (`s.edge`) y marcas numeradas (`s.badge`).
 
     Si el fallo indica un import que no debería existir, corrige el código en lugar del dibujo.
-5. **Actualiza el pie de figura** de `docs/architecture.md` si han cambiado la versión, la fecha o el número de ficheros medidos («Instantánea de v0.10.0 (…) medida con `ast` sobre N ficheros»).
+5. **Actualiza el pie de figura** de `docs/architecture.md` si han cambiado la versión, la fecha o el número de ficheros medidos («Instantánea de `develop` en v1.1.0 (…) medida con `ast` sobre N ficheros»).
 6. **Revisa la lista «Cómo leerlo»** de esa misma sección si la figura ha ganado o perdido una marca numerada.
 
 ---
@@ -69,7 +69,7 @@ python scripts/gen_arquitectura_capas.py
 git status --short docs/assets
 ```
 
-Con el código sin cambios de imports, una segunda ejecución no modifica `docs/assets/`: la salida es determinista y usa saltos de línea LF en cualquier sistema.
+Con el código sin cambios de imports, una segunda ejecución no modifica `docs/assets/`: la salida es determinista y usa saltos de línea LF en cualquier sistema. En Windows con `core.autocrlf=true`, `git status` puede marcar los tres ficheros como modificados solo por el fin de línea; `git diff` no muestra cambios (y `git checkout -- docs/assets` los deja como estaban).
 
 Para confirmar que la figura queda incrustada en el sitio:
 
@@ -101,7 +101,7 @@ __init__      -> async_utils        1     0       0
 
 - El `__init__.py` raíz: solo re-exporta la API pública.
 - Las flechas de los niveles 2 y 3 hacia Foundation: se resumen en una sola flecha con el número de paquetes que importan de allí.
-- Los módulos de `EXCLUDED`, hoy `docs_build_plugin` (plugin de MkDocs).
+- Los módulos de `EXCLUDED`, hoy `docs_build_plugin` (plugin de MkDocs) y `exceptions` (re-exporta `_core/exceptions.py`).
 
 ### Mensajes de error
 

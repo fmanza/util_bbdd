@@ -16,14 +16,9 @@ Configurar y usar la extensión Codex de OpenAI para generar documentación y c�
 
 ### Paso 1 — Instalar la extensión
 
-```bash
-code --install-extension openai.codex
-```
-
-En los ajustes de VS Code (`Ctrl+,` → buscar "Codex"), configurar:
-
-- `codex.apiKey`: tu API Key de OpenAI
-- `codex.model`: modelo preferido (usa el más reciente disponible en tu cuenta)
+Instalar la extensión oficial de Codex desde el Marketplace de VS Code y autenticarse según la documentación de
+OpenAI. *Pendiente de verificación: el identificador de la extensión y sus ajustes (antes figuraban
+`openai.codex`, `codex.apiKey` y `codex.model`, no comprobados contra la extensión actual).*
 
 ### Paso 2 — Entender qué archivos lee Codex automáticamente
 
@@ -69,7 +64,7 @@ Guarda en docs/api/bulk_crud.md y añade la entrada en mkdocs.yml.
 |---|---|---|---|
 | Contexto inicial | `AGENTS.md` (raíz) automático | `CLAUDE.md` automático | `copilot-instructions.md` automático |
 | Slash commands | No | Sí (`/new-feature`, etc.) | Agentes (`@nombre`) |
-| Ejecución de tests | Manual | Automática (hooks) | Manual |
+| Ejecución de tests | Manual | Manual (los hooks solo recogen los tests) | Manual |
 | Mejor para | Módulo concreto con prompt explícito | Flujos completos | Auditorías y revisiones |
 
 ## 4. Verificación

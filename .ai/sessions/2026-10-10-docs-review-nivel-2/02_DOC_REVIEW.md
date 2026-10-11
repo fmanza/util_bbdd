@@ -128,6 +128,26 @@ MySQL del banco; reduce 500 → 8, como avisa la página).
 Sin cambios tras verificarla: `api_1_0_migration.md` (13 símbolos de la raíz y todos los nombres de su tabla
 importables desde donde dice; cifra de importación con fuente en el CHANGELOG).
 
+## Tanda 4b — IA, históricas, docs offline y arquitectura (15 páginas)
+
+Comprobador: `docsn2_t4b_doc_check_after.txt` y, sobre las 82, `docsn2_all_doc_check_after.txt` (0 hallazgos; la lista
+de excepciones se actualizó porque los bloques «antes» se desplazaron de línea). Build: `docsn2_t4b_build.txt`.
+Ejecutados: `gen_arquitectura_capas.py` (sin cambios reales; solo fin de línea en Windows, restaurado) y
+`build_docs_zip.py --no-build` en el scratchpad (contenido del ZIP listado).
+
+| Hallazgo | Dónde | Corrección |
+|---|---|---|
+| «`bulk/`, `dump/` y `comparar/` no importan `metadata/`» (sí lo importan: tabla de `--edges`) y un flujo de ejecución en el que las operaciones «obtienen conexión vía factory y ejecutan vía `executors/`» (reciben un `Engine`); los managers no ejecutan sobre un Engine de SQLAlchemy; `batch_size` (es `chunk_size`); 6 motores; solo ADR-001 «vigente» | `architecture.md` | Contra los imports medidos y el código; ADR-001…005 |
+| Árbol del ZIP inventado (`css/material.css`, `js/search.js`, `search/search_index.json`); FAQ «busca abriendo `index.html`» (la propia página dice que no funciona) | `downloads.md` | Contenido real del ZIP generado |
+| Python 3.11+; sin la opción `--in-site`; sin `.sha256`/`CHECKSUMS.txt`; ZIP de ejemplo `0.10.0`; sin el workflow `docs-zip-release.yml` (release `docs-v<versión>`) | `docs_offline_zip_guide.md` | Contra `--help`, el script y los workflows |
+| Salida de ejemplo desfasada (339 ficheros / 9 paquetes; hoy 334 / 14); `EXCLUDED` sin `exceptions`; sin aviso del fin de línea en Windows | `architecture_diagram_guide.md` | Contra la ejecución real |
+| Hooks «bloquean e iteran» (son informativos), `pytest --collect-only -q src` (sin `src`), mypy «strict», `settings.json` «hooks y permisos» (solo hooks); 8 de 14 slash commands con fases que no coinciden (`/hotfix` también tiene PLAN y AUDIT_PLAN); Conventional Commits incompletos; `mkdocs` como generador | `ai-config/claude.md`, `claude_code_guide.md` | Contra `.claude/settings.json`, `.claude/commands/` y `CLAUDE.md` (la tabla de comandos remite a `CLAUDE.md`) |
+| `@documentation-generator`/`@Documentation Generator` (en Claude Code se invoca en lenguaje natural; en Copilot se elige el agente); `zensical.toml` (no se usa); guías «en `docs/` raíz» (van en `docs/guides/`); salida `INFO - Documentation built` | `github_copilot_guide.md`, `doc_verification_guide.md`, `doc_generation_vscode_guide.md` | Corregido |
+| Ajustes de la extensión de Codex (`openai.codex`, `codex.apiKey`, `codex.model`) no verificables | `codex_guide.md`, `doc_generation_vscode_guide.md` | Marcados «pendiente de verificación»; «tests automáticos por hooks» corregido |
+| Análisis de ejemplo presentado como resultado (12 funciones duplicadas, porcentajes); alcance «~2K/~1K LOC» (son ~8,7K/~3,3K); prompt «350+ líneas» (288) | `code_reusability_analysis_guide.md` | Aviso de ejemplos ilustrativos; cifras medidas |
+| Históricas (D3): instalación desde PyPI; «mariadb ≥ 1.1.4 soporta `encoding_errors`» (contradice su propio aviso); rollback a una `v0.34.1` sin tag; hoja de ruta en futuro | `migration_guide.md`, `migration_guide_v0.6.7.md`, `mariadb_v0.35.0_charset_handling.md` | `git+…@v0.6.x`; «lo que vino después» (v0.35.7, v0.38.0) |
+| Cronología que acaba en «v0.10 (Actual)»; «API vigente (v0.10.0)»; `util_bbdd.__version__` (no existe); guía v0.6.7 etiquetada «v0.5 → v0.6» | `legacy_versions.md` | Hasta v1.1.0; `importlib.metadata.version` |
+
 ## Fuera de alcance (registrado)
 
 - `SyncDatabaseManager.__init__` documenta `ConnectionError` si falla la conexión inicial, pero con pool (lo habitual)

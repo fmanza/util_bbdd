@@ -36,15 +36,16 @@ Copilot Chat aplica en este repositorio la siguiente jerarquía:
 
 ### Paso 3 — Usar agentes especializados
 
-En el chat de Copilot, invocar el agente con el símbolo `@`:
+Los agentes son los ficheros `.github/agents/*.agent.md` (13; registro completo en `.github/AGENTS.md`). En el chat
+de Copilot se elige el agente por su nombre. Los más usados para documentación:
 
-| Agente | Úsalo para |
+| Agente (fichero) | Úsalo para |
 |---|---|
-| `@documentation-generator` | Generar documentación funcional o técnica de un módulo |
-| `@documentation-reviewer` | Auditar documentación existente sin modificarla |
-| `@code-auditor` | Revisión técnica independiente de cambios |
-| `@plan-architect` | Diseñar un plan de implementación |
-| `@version-closer` | Cerrar una versión con changelog y release notes |
+| Documentation Generator (`documentation-generator`) | Generar documentación funcional o técnica de un módulo |
+| Documentation Reviewer (`documentation-reviewer`) | Auditar documentación existente sin modificarla |
+| Code Auditor (`code-auditor`) | Revisión técnica independiente de cambios |
+| Plan Architect (`plan-architect`) | Diseñar un plan de implementación |
+| Version Closer (`version-closer`) | Cerrar una versión con changelog y release notes |
 
 ### Paso 4 — Referenciar archivos en el prompt
 
@@ -54,7 +55,7 @@ Copilot Chat puede recibir contexto explícito con `#file:`:
 #file:.github/prompts/functional_doc.prompt.md
 #file:src/util_bbdd/managers/sync_mgr.py
 
-@documentation-generator
+(con el agente Documentation Generator seleccionado)
 Genera la documentación funcional del módulo indicado siguiendo las instrucciones del prompt.
 Guarda en docs/functional/managers_sync.md y actualiza mkdocs.yml.
 ```

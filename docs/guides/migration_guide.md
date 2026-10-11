@@ -19,7 +19,8 @@ Migrar código de versiones anteriores a v0.6.3 actualizando imports, nombres de
 ### Paso 1 — Actualizar util_bbdd
 
 ```bash
-pip install --upgrade util_bbdd
+# util_bbdd no está en PyPI: se instala desde el repositorio, con el tag de la versión
+pip install --upgrade "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v0.6.3"
 ```
 
 ### Paso 2 — Actualizar imports a los canónicos

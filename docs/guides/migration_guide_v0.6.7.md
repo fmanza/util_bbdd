@@ -25,7 +25,8 @@ Migrar código de v0.6.6 a v0.6.7 actualizando los nombres de excepciones y elim
 ### Paso 1 — Actualizar util_bbdd
 
 ```bash
-pip install --upgrade "util_bbdd>=0.6.7"
+# util_bbdd no está en PyPI: se instala desde el repositorio, con el tag de la versión
+pip install --upgrade "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v0.6.7"
 ```
 
 ### Paso 2 — Actualizar nombres de excepciones
