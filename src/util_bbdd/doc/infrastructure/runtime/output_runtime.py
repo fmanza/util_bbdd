@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 
@@ -10,6 +11,8 @@ from pathlib import Path
 
 from ...application.ports import ConnectionParams, OutputCache, OutputNamingContextPort, OutputPolicyPort
 from ...domain.services import DocumentationContextDomainService
+
+_logger: logging.Logger = logging.getLogger(__name__)
 
 #: Caracteres que no pueden ir en el nombre automático de la carpeta: espacio, barras, los prohibidos en Windows
 #: (``<>:"|?*``) y los de control.
@@ -88,10 +91,19 @@ class DocumentationOutputRuntime(OutputPolicyPort):
         if cached is not None:
             cached_at, cached_name = cached
             if now - cached_at <= batch_window_seconds:
+                age_seconds: int = int(now - cached_at)
+                _logger.debug(
+                    f"📦 Reutilizando nombre de carpeta de documentación "
+                    f"(en cache hace {age_seconds} s, ventana: {batch_window_seconds} s): {cached_name}"
+                )
                 return Path(cached_name)
 
         generated_name: str = f"{safe_identifier}-{timestamp}"
         output_cache[cache_key] = (now, generated_name)
+        _logger.debug(
+            f"✨ Generando nuevo nombre de carpeta de documentación "
+            f"(cache: {safe_identifier}, ventana: {batch_window_seconds} s): {generated_name}"
+        )
         return Path(generated_name)
 
     def resolve_document_output_filename(
