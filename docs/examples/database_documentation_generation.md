@@ -75,7 +75,39 @@ doc = DatabaseDocumentation(
 doc.generate()
 ```
 
-## 4. Ejecución y Pruebas
+## 4. Debugging: Verificar uso de cache
+
+Cuando se lanzan múltiples generaciones rápidamente, puedes ver si se reutiliza la carpeta (cache) activando logging `DEBUG`:
+
+```python
+import logging
+from pathlib import Path
+from util_bbdd.doc import DatabaseDocumentation
+from util_bbdd.managers import SyncDatabaseManager
+
+# Activa logging DEBUG
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+
+with SyncDatabaseManager("sqlite", {"database": ":memory:"}) as mgr:
+    # Primera generación
+    doc1 = DatabaseDocumentation(mgr, Path("out"), formatos=["html"])
+    doc1.generate()
+    # Log: ✨ Generando nuevo nombre de carpeta... (nuevo)
+
+    # Segunda generación (30 segundos después)
+    doc2 = DatabaseDocumentation(mgr, Path("out"), formatos=["html"])
+    doc2.generate()
+    # Log: 📦 Reutilizando nombre de carpeta... (en cache)
+```
+
+**Símbolos en los logs**:
+- `✨` → Nombre nuevo (cache vacía o caducada)
+- `📦` → Nombre reutilizado del cache
+
+## 5. Ejecución y Pruebas
 
 ```bash
 # Grafos de relaciones (opcional): extra analysis + binarios de Graphviz

@@ -79,4 +79,5 @@ todos ellos si cada columna es PK, FK y en qué índices está.
 | Auto-naming | Generación automática del nombre de fichero usando el identificador de la BD y un timestamp cuando no se especifica nombre manualmente |
 | Batching | Agrupación automática de generaciones seguidas en la misma carpeta de salida cuando se lanzan dentro de una ventana temporal (`batch_window_seconds`) |
 | `batch_window_seconds` | Ventana temporal en segundos durante la cual se reutiliza el nombre generado automáticamente. Default 90 s; 0 para deshabilitar |
+| Logging DEBUG de cache | Trazas en nivel `DEBUG` que muestran cuándo se usa cache (📦 reutilizado) o se genera un nuevo nombre (✨ nuevo); útil para debugging |
 | Tablas por documento | Número máximo de tablas incluidas en un solo fichero Word antes de crear un nuevo fichero numerado |

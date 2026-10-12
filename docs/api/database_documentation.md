@@ -93,6 +93,28 @@ result3 = DatabaseDocumentation(manager, Path("out")).generate()
 
 La cache es **global y thread-safe** (compartida entre instancias), clave por `(directorio_salida, identificador_bd)`.
 
+**Verificar uso de cache (Debug)**:
+
+Activa logging nivel `DEBUG` para ver trazas claras de cuándo se usa la cache:
+
+```python
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+
+doc = DatabaseDocumentation(manager, Path("out")).generate()
+# Log: ✨ Generando nuevo nombre de carpeta... (si es nuevo)
+# Log: 📦 Reutilizando nombre de carpeta... (si está en cache)
+```
+
+| Símbolo | Significado | Información |
+|---|---|---|
+| ✨ | Nombre generado | Cache vacía o caducada; nuevo nombre creado |
+| 📦 | Nombre reutilizado | Cache activa; antigüedad y ventana configurada |
+
 ### Errores y casos especiales
 
 | Error | Cuándo ocurre |

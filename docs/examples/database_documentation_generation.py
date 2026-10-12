@@ -13,6 +13,7 @@ from util_bbdd.doc import DatabaseDocumentation
 from util_bbdd.managers import SyncDatabaseManager
 
 # Configurar logging para ver el proceso
+# Cambia a logging.DEBUG para ver trazas de cache (✨ nuevo / 📦 reutilizado)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -216,5 +217,27 @@ print(f"   Rutinas documentadas: {result.routines}")
 #     batch_window_seconds=300,  # Agrupa durante 5 minutos
 # )
 # documentation_long_batch.generate()
+
+# --- Caso 6: Verificar cache con logging DEBUG ---
+# Cambia logging a DEBUG para ver trazas de cache (✨ = nuevo, 📦 = reutilizado)
+# import logging
+# logging.basicConfig(level=logging.DEBUG)  # Cambia de INFO a DEBUG
+#
+# # Primera llamada: crea nombre nuevo (✨)
+# doc_debug1 = DatabaseDocumentation(
+#     db_manager=db_manager,
+#     directorio_salida=output_dir,
+#     formatos=["html"],
+# )
+# doc_debug1.generate()
+#
+# # Segunda llamada inmediatamente después: reutiliza (📦)
+# doc_debug2 = DatabaseDocumentation(
+#     db_manager=db_manager,
+#     directorio_salida=output_dir,
+#     formatos=["html"],
+# )
+# doc_debug2.generate()
+# # Observa los logs: ✨ Generando nuevo... / 📦 Reutilizando...
 
 print("\nEjemplo completado. Abre los archivos generados para explorar la documentación.")
