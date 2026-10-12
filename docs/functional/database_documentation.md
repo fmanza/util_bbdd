@@ -22,7 +22,7 @@ Soporta MariaDB, MySQL, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB. Puede g
 | Delegación de metadatos | El módulo no consulta BD directamente; toda la introspección la hace el gestor proporcionado | Si el gestor no está inicializado o la conexión cae, la generación falla en la primera consulta |
 | Inicialización sin generación | El constructor solo valida la configuración (no consulta la base de datos); el catálogo se lee y los ficheros se escriben al llamar a `generate()`, que devuelve un `DocumentationResult` con la ruta de cada formato y los recuentos | Si se omite `generate()`, no se crea ninguna salida documental |
 | Formatos normalizados | Solo acepta `word`, `excel` y `html`; elimina duplicados y rechaza valores no soportados | Un formato inválido detiene la ejecución con error de validación |
-| Auto-naming de ficheros | Si no se especifica nombre de fichero, se genera automáticamente con identificador de BD y timestamp | En ejecuciones cercanas del mismo destino se puede reutilizar el nombre |
+| Auto-naming de ficheros | Si no se especifica nombre de fichero, se genera automáticamente con identificador de BD y timestamp; generaciones seguidas dentro de `batch_window_seconds` (default 90 s) reutilizan la misma carpeta | Para deshabilitar el batching, usar `batch_window_seconds=0`; para ventanas distintas, configurar `batch_window_seconds` en segundos |
 | Tablas por documento Word | Por defecto se generan 50 tablas por documento (`imprimir["tablas_por_documento"]`); esquemas grandes producen varios ficheros numerados | Valores muy altos pueden generar documentos Word difíciles de abrir |
 | Grafos: profundidad máxima | La profundidad máxima de relaciones en los grafos controla la complejidad visual | Valores superiores a 3 en esquemas con muchas FK generan grafos ilegibles |
 
@@ -77,4 +77,6 @@ todos ellos si cada columna es PK, FK y en qué índices está.
 |---|---|
 | `generate()` | Método que desencadena la escritura real de los ficheros de documentación al sistema de archivos |
 | Auto-naming | Generación automática del nombre de fichero usando el identificador de la BD y un timestamp cuando no se especifica nombre manualmente |
+| Batching | Agrupación automática de generaciones seguidas en la misma carpeta de salida cuando se lanzan dentro de una ventana temporal (`batch_window_seconds`) |
+| `batch_window_seconds` | Ventana temporal en segundos durante la cual se reutiliza el nombre generado automáticamente. Default 90 s; 0 para deshabilitar |
 | Tablas por documento | Número máximo de tablas incluidas en un solo fichero Word antes de crear un nuevo fichero numerado |

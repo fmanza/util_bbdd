@@ -40,8 +40,9 @@ class DatabaseDocumentation:
     Args:
         db_manager: Fuente de metadatos (``DocumentationSourcePort``), normalmente un ``SyncDatabaseManager``.
         directorio_salida: Directorio de salida. Cada generación crea en él una carpeta con una subcarpeta por formato.
-        fichero_salida: Nombre base de la salida (sin extensión). Si es None, ``<base de datos>-<fecha_hora>``,
-            reutilizado por las generaciones lanzadas en los 90 s siguientes para agruparlas en la misma carpeta.
+        fichero_salida: Nombre base de la salida (sin extensión). Si es None, se genera automático como
+            ``<base de datos>-<fecha_hora>``, reutilizado por las generaciones lanzadas dentro de
+            ``batch_window_seconds`` para agruparlas en la misma carpeta.
         imprimir: Secciones y opciones (ver ``docs/api/database_documentation.md``), entre ellas:
             - plantilla_word: Ruta opcional a plantilla Word (.docx)
             - tablas_por_documento: Número de tablas por documento Word (default 50)
@@ -54,6 +55,9 @@ class DatabaseDocumentation:
             - grafo.workers: Procesos ``dot`` simultáneos (por defecto, los núcleos hasta 8)
         formatos: Formatos a generar: 'word', 'excel', 'html' (por defecto ``["word"]``).
         headers_file: JSON con las cabeceras de cada sección (``{"headers": {"COLUMNAS": {"base": [...]}, ...}}``).
+        batch_window_seconds: Ventana temporal en segundos para agrupar generaciones automáticas en la misma carpeta
+            (default 90). Si ``fichero_salida`` es None y se lanzan dos generaciones dentro de esta ventana,
+            reutilizan el mismo nombre.
 
     Raises:
         DocumentationConfigError: Configuración inválida (formato no soportado, ``imprimir`` que no es un diccionario,
@@ -78,10 +82,12 @@ class DatabaseDocumentation:
         imprimir: dict[str, Any] | None = None,
         formatos: list[str] | None = None,
         headers_file: Path = _DEFAULT_HEADERS_FILE,
+        batch_window_seconds: int | None = None,
     ) -> None:
         self._logger: logging.Logger = logging.getLogger(__name__)
         self._output_policy = DocumentationOutputRuntime()
         self._source = SyncDatabaseManagerAdapter(db_manager, {})
+        resolved_batch_window: int = batch_window_seconds if batch_window_seconds is not None else self._AUTO_OUTPUT_BATCH_WINDOW_SECONDS
         self._bootstrap = DocumentationBootstrap(
             db_manager=self._source,
             directorio_salida=directorio_salida,
@@ -90,7 +96,7 @@ class DatabaseDocumentation:
             formatos=formatos,
             headers_file=headers_file,
             output_cache=self._LAST_AUTO_OUTPUT_BY_KEY,
-            batch_window_seconds=self._AUTO_OUTPUT_BATCH_WINDOW_SECONDS,
+            batch_window_seconds=resolved_batch_window,
             print_config_policy=PrintConfigManager(),
             headers_runtime=DocumentationHeadersRuntime(),
             output_policy=self._output_policy,

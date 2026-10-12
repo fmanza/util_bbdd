@@ -183,16 +183,38 @@ print(f"   Rutinas documentadas: {result.routines}")
 # )
 # documentation_custom.generate()
 
-# --- Caso 3: Generar documentación en batch ---
+# --- Caso 3: Generar documentación en batch con batching automático ---
+# Múltiples generaciones dentro de 90 segundos reutilizan la misma carpeta
 # for i in range(3):
 #     documentation_batch = DatabaseDocumentation(
 #         db_manager=db_manager,
 #         directorio_salida=output_dir,
-#         fichero_salida=Path("demo-sqlite"),
+#         # fichero_salida=None genera automático; cache agrupa en ventana de 90 s
 #         imprimir=imprimir_config,
 #         formatos=["html"],
 #     )
 #     documentation_batch.generate()
 #     print(f"Batch {i+1} completado")
+
+# --- Caso 4: Configurar la ventana de batching ---
+# Generar múltiples veces rápidamente sin reutilizar carpeta (batch_window_seconds=0)
+# documentation_no_batch = DatabaseDocumentation(
+#     db_manager=db_manager,
+#     directorio_salida=output_dir,
+#     imprimir=imprimir_config,
+#     formatos=["html"],
+#     batch_window_seconds=0,  # Sin cache: cada generación usa nombre nuevo
+# )
+# documentation_no_batch.generate()
+
+# --- Caso 5: Ventana más larga (5 minutos) ---
+# documentation_long_batch = DatabaseDocumentation(
+#     db_manager=db_manager,
+#     directorio_salida=output_dir,
+#     imprimir=imprimir_config,
+#     formatos=["html"],
+#     batch_window_seconds=300,  # Agrupa durante 5 minutos
+# )
+# documentation_long_batch.generate()
 
 print("\nEjemplo completado. Abre los archivos generados para explorar la documentación.")

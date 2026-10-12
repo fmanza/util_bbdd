@@ -33,7 +33,7 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `DatabaseDocumentation` | `(db_manager, directorio_salida?, fichero_salida?, imprimir?, formatos?, headers_file?)` | Valida la configuración (no consulta la BD) | `DatabaseDocumentation` |
+| `DatabaseDocumentation` | `(db_manager, directorio_salida?, fichero_salida?, imprimir?, formatos?, headers_file?, batch_window_seconds?)` | Valida la configuración (no consulta la BD) | `DatabaseDocumentation` |
 | `generate` | `()` | Lee el catálogo y genera todos los formatos configurados | `DocumentationResult` |
 
 Ambas se importan de `util_bbdd.doc` (`from util_bbdd.doc import DatabaseDocumentation, DocumentationResult`). Desde
@@ -46,10 +46,11 @@ con `formatos=[...]`.
 |---|---|---|---|
 | `db_manager` | `DocumentationSourcePort` | Fuente de metadatos y consultas, normalmente un `SyncDatabaseManager` con conexión activa | No puede ser `None`; debe cumplir el puerto (`doc/application/ports.py`), incluido `get_schema_metadata()`: el catálogo se lee por lotes, una consulta por tipo de objeto (`doc.application.use_cases.catalog_rows`); no soporta `AsyncDatabaseManager` |
 | `directorio_salida` | `Path` | Directorio base donde escribir ficheros | Se crean subdirectorios por ejecución y formato |
-| `fichero_salida` | `Path \| None` | Nombre base sin extensión | `None` genera automáticamente con timestamp y clave de BD |
+| `fichero_salida` | `Path \| None` | Nombre base sin extensión | `None` genera automáticamente con timestamp y clave de BD; se reutiliza si hay generaciones seguidas dentro de `batch_window_seconds` |
 | `imprimir` | `dict[str, Any] \| None` | Configuración de secciones, estilos y grafos | `None` usa valores por defecto |
 | `formatos` | `list[str] \| None` | `["word"]`, `["excel"]`, `["html"]` o combinaciones | `None` usa `["word"]`; valores inválidos lanzan `DocumentationConfigError` |
 | `headers_file` | `Path` | JSON de cabeceras: `{"headers": {"COLUMNAS": {"base": [...]}, ...}}` | Desde 0.41.0 solo `base` por sección (las cabeceras son iguales en todos los motores) |
+| `batch_window_seconds` | `int \| None` | Ventana temporal en segundos para agrupar generaciones automáticas | `None` usa 90 s; solo aplica si `fichero_salida` es `None`. Generaciones lanzadas en esta ventana reutilizan el mismo nombre. Usar 0 para deshabilitar |
 
 Opciones de `imprimir["grafo"]` relevantes para el rendimiento:
 
@@ -68,6 +69,29 @@ Opciones de `imprimir["grafo"]` relevantes para el rendimiento:
 - **HTML** → sitio HTML bajo `HTML/`.
 - Los grafos se insertan como imágenes generadas por Graphviz en Word y HTML cuando están configurados. Cada formato
   produce lo mismo con independencia de los demás formatos pedidos en la misma llamada.
+
+### Cache de nombres automáticos (Batching)
+
+Cuando `fichero_salida` es `None`, el nombre se genera automáticamente como `<bd>-<fecha_hora>`. Para agrupar
+generaciones seguidas en **la misma carpeta**, se cachea el nombre durante `batch_window_seconds` (default 90 s):
+
+```python
+# Primera llamada (t=0 s): genera postgresql-20261012_153025/
+result1 = DatabaseDocumentation(manager, Path("out")).generate()
+
+# Segunda llamada (t=30 s): reutiliza postgresql-20261012_153025/ (está en cache)
+result2 = DatabaseDocumentation(manager, Path("out")).generate()
+
+# Tercera llamada (t=100 s): genera postgresql-20261012_153125/ (caducó la cache)
+result3 = DatabaseDocumentation(manager, Path("out")).generate()
+```
+
+**Configuración de la ventana**:
+- `batch_window_seconds=0`: Deshabilita el batching; cada generación usa un nombre nuevo
+- `batch_window_seconds=300`: Agrupa generaciones durante 5 minutos
+- `batch_window_seconds=None`: Usa el default (90 s)
+
+La cache es **global y thread-safe** (compartida entre instancias), clave por `(directorio_salida, identificador_bd)`.
 
 ### Errores y casos especiales
 
