@@ -34,13 +34,13 @@ ROOT_API: list[str] = [
     "DatabaseException",
 ]
 
-# Los 46 nombres retirados de la raíz en 1.0.0 (deprecados en 0.43.0) y el submódulo público que los exporta.
+# Los 44 nombres retirados de la raíz en 1.0.0 (deprecados en 0.43.0) y el submódulo público que los exporta.
+# PoolExhaustedError y DiffReportGenerationError se removieron completamente en 2.0.0.
 REMOVED_IN_1_0: dict[str, str] = {
     **dict.fromkeys(
         (
             "ConnectionError",
             "PoolConnectionError",
-            "PoolExhaustedError",
             "PoolTimeoutError",
             "DriverError",
             "ValidationError",
@@ -56,7 +56,6 @@ REMOVED_IN_1_0: dict[str, str] = {
             "ComparerError",
             "SchemaDiffValidationError",
             "MetadataIntrospectionError",
-            "DiffReportGenerationError",
             "DumpError",
             "DumpConstraintError",
             "DumpReportError",
@@ -87,7 +86,7 @@ def test_root_all_is_the_1_0_surface() -> None:
 
 
 def test_removed_names_are_not_part_of_the_root() -> None:
-    assert len(REMOVED_IN_1_0) == 46
+    assert len(REMOVED_IN_1_0) == 44
     assert not set(REMOVED_IN_1_0) & set(ROOT_API)
     assert not hasattr(util_bbdd, "_DEPRECATED")
 

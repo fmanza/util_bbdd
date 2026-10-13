@@ -23,7 +23,6 @@ from ._core.exceptions import (
     DatabaseException,
     DatabaseOperationError,
     DDLBuildError,
-    DiffReportGenerationError,
     DocumentationConfigError,
     DocumentationError,
     DocumentationRenderError,
@@ -41,7 +40,6 @@ from ._core.exceptions import (
     MetadataIntrospectionError,
     MetadataNormalizationError,
     PoolConnectionError,
-    PoolExhaustedError,
     PoolTimeoutError,
     QueryError,
     QueryExecutionError,
@@ -59,7 +57,6 @@ __all__: list[str] = [
     # Conexión
     "ConnectionError",
     "PoolConnectionError",
-    "PoolExhaustedError",
     "PoolTimeoutError",
     # Query
     "QueryError",
@@ -89,7 +86,6 @@ __all__: list[str] = [
     "ComparerError",
     "SchemaDiffValidationError",
     "MetadataIntrospectionError",
-    "DiffReportGenerationError",
     # Documentación
     "DocumentationError",
     "DocumentationConfigError",

@@ -17,7 +17,6 @@ Ejemplo básico::
 
 from util_bbdd._core.exceptions import (
     ComparerError,
-    DiffReportGenerationError,
     MetadataIntrospectionError,
     SchemaDiffValidationError,
 )
@@ -45,7 +44,6 @@ from .reporters import (
 __all__: list[str] = [  # noqa: RUF022 — agrupación intencional por categoría
     # Excepciones
     "ComparerError",
-    "DiffReportGenerationError",
     "MetadataIntrospectionError",
     "SchemaDiffValidationError",
     # Modelos

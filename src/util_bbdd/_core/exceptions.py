@@ -65,25 +65,6 @@ class PoolConnectionError(ConnectionError):
     pass
 
 
-class PoolExhaustedError(PoolConnectionError):
-    """Pool de conexiones agotado (sin conexiones disponibles).
-
-    Reservada: la librería no la lanza (un pool sync agotado da ``PoolTimeoutError`` al vencer ``pool_timeout``; en
-    async se espera sin error). Se retirará en 2.0.0.
-    """
-
-    def __init__(
-        self,
-        message: str = "Pool de conexiones agotado",
-        max_connections: int | None = None,
-        operation: str | None = None,
-        db_type: str | None = None,
-    ) -> None:
-        details = f"Máximo de conexiones: {max_connections}" if max_connections is not None else None
-        super().__init__(message, operation=operation, db_type=db_type, details=details)
-        self.max_connections = max_connections
-
-
 class PoolTimeoutError(ConnectionError):
     """Timeout esperando conexión disponible del pool."""
 
@@ -293,24 +274,6 @@ class MetadataIntrospectionError(ComparerError):
     - Fetching de vistas, routines (procedures/functions) falla
     - get_view_definition() no soportado en dialect
     - DDL retrieval falla inesperadamente
-    """
-
-    pass
-
-
-class DiffReportGenerationError(ComparerError):
-    """Error generando reporte de diferencias en formato específico.
-
-    Cubre:
-    - SQL Reporter falla al construir script de nivelación
-    - HTML Reporter falla al renderizar plantilla
-    - Word Reporter falla al crear documento
-    - Excel Reporter falla al escribir celdas
-    - Markdown Reporter falla al formatear
-    - I/O error escribiendo archivo de salida
-
-    Reservada: la librería no la lanza (``SchemaDiffReporter.render()`` propaga la excepción original del reporter y
-    ``render_all()`` la registra o, con ``raise_on_error=True``, la relanza). Se retirará en 2.0.0.
     """
 
     pass

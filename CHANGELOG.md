@@ -5,6 +5,19 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] - Por publicar
+
+Sesión `.ai/sessions/2026-10-14-remove-reserved-exceptions/`. SemVer: MAJOR (cambios incompatibles).
+
+### Removed
+
+- **exceptions**: se retiran `PoolExhaustedError` y `DiffReportGenerationError` de la API pública (`util_bbdd.exceptions`).
+  Ambas fueron documentadas como reservadas en v1.1.1 porque la librería nunca las lanza: un pool sync agotado recibe
+  `PoolTimeoutError`; los fallos de un reporter de `comparar` llegan con su excepción original. Para código que las
+  importaba (poco probable), cambiar:
+  - `except PoolExhaustedError` → `except PoolTimeoutError` (mismo árbol de ConnectionError)
+  - `except DiffReportGenerationError` → `except ComparerError` (clase padre)
+
 ## [1.2.0] - 2026-10-14
 
 Sesión `.ai/sessions/2026-10-14-dump-constraint-reactivation/`. SemVer: MINOR (cambios aditivos).
