@@ -65,14 +65,13 @@ en el driver. Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md).
 | `v0.2.0` | Documentación de BD automática mejorada. |
 | `v0.1.0` | CRUD base + auditoría. |
 
-## Futuro
+## Entregado (Reciente)
 
+- **`v2.0.0`** — ✅ entregado el 2026-10-14: Breaking change MAJOR — retiro de `PoolExhaustedError` y `DiffReportGenerationError` (públicas pero nunca lanzadas, documentadas como reservadas desde v1.1.1). Guía de migración: [docs/guides/api_1_0_migration.md § v2.0.0](guides/api_1_0_migration.md#6-cambios-en-v200).
+- **`v1.2.0`** — ✅ entregado el 2026-10-14: `DumpResult` informa del fallo general al reactivar las constraints del destino (antes solo quedaba en el log): campo nuevo `constraint_reactivation_error`, aditivo, + nueva hoja "Errores de Reactivación" en el informe Excel (opcional, solo si hay error).
 - **`v1.0.0`** — ✅ entregado el 2026-10-10: API estable bajo SemVer y cobertura de tests ≥ 85 % (91 % medido con `pytest --cov` sin el banco).
-- **`v1.2.0`** (propuesta) — `DumpResult` informa del fallo general al reactivar las constraints del destino (hoy solo
-  queda en el log): campo nuevo `constraint_reactivation_error`, aditivo, + nueva hoja "Errores de Reactivación"
-  en el informe Excel (opcional, solo si hay error).
-- **`v2.0.0`** — retirar `PoolExhaustedError` y `DiffReportGenerationError`, públicas pero que la librería
-  nunca lanza (documentadas como reservadas desde 1.1.1).
+
+## Futuro
 Ideas exploradas pero **fuera de alcance** por ahora (registradas en el
 [plan de tipos v0.8.0](v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md)):
 validación completa de JSON Schema, generación de dataclasses/TypeScript, motores no relacionales
