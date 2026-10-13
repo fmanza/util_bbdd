@@ -422,7 +422,6 @@ __all__ = [
     # Conexión
     "ConnectionError",
     "PoolConnectionError",
-    "PoolExhaustedError",
     "PoolTimeoutError",
     # Query
     "QueryError",
@@ -452,7 +451,6 @@ __all__ = [
     "ComparerError",
     "SchemaDiffValidationError",
     "MetadataIntrospectionError",
-    "DiffReportGenerationError",
     # Documentación
     "DocumentationError",
     "DocumentationConfigError",
