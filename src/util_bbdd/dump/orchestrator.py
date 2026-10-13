@@ -350,6 +350,7 @@ class DumpOrchestrator:
                 index_results=index_results,
                 audit_summary=audit_summary,
                 pk_sync_results=pk_sync_results,
+                constraint_reactivation_error=constraint_reactivation_error,
             )
         except DumpReportError as exc:
             # Sin esto, un fallo del informe perdía el resultado de una carga ya completada.

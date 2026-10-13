@@ -1,9 +1,10 @@
 """Generador del informe Excel de auditoría para volcados de datos.
 
-Genera un único fichero ``.xlsx`` con tres hojas fijas y tres opcionales, en este orden:
+Genera un único fichero ``.xlsx`` con tres hojas fijas y hasta cuatro opcionales, en este orden:
   - ``Auditoría Tablas``: volumetría origen vs. destino por tabla.
   - ``Tablas Faltantes``: tablas del origen sin correspondencia en destino.
   - ``Columnas Inexistentes``: columnas presentes en origen pero ausentes en destino.
+  - ``Errores de Reactivación`` (opcional): fallo general al reactivar constraints en destino.
   - ``Índices`` (opcional): índices secundarios deshabilitados y reconstruidos.
   - ``Auditoría Bulk`` (opcional): resumen del CSV de auditoría de ``bulk`` y contadores del volcado.
   - ``Secuencias PK`` (opcional): resincronización de los contadores de PK en destino.
@@ -143,6 +144,7 @@ class DumpReporter:
         index_results: list[IndexActionResult] | None = None,
         audit_summary: DumpAuditSummary | None = None,
         pk_sync_results: list[PKSyncResult] | None = None,
+        constraint_reactivation_error: str | None = None,
     ) -> Path:
         """Genera el fichero Excel y retorna su ruta.
 
@@ -160,6 +162,8 @@ class DumpReporter:
             pk_sync_results: Resultado de resincronizar los contadores de PK (``DumpResult.pk_sync_results``).
                 ``None`` (default) cuando ``DumpConfig.sync_pk_sequences=False`` o no hubo tablas que sincronizar:
                 no se añade la hoja "Secuencias PK".
+            constraint_reactivation_error: Mensaje de error si la reactivación general de constraints falló.
+                ``None`` (default) cuando la reactivación fue exitosa: no se añade la hoja "Errores de Reactivación".
 
         Raises:
             DumpReportError: Ante cualquier fallo al generar el informe: directorio de salida, escritura del fichero
@@ -178,6 +182,8 @@ class DumpReporter:
             self._sheet_audit(wb, table_results, constraint_results, cycles)
             self._sheet_missing_tables(wb, missing_tables)
             self._sheet_missing_columns(wb, table_results)
+            if constraint_reactivation_error is not None:
+                self._sheet_constraint_reactivation_error(wb, constraint_reactivation_error)
             if index_results is not None:
                 self._sheet_indexes(wb, index_results)
             if audit_summary is not None:
@@ -286,6 +292,40 @@ class DumpReporter:
         ws.column_dimensions["A"].width = 34  # la nota no debe ensanchar la columna de métricas
 
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Hoja 4: Errores de reactivación de constraints (opcional)
+    # ------------------------------------------------------------------
+
+    def _sheet_constraint_reactivation_error(
+        self,
+        wb: openpyxl.Workbook,
+        error_msg: str,
+    ) -> None:
+        """Hoja "Errores de Reactivación": fallo general al reactivar constraints en destino."""
+        ws: Worksheet = wb.create_sheet("Errores de Reactivación")
+
+        self._header(ws, 1, 1, "Tipo de Error", color=self._COL_HEADER_ORANGE)
+        self._header(ws, 1, 2, "Descripción", color=self._COL_HEADER_ORANGE)
+        ws.freeze_panes = "A2"
+
+        self._cell(ws, 2, 1, "Reactivación de Constraints", bg=self._COL_RED)
+        self._cell(ws, 2, 2, error_msg or "Error desconocido", bg=self._COL_RED)
+
+        nota = ws.cell(
+            row=4,
+            column=1,
+            value=(
+                "El error reportado aquí es un fallo general no recuperable al reactivar las constraints del destino "
+                "tras la carga. Esto es distinto de los fallos por-constraint (tabla/FK/CHECK) que aparecen en la hoja "
+                '"Auditoría Tablas". Ver documentación de DumpResult.constraint_reactivation_error.'
+            ),
+        )
+        nota.font = Font(italic=True, size=9)
+        ws.column_dimensions["A"].width = 22
+        ws.column_dimensions["B"].width = 80
+
+        self._autowidth(ws)
+
     # Hoja 4: Índices gestionados (opcional)
     # ------------------------------------------------------------------
 
