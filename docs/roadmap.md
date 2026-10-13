@@ -69,7 +69,8 @@ en el driver. Decisiones en [ADR-005](adr/ADR-005-conexiones-multimotor.md).
 
 - **`v1.0.0`** — ✅ entregado el 2026-10-10: API estable bajo SemVer y cobertura de tests ≥ 85 % (91 % medido con `pytest --cov` sin el banco).
 - **`v1.2.0`** (propuesta) — `DumpResult` informa del fallo general al reactivar las constraints del destino (hoy solo
-  queda en el log): campo nuevo, aditivo.
+  queda en el log): campo nuevo `constraint_reactivation_error`, aditivo, + nueva hoja "Errores de Reactivación"
+  en el informe Excel (opcional, solo si hay error).
 - **`v2.0.0`** (propuesta) — retirar `PoolExhaustedError` y `DiffReportGenerationError`, públicas pero que la librería
   nunca lanza (documentadas como reservadas desde 1.1.1).
 Ideas exploradas pero **fuera de alcance** por ahora (registradas en el

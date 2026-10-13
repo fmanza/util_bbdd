@@ -33,7 +33,23 @@ from ._models import DumpAuditSummary, IndexActionResult, PKSyncResult, TableDum
 
 
 class DumpReporter:
-    """Genera el informe Excel de auditoría de un volcado de datos."""
+    """Genera el informe Excel de auditoría de un volcado de datos.
+
+    Genera un único fichero ``.xlsx`` con 3 hojas fijas y hasta 4 opcionales:
+
+    - **Auditoría Tablas** (fija): volumetría origen vs. destino por tabla, estado, y
+      sección de constraints con incidencia si aplica.
+    - **Tablas Faltantes** (fija): tablas del origen que no existen en destino.
+    - **Columnas Inexistentes** (fija): columnas presentes en origen pero ausentes en
+      destino (omitidas de la carga).
+    - **Errores de Reactivación** (opcional): fallo general al reactivar constraints.
+      Solo aparece si ``constraint_reactivation_error`` != None.
+    - **Índices** (opcional): índices secundarios deshabilitados/reconstruidos.
+    - **Auditoría Bulk** (opcional): resumen del CSV de auditoría y contadores del volcado.
+    - **Secuencias PK** (opcional): sincronización de contadores de PK en destino.
+
+    Las hojas opcionales se añaden siempre al final, para no mover las demás.
+    """
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__name__)
 

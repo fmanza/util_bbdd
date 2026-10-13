@@ -287,7 +287,7 @@ class DumpResult:
         constraint_reactivation_error: Mensaje de error si la reactivación general de constraints falló
             (fallo no recuperable en ``ConstraintManager.enable_all()``). Distinto de ``constraint_results``,
             que reporta fallos por-constraint/tabla. ``None`` si la reactivación fue exitosa.
-            Disponible para consulta programática; no se incluye en el informe Excel (v1.2.0).
+            Si presente, aparece en la hoja "Errores de Reactivación" del informe Excel (con fondo rojo).
     """
 
     table_results: list[TableDumpResult]
