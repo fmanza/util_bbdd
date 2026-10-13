@@ -70,6 +70,7 @@ flowchart TD
 | `pk_sync_results` | `list[PKSyncResult] \| None` | Resultado sincronización PK; `None` si desactivado |
 | `index_results` | `list[IndexActionResult] \| None` | Resultado gestión índices; `None` si desactivado |
 | `audit_run_id` | `str \| None` | Identificador de la ejecución en los eventos de `audit_sink` |
+| `constraint_reactivation_error` | `str \| None` | Mensaje de error si falló la reactivación general de constraints en el destino (fallo no recuperable en `ConstraintManager.enable_all()`). Distinto de `constraint_results` (fallos por-tabla/constraint). Si presente, aparece en la hoja «Errores de Reactivación» del informe Excel (con fondo rojo). `None` si la reactivación fue exitosa |
 | `rows_rejected` | `int` (propiedad) | Con `on_error="isolate"`: filas apartadas al CSV de rechazos en todo el volcado (suma de `TableDumpResult.rows_rejected`, que también sale en la columna «Filas Rechazadas» de la hoja «Auditoría Tablas»). En una tabla con estado `error` (p. ej. `max_rejects` superado) no se copió nada, aunque cuente los rechazos que llegó a escribir |
 
 `total_filas` sale del CSV filtrado por la hora de inicio, así que incluye lo que otros procesos escriban en el mismo
