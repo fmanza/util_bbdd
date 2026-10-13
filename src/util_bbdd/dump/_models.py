@@ -271,7 +271,7 @@ class DumpResult:
 
     Attributes:
         table_results: Resultado por tabla volcada (o intentada).
-        constraint_results: Resultado por constraint al rehabilitar.
+        constraint_results: Resultado por constraint al rehabilitar (per-tabla/constraint).
         load_order: Orden topológico de carga aplicado.
         cycles_detected: Grupos de tablas con FK circular (cargadas al final).
         report: Ruta del informe Excel generado (3 hojas fijas y hasta 3 opcionales; ver ``DumpReporter``).
@@ -284,6 +284,10 @@ class DumpResult:
         index_results: Resultado por índice gestionado (deshabilitado y reconstruido).
             ``None`` cuando ``DumpConfig.manage_indexes=False``.
         audit_run_id: ``run_id`` de todos los eventos del volcado en ``DumpConfig.audit_sink``; ``None`` sin destino.
+        constraint_reactivation_error: Mensaje de error si la reactivación general de constraints falló
+            (fallo no recuperable en ``ConstraintManager.enable_all()``). Distinto de ``constraint_results``,
+            que reporta fallos por-constraint/tabla. ``None`` si la reactivación fue exitosa.
+            Disponible para consulta programática; no se incluye en el informe Excel (v1.2.0).
     """
 
     table_results: list[TableDumpResult]
@@ -295,6 +299,7 @@ class DumpResult:
     pk_sync_results: list[PKSyncResult] | None = None
     index_results: list[IndexActionResult] | None = None
     audit_run_id: str | None = None
+    constraint_reactivation_error: str | None = None
 
     @property
     def rows_rejected(self) -> int:

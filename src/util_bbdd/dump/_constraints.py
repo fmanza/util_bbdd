@@ -58,6 +58,8 @@ class ConstraintManager:
         self._mariadb_checkin: Callable[..., None] | None = None
         # Resultados accesibles tras __exit__
         self.constraint_results: list[ConstraintResult] = []
+        # Error general de reactivación (fallo no recuperable en enable_all), accesible tras __exit__
+        self.reactivation_error: str | None = None
 
     # ------------------------------------------------------------------
     # Context manager
@@ -69,7 +71,8 @@ class ConstraintManager:
     def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         try:
             self.constraint_results = self.enable_all()
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            self.reactivation_error = str(exc)
             self.logger.exception("Error al rehabilitar constraints — la excepción original no se enmascara")
 
     # ------------------------------------------------------------------

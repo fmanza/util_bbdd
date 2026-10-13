@@ -308,6 +308,7 @@ class DumpOrchestrator:
         )
 
         constraint_results: list[ConstraintResult] = constraint_mgr.constraint_results
+        constraint_reactivation_error: str | None = constraint_mgr.reactivation_error
         index_results: list[IndexActionResult] | None = index_mgr.index_results if index_mgr is not None else None
 
         # FASE 5a: Resincronizar contadores PK en destino (si está habilitado)
@@ -335,6 +336,7 @@ class DumpOrchestrator:
             pk_sync_results=pk_sync_results,
             index_results=index_results,
             audit_run_id=self._audit_run_id,
+            constraint_reactivation_error=constraint_reactivation_error,
         )
 
         # FASE 5b: Generar informe Excel (la hoja "Columnas Inexistentes" se deriva

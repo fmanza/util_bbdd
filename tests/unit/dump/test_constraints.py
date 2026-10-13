@@ -556,3 +556,35 @@ class TestConstraintManagerDumpConstraintError:
 
         with pytest.raises(RuntimeError, match="unexpected bug"):
             mgr.disable_all(tables=["orders"])
+
+    def test_exit_captures_reactivation_error_when_enable_all_fails(self):
+        """__exit__ captura el error de enable_all() en reactivation_error sin propagar."""
+        engine = _make_engine("mssql")
+        mgr = ConstraintManager(engine)
+        mgr._nocheck_tables = ["orders"]
+        # Forzar error en enable_all
+        mgr._enable_sqlserver = MagicMock(side_effect=SQLAlchemyError("connection lost"))  # type: ignore[method-assign]
+
+        # El contexto manager captura el error sin relanzarlo
+        with mgr:
+            pass  # body vacío
+
+        # Error capturado en reactivation_error
+        assert mgr.reactivation_error is not None
+        assert "connection lost" in mgr.reactivation_error
+        # constraint_results sigue siendo una lista (inicializada vacía tras el error)
+        assert isinstance(mgr.constraint_results, list)
+
+    def test_exit_no_reactivation_error_on_success(self):
+        """__exit__ deja reactivation_error en None si enable_all() tiene éxito."""
+        engine = _make_engine("mssql")
+        mgr = ConstraintManager(engine)
+        mgr._nocheck_tables = ["orders"]
+        engine.connect.return_value.execute.return_value = None
+        engine.connect.return_value.commit.return_value = None
+
+        with mgr:
+            pass
+
+        assert mgr.reactivation_error is None
+        assert isinstance(mgr.constraint_results, list)
