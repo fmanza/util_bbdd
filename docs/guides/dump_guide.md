@@ -84,10 +84,11 @@ for t in errores:
 ```
 
 El volcado es correcto cuando: `errores` está vacío, `result.report` apunta a un fichero
-`reports/dump_report_<timestamp>.xlsx` existente, y sus hojas **Auditoría Tablas**,
-**Tablas Faltantes** y **Columnas Inexistentes** no listan incidencias inesperadas. Con `bulk_audit_path`, la hoja
-**Auditoría Bulk** no debe tener celdas resaltadas en rojo ni naranja. Con `sync_pk_sequences=True` (por defecto), la hoja
-**Secuencias PK** no debe tener estados `ERROR`.
+`reports/dump_report_<timestamp>.xlsx` existente, y:
+- Sus hojas **Auditoría Tablas**, **Tablas Faltantes** y **Columnas Inexistentes** no listan incidencias inesperadas.
+- La hoja **Errores de Reactivación** **no debe existir** (solo aparece si hay error general de reactivación de constraints).
+- Con `bulk_audit_path`, la hoja **Auditoría Bulk** no debe tener celdas resaltadas en rojo ni naranja.
+- Con `sync_pk_sequences=True` (por defecto), la hoja **Secuencias PK** no debe tener estados `ERROR`.
 
 ## 5. Variantes y Solución de Problemas
 
