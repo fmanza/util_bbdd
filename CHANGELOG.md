@@ -13,7 +13,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   general (no recuperable) de la reactivación de constraints en el destino. Cuando `ConstraintManager.enable_all()`
   lanza una excepción no capturante (p. ej. conexión perdida, falta de permisos), el mensaje se almacena aquí.
   Distinto de `constraint_results`, que reporta fallos por-constraint/tabla (aislables por motor y restricción).
-  Disponible solo para consulta programática en la sesión Python; no se incluye en el informe Excel (v1.2.0+).
+- **dump** (reporters): nueva hoja opcional `"Errores de Reactivación"` en el informe Excel, visible solo si hay
+  error general de reactivación. Muestra el error con color rojo e incluye documentación sobre la diferencia con
+  fallos por-constraint que aparecen en la hoja "Auditoría Tablas".
 
 ## [1.1.1] - 2026-10-11
 
