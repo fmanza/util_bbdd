@@ -5,7 +5,9 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.2.0] - 2026-10-14
+
+Sesión `.ai/sessions/2026-10-14-dump-constraint-reactivation/`. SemVer: MINOR (cambios aditivos).
 
 ### Added
 

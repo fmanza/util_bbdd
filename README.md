@@ -4,7 +4,7 @@ Librería Python para **operaciones de base de datos** en MariaDB, MySQL, Oracle
 async) y HSQLDB (sync): conexiones con pool, carga masiva desde DataFrames, volcado entre motores, migración DDL,
 comparación de esquemas y documentación de la base de datos.
 
-**Version:** 1.1.1 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 1.2.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
