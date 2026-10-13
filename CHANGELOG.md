@@ -5,6 +5,16 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **dump**: `DumpResult` incluye nuevo campo `constraint_reactivation_error: str | None` para reportar el fallo
+  general (no recuperable) de la reactivación de constraints en el destino. Cuando `ConstraintManager.enable_all()`
+  lanza una excepción no capturante (p. ej. conexión perdida, falta de permisos), el mensaje se almacena aquí.
+  Distinto de `constraint_results`, que reporta fallos por-constraint/tabla (aislables por motor y restricción).
+  Disponible solo para consulta programática en la sesión Python; no se incluye en el informe Excel (v1.2.0+).
+
 ## [1.1.1] - 2026-10-11
 
 Sesiones `.ai/sessions/2026-10-10-docs-review-nivel-2/`, `2026-10-11-hotfix-doc-auto-filename/` y
