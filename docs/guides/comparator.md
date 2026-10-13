@@ -93,7 +93,7 @@ print("OK: comparación con sí mismo devuelve 0 diferencias")
 | Error / Síntoma | Causa probable | Solución |
 |---|---|---|
 | `SchemaDiffValidationError` | Formato de reporte no soportado | Usar solo: `"html"`, `"excel"`, `"word"`, `"markdown"`, `"sql"` |
-| `DiffReportGenerationError` para Word | `python-docx` ausente o roto en el entorno (es dependencia base) | Reinstalar `util_bbdd` o `pip install python-docx` |
+| Error al generar reporte Word | `python-docx` ausente o roto en el entorno (es dependencia base) | Reinstalar `util_bbdd` o `pip install python-docx` (llega como `ComparerError` desde v2.0.0) |
 | Rutinas no comparadas aunque `include_routines=True` | Motor no soportado (HSQLDB) o permisos insuficientes | Verificar permisos sobre catálogos del sistema (`pg_proc`, `ALL_PROCEDURES`, `sys.procedures`) |
 | Índices anónimos no detectados | Los índices sin nombre se ignoran por diseño | Dar nombre explícito a los índices en el esquema |
 | Diferencias de comentarios faltantes | Solo se comparan columnas comunes a ambos esquemas | *No aplica para este módulo.* Es una limitación del módulo. |

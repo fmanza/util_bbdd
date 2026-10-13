@@ -81,9 +81,9 @@ Tabla completa de nombres que salen de la raíz:
 
 | Nombre | Importar desde |
 |---|---|
-| `ConnectionError`, `PoolConnectionError`, `PoolExhaustedError`, `PoolTimeoutError`, `DriverError`, `ValidationError`, `InvalidDatabaseType`, `DatabaseOperationError`, `DatabaseConfigurationError` | `util_bbdd.exceptions` |
+| `ConnectionError`, `PoolConnectionError`, `PoolTimeoutError`, `DriverError`, `ValidationError`, `InvalidDatabaseType`, `DatabaseOperationError`, `DatabaseConfigurationError` | `util_bbdd.exceptions` |
 | `QueryError`, `QueryNotFoundError`, `QueryValidationError`, `QueryParameterError`, `QueryTimeoutError`, `QueryExecutionError` | `util_bbdd.exceptions` |
-| `ComparerError`, `SchemaDiffValidationError`, `MetadataIntrospectionError`, `DiffReportGenerationError` | `util_bbdd.exceptions` |
+| `ComparerError`, `SchemaDiffValidationError`, `MetadataIntrospectionError` | `util_bbdd.exceptions` |
 | `DumpError`, `DumpConstraintError`, `DumpReportError` | `util_bbdd.exceptions` |
 | `AuditError`, `AuditConfigError`, `AuditFileError`, `AuditDataError`, `AuditExportError`, `AuditValidationError` | `util_bbdd.exceptions` |
 | `DocumentationError`, `DocumentationConfigError`, `DocumentationRenderError` | `util_bbdd.exceptions` |
@@ -137,10 +137,36 @@ Diferencia que se mantiene a propósito: en `AsyncDatabaseManager`, `get_query_i
 | `ImportError: cannot import name 'QueryError' from 'util_bbdd'` | El nombre salió de la raíz en 1.0.0 | Importa desde su submódulo (tabla del paso 2) |
 | `AttributeError: 'SyncDatabaseManager' object has no attribute 'close_connection'` | Nombre unificado con el manager async | Usa `release_connection()` |
 
-## 6. Calendario
+## 6. Cambios en v2.0.0
+
+Dos excepciones documentadas como "reservadas" desde v1.1.1 se retiran completamente en v2.0.0:
+
+| Excepción | Cambio | Alternativa |
+|---|---|---|
+| `PoolExhaustedError` | Removida | Usa `PoolTimeoutError` (mismo árbol: `ConnectionError → PoolConnectionError → PoolTimeoutError`) |
+| `DiffReportGenerationError` | Removida | Usa `ComparerError` (clase padre de errores del comparador) |
+
+Código para migrar:
+
+```python
+# 1.0.x
+try:
+    comparar.compare(...)
+except DiffReportGenerationError as e:
+    handle_report_error(e)
+
+# 2.0.0+
+try:
+    comparar.compare(...)
+except ComparerError as e:  # o captura la excepción original del reporter
+    handle_report_error(e)
+```
+
+## 7. Calendario
 
 | Versión | Estado |
 |---|---|
 | 0.43.0 | Superficie nueva + alias con `DeprecationWarning` |
 | 0.44.0 | Las excepciones se presentan como `util_bbdd.exceptions` (trazas, logs, pickle) |
 | 1.0.0 | Alias de la raíz y `SyncDatabaseManager.close_connection()` retirados; API pública estable bajo SemVer |
+| 2.0.0 | `PoolExhaustedError` y `DiffReportGenerationError` retiradas (eran reservadas desde 1.1.1) |

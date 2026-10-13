@@ -97,7 +97,7 @@ Todas se importan desde `util_bbdd.exceptions`; `DatabaseException` también des
 |---|---|---|
 | `DatabaseException` | Base de todas las excepciones de `util_bbdd` | [exceptions](exceptions.md) |
 | `ConnectionError` | Error al conectar al servidor | [exceptions](exceptions.md) |
-| `PoolExhaustedError` | Pool de conexiones agotado | [exceptions](exceptions.md) |
+| `PoolTimeoutError` | Timeout esperando conexión disponible del pool | [exceptions](exceptions.md) |
 | `QueryTimeoutError` | Query superó el timeout configurado | [exceptions](exceptions.md) |
 | `QueryNotFoundError` | Query nombrada no registrada | [exceptions](exceptions.md) |
 | `InvalidDatabaseType` | Tipo de motor no reconocido | [exceptions](exceptions.md) |
