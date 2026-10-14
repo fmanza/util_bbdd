@@ -419,6 +419,28 @@ class EngineReadinessAdvisor:
                             recommendation="",
                         )
                     )
+
+            write_io_threads = current.get("innodb_write_io_threads")
+            if write_io_threads is not None:
+                if write_io_threads < 4:
+                    findings.append(
+                        AdvisoryFinding(
+                            level="INFO",
+                            param="innodb_write_io_threads",
+                            current=str(write_io_threads),
+                            recommendation="En servidores SSD con ≥4 CPUs: aumentar a nCPU/2 "
+                            "para paralelismo de escritura; SET GLOBAL innodb_write_io_threads = <value>;",
+                        )
+                    )
+                else:
+                    findings.append(
+                        AdvisoryFinding(
+                            level="OK",
+                            param="innodb_write_io_threads",
+                            current=str(write_io_threads),
+                            recommendation="",
+                        )
+                    )
         except Exception as exc:
             logger.debug(f"_check_mysql_dynamic: {type(exc).__name__}: {exc}")
         return findings

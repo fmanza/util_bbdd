@@ -206,6 +206,18 @@ class TestPostgreSQLDynamicChecks:
         f = _find(findings, "effective_cache_size")
         assert f is not None and f.level == "OK"
 
+    def test_random_page_cost_high_info(self) -> None:
+        conn = self._make_conn({"random_page_cost": "4.0"})
+        findings = self.advisor.check("postgresql", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "random_page_cost")
+        assert f is not None and f.level == "INFO"
+
+    def test_random_page_cost_low_ok(self) -> None:
+        conn = self._make_conn({"random_page_cost": "1.1"})
+        findings = self.advisor.check("postgresql", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "random_page_cost")
+        assert f is not None and f.level == "OK"
+
 
 # ─── SQLite static checks ─────────────────────────────────────────────────────
 
@@ -620,6 +632,44 @@ class TestSQLServerDynamicChecks:
         assert f is not None and f.level == "OK"
 
 
+# ─── Oracle dynamic checks (F-08) — checks de v$parameter ───────────────────────
+
+
+class TestOracleDynamicChecksPhase3:
+    def setup_method(self) -> None:
+        self.advisor = EngineReadinessAdvisor()
+
+    def _make_oracle_conn(self, params: dict[str, int]) -> MagicMock:
+        conn = MagicMock()
+
+        def fake_execute(stmt, params_dict=None, **kwargs):
+            sql_str = str(stmt).lower()
+            if "v$parameter" in sql_str and params_dict and "n" in params_dict:
+                param_name = params_dict["n"]
+                value = params[param_name] if param_name in params else None
+                result = MagicMock()
+                result.fetchone.return_value = (value,) if value is not None else None
+                return result
+            result = MagicMock()
+            result.fetchone.return_value = None
+            return result
+
+        conn.execute.side_effect = fake_execute
+        return conn
+
+    def test_undo_retention_low_info(self) -> None:
+        conn = self._make_oracle_conn({"undo_retention": 300})
+        findings = self.advisor.check("oracle", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "undo_retention")
+        assert f is not None and f.level == "INFO"
+
+    def test_undo_retention_high_ok(self) -> None:
+        conn = self._make_oracle_conn({"undo_retention": 3600})
+        findings = self.advisor.check("oracle", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "undo_retention")
+        assert f is not None and f.level == "OK"
+
+
 # ─── MySQL dynamic checks (F-08) — delegar en MySQLVariableValidator ──────────
 
 
@@ -691,6 +741,20 @@ class TestMySQLDynamicChecks:
         conn = self._make_mysql_conn({"innodb_log_file_size": 1 * 1_073_741_824})
         findings = self.advisor.check(engine, {"pool_size": 10}, connection=conn)
         f = _find(findings, "innodb_log_file_size")
+        assert f is not None and f.level == "OK"
+
+    @pytest.mark.parametrize("engine", ["mysql", "mariadb"])
+    def test_innodb_write_io_threads_low_info(self, engine: str) -> None:
+        conn = self._make_mysql_conn({"innodb_write_io_threads": 2})
+        findings = self.advisor.check(engine, {"pool_size": 10}, connection=conn)
+        f = _find(findings, "innodb_write_io_threads")
+        assert f is not None and f.level == "INFO"
+
+    @pytest.mark.parametrize("engine", ["mysql", "mariadb"])
+    def test_innodb_write_io_threads_high_ok(self, engine: str) -> None:
+        conn = self._make_mysql_conn({"innodb_write_io_threads": 8})
+        findings = self.advisor.check(engine, {"pool_size": 10}, connection=conn)
+        f = _find(findings, "innodb_write_io_threads")
         assert f is not None and f.level == "OK"
 
     @pytest.mark.parametrize("engine", ["mysql", "mariadb"])

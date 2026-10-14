@@ -152,6 +152,28 @@ class OracleVariableValidator:
                 )
             )
 
+        undo_retention = self._read_int_param(connection, "undo_retention")
+        if undo_retention is not None:
+            if undo_retention < 900:
+                findings.append(
+                    AdvisoryFinding(
+                        level="INFO",
+                        param="undo_retention",
+                        current=f"{undo_retention}s",
+                        recommendation="Valor bajo (<900s); queries largas pueden fallar con 'snapshot too old'; "
+                        "aumentar a ≥3600s para bulk: ALTER SYSTEM SET undo_retention=3600;",
+                    )
+                )
+            else:
+                findings.append(
+                    AdvisoryFinding(
+                        level="OK",
+                        param="undo_retention",
+                        current=f"{undo_retention}s",
+                        recommendation="",
+                    )
+                )
+
         return findings
 
     def _can_read_v_parameter(self, connection: Any) -> bool:

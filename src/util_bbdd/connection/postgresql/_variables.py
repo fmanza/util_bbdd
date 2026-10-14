@@ -29,6 +29,7 @@ _VALID_SHOW_PARAMS: frozenset[str] = frozenset(
         "wal_level",
         "shared_buffers",
         "effective_cache_size",
+        "random_page_cost",
     }
 )
 
@@ -179,6 +180,28 @@ class PostgreSQLVariableValidator:
             "SET effective_cache_size = '2GB'; típicamente 50% de RAM disponible",
             info_recommendation="Óptimo: ≥4 GB (50% RAM típica) para mejor planeamiento en bulk",
         )
+
+        random_page_cost_str = self._show_str(connection, "random_page_cost")
+        if random_page_cost_str is not None:
+            try:
+                random_page_cost = float(random_page_cost_str)
+                level = "INFO" if random_page_cost > 3.0 else "OK"
+                rec = (
+                    "Valor alto (>3.0) indica tuning para HDD; "
+                    "en SSD: reducir a 1.1 (SET random_page_cost = 1.1;) para priorizar índices"
+                    if level == "INFO"
+                    else ""
+                )
+                findings.append(
+                    AdvisoryFinding(
+                        level=level,
+                        param="random_page_cost",
+                        current=str(random_page_cost),
+                        recommendation=rec,
+                    )
+                )
+            except (ValueError, TypeError):
+                pass
 
         return findings
 
