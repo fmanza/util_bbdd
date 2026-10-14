@@ -87,7 +87,9 @@ class DatabaseDocumentation:
         self._logger: logging.Logger = logging.getLogger(__name__)
         self._output_policy = DocumentationOutputRuntime()
         self._source = SyncDatabaseManagerAdapter(db_manager, {})
-        resolved_batch_window: int = batch_window_seconds if batch_window_seconds is not None else self._AUTO_OUTPUT_BATCH_WINDOW_SECONDS
+        resolved_batch_window: int = (
+            batch_window_seconds if batch_window_seconds is not None else self._AUTO_OUTPUT_BATCH_WINDOW_SECONDS
+        )
         self._bootstrap = DocumentationBootstrap(
             db_manager=self._source,
             directorio_salida=directorio_salida,

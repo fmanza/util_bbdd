@@ -286,7 +286,7 @@ for partition in partitions:
 
 ## Referencias
 
-- [EngineReadinessAdvisor API](../api/performance_advisor.md)
+- [EngineReadinessAdvisor API](../api/validators_system.md)
 - [Connection Guide](./connection_guide.md)
 - [Benchmarks](./benchmarks.md)
 - [Performance Audit Constraints](./performance_audit_constraints_guide.md)

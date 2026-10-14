@@ -185,7 +185,7 @@ class PostgreSQLVariableValidator:
         if random_page_cost_str is not None:
             try:
                 random_page_cost = float(random_page_cost_str)
-                level = "INFO" if random_page_cost > 3.0 else "OK"
+                level: Literal["OK", "INFO", "WARNING", "CRITICAL"] = "INFO" if random_page_cost > 3.0 else "OK"
                 rec = (
                     "Valor alto (>3.0) indica tuning para HDD; "
                     "en SSD: reducir a 1.1 (SET random_page_cost = 1.1;) para priorizar índices"

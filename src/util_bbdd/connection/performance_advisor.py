@@ -122,7 +122,9 @@ class EngineReadinessAdvisor:
             return
 
         # Redactar credenciales para evitar filtración en logs
-        redacted_params = {k: "***" if k in ("password", "passwd", "pwd", "secret") else v for k, v in conn_params.items()}
+        redacted_params = {
+            k: "***" if k in ("password", "passwd", "pwd", "secret") else v for k, v in conn_params.items()
+        }
         host: str = str(redacted_params.get("host", ""))
         port: str = str(redacted_params.get("port", ""))
         host_str: str = f"{host}:{port}" if host else ""
@@ -326,6 +328,88 @@ class EngineReadinessAdvisor:
             )
         return AdvisoryFinding(level="OK", param=param, current=f"{value}{unit}", recommendation="")
 
+    @staticmethod
+    def _check_mysql_thresholds(
+        validator: Any, current: dict[str, Any], thresholds: dict[str, int]
+    ) -> list[AdvisoryFinding]:
+        """Evalúa variables con umbral mínimo y devuelve hallazgos ordenados."""
+        findings: list[AdvisoryFinding] = []
+        for var, min_val in thresholds.items():
+            actual = current.get(var)
+            if actual is None:
+                continue
+            actual_fmt = validator.format_bytes(actual)
+            rec_fmt = validator.format_bytes(min_val)
+            if actual < min_val:
+                findings.append(
+                    AdvisoryFinding(
+                        level="WARNING",
+                        param=var,
+                        current=actual_fmt,
+                        recommendation=f"Recomendado ≥{rec_fmt}; "
+                        f"SET GLOBAL {var} = {min_val}; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)",
+                    )
+                )
+            else:
+                findings.append(AdvisoryFinding(level="OK", param=var, current=actual_fmt, recommendation=""))
+        return findings
+
+    @staticmethod
+    def _check_mysql_flush_log_at_trx_commit(value: Any) -> AdvisoryFinding | None:
+        """Evalúa innodb_flush_log_at_trx_commit."""
+        if value is None:
+            return None
+        if value == 2:
+            return AdvisoryFinding(level="OK", param="innodb_flush_log_at_trx_commit", current="2", recommendation="")
+        if value == 1:
+            return AdvisoryFinding(
+                level="WARNING",
+                param="innodb_flush_log_at_trx_commit",
+                current="1",
+                recommendation="Para bulk operations: cambiar a 2 (equilibrio entre durabilidad y rendimiento); "
+                "SET GLOBAL innodb_flush_log_at_trx_commit = 2;",
+            )
+        return AdvisoryFinding(
+            level="CRITICAL",
+            param="innodb_flush_log_at_trx_commit",
+            current=str(value),
+            recommendation="Valor inseguro para producción; cambiar a 1 ó 2; "
+            "SET GLOBAL innodb_flush_log_at_trx_commit = 2;",
+        )
+
+    @staticmethod
+    def _check_mysql_log_file_size(validator: Any, value: Any) -> AdvisoryFinding | None:
+        """Evalúa innodb_log_file_size."""
+        if value is None:
+            return None
+        log_file_fmt = validator.format_bytes(value)
+        warn_threshold = 512 * 1_048_576
+        if value < warn_threshold:
+            return AdvisoryFinding(
+                level="INFO",
+                param="innodb_log_file_size",
+                current=log_file_fmt,
+                recommendation=f"Para bulk en datasets >10GB: aumentar a 1–2 GB "
+                f"(actual: {log_file_fmt}); evita rotación frecuente de redo log; "
+                f"dinámico en MySQL 8.0.30+, estático en 5.7 (requiere reinicio)",
+            )
+        return AdvisoryFinding(level="OK", param="innodb_log_file_size", current=log_file_fmt, recommendation="")
+
+    @staticmethod
+    def _check_mysql_write_io_threads(value: Any) -> AdvisoryFinding | None:
+        """Evalúa innodb_write_io_threads."""
+        if value is None:
+            return None
+        if value < 4:
+            return AdvisoryFinding(
+                level="INFO",
+                param="innodb_write_io_threads",
+                current=str(value),
+                recommendation="En servidores SSD con ≥4 CPUs: aumentar a nCPU/2 "
+                "para paralelismo de escritura; SET GLOBAL innodb_write_io_threads = <value>;",
+            )
+        return AdvisoryFinding(level="OK", param="innodb_write_io_threads", current=str(value), recommendation="")
+
     def _check_mysql_dynamic(self, connection: Any) -> list[AdvisoryFinding]:
         """Usa MySQLVariableValidator para leer variables del servidor."""
         findings: list[AdvisoryFinding] = []
@@ -343,104 +427,14 @@ class EngineReadinessAdvisor:
                 "innodb_buffer_pool_size": recommended.innodb_buffer_pool_size,
                 "max_allowed_packet": recommended.max_allowed_packet,
             }
+            findings.extend(self._check_mysql_thresholds(validator, current, thresholds))
 
-            for var, min_val in thresholds.items():
-                actual = current.get(var)
-                if actual is None:
-                    continue
-                actual_fmt = validator.format_bytes(actual)
-                rec_fmt = validator.format_bytes(min_val)
-                if actual < min_val:
-                    findings.append(
-                        AdvisoryFinding(
-                            level="WARNING",
-                            param=var,
-                            current=actual_fmt,
-                            recommendation=f"Recomendado ≥{rec_fmt}; "
-                            f"SET GLOBAL {var} = {min_val}; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)",
-                        )
-                    )
-                else:
-                    findings.append(AdvisoryFinding(level="OK", param=var, current=actual_fmt, recommendation=""))
-
-            flush_log_val = current.get("innodb_flush_log_at_trx_commit")
-            if flush_log_val is not None:
-                if flush_log_val == 2:
-                    findings.append(
-                        AdvisoryFinding(
-                            level="OK",
-                            param="innodb_flush_log_at_trx_commit",
-                            current="2",
-                            recommendation="",
-                        )
-                    )
-                elif flush_log_val == 1:
-                    findings.append(
-                        AdvisoryFinding(
-                            level="WARNING",
-                            param="innodb_flush_log_at_trx_commit",
-                            current="1",
-                            recommendation="Para bulk operations: cambiar a 2 (equilibrio entre durabilidad y rendimiento); "
-                            "SET GLOBAL innodb_flush_log_at_trx_commit = 2;",
-                        )
-                    )
-                else:
-                    findings.append(
-                        AdvisoryFinding(
-                            level="CRITICAL",
-                            param="innodb_flush_log_at_trx_commit",
-                            current=str(flush_log_val),
-                            recommendation="Valor inseguro para producción; cambiar a 1 ó 2; "
-                            "SET GLOBAL innodb_flush_log_at_trx_commit = 2;",
-                        )
-                    )
-
-            log_file_size = current.get("innodb_log_file_size")
-            if log_file_size is not None:
-                log_file_fmt = validator.format_bytes(log_file_size)
-                warn_threshold = 512 * 1_048_576
-                if log_file_size < warn_threshold:
-                    findings.append(
-                        AdvisoryFinding(
-                            level="INFO",
-                            param="innodb_log_file_size",
-                            current=log_file_fmt,
-                            recommendation=f"Para bulk en datasets >10GB: aumentar a 1–2 GB "
-                            f"(actual: {log_file_fmt}); evita rotación frecuente de redo log; "
-                            f"dinámico en MySQL 8.0.30+, estático en 5.7 (requiere reinicio)",
-                        )
-                    )
-                else:
-                    findings.append(
-                        AdvisoryFinding(
-                            level="OK",
-                            param="innodb_log_file_size",
-                            current=log_file_fmt,
-                            recommendation="",
-                        )
-                    )
-
-            write_io_threads = current.get("innodb_write_io_threads")
-            if write_io_threads is not None:
-                if write_io_threads < 4:
-                    findings.append(
-                        AdvisoryFinding(
-                            level="INFO",
-                            param="innodb_write_io_threads",
-                            current=str(write_io_threads),
-                            recommendation="En servidores SSD con ≥4 CPUs: aumentar a nCPU/2 "
-                            "para paralelismo de escritura; SET GLOBAL innodb_write_io_threads = <value>;",
-                        )
-                    )
-                else:
-                    findings.append(
-                        AdvisoryFinding(
-                            level="OK",
-                            param="innodb_write_io_threads",
-                            current=str(write_io_threads),
-                            recommendation="",
-                        )
-                    )
+            checks = (
+                self._check_mysql_flush_log_at_trx_commit(current.get("innodb_flush_log_at_trx_commit")),
+                self._check_mysql_log_file_size(validator, current.get("innodb_log_file_size")),
+                self._check_mysql_write_io_threads(current.get("innodb_write_io_threads")),
+            )
+            findings.extend(check for check in checks if check is not None)
         except Exception as exc:
             logger.debug(f"_check_mysql_dynamic: {type(exc).__name__}: {exc}")
         return findings

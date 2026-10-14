@@ -241,9 +241,7 @@ class DumpOrchestrator:
                 if cfg.max_parallel_tables > 1:
                     table_results.extend(self._load_parallel(effective_src_order, src_to_dst, cycle_set, table_workers))
                 else:
-                    table_results.extend(
-                        self._load_sequential(effective_src_order, src_to_dst, cycle_set, crud)
-                    )
+                    table_results.extend(self._load_sequential(effective_src_order, src_to_dst, cycle_set, crud))
                 self._reflect_loaded_tables(crud, table_results, src_to_dst)
 
         table_results.extend(
@@ -388,8 +386,16 @@ class DumpOrchestrator:
             constraint_reactivation_error=constraint_reactivation_error,
         )
         dump_result.report = self._generate_dump_report(
-            dump_result, table_results, missing_in_dst, constraint_results, cycles,
-            index_results, audit_summary, pk_sync_results, constraint_reactivation_error, output_dir
+            dump_result,
+            table_results,
+            missing_in_dst,
+            constraint_results,
+            cycles,
+            index_results,
+            audit_summary,
+            pk_sync_results,
+            constraint_reactivation_error,
+            output_dir,
         )
         return dump_result
 

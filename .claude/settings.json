@@ -1,4 +1,44 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/unit/dump/test_constraints.py::TestConstraintManagerDumpConstraintError::test_exit_captures_reactivation_error_when_enable_all_fails -xvs)",
+      "Bash(python -m pytest tests/unit/dump/test_constraints.py::TestConstraintManagerDumpConstraintError::test_exit_no_reactivation_error_on_success -xvs)",
+      "Bash(python -m ruff check src/util_bbdd/dump/_models.py src/util_bbdd/dump/_constraints.py src/util_bbdd/dump/orchestrator.py)",
+      "Bash(python -m mypy src/util_bbdd/dump/_models.py src/util_bbdd/dump/_constraints.py src/util_bbdd/dump/orchestrator.py)",
+      "Bash(python -m ruff format src/util_bbdd/dump/_models.py src/util_bbdd/dump/_constraints.py src/util_bbdd/dump/orchestrator.py tests/unit/dump/test_constraints.py)",
+      "Bash(python -m pytest tests/unit/dump/test_constraints.py -v)",
+      "Bash(python)",
+      "Bash(python -m ruff check src/util_bbdd/dump/reporters.py src/util_bbdd/dump/orchestrator.py)",
+      "Bash(python -m pytest tests/unit/dump/test_reporters.py -x --tb=short)",
+      "Bash(python -m pytest tests/unit/dump/ -x)",
+      "Bash(python -m ruff check src tests --select=E,F,W)",
+      "Bash(python -m pytest tests/unit/test_exceptions_public_module.py -v)",
+      "Bash(python -m pytest tests/unit/test_top_level_exports.py -v)",
+      "Bash(python -m pytest tests/unit -k \"not bench\" --co -q)",
+      "Bash(python -m pytest tests/unit -k \"not bench\" -x)",
+      "Bash(python -m pytest tests/unit/test_exceptions_public_module.py tests/unit/test_top_level_exports.py -v)",
+      "Bash(zensical build *)",
+      "Bash(python -m pytest tests/unit/dump -xvs --tb=short)",
+      "Bash(python -m ruff check src/util_bbdd/dump/orchestrator.py --select=S3776)",
+      "Bash(python -m pytest tests/unit/dump/ -k \"test_volcado\" --tb=short -q)",
+      "Bash(python -m pytest tests/unit/dump -q --tb=line)",
+      "Bash(python -m ruff check src/util_bbdd/dump/orchestrator.py)",
+      "Bash(python -m mypy src/util_bbdd/dump/orchestrator.py)",
+      "Bash(python -m pytest tests/unit/connection/test_performance_advisor.py -v)",
+      "Bash(python -m pytest tests/unit/connection/test_performance_advisor_once.py -v)",
+      "Bash(python -m pytest tests/unit/connection/test_performance_advisor.py::TestParameterValidationFixes -v)",
+      "Bash(python -m pytest tests/unit/connection/test_performance_advisor.py tests/unit/connection/test_performance_advisor_once.py -v --tb=short)",
+      "Bash(python -m ruff check src/util_bbdd/connection/performance_advisor.py tests/unit/connection/test_performance_advisor.py)",
+      "Bash(python -m mypy src/util_bbdd/connection/performance_advisor.py)",
+      "Bash(python -m ruff check src/util_bbdd/connection/performance_advisor.py)",
+      "Bash(python -m pytest tests/unit/connection/test_performance_advisor.py::TestPostgreSQLDynamicChecks::test_shared_buffers_low_warning -v)",
+      "Bash(python -m pytest tests/unit/connection/test_performance_advisor.py -k \"shared_buffers or maxdop or flush_log\" -v)",
+      "Bash(python -m pytest tests/unit/connection/test_performance_advisor.py -q)",
+      "Bash(python -m ruff check src/util_bbdd/connection/performance_advisor.py src/util_bbdd/connection/mariadb/_variables.py src/util_bbdd/connection/postgresql/_variables.py src/util_bbdd/connection/sqlserver/_variables.py)",
+      "Bash(python -m mypy src/util_bbdd/connection/performance_advisor.py --ignore-missing-imports)",
+      "Bash(python -m pytest tests/unit/connection/test_performance_advisor.py -v --tb=short)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
