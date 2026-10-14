@@ -362,6 +362,38 @@ class EngineReadinessAdvisor:
                     )
                 else:
                     findings.append(AdvisoryFinding(level="OK", param=var, current=actual_fmt, recommendation=""))
+
+            flush_log_val = current.get("innodb_flush_log_at_trx_commit")
+            if flush_log_val is not None:
+                if flush_log_val == 2:
+                    findings.append(
+                        AdvisoryFinding(
+                            level="OK",
+                            param="innodb_flush_log_at_trx_commit",
+                            current="2",
+                            recommendation="",
+                        )
+                    )
+                elif flush_log_val == 1:
+                    findings.append(
+                        AdvisoryFinding(
+                            level="WARNING",
+                            param="innodb_flush_log_at_trx_commit",
+                            current="1",
+                            recommendation="Para bulk operations: cambiar a 2 (equilibrio entre durabilidad y rendimiento); "
+                            "SET GLOBAL innodb_flush_log_at_trx_commit = 2;",
+                        )
+                    )
+                else:
+                    findings.append(
+                        AdvisoryFinding(
+                            level="CRITICAL",
+                            param="innodb_flush_log_at_trx_commit",
+                            current=str(flush_log_val),
+                            recommendation="Valor inseguro para producción; cambiar a 1 ó 2; "
+                            "SET GLOBAL innodb_flush_log_at_trx_commit = 2;",
+                        )
+                    )
         except Exception as exc:
             logger.debug(f"_check_mysql_dynamic: {type(exc).__name__}: {exc}")
         return findings

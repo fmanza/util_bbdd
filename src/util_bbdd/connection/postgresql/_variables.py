@@ -14,6 +14,8 @@ _WARN_WORK_MEM: int = 16 * 1_048_576  # 16 MB
 _INFO_WORK_MEM: int = 64 * 1_048_576  # 64 MB
 _WARN_MAINT_MEM: int = 64 * 1_048_576  # 64 MB
 _INFO_MAINT_MEM: int = 256 * 1_048_576  # 256 MB
+_WARN_SHARED_BUFFERS: int = 256 * 1_048_576  # 256 MB (mínimo)
+_INFO_SHARED_BUFFERS: int = 1 * 1_073_741_824  # 1 GB (óptimo)
 
 # Whitelist de parámetros válidos para SHOW (F-01: prevenir inyección SQL)
 _VALID_SHOW_PARAMS: frozenset[str] = frozenset(
@@ -23,6 +25,7 @@ _VALID_SHOW_PARAMS: frozenset[str] = frozenset(
         "synchronous_commit",
         "max_connections",
         "wal_level",
+        "shared_buffers",
     }
 )
 
@@ -151,6 +154,17 @@ class PostgreSQLVariableValidator:
             )
 
         self._add_max_connections_finding(findings, connection, conn_params)
+
+        self._add_memory_finding(
+            findings,
+            connection,
+            param="shared_buffers",
+            warn_threshold=_WARN_SHARED_BUFFERS,
+            info_threshold=_INFO_SHARED_BUFFERS,
+            warn_recommendation="Recomendado ≥256 MB para cargas masivas (actual default ~128 MB); "
+            "SET shared_buffers en postgresql.conf (requiere reinicio)",
+            info_recommendation="Óptimo: ≥1 GB (25% de RAM típica) para máximo rendimiento en bulk",
+        )
 
         return findings
 

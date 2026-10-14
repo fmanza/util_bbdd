@@ -170,6 +170,24 @@ class TestPostgreSQLDynamicChecks:
         findings = self.advisor.check("postgresql", {"pool_size": 10}, connection=conn)
         assert isinstance(findings, list)
 
+    def test_shared_buffers_low_warning(self) -> None:
+        conn = self._make_conn({"shared_buffers": "128MB"})
+        findings = self.advisor.check("postgresql", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "shared_buffers")
+        assert f is not None and f.level == "WARNING"
+
+    def test_shared_buffers_medium_info(self) -> None:
+        conn = self._make_conn({"shared_buffers": "512MB"})
+        findings = self.advisor.check("postgresql", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "shared_buffers")
+        assert f is not None and f.level == "INFO"
+
+    def test_shared_buffers_high_ok(self) -> None:
+        conn = self._make_conn({"shared_buffers": "2GB"})
+        findings = self.advisor.check("postgresql", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "shared_buffers")
+        assert f is not None and f.level == "OK"
+
 
 # ─── SQLite static checks ─────────────────────────────────────────────────────
 
@@ -553,6 +571,24 @@ class TestSQLServerDynamicChecks:
         findings = self.advisor.check("mssql", {"pool_size": 10}, connection=conn)
         assert isinstance(findings, list)
 
+    def test_maxdop_zero_info(self) -> None:
+        conn = self._make_conn({"max degree of parallelism": 0})
+        findings = self.advisor.check("mssql", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "max_degree_of_parallelism")
+        assert f is not None and f.level == "INFO"
+
+    def test_maxdop_medium_ok(self) -> None:
+        conn = self._make_conn({"max degree of parallelism": 4})
+        findings = self.advisor.check("mssql", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "max_degree_of_parallelism")
+        assert f is not None and f.level == "OK"
+
+    def test_maxdop_high_info(self) -> None:
+        conn = self._make_conn({"max degree of parallelism": 16})
+        findings = self.advisor.check("mssql", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "max_degree_of_parallelism")
+        assert f is not None and f.level == "INFO"
+
 
 # ─── MySQL dynamic checks (F-08) — delegar en MySQLVariableValidator ──────────
 
@@ -590,6 +626,27 @@ class TestMySQLDynamicChecks:
         conn = self._make_mysql_conn({"innodb_buffer_pool_size": 2 * 1_073_741_824})
         findings = self.advisor.check(engine, {"pool_size": 10}, connection=conn)
         f = _find(findings, "innodb_buffer_pool_size")
+        assert f is not None and f.level == "OK"
+
+    @pytest.mark.parametrize("engine", ["mysql", "mariadb"])
+    def test_innodb_flush_log_zero_critical(self, engine: str) -> None:
+        conn = self._make_mysql_conn({"innodb_flush_log_at_trx_commit": 0})
+        findings = self.advisor.check(engine, {"pool_size": 10}, connection=conn)
+        f = _find(findings, "innodb_flush_log_at_trx_commit")
+        assert f is not None and f.level == "CRITICAL"
+
+    @pytest.mark.parametrize("engine", ["mysql", "mariadb"])
+    def test_innodb_flush_log_one_warning(self, engine: str) -> None:
+        conn = self._make_mysql_conn({"innodb_flush_log_at_trx_commit": 1})
+        findings = self.advisor.check(engine, {"pool_size": 10}, connection=conn)
+        f = _find(findings, "innodb_flush_log_at_trx_commit")
+        assert f is not None and f.level == "WARNING"
+
+    @pytest.mark.parametrize("engine", ["mysql", "mariadb"])
+    def test_innodb_flush_log_two_ok(self, engine: str) -> None:
+        conn = self._make_mysql_conn({"innodb_flush_log_at_trx_commit": 2})
+        findings = self.advisor.check(engine, {"pool_size": 10}, connection=conn)
+        f = _find(findings, "innodb_flush_log_at_trx_commit")
         assert f is not None and f.level == "OK"
 
     @pytest.mark.parametrize("engine", ["mysql", "mariadb"])

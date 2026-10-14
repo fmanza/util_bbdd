@@ -30,6 +30,7 @@ class MySQLVariableValidator:
         {
             "max_allowed_packet",
             "innodb_buffer_pool_size",
+            "innodb_flush_log_at_trx_commit",
         }
     )
 

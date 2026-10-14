@@ -90,6 +90,37 @@ class SQLServerVariableValidator:
         """Checks dinámicos vía sys.configurations y sys.databases."""
         findings: list[AdvisoryFinding] = []
 
+        # max_degree_of_parallelism (MAXDOP): 0 = ilimitado; recomendado nCPU/2 para OLTP bulk
+        maxdop = self._read_config_int(connection, "max degree of parallelism")
+        if maxdop is not None:
+            if maxdop == 0:
+                findings.append(
+                    AdvisoryFinding(
+                        level="INFO",
+                        param="max_degree_of_parallelism",
+                        current="0 (ilimitado)",
+                        recommendation="Para OLTP bulk: ajustar a nCPU/2 con SET MAXDOP; evita overhead de paralelismo en queries pequeñas",
+                    )
+                )
+            elif maxdop > 8:
+                findings.append(
+                    AdvisoryFinding(
+                        level="INFO",
+                        param="max_degree_of_parallelism",
+                        current=str(maxdop),
+                        recommendation="Valor alto; puede saturar CPU en bulk. Considerar nCPU/2 para balance OLTP/bulk",
+                    )
+                )
+            else:
+                findings.append(
+                    AdvisoryFinding(
+                        level="OK",
+                        param="max_degree_of_parallelism",
+                        current=str(maxdop),
+                        recommendation="",
+                    )
+                )
+
         # fill factor: 0 = 100% (óptimo para carga inicial); bajo puede ralentizar INSERT
         fill_factor = self._read_config_int(connection, "fill factor (%)")
         if fill_factor is not None and 0 < fill_factor < 70:
