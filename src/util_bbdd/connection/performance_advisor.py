@@ -232,9 +232,8 @@ class EngineReadinessAdvisor:
         # Checks estáticos de pool/config: solo los parámetros presentes. report_once() no conoce autocommit ni los
         # timeouts del driver (no están en engine.url) y un valor por defecto no debe presentarse como leído.
         if "autocommit" in conn_params:
-            try:
-                autocommit: bool = _to_bool(conn_params["autocommit"], "autocommit", "mysql")
-            except ValueError:
+            ac_findings = self._check_mysql_autocommit(conn_params["autocommit"])
+            if ac_findings is None:
                 findings.append(
                     AdvisoryFinding(
                         level="CRITICAL",
@@ -244,16 +243,8 @@ class EngineReadinessAdvisor:
                     )
                 )
                 return findings
-            findings.append(
-                AdvisoryFinding(
-                    level="WARNING" if autocommit else "OK",
-                    param="autocommit",
-                    current=str(autocommit),
-                    recommendation="autocommit=True confirma cada INSERT individualmente; usar transacciones para bulk"
-                    if autocommit
-                    else "",
-                )
-            )
+            findings.extend(ac_findings)
+
         for param, minimum, unit, recommendation in self._MYSQL_MINIMUMS:
             if param in conn_params:
                 try:
@@ -269,9 +260,8 @@ class EngineReadinessAdvisor:
                         )
                     )
 
-        try:
-            pool_timeout: int = _to_int(conn_params.get("pool_timeout", 30), "pool_timeout", "mysql")
-        except ValueError:
+        pt_findings = self._check_mysql_pool_timeout(conn_params.get("pool_timeout", 30))
+        if pt_findings is None:
             findings.append(
                 AdvisoryFinding(
                     level="CRITICAL",
@@ -281,6 +271,41 @@ class EngineReadinessAdvisor:
                 )
             )
             return findings
+        findings.extend(pt_findings)
+
+        # Checks dinámicos: delegar en MySQLVariableValidator existente
+        if connection is not None:
+            findings.extend(self._check_mysql_dynamic(connection))
+
+        return findings
+
+    @staticmethod
+    def _check_mysql_autocommit(value: Any) -> list[AdvisoryFinding] | None:
+        """Valida y reporta autocommit. Retorna None si hay error crítico (para interrumpir checks)."""
+        try:
+            autocommit: bool = _to_bool(value, "autocommit", "mysql")
+        except ValueError:
+            return None
+        findings: list[AdvisoryFinding] = [
+            AdvisoryFinding(
+                level="WARNING" if autocommit else "OK",
+                param="autocommit",
+                current=str(autocommit),
+                recommendation="autocommit=True confirma cada INSERT individualmente; usar transacciones para bulk"
+                if autocommit
+                else "",
+            )
+        ]
+        return findings
+
+    @staticmethod
+    def _check_mysql_pool_timeout(value: Any) -> list[AdvisoryFinding] | None:
+        """Valida y reporta pool_timeout. Retorna None si hay error crítico (para interrumpir checks)."""
+        try:
+            pool_timeout: int = _to_int(value, "pool_timeout", "mysql")
+        except ValueError:
+            return None  # Señal de error crítico al llamador
+        findings: list[AdvisoryFinding] = []
         if pool_timeout < 10:
             findings.append(
                 AdvisoryFinding(
@@ -290,11 +315,6 @@ class EngineReadinessAdvisor:
                     recommendation="Recomendado ≥10 s para evitar timeouts en picos de carga",
                 )
             )
-
-        # Checks dinámicos: delegar en MySQLVariableValidator existente
-        if connection is not None:
-            findings.extend(self._check_mysql_dynamic(connection))
-
         return findings
 
     @staticmethod
