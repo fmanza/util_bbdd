@@ -5,6 +5,24 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.42.2] - 2026-10-14
+
+Sesión `.ai/sessions/2026-10-14-performance-advisor-phase1-3/`. SemVer: PATCH (mejoras sin cambios incompatibles).
+
+### Added
+
+- **connection (EngineReadinessAdvisor)**: 9 nuevos validadores dinámicos de parámetros de rendimiento por motor:
+  - **MySQL/MariaDB**: `innodb_flush_log_at_trx_commit` (0=CRITICAL, 1=WARNING, 2=OK), 
+    `innodb_log_file_size` (<512MB=INFO), `innodb_write_io_threads` (<4=INFO).
+  - **PostgreSQL**: `shared_buffers` (<256MB=WARNING, ≥1GB=OK), 
+    `effective_cache_size` (<512MB=WARNING, ≥4GB=OK), `random_page_cost` (>3.0=INFO para SSD).
+  - **SQL Server**: `max_degree_of_parallelism` (0=INFO, >8=INFO), 
+    `cost_threshold_for_parallelism` (<10=INFO).
+  - **Oracle**: `undo_retention` (<900s=INFO).
+  
+  Cada validador emite `AdvisoryFinding` con recomendaciones específicas sin escalada de permisos (sin SUPER, sysadmin).
+  Graceful fallback: parámetro no encontrado → omite check sin error. Tests: 27 nuevos, 0 regresiones (119/119 pasan).
+
 ## [2.0.0] - Por publicar
 
 Sesión `.ai/sessions/2026-10-14-remove-reserved-exceptions/`. SemVer: MAJOR (cambios incompatibles).

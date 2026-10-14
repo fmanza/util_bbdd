@@ -114,6 +114,7 @@ nav:
           - Migración DDL entre Motores: guides/ddl_migration_guide.md
       - Rendimiento:
           - Performance & Benchmarks: guides/benchmarks.md
+          - Validación de Parámetros (EngineReadinessAdvisor): guides/performance_readiness_guide.md
           - Performance Audit (General): guides/performance_audit_guide.md
           - Performance Audit (Constraints): guides/performance_audit_constraints_guide.md
       - Reutilización de Código: guides/code_reusability_analysis_guide.md
