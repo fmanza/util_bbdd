@@ -641,3 +641,80 @@ class TestMySQLStaticChecksOnlyKnownValues:
         finally:
             engine.dispose()
         assert reported == {"pool_size": "7"}
+
+
+# ─── Validación de parámetros: casting de int/bool correcto ──────────────────
+
+
+class TestParameterValidationFixes:
+    """Tests para verificar que las correcciones de casting int/bool funcionan correctamente."""
+
+    def setup_method(self) -> None:
+        self.advisor = EngineReadinessAdvisor()
+
+    def test_autocommit_string_false_ok(self) -> None:
+        """autocommit='false' string debe interpretarse como False (OK), no True (WARNING)."""
+        findings = self.advisor.check("mysql", {"autocommit": "false"})
+        f = _find(findings, "autocommit")
+        assert f is not None and f.level == "OK"
+
+    def test_autocommit_string_true_warning(self) -> None:
+        """autocommit='true' string debe interpretarse como True (WARNING)."""
+        findings = self.advisor.check("mysql", {"autocommit": "true"})
+        f = _find(findings, "autocommit")
+        assert f is not None and f.level == "WARNING"
+
+    def test_autocommit_string_1_warning(self) -> None:
+        """autocommit='1' string debe interpretarse como True (WARNING)."""
+        findings = self.advisor.check("mysql", {"autocommit": "1"})
+        f = _find(findings, "autocommit")
+        assert f is not None and f.level == "WARNING"
+
+    def test_autocommit_string_0_ok(self) -> None:
+        """autocommit='0' string debe interpretarse como False (OK)."""
+        findings = self.advisor.check("mysql", {"autocommit": "0"})
+        f = _find(findings, "autocommit")
+        assert f is not None and f.level == "OK"
+
+    def test_autocommit_invalid_critical(self) -> None:
+        """autocommit con valor inválido debe reportar CRITICAL, no crash."""
+        findings = self.advisor.check("mysql", {"autocommit": "invalid_value"})
+        f = _find(findings, "autocommit")
+        assert f is not None and f.level == "CRITICAL"
+
+    def test_pool_size_non_integer_critical(self) -> None:
+        """pool_size no-numérico debe reportar CRITICAL, no crash."""
+        findings = self.advisor.check("mysql", {"pool_size": "not_an_integer"})
+        f = _find(findings, "pool_size")
+        assert f is not None and f.level == "CRITICAL"
+
+    def test_write_timeout_non_integer_critical(self) -> None:
+        """write_timeout no-numérico debe reportar CRITICAL, no crash."""
+        findings = self.advisor.check("mysql", {"write_timeout": "bad_value"})
+        f = _find(findings, "write_timeout")
+        assert f is not None and f.level == "CRITICAL"
+
+    def test_pool_timeout_non_integer_critical(self) -> None:
+        """pool_timeout no-numérico debe reportar CRITICAL, no crash."""
+        findings = self.advisor.check("mysql", {"pool_timeout": "invalid"})
+        # pool_timeout invalido interrumpe checks, retorna sin más hallazgos
+        critical_findings = [f for f in findings if f.level == "CRITICAL"]
+        assert len(critical_findings) > 0
+
+    def test_credentials_redacted_in_log(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Las credenciales no deben filtrarse en logs."""
+        import logging
+
+        with caplog.at_level(logging.INFO, logger="util_bbdd.connection.performance_advisor"):
+            self.advisor.report(
+                "mysql",
+                {
+                    "host": "localhost",
+                    "port": 3306,
+                    "password": "secret_password_123",
+                    "pool_size": 5,
+                },
+            )
+        # Verificar que la contraseña no aparece en el log
+        log_text = caplog.text
+        assert "secret_password_123" not in log_text

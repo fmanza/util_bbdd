@@ -26,6 +26,7 @@ import weakref
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from ._advisory import AdvisoryFinding
+from .config import _to_bool, _to_int
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine
@@ -120,8 +121,10 @@ class EngineReadinessAdvisor:
         if not findings:
             return
 
-        host: str = str(conn_params.get("host", ""))
-        port: str = str(conn_params.get("port", ""))
+        # Redactar credenciales para evitar filtración en logs
+        redacted_params = {k: "***" if k in ("password", "passwd", "pwd", "secret") else v for k, v in conn_params.items()}
+        host: str = str(redacted_params.get("host", ""))
+        port: str = str(redacted_params.get("port", ""))
         host_str: str = f"{host}:{port}" if host else ""
 
         header = f"  ENGINE READINESS REPORT  ·  {db_type}"
@@ -229,7 +232,18 @@ class EngineReadinessAdvisor:
         # Checks estáticos de pool/config: solo los parámetros presentes. report_once() no conoce autocommit ni los
         # timeouts del driver (no están en engine.url) y un valor por defecto no debe presentarse como leído.
         if "autocommit" in conn_params:
-            autocommit: bool = bool(conn_params["autocommit"])
+            try:
+                autocommit: bool = _to_bool(conn_params["autocommit"], "autocommit", "mysql")
+            except ValueError:
+                findings.append(
+                    AdvisoryFinding(
+                        level="CRITICAL",
+                        param="autocommit",
+                        current=str(conn_params["autocommit"]),
+                        recommendation="autocommit debe ser true/false (booleano o string: 'true', 'false', 'yes', 'no', '1', '0')",
+                    )
+                )
+                return findings
             findings.append(
                 AdvisoryFinding(
                     level="WARNING" if autocommit else "OK",
@@ -242,9 +256,31 @@ class EngineReadinessAdvisor:
             )
         for param, minimum, unit, recommendation in self._MYSQL_MINIMUMS:
             if param in conn_params:
-                findings.append(self._minimum_finding(param, int(conn_params[param]), minimum, unit, recommendation))
+                try:
+                    value = _to_int(conn_params[param], param, "mysql")
+                    findings.append(self._minimum_finding(param, value, minimum, unit, recommendation))
+                except ValueError:
+                    findings.append(
+                        AdvisoryFinding(
+                            level="CRITICAL",
+                            param=param,
+                            current=str(conn_params[param]),
+                            recommendation=f"{param} debe ser entero",
+                        )
+                    )
 
-        pool_timeout: int = int(conn_params.get("pool_timeout", 30))
+        try:
+            pool_timeout: int = _to_int(conn_params.get("pool_timeout", 30), "pool_timeout", "mysql")
+        except ValueError:
+            findings.append(
+                AdvisoryFinding(
+                    level="CRITICAL",
+                    param="pool_timeout",
+                    current=str(conn_params.get("pool_timeout")),
+                    recommendation="pool_timeout debe ser entero",
+                )
+            )
+            return findings
         if pool_timeout < 10:
             findings.append(
                 AdvisoryFinding(
