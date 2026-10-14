@@ -188,6 +188,24 @@ class TestPostgreSQLDynamicChecks:
         f = _find(findings, "shared_buffers")
         assert f is not None and f.level == "OK"
 
+    def test_effective_cache_size_low_warning(self) -> None:
+        conn = self._make_conn({"effective_cache_size": "256MB"})
+        findings = self.advisor.check("postgresql", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "effective_cache_size")
+        assert f is not None and f.level == "WARNING"
+
+    def test_effective_cache_size_medium_info(self) -> None:
+        conn = self._make_conn({"effective_cache_size": "2GB"})
+        findings = self.advisor.check("postgresql", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "effective_cache_size")
+        assert f is not None and f.level == "INFO"
+
+    def test_effective_cache_size_high_ok(self) -> None:
+        conn = self._make_conn({"effective_cache_size": "8GB"})
+        findings = self.advisor.check("postgresql", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "effective_cache_size")
+        assert f is not None and f.level == "OK"
+
 
 # ─── SQLite static checks ─────────────────────────────────────────────────────
 
@@ -589,6 +607,18 @@ class TestSQLServerDynamicChecks:
         f = _find(findings, "max_degree_of_parallelism")
         assert f is not None and f.level == "INFO"
 
+    def test_cost_threshold_low_info(self) -> None:
+        conn = self._make_conn({"cost threshold for parallelism": 5})
+        findings = self.advisor.check("mssql", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "cost_threshold_for_parallelism")
+        assert f is not None and f.level == "INFO"
+
+    def test_cost_threshold_medium_ok(self) -> None:
+        conn = self._make_conn({"cost threshold for parallelism": 50})
+        findings = self.advisor.check("mssql", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "cost_threshold_for_parallelism")
+        assert f is not None and f.level == "OK"
+
 
 # ─── MySQL dynamic checks (F-08) — delegar en MySQLVariableValidator ──────────
 
@@ -647,6 +677,20 @@ class TestMySQLDynamicChecks:
         conn = self._make_mysql_conn({"innodb_flush_log_at_trx_commit": 2})
         findings = self.advisor.check(engine, {"pool_size": 10}, connection=conn)
         f = _find(findings, "innodb_flush_log_at_trx_commit")
+        assert f is not None and f.level == "OK"
+
+    @pytest.mark.parametrize("engine", ["mysql", "mariadb"])
+    def test_innodb_log_file_size_low_info(self, engine: str) -> None:
+        conn = self._make_mysql_conn({"innodb_log_file_size": 256 * 1_048_576})
+        findings = self.advisor.check(engine, {"pool_size": 10}, connection=conn)
+        f = _find(findings, "innodb_log_file_size")
+        assert f is not None and f.level == "INFO"
+
+    @pytest.mark.parametrize("engine", ["mysql", "mariadb"])
+    def test_innodb_log_file_size_high_ok(self, engine: str) -> None:
+        conn = self._make_mysql_conn({"innodb_log_file_size": 1 * 1_073_741_824})
+        findings = self.advisor.check(engine, {"pool_size": 10}, connection=conn)
+        f = _find(findings, "innodb_log_file_size")
         assert f is not None and f.level == "OK"
 
     @pytest.mark.parametrize("engine", ["mysql", "mariadb"])

@@ -121,6 +121,29 @@ class SQLServerVariableValidator:
                     )
                 )
 
+        # cost threshold for parallelism: umbral de costo para paralelismo
+        cost_threshold = self._read_config_int(connection, "cost threshold for parallelism")
+        if cost_threshold is not None:
+            if cost_threshold < 10:
+                findings.append(
+                    AdvisoryFinding(
+                        level="INFO",
+                        param="cost_threshold_for_parallelism",
+                        current=str(cost_threshold),
+                        recommendation="Valor bajo (<10) puede activar paralelismo en queries pequeñas con overhead; "
+                        "recomendado 50–100 para OLTP bulk",
+                    )
+                )
+            else:
+                findings.append(
+                    AdvisoryFinding(
+                        level="OK",
+                        param="cost_threshold_for_parallelism",
+                        current=str(cost_threshold),
+                        recommendation="",
+                    )
+                )
+
         # fill factor: 0 = 100% (óptimo para carga inicial); bajo puede ralentizar INSERT
         fill_factor = self._read_config_int(connection, "fill factor (%)")
         if fill_factor is not None and 0 < fill_factor < 70:

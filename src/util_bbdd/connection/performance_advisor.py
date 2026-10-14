@@ -394,6 +394,31 @@ class EngineReadinessAdvisor:
                             "SET GLOBAL innodb_flush_log_at_trx_commit = 2;",
                         )
                     )
+
+            log_file_size = current.get("innodb_log_file_size")
+            if log_file_size is not None:
+                log_file_fmt = validator.format_bytes(log_file_size)
+                warn_threshold = 512 * 1_048_576
+                if log_file_size < warn_threshold:
+                    findings.append(
+                        AdvisoryFinding(
+                            level="INFO",
+                            param="innodb_log_file_size",
+                            current=log_file_fmt,
+                            recommendation=f"Para bulk en datasets >10GB: aumentar a 1–2 GB "
+                            f"(actual: {log_file_fmt}); evita rotación frecuente de redo log; "
+                            f"dinámico en MySQL 8.0.30+, estático en 5.7 (requiere reinicio)",
+                        )
+                    )
+                else:
+                    findings.append(
+                        AdvisoryFinding(
+                            level="OK",
+                            param="innodb_log_file_size",
+                            current=log_file_fmt,
+                            recommendation="",
+                        )
+                    )
         except Exception as exc:
             logger.debug(f"_check_mysql_dynamic: {type(exc).__name__}: {exc}")
         return findings

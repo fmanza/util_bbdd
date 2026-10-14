@@ -16,6 +16,8 @@ _WARN_MAINT_MEM: int = 64 * 1_048_576  # 64 MB
 _INFO_MAINT_MEM: int = 256 * 1_048_576  # 256 MB
 _WARN_SHARED_BUFFERS: int = 256 * 1_048_576  # 256 MB (mínimo)
 _INFO_SHARED_BUFFERS: int = 1 * 1_073_741_824  # 1 GB (óptimo)
+_WARN_EFFECTIVE_CACHE: int = 512 * 1_048_576  # 512 MB (mínimo)
+_INFO_EFFECTIVE_CACHE: int = 4 * 1_073_741_824  # 4 GB (óptimo)
 
 # Whitelist de parámetros válidos para SHOW (F-01: prevenir inyección SQL)
 _VALID_SHOW_PARAMS: frozenset[str] = frozenset(
@@ -26,6 +28,7 @@ _VALID_SHOW_PARAMS: frozenset[str] = frozenset(
         "max_connections",
         "wal_level",
         "shared_buffers",
+        "effective_cache_size",
     }
 )
 
@@ -164,6 +167,17 @@ class PostgreSQLVariableValidator:
             warn_recommendation="Recomendado ≥256 MB para cargas masivas (actual default ~128 MB); "
             "SET shared_buffers en postgresql.conf (requiere reinicio)",
             info_recommendation="Óptimo: ≥1 GB (25% de RAM típica) para máximo rendimiento en bulk",
+        )
+
+        self._add_memory_finding(
+            findings,
+            connection,
+            param="effective_cache_size",
+            warn_threshold=_WARN_EFFECTIVE_CACHE,
+            info_threshold=_INFO_EFFECTIVE_CACHE,
+            warn_recommendation="Recomendado ≥512 MB (hint al planner, no reserva memoria); "
+            "SET effective_cache_size = '2GB'; típicamente 50% de RAM disponible",
+            info_recommendation="Óptimo: ≥4 GB (50% RAM típica) para mejor planeamiento en bulk",
         )
 
         return findings
