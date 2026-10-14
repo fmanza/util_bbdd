@@ -5,9 +5,9 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [1.2.1] - 2026-10-14
+## [2.1.0] - 2026-10-14
 
-Sesión `.ai/sessions/2026-10-14-performance-advisor-phase1-3/`. SemVer: PATCH (mejoras sin cambios incompatibles).
+Sesión `.ai/sessions/2026-10-14-performance-advisor-phase1-3/`. SemVer: MINOR (features aditivas, sin cambios incompatibles).
 
 ### Added
 
