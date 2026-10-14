@@ -160,6 +160,165 @@ class DumpOrchestrator:
         self._write_dump_events(writer, result, None, time.perf_counter() - started)
         return result
 
+    def _init_dump_run(self) -> tuple[Path, Path | None, datetime]:
+        """Inicializa paths y auditoría para el volcado."""
+        cfg = self._cfg
+        output_dir: Path = validate_path(cfg.output_dir, "output_dir")
+        bulk_audit_path: Path | None = validate_optional_path(cfg.bulk_audit_path, "bulk_audit_path")
+        dump_inicio = datetime.now()
+        self._reset_audit_tracking()
+        self._audit_start_offset = DumpOrchestrator._file_size(bulk_audit_path)
+        self._audit_start_identity = DumpOrchestrator._file_identity(bulk_audit_path)
+        if bulk_audit_path is None and cfg.audit_sink is None:
+            self.logger.info("Auditoría bulk deshabilitada en el volcado (bulk_audit_path=None).")
+        return output_dir, bulk_audit_path, dump_inicio
+
+    def _analyze_dump_phase(self) -> tuple[list[str], dict[str, str], list[str], list[str], list[list[str]]]:
+        """FASE 1: Análisis de carga. Retorna (src_tables, dst_lower, missing_in_dst, load_order, cycles)."""
+        cfg = self._cfg
+        try:
+            src_tables = self._get_source_tables()
+            _dst_names = table_names(self._dst_insp, cfg.target_schema)
+        except SQLAlchemyError as exc:
+            raise DumpError(f"Error analizando tablas de origen/destino para el volcado: {exc}") from exc
+
+        dst_lower: dict[str, str] = {}
+        for _t in _dst_names:
+            _key = _t.lower()
+            if _key in dst_lower:
+                self.logger.warning(
+                    "Colisión de nombre en destino (case): '%s' y '%s' colisionan al normalizar; se usará '%s'.",
+                    dst_lower[_key],
+                    _t,
+                    dst_lower[_key],
+                )
+            else:
+                dst_lower[_key] = _t
+
+        missing_in_dst: list[str] = [t for t in src_tables if t.lower() not in dst_lower]
+        load_order, cycles = DumpOrchestrator._topological_sort(src_tables, self._src_insp, cfg.source_schema)
+        return src_tables, dst_lower, missing_in_dst, load_order, cycles
+
+    def _compute_load_order(
+        self,
+        src_tables: list[str],
+        dst_lower: dict[str, str],
+        load_order: list[str],
+        missing_in_dst: list[str],
+    ) -> tuple[dict[str, str], list[str], list[str]]:
+        """Calcula src_to_dst y órdenes efectivos."""
+        src_to_dst: dict[str, str] = {t: dst_lower[t.lower()] for t in src_tables if t.lower() in dst_lower}
+        effective_src_order: list[str] = [t for t in load_order if t in src_to_dst]
+        effective_dst_order: list[str] = [src_to_dst[t] for t in effective_src_order]
+        return src_to_dst, effective_src_order, effective_dst_order
+
+    def _execute_load_phases(
+        self,
+        effective_src_order: list[str],
+        effective_dst_order: list[str],
+        src_to_dst: dict[str, str],
+        cycles: list[list[str]],
+        missing_in_dst: list[str],
+    ) -> tuple[list[TableDumpResult], IndexManager | None, BulkCrud, ConstraintManager]:
+        """Ejecuta Fases 2-4: constraints, cleanup y carga."""
+        cfg = self._cfg
+        table_results: list[TableDumpResult] = []
+        constraint_mgr = ConstraintManager(cfg.target_engine, cfg.target_schema)
+        index_mgr: IndexManager | None = None
+
+        with constraint_mgr:
+            constraint_mgr.disable_all(tables=effective_dst_order)
+            with ExitStack() as index_stack:
+                if cfg.manage_indexes:
+                    index_mgr = index_stack.enter_context(IndexManager(cfg.target_engine, cfg.target_schema))
+                    index_mgr.disable_all(tables=effective_dst_order)
+                if cfg.truncate_target:
+                    self._cleanup(list(reversed(effective_dst_order)), skip=set(missing_in_dst))
+
+                cycle_set = {t for group in cycles for t in group}
+                table_workers = self._resolve_max_workers(cfg.max_parallel_tables)
+                self._effective_pk_ranges = self._resolve_range_count(cfg.parallel_pk_ranges, table_workers)
+                crud = self._make_worker_crud()
+                if cfg.max_parallel_tables > 1:
+                    table_results.extend(self._load_parallel(effective_src_order, src_to_dst, cycle_set, table_workers))
+                else:
+                    table_results.extend(
+                        self._load_sequential(effective_src_order, src_to_dst, cycle_set, crud)
+                    )
+                self._reflect_loaded_tables(crud, table_results, src_to_dst)
+
+        table_results.extend(
+            TableDumpResult(
+                table_name=table,
+                source_rows=self._safe_count(cfg.source_engine, table, cfg.source_schema),
+                target_rows_before=0,
+                target_rows_after=0,
+                status="missing_target",
+                skipped_columns=[],
+                load_order_position=-1,
+            )
+            for table in missing_in_dst
+        )
+        return table_results, index_mgr, crud, constraint_mgr
+
+    def _load_sequential(
+        self, effective_src_order: list[str], src_to_dst: dict[str, str], cycle_set: set[str], crud: BulkCrud
+    ) -> list[TableDumpResult]:
+        """Carga las tablas secuencialmente."""
+        results: list[TableDumpResult] = []
+        for position, src_t in enumerate(effective_src_order):
+            dst_t = src_to_dst[src_t]
+            result = self._process_table(src_t, dst_t, position, src_t in cycle_set, crud)
+            results.append(result)
+            self.logger.info(
+                "  [%d/%d] %s → %s (%d filas)",
+                position + 1,
+                len(effective_src_order),
+                src_t,
+                result.status,
+                result.target_rows_after,
+            )
+        return results
+
+    def _safe_summarize_audit(self, bulk_audit_path: Path | None, dump_inicio: datetime) -> DumpAuditSummary | None:
+        """Resumen seguro de auditoría (captura errores)."""
+        try:
+            return self._summarize_audit(bulk_audit_path, dump_inicio)
+        except Exception as exc:
+            self.logger.warning("No se pudo resumir la auditoría del volcado: %s", exc, exc_info=True)
+            return None
+
+    def _generate_dump_report(
+        self,
+        dump_result: DumpResult,
+        table_results: list[TableDumpResult],
+        missing_tables: list[str],
+        constraint_results: list[ConstraintResult],
+        cycles: list[list[str]],
+        index_results: list[IndexActionResult] | None,
+        audit_summary: DumpAuditSummary | None,
+        pk_sync_results: list[PKSyncResult] | None,
+        constraint_reactivation_error: str | None,
+        output_dir: Path,
+    ) -> Path:
+        """Genera el informe Excel (FASE 5b)."""
+        try:
+            return DumpReporter(output_dir).generate(
+                table_results=table_results,
+                missing_tables=missing_tables,
+                constraint_results=constraint_results,
+                cycles=cycles,
+                index_results=index_results,
+                audit_summary=audit_summary,
+                pk_sync_results=pk_sync_results,
+                constraint_reactivation_error=constraint_reactivation_error,
+            )
+        except DumpReportError as exc:
+            dump_result.report = exc.output_path or output_dir
+            exc.result = dump_result
+            self.logger.error("Volcado completado, pero sin informe Excel: %s", exc)
+            raise
+
     def _write_dump_events(
         self, writer: DumpAuditWriter, result: DumpResult | None, error: BaseException | None, elapsed_s: float
     ) -> None:
@@ -193,50 +352,13 @@ class DumpOrchestrator:
 
     def _run_dump(self) -> DumpResult:
         """Cuerpo de :meth:`run` (mismas excepciones)."""
-        cfg = self._cfg
-        # DumpConfig.__post_init__ ya las deja como Path; se repite por si se reasignaron después de construirla.
-        output_dir: Path = validate_path(cfg.output_dir, "output_dir")
-        bulk_audit_path: Path | None = validate_optional_path(cfg.bulk_audit_path, "bulk_audit_path")
-        dump_inicio = datetime.now()
-        self._reset_audit_tracking()
-        # 3.4 (PF-08): tamaño del CSV de auditoría al empezar; el resumen solo lee lo añadido desde aquí.
-        self._audit_start_offset = DumpOrchestrator._file_size(bulk_audit_path)
-        self._audit_start_identity = DumpOrchestrator._file_identity(bulk_audit_path)
-        if bulk_audit_path is None and cfg.audit_sink is None:
-            # M-4 (audit-code de ParallelBulkLoader 2026-09-25): un aviso por volcado, no uno por BulkCrud creada.
-            self.logger.info("Auditoría bulk deshabilitada en el volcado (bulk_audit_path=None).")
-
-        # FASE 1: Análisis de carga
-        try:
-            src_tables = self._get_source_tables()
-            _dst_names = table_names(self._dst_insp, cfg.target_schema)
-        except SQLAlchemyError as exc:
-            raise DumpError(f"Error analizando tablas de origen/destino para el volcado: {exc}") from exc
-        # Comparación case-insensitive: motores distintos pueden devolver distinto case
-        dst_lower: dict[str, str] = {}
-        for _t in _dst_names:
-            _key = _t.lower()
-            if _key in dst_lower:
-                self.logger.warning(
-                    "Colisión de nombre en destino (case): '%s' y '%s' colisionan al normalizar; se usará '%s'.",
-                    dst_lower[_key],
-                    _t,
-                    dst_lower[_key],
-                )
-            else:
-                dst_lower[_key] = _t
-
-        # src_to_dst: nombre_origen → nombre_canonical_destino
-        src_to_dst: dict[str, str] = {t: dst_lower[t.lower()] for t in src_tables if t.lower() in dst_lower}
-        missing_in_dst: list[str] = [t for t in src_tables if t.lower() not in dst_lower]
-
-        load_order, cycles = DumpOrchestrator._topological_sort(src_tables, self._src_insp, cfg.source_schema)
-        # Orden topológico filtrado a tablas presentes en destino
-        effective_src_order: list[str] = [t for t in load_order if t in src_to_dst]
-        effective_dst_order: list[str] = [src_to_dst[t] for t in effective_src_order]
+        output_dir, bulk_audit_path, dump_inicio = self._init_dump_run()
+        src_tables, dst_lower, missing_in_dst, load_order, cycles = self._analyze_dump_phase()
+        src_to_dst, effective_src_order, effective_dst_order = self._compute_load_order(
+            src_tables, dst_lower, load_order, missing_in_dst
+        )
         self._prefetch_metadata(effective_src_order, effective_dst_order)
         self._warn_large_batch_with_lobs(effective_dst_order)
-
         self.logger.info(
             "Volcado: %d tablas origen, %d en destino, %d faltantes, %d ciclos FK.",
             len(src_tables),
@@ -244,122 +366,32 @@ class DumpOrchestrator:
             len(missing_in_dst),
             len(cycles),
         )
-
-        # Fases 2-5: dentro del ConstraintManager (enable_all garantizado en __exit__)
-        table_results: list[TableDumpResult] = []
-        constraint_mgr = ConstraintManager(cfg.target_engine, cfg.target_schema)
-        index_mgr: IndexManager | None = None
-
-        with constraint_mgr:
-            # FASE 2: Deshabilitar constraints (usando nombres canónicos del destino)
-            constraint_mgr.disable_all(tables=effective_dst_order)
-
-            # FASE 2b: Deshabilitar índices secundarios (opt-in). El IndexManager se anida
-            # dentro del ConstraintManager para que su rebuild (__exit__) se ejecute ANTES
-            # de la rehabilitación de constraints, que se beneficia de índices presentes.
-            with ExitStack() as index_stack:
-                if cfg.manage_indexes:
-                    index_mgr = index_stack.enter_context(IndexManager(cfg.target_engine, cfg.target_schema))
-                    index_mgr.disable_all(tables=effective_dst_order)
-
-                # FASE 3: Limpieza del destino (usando nombres canónicos del destino)
-                if cfg.truncate_target:
-                    self._cleanup(list(reversed(effective_dst_order)), skip=set(missing_in_dst))
-
-                # FASE 4: Carga (best-effort)
-                cycle_set = {t for group in cycles for t in group}
-                # Concurrencia efectiva: tablas en paralelo y rangos de PK por tabla,
-                # ambos acotados a la capacidad real del pool (tablas * rangos <= capacidad).
-                table_workers = self._resolve_max_workers(cfg.max_parallel_tables)
-                self._effective_pk_ranges = self._resolve_range_count(cfg.parallel_pk_ranges, table_workers)
-                crud = self._make_worker_crud()
-                if cfg.max_parallel_tables > 1:
-                    table_results.extend(self._load_parallel(effective_src_order, src_to_dst, cycle_set, table_workers))
-                else:
-                    for position, src_t in enumerate(effective_src_order):
-                        dst_t = src_to_dst[src_t]
-                        result = self._process_table(src_t, dst_t, position, src_t in cycle_set, crud)
-                        table_results.append(result)
-                        self.logger.info(
-                            "  [%d/%d] %s → %s (%d filas)",
-                            position + 1,
-                            len(effective_src_order),
-                            src_t,
-                            result.status,
-                            result.target_rows_after,
-                        )
-                # Reflejar en la crud compartida las tablas cargadas para la Fase 5a (PK sync): las cargadas en otros
-                # hilos o por rangos de PK (ParallelBulkLoader, con sus propias BulkCrud) no están en su caché. PD-11
-                # (2026-09-26): antes solo se hacía con max_parallel_tables > 1 y con rangos no se sincronizaba nada.
-                self._reflect_loaded_tables(crud, table_results, src_to_dst)
-
-        # Añadir tablas faltantes al resultado (informativo)
-        table_results.extend(
-            TableDumpResult(
-                table_name=table,
-                source_rows=self._safe_count(cfg.source_engine, table, cfg.source_schema),
-                target_rows_before=0,
-                target_rows_after=0,
-                status="missing_target",
-                skipped_columns=[],
-                load_order_position=-1,
-            )
-            for table in missing_in_dst
+        table_results, index_mgr, crud, constraint_mgr = self._execute_load_phases(
+            effective_src_order, effective_dst_order, src_to_dst, cycles, missing_in_dst
         )
-
         constraint_results: list[ConstraintResult] = constraint_mgr.constraint_results
         constraint_reactivation_error: str | None = constraint_mgr.reactivation_error
         index_results: list[IndexActionResult] | None = index_mgr.index_results if index_mgr is not None else None
-
-        # FASE 5a: Resincronizar contadores PK en destino (si está habilitado)
         pk_sync_results: list[PKSyncResult] | None = self._sync_pk_sequences(
-            crud=crud,
-            effective_dst_order=effective_dst_order,
+            crud=crud, effective_dst_order=effective_dst_order
         )
-
-        # Resumen de auditoría antes del informe, que lo incluye en la hoja "Auditoría Bulk". Las cargas y sus
-        # sesiones de auditoría ya han terminado; la sincronización de PK no audita.
-        # El resumen es informativo: un fallo inesperado no debe impedir el informe (la carga ya terminó).
-        try:
-            audit_summary = self._summarize_audit(bulk_audit_path, dump_inicio)
-        except Exception as exc:
-            self.logger.warning("No se pudo resumir la auditoría del volcado: %s", exc, exc_info=True)
-            audit_summary = None
-
+        audit_summary = self._safe_summarize_audit(bulk_audit_path, dump_inicio)
         dump_result = DumpResult(
             table_results=table_results,
             constraint_results=constraint_results,
             load_order=load_order,
             cycles_detected=cycles,
-            report=output_dir,  # se sustituye por la ruta del informe
+            report=output_dir,
             audit_summary=audit_summary,
             pk_sync_results=pk_sync_results,
             index_results=index_results,
             audit_run_id=self._audit_run_id,
             constraint_reactivation_error=constraint_reactivation_error,
         )
-
-        # FASE 5b: Generar informe Excel (la hoja "Columnas Inexistentes" se deriva
-        # de TableDumpResult.skipped_columns; no requiere comparación de esquemas)
-        try:
-            dump_result.report = DumpReporter(output_dir).generate(
-                table_results=table_results,
-                missing_tables=missing_in_dst,
-                constraint_results=constraint_results,
-                cycles=cycles,
-                index_results=index_results,
-                audit_summary=audit_summary,
-                pk_sync_results=pk_sync_results,
-                constraint_reactivation_error=constraint_reactivation_error,
-            )
-        except DumpReportError as exc:
-            # Sin esto, un fallo del informe perdía el resultado de una carga ya completada.
-            dump_result.report = exc.output_path or output_dir
-            exc.result = dump_result
-            # Sin traza: la excepción se relanza y la lleva; el llamador la registraría dos veces.
-            self.logger.error("Volcado completado, pero sin informe Excel: %s", exc)
-            raise
-
+        dump_result.report = self._generate_dump_report(
+            dump_result, table_results, missing_in_dst, constraint_results, cycles,
+            index_results, audit_summary, pk_sync_results, constraint_reactivation_error, output_dir
+        )
         return dump_result
 
     # ------------------------------------------------------------------
