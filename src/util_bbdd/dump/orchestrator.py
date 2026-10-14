@@ -204,7 +204,6 @@ class DumpOrchestrator:
         src_tables: list[str],
         dst_lower: dict[str, str],
         load_order: list[str],
-        missing_in_dst: list[str],
     ) -> tuple[dict[str, str], list[str], list[str]]:
         """Calcula src_to_dst y órdenes efectivos."""
         src_to_dst: dict[str, str] = {t: dst_lower[t.lower()] for t in src_tables if t.lower() in dst_lower}
@@ -355,7 +354,7 @@ class DumpOrchestrator:
         output_dir, bulk_audit_path, dump_inicio = self._init_dump_run()
         src_tables, dst_lower, missing_in_dst, load_order, cycles = self._analyze_dump_phase()
         src_to_dst, effective_src_order, effective_dst_order = self._compute_load_order(
-            src_tables, dst_lower, load_order, missing_in_dst
+            src_tables, dst_lower, load_order
         )
         self._prefetch_metadata(effective_src_order, effective_dst_order)
         self._warn_large_batch_with_lobs(effective_dst_order)
