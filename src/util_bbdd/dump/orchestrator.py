@@ -169,9 +169,11 @@ class DumpOrchestrator:
         bulk_audit_path: Path | None = validate_optional_path(cfg.bulk_audit_path, "bulk_audit_path")
         dump_inicio = datetime.now()
         self._reset_audit_tracking()
+        # 3.4 (PF-08): tamaño del CSV de auditoría al empezar; el resumen solo lee lo añadido desde aquí.
         self._audit_start_offset = DumpOrchestrator._file_size(bulk_audit_path)
         self._audit_start_identity = DumpOrchestrator._file_identity(bulk_audit_path)
         if bulk_audit_path is None and cfg.audit_sink is None:
+            # M-4 (audit-code de ParallelBulkLoader 2026-09-25): un aviso por volcado, no uno por BulkCrud creada.
             self.logger.info("Auditoría bulk deshabilitada en el volcado (bulk_audit_path=None).")
         return output_dir, bulk_audit_path, dump_inicio
 
@@ -208,6 +210,7 @@ class DumpOrchestrator:
         except SQLAlchemyError as exc:
             raise DumpError(f"Error analizando tablas de origen/destino para el volcado: {exc}") from exc
 
+        # Comparación case-insensitive: motores distintos pueden devolver distinto case
         dst_lower: dict[str, str] = {}
         for _t in _dst_names:
             _key = _t.lower()
@@ -232,7 +235,9 @@ class DumpOrchestrator:
         load_order: list[str],
     ) -> tuple[dict[str, str], list[str], list[str]]:
         """Calcula src_to_dst y órdenes efectivos."""
+        # src_to_dst: nombre_origen → nombre_canonical_destino
         src_to_dst: dict[str, str] = {t: dst_lower[t.lower()] for t in src_tables if t.lower() in dst_lower}
+        # Orden topológico filtrado a tablas presentes en destino
         effective_src_order: list[str] = [t for t in load_order if t in src_to_dst]
         effective_dst_order: list[str] = [src_to_dst[t] for t in effective_src_order]
         return src_to_dst, effective_src_order, effective_dst_order
@@ -251,16 +256,27 @@ class DumpOrchestrator:
         constraint_mgr = ConstraintManager(cfg.target_engine, cfg.target_schema)
         index_mgr: IndexManager | None = None
 
+        # Fases 2-4 dentro del ConstraintManager (enable_all garantizado en __exit__)
         with constraint_mgr:
+            # FASE 2: Deshabilitar constraints (usando nombres canónicos del destino)
             constraint_mgr.disable_all(tables=effective_dst_order)
+
+            # FASE 2b: Deshabilitar índices secundarios (opt-in). El IndexManager se anida
+            # dentro del ConstraintManager para que su rebuild (__exit__) se ejecute ANTES
+            # de la rehabilitación de constraints, que se beneficia de índices presentes.
             with ExitStack() as index_stack:
                 if cfg.manage_indexes:
                     index_mgr = index_stack.enter_context(IndexManager(cfg.target_engine, cfg.target_schema))
                     index_mgr.disable_all(tables=effective_dst_order)
+
+                # FASE 3: Limpieza del destino (usando nombres canónicos del destino)
                 if cfg.truncate_target:
                     self._cleanup(list(reversed(effective_dst_order)), skip=set(missing_in_dst))
 
+                # FASE 4: Carga (best-effort)
                 cycle_set = {t for group in cycles for t in group}
+                # Concurrencia efectiva: tablas en paralelo y rangos de PK por tabla,
+                # ambos acotados a la capacidad real del pool (tablas * rangos <= capacidad).
                 table_workers = self._resolve_max_workers(cfg.max_parallel_tables)
                 self._effective_pk_ranges = self._resolve_range_count(cfg.parallel_pk_ranges, table_workers)
                 crud = self._make_worker_crud()
@@ -268,8 +284,12 @@ class DumpOrchestrator:
                     table_results.extend(self._load_parallel(effective_src_order, src_to_dst, cycle_set, table_workers))
                 else:
                     table_results.extend(self._load_sequential(effective_src_order, src_to_dst, cycle_set, crud))
+                # Reflejar en la crud compartida las tablas cargadas para la Fase 5a (PK sync): las cargadas en otros
+                # hilos o por rangos de PK (ParallelBulkLoader, con sus propias BulkCrud) no están en su caché. PD-11
+                # (2026-09-26): antes solo se hacía con max_parallel_tables > 1 y con rangos no se sincronizaba nada.
                 self._reflect_loaded_tables(crud, table_results, src_to_dst)
 
+        # Añadir tablas faltantes al resultado (informativo)
         table_results.extend(
             TableDumpResult(
                 table_name=table,
@@ -305,6 +325,9 @@ class DumpOrchestrator:
 
     def _safe_summarize_audit(self, bulk_audit_path: Path | None, dump_inicio: datetime) -> DumpAuditSummary | None:
         """Resumen seguro de auditoría (captura errores)."""
+        # Resumen de auditoría antes del informe, que lo incluye en la hoja "Auditoría Bulk". Las cargas y sus
+        # sesiones de auditoría ya han terminado; la sincronización de PK no audita.
+        # El resumen es informativo: un fallo inesperado no debe impedir el informe (la carga ya terminó).
         try:
             return self._summarize_audit(bulk_audit_path, dump_inicio)
         except Exception as exc:
@@ -326,6 +349,8 @@ class DumpOrchestrator:
         engine_readiness: list[ReadinessBlock] | None = None,
     ) -> Path:
         """Genera el informe Excel (FASE 5b)."""
+        # La hoja "Columnas Inexistentes" se deriva de TableDumpResult.skipped_columns; no requiere comparación de
+        # esquemas.
         try:
             return DumpReporter(output_dir).generate(
                 table_results=table_results,
@@ -339,8 +364,10 @@ class DumpOrchestrator:
                 engine_readiness=engine_readiness,
             )
         except DumpReportError as exc:
+            # Sin esto, un fallo del informe perdía el resultado de una carga ya completada.
             dump_result.report = exc.output_path or output_dir
             exc.result = dump_result
+            # Sin traza: la excepción se relanza y la lleva; el llamador la registraría dos veces.
             self.logger.error("Volcado completado, pero sin informe Excel: %s", exc)
             raise
 
@@ -398,6 +425,7 @@ class DumpOrchestrator:
         constraint_results: list[ConstraintResult] = constraint_mgr.constraint_results
         constraint_reactivation_error: str | None = constraint_mgr.reactivation_error
         index_results: list[IndexActionResult] | None = index_mgr.index_results if index_mgr is not None else None
+        # FASE 5a: Resincronizar contadores PK en destino (si está habilitado)
         pk_sync_results: list[PKSyncResult] | None = self._sync_pk_sequences(
             crud=crud, effective_dst_order=effective_dst_order
         )
@@ -407,7 +435,7 @@ class DumpOrchestrator:
             constraint_results=constraint_results,
             load_order=load_order,
             cycles_detected=cycles,
-            report=output_dir,
+            report=output_dir,  # se sustituye por la ruta del informe
             audit_summary=audit_summary,
             pk_sync_results=pk_sync_results,
             index_results=index_results,

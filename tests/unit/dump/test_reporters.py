@@ -499,3 +499,37 @@ class TestPKSyncSheet:
         wb = _pk_workbook(tmp_path, [_pk()], index_results=[], audit_summary=_summary())
 
         assert wb.sheetnames[-3:] == ["Índices", "Auditoría Bulk", "Secuencias PK"]
+
+
+class TestConstraintReactivationErrorSheet:
+    SHEET = "Errores de Reactivación"
+
+    def test_without_error_there_is_no_sheet(self, tmp_path: Path) -> None:
+        assert self.SHEET not in _pk_workbook(tmp_path, None).sheetnames
+
+    def test_sheet_goes_after_the_other_optional_sheets_and_before_engine_conditions(self, tmp_path: Path) -> None:
+        # v1.2.0 a v2.1.0 la insertaban la 4.ª y desplazaban Índices, Auditoría Bulk y Secuencias PK.
+        wb = _pk_workbook(
+            tmp_path,
+            [_pk()],
+            index_results=[],
+            audit_summary=_summary(),
+            constraint_reactivation_error="conexión perdida",
+            engine_readiness=[("Destino", None)],
+        )
+
+        assert wb.sheetnames[3:] == [
+            "Índices",
+            "Auditoría Bulk",
+            "Secuencias PK",
+            self.SHEET,
+            "Condiciones del motor",
+        ]
+
+    def test_message_column_keeps_its_width_and_wraps(self, tmp_path: Path) -> None:
+        ws = _pk_workbook(tmp_path, None, constraint_reactivation_error="boom")[self.SHEET]
+
+        assert ws.cell(row=2, column=2).value == "boom"
+        assert ws.column_dimensions["A"].width == 30
+        assert ws.column_dimensions["B"].width == 80
+        assert ws.cell(row=2, column=2).alignment.wrap_text is True

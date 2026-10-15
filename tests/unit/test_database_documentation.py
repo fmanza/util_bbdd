@@ -100,6 +100,10 @@ def test_constructor_validates_without_reading_the_database(tmp_path: Path) -> N
         {"imprimir": "todo"},
         {"headers_file": Path("no_existe.json")},
         {"imprimir": {"plantilla_word": "no_existe.docx"}},
+        {"batch_window_seconds": -1},
+        {"batch_window_seconds": "90"},
+        {"batch_window_seconds": True},
+        {"batch_window_seconds": 1.5},
     ],
 )
 def test_invalid_configuration_raises_documentation_config_error(tmp_path: Path, kwargs: dict[str, Any]) -> None:
@@ -108,6 +112,11 @@ def test_invalid_configuration_raises_documentation_config_error(tmp_path: Path,
 
     assert isinstance(raised.value, ValueError)  # compatibilidad con quien capturaba ValueError
     assert isinstance(raised.value, DocumentationError)
+
+
+@pytest.mark.parametrize(("value", "expected"), [(None, 90), (0, 0), (300, 300)])
+def test_batch_window_seconds_accepts_none_and_non_negative_ints(value: int | None, expected: int) -> None:
+    assert DatabaseDocumentation._batch_window(value) == expected
 
 
 def test_missing_word_template_is_ignored_when_word_is_not_requested(tmp_path: Path) -> None:

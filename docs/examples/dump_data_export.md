@@ -49,7 +49,7 @@ python -m py_compile docs/examples/dump_data_export.py
 python docs/examples/dump_data_export.py
 ```
 
-El informe Excel `reports/dump_report_<timestamp>.xlsx` contiene hojas de Auditoría Tablas, Tablas Faltantes y Columnas Inexistentes, y, si aplican, Índices (con `manage_indexes=True`), Auditoría Bulk (con `bulk_audit_path`) y Secuencias PK (con `sync_pk_sequences=True`, el valor por defecto). La última hoja, Condiciones del motor, recoge siempre la verificación de `EngineReadinessAdvisor` del origen y del destino.
+El informe Excel `reports/dump_report_<timestamp>.xlsx` contiene hojas de Auditoría Tablas, Tablas Faltantes y Columnas Inexistentes, y, si aplican, Índices (con `manage_indexes=True`), Auditoría Bulk (con `bulk_audit_path`) Secuencias PK (con `sync_pk_sequences=True`, el valor por defecto) y Errores de Reactivación (si falla la reactivación general de constraints). La última hoja, Condiciones del motor, recoge siempre la verificación de `EngineReadinessAdvisor` del origen y del destino.
 
 ## 5. Referencias Relacionadas
 

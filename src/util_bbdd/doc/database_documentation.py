@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 from typing import Any, ClassVar
 
+from .._core.exceptions import DocumentationConfigError
 from .application.ports import DocumentationSourcePort, OutputCache
 from .application.use_cases.documentation_orchestrator import (
     DocumentationBootstrap,
@@ -56,12 +57,13 @@ class DatabaseDocumentation:
         formatos: Formatos a generar: 'word', 'excel', 'html' (por defecto ``["word"]``).
         headers_file: JSON con las cabeceras de cada sección (``{"headers": {"COLUMNAS": {"base": [...]}, ...}}``).
         batch_window_seconds: Ventana temporal en segundos para agrupar generaciones automáticas en la misma carpeta
-            (default 90). Si ``fichero_salida`` es None y se lanzan dos generaciones dentro de esta ventana,
-            reutilizan el mismo nombre.
+            (default 90; entero ≥ 0, ``0`` no agrupa). Si ``fichero_salida`` es None y se lanzan dos generaciones
+            dentro de esta ventana, reutilizan el mismo nombre.
 
     Raises:
         DocumentationConfigError: Configuración inválida (formato no soportado, ``imprimir`` que no es un diccionario,
-            cabeceras inexistentes o mal formadas, plantilla Word que no existe). También es ``ValueError``.
+            cabeceras inexistentes o mal formadas, plantilla Word que no existe, ``batch_window_seconds`` que no es un
+            entero ≥ 0). También es ``ValueError``.
 
     Example:
         >>> with SyncDatabaseManager("postgresql", conn_params) as manager:
@@ -87,9 +89,7 @@ class DatabaseDocumentation:
         self._logger: logging.Logger = logging.getLogger(__name__)
         self._output_policy = DocumentationOutputRuntime()
         self._source = SyncDatabaseManagerAdapter(db_manager, {})
-        resolved_batch_window: int = (
-            batch_window_seconds if batch_window_seconds is not None else self._AUTO_OUTPUT_BATCH_WINDOW_SECONDS
-        )
+        resolved_batch_window: int = self._batch_window(batch_window_seconds)
         self._bootstrap = DocumentationBootstrap(
             db_manager=self._source,
             directorio_salida=directorio_salida,
@@ -106,6 +106,20 @@ class DatabaseDocumentation:
         )
         self._settings: DocumentationSettings = self._bootstrap.settings()
         self._source.imprimir_config = self._settings.print_config
+
+    @classmethod
+    def _batch_window(cls, value: int | None) -> int:
+        """``batch_window_seconds`` validado: entero ≥ 0 (``0`` no agrupa); ``None``, el valor por defecto (90 s).
+
+        Hasta ahora no se validaba: un negativo no agrupaba nunca y un ``str`` fallaba al comparar, ya en ``generate()``.
+        """
+        if value is None:
+            return cls._AUTO_OUTPUT_BATCH_WINDOW_SECONDS
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise DocumentationConfigError(
+                f"batch_window_seconds debe ser un entero ≥ 0, recibido: {value!r}", operation="DOCUMENTATION"
+            )
+        return value
 
     def generate(self) -> DocumentationResult:
         """Lee el catálogo y genera los documentos de todos los formatos pedidos.

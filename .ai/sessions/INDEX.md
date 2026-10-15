@@ -275,6 +275,19 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-10-09k-doc-architecture-audit | **documentation-architecture-audit de `doc/` + `analysis/`** (6 fases): diagramas Graphviz por lotes (`prefetch`, `dot -O`; HTML 12,6×), un generador por documentación (B-02), almacenamiento declarativo por motor (B-01), API `util_bbdd.doc` mínima con errores propios; v0.41.0 READY_FOR_RELEASE (sin tag) | develop | documentation-architecture-audit | CLOSED | `2026-10-09k-doc-architecture-audit/TRACEABILITY.md` |
 | 2026-10-09l-plan-pendientes-doc | **PLAN + AUDIT_PLAN de los pendientes de la auditoría de `doc/`**: B-04 (DDL de HSQLDB: `LISTAGG`, rama de vistas y relleno), S-02 confirmado (ningún motor devuelve entidades), orden del inventario, docstrings, dorado de Oracle, `mypy --strict`, matplotlib; GO_CONDICIONAL (D1–D5) | develop | plan | CLOSED | `2026-10-09l-plan-pendientes-doc/TRACEABILITY.md` |
 | 2026-10-10-plan-pendientes-global | **PLAN + AUDIT_PLAN de todo lo pendiente** tras v0.41.1: H1 confirmado (lecturas de catálogo sin fin de transacción; MySQL ve metadatos obsoletos con `use_pool=False`), H2 no reproducido, F3–F7, CI de integración, API 1.0, release 0.41.2; GO_CONDICIONAL (D1–D5) | develop | plan | CLOSED | `2026-10-10-plan-pendientes-global/TRACEABILITY.md` |
+| 2026-10-10-api-1-0 | **API 1.0**: raíz reducida a los puntos de entrada y submódulos públicos (v0.43.0) | develop | refactor | CLOSED | `2026-10-10-api-1-0/TRACEABILITY.md` |
+| 2026-10-10-exceptions-module-name | Módulo público `util_bbdd.exceptions` (v0.44.0) | develop | refactor | CLOSED | `2026-10-10-exceptions-module-name/TRACEABILITY.md` |
+| 2026-10-10-api-1-0-final | **v1.0.0**: cierre de la API 1.0 (ruptura autorizada) y revisión de documentación | develop | refactor | CLOSED | `2026-10-10-api-1-0-final/TRACEABILITY.md` |
+| 2026-10-10-plan-pendientes-post-1-0 | Pendientes tras v1.0.0: refactor A5 de `BulkCrud`, rutas `str`, hotfix asyncpg/pyodbc (v1.1.0) | develop | plan + refactor + new_feature + hotfix | CLOSED | `2026-10-10-plan-pendientes-post-1-0/TRACEABILITY.md` |
+| 2026-10-10-docs-review-nivel-2 | Revisión nivel 2 de 82 páginas de `docs/` (v1.1.1) | develop | documentation | CLOSED | `2026-10-10-docs-review-nivel-2/TRACEABILITY.md` |
+| 2026-10-11-hotfix-doc-auto-filename | Hotfix `doc`: nombre automático sin caracteres prohibidos en Windows (v1.1.1) | develop | hotfix | CLOSED | `2026-10-11-hotfix-doc-auto-filename/TRACEABILITY.md` |
+| 2026-10-11-hotfix-doc-render-error | Hotfix `doc`: `DocumentationRenderError` al preparar la salida (v1.1.1) | develop | hotfix | CLOSED | `2026-10-11-hotfix-doc-render-error/TRACEABILITY.md` |
+| 2026-10-14-dump-constraint-reactivation | `DumpResult.constraint_reactivation_error` + hoja «Errores de Reactivación» (v1.2.0) | develop | new_feature | CLOSED | `2026-10-14-dump-constraint-reactivation/TRACEABILITY.md` |
+| 2026-10-14-remove-reserved-exceptions | Retirada de `PoolExhaustedError` y `DiffReportGenerationError` (v2.0.0, MAJOR) | develop | refactor | CLOSED | `2026-10-14-remove-reserved-exceptions/TRACEABILITY.md` |
+| 2026-10-15-engine-conditions-doc | Sección «Condiciones del motor» en `DatabaseDocumentation` (Word, Excel, HTML) | develop | audit_code + new_feature | CLOSED | `2026-10-15-engine-conditions-doc/TRACEABILITY.md` |
+| 2026-10-15-engine-readiness-audit-sheets | Hoja «Condiciones del motor» en los Excel de `bulk` y `dump` | develop | new_feature | CLOSED | `2026-10-15-engine-readiness-audit-sheets/TRACEABILITY.md` |
+| 2026-10-15-refactor-doc-readiness | La sección de `doc` reutiliza `audit.readiness` | develop | refactor | CLOSED | `2026-10-15-refactor-doc-readiness/TRACEABILITY.md` |
+| 2026-10-15b-audit-code-v1.0.0-v2.1.0 | **audit-code v1.0.0 → HEAD** + `/tech-debt` (Fase 1 implementada: T-01, T-02, T-05, T-12, T-13) | develop | audit_code + tech_debt | CLOSED | `2026-10-15b-audit-code-v1.0.0-v2.1.0/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 

@@ -271,7 +271,7 @@ Sección: "Integración 2b: Sección «Condiciones del motor» en DatabaseDocume
 |---|---|---|---|---|---|
 | **Auditoría bulk** | `.../performance_audit_bulk.prompt.md` | Integración 1 | ✅ | Pool config, timeouts | Pre-requisitos en report |
 | **Auditoría dump** | `.../performance_audit_dump.prompt.md` | Integración 3 | ✅ | Engine origen + destino | Checks Fase 2 en report |
-| **Documentación doc** | `.../technical_doc.prompt.md` | Integración 2 | ✅ | EngineReadinessAdvisor.py | `docs/api/engine_readiness_advisor.md` |
+| **Documentación doc** | `.../technical_doc.prompt.md` | Integración 2 | ✅ | EngineReadinessAdvisor.py | [`docs/api/engine_readiness_advisor.md`](../api/engine_readiness_advisor.md) |
 | **Condiciones del motor en doc** | `.../engine_readiness_integration.prompt.md` | Integración 2b | 🔲 | `imprimir["condiciones_motor"]` | Sección en Word/Excel/HTML |
 
 ---

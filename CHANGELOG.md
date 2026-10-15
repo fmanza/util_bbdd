@@ -35,6 +35,21 @@ SemVer: MINOR (features aditivas, sin cambios incompatibles; la sección nueva e
   `EngineReadinessReportView` de `doc.application.ports` pasan a ser alias de los Protocols de `audit.readiness`.
 - **dump**: el volcado verifica también el motor de **origen** al empezar (una conexión y su bloque en el LOG, una vez
   por engine en el proceso). La figura de capas (`docs/architecture.md`) incluye la arista `dump → connection`.
+- **dump**: la hoja «Errores de Reactivación» del informe Excel va detrás de «Índices», «Auditoría Bulk» y «Secuencias
+  PK» (y antes de «Condiciones del motor»), como el resto de hojas opcionales. De v1.2.0 a v2.1.0 se insertaba la 4.ª y
+  desplazaba esas tres cuando había error de reactivación: quien lea las hojas por posición debe leerlas por nombre.
+  Sus columnas tienen ancho fijo (30/80) y el mensaje se ajusta a la celda; antes `_autowidth` las recalculaba y el
+  mensaje quedaba en la columna estrecha.
+- **doc**: `DatabaseDocumentation(batch_window_seconds=...)` valida el valor al construir: un entero ≥ 0 o `None`; otro
+  valor (negativo, `bool`, `str`, `float`) da `DocumentationConfigError`. Antes un negativo no agrupaba nunca y un `str`
+  fallaba ya en `generate()`.
+
+### Documentation
+
+- Página de API `docs/api/engine_readiness_advisor.md` (`EngineReadinessAdvisor`, `EngineReadinessReport`,
+  `AdvisoryFinding`); la guía de rendimiento enlazaba a `validators_system.md`, que no los describe. La guía de
+  integración en prompts pasa a «Herramientas IA» en la navegación.
+- `.ai/CURRENT_STATE.md` al día (v2.1.0) y `.ai/sessions/INDEX.md` con las 13 sesiones que faltaban desde 2026-10-10.
 
 ## [2.1.0] - 2026-10-14
 

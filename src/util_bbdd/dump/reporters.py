@@ -4,10 +4,10 @@ Genera un único fichero ``.xlsx`` con tres hojas fijas y hasta cinco opcionales
   - ``Auditoría Tablas``: volumetría origen vs. destino por tabla.
   - ``Tablas Faltantes``: tablas del origen sin correspondencia en destino.
   - ``Columnas Inexistentes``: columnas presentes en origen pero ausentes en destino.
-  - ``Errores de Reactivación`` (opcional): fallo general al reactivar constraints en destino.
   - ``Índices`` (opcional): índices secundarios deshabilitados y reconstruidos.
   - ``Auditoría Bulk`` (opcional): resumen del CSV de auditoría de ``bulk`` y contadores del volcado.
   - ``Secuencias PK`` (opcional): resincronización de los contadores de PK en destino.
+  - ``Errores de Reactivación`` (opcional): fallo general al reactivar constraints en destino.
   - ``Condiciones del motor`` (opcional; ``DumpOrchestrator`` la pide siempre): ``EngineReadinessAdvisor`` de origen y
     destino.
 
@@ -46,11 +46,11 @@ class DumpReporter:
     - **Tablas Faltantes** (fija): tablas del origen que no existen en destino.
     - **Columnas Inexistentes** (fija): columnas presentes en origen pero ausentes en
       destino (omitidas de la carga).
-    - **Errores de Reactivación** (opcional): fallo general al reactivar constraints.
-      Solo aparece si ``constraint_reactivation_error`` != None.
     - **Índices** (opcional): índices secundarios deshabilitados/reconstruidos.
     - **Auditoría Bulk** (opcional): resumen del CSV de auditoría y contadores del volcado.
     - **Secuencias PK** (opcional): sincronización de contadores de PK en destino.
+    - **Errores de Reactivación** (opcional): fallo general al reactivar constraints.
+      Solo aparece si ``constraint_reactivation_error`` != None.
     - **Condiciones del motor** (opcional): condiciones de ejecución de origen y destino (``EngineReadinessAdvisor``).
 
     Las hojas opcionales se añaden siempre al final, para no mover las demás.
@@ -206,14 +206,16 @@ class DumpReporter:
             self._sheet_audit(wb, table_results, constraint_results, cycles)
             self._sheet_missing_tables(wb, missing_tables)
             self._sheet_missing_columns(wb, table_results)
-            if constraint_reactivation_error is not None:
-                self._sheet_constraint_reactivation_error(wb, constraint_reactivation_error)
             if index_results is not None:
                 self._sheet_indexes(wb, index_results)
             if audit_summary is not None:
                 self._sheet_bulk_audit(wb, audit_summary)
             if pk_sync_results is not None:
                 self._sheet_pk_sync(wb, pk_sync_results)
+            # Detrás de las opcionales anteriores (v1.2.0 la ponía 4.ª y desplazaba Índices, Auditoría Bulk y
+            # Secuencias PK); «Condiciones del motor» sigue siendo la última.
+            if constraint_reactivation_error is not None:
+                self._sheet_constraint_reactivation_error(wb, constraint_reactivation_error)
             if engine_readiness is not None:
                 ReadinessSheetWriter().write(wb.create_sheet("Condiciones del motor"), engine_readiness)
 
@@ -318,8 +320,7 @@ class DumpReporter:
         ws.column_dimensions["A"].width = 34  # la nota no debe ensanchar la columna de métricas
 
     # ------------------------------------------------------------------
-    # ------------------------------------------------------------------
-    # Hoja 4: Errores de reactivación de constraints (opcional)
+    # Hoja 7: Errores de reactivación de constraints (opcional)
     # ------------------------------------------------------------------
 
     def _sheet_constraint_reactivation_error(
@@ -336,6 +337,7 @@ class DumpReporter:
 
         self._cell(ws, 2, 1, "Reactivación de Constraints", bg=self._COL_RED)
         self._cell(ws, 2, 2, error_msg or "Error desconocido", bg=self._COL_RED)
+        ws.cell(row=2, column=2).alignment = Alignment(vertical="top", wrap_text=True)  # mensajes largos del driver
 
         nota = ws.cell(
             row=4,
@@ -347,11 +349,11 @@ class DumpReporter:
             ),
         )
         nota.font = Font(italic=True, size=9)
-        ws.column_dimensions["A"].width = 22
+        # Anchos fijos y sin _autowidth: la nota de la fila 4 ensancharía A y un mensaje corto estrecharía B.
+        ws.column_dimensions["A"].width = 30
         ws.column_dimensions["B"].width = 80
 
-        self._autowidth(ws)
-
+    # ------------------------------------------------------------------
     # Hoja 4: Índices gestionados (opcional)
     # ------------------------------------------------------------------
 

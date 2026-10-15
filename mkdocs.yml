@@ -56,6 +56,7 @@ nav:
           - Lectura de Metadatos: api/metadata_manager.md
       - Conexiones:
           - Factory de Conexiones: api/connection_factory.md
+          - Condiciones del Motor (EngineReadinessAdvisor): api/engine_readiness_advisor.md
       - Utilidades:
           - Utilidades Async (maybe_await): api/async_utils.md
       - Operaciones Bulk:
@@ -115,7 +116,6 @@ nav:
       - Rendimiento:
           - Performance & Benchmarks: guides/benchmarks.md
           - Validación de Parámetros (EngineReadinessAdvisor): guides/performance_readiness_guide.md
-          - Integración de EngineReadinessAdvisor (auditorías): guides/engine_readiness_usage_guide.md
           - Performance Audit (General): guides/performance_audit_guide.md
           - Performance Audit (Constraints): guides/performance_audit_constraints_guide.md
       - Reutilización de Código: guides/code_reusability_analysis_guide.md
@@ -132,6 +132,7 @@ nav:
           - Verificación de docs (--verify-tools / --verify-build): guides/doc_verification_guide.md
           - Distribución offline (ZIP): guides/docs_offline_zip_guide.md
           - Diagrama de arquitectura (regenerar): guides/architecture_diagram_guide.md
+          - Integración de EngineReadinessAdvisor en prompts: guides/engine_readiness_usage_guide.md
 
   # ── Ejemplos de código ─────────────────────────────────────────────────────
   - Ejemplos:

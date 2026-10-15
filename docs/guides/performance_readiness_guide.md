@@ -350,7 +350,7 @@ DumpOrchestrator(DumpConfig(source_engine=origen, target_engine=engine)).run()
 
 ## Referencias
 
-- [EngineReadinessAdvisor API](../api/validators_system.md)
+- [EngineReadinessAdvisor API](../api/engine_readiness_advisor.md)
 - [Connection Guide](./connection_guide.md)
 - [Benchmarks](./benchmarks.md)
 - [Performance Audit Constraints](./performance_audit_constraints_guide.md)
