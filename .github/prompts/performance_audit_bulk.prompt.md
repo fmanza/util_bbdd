@@ -24,6 +24,10 @@ Si falta alguno, decláralos como supuesto explícito antes de continuar.
 
 Agente: `.github/agents/performance-auditor.agent.md` (10 áreas y criterios de prioridad).
 
+> ⚠️ **Pre-requisito**: Antes de auditar rendimiento, consultar `.github/prompts/engine_readiness_integration.prompt.md`
+> para validar que el engine y su pool están correctamente configurados mediante `EngineReadinessAdvisor`.
+> Esto es crítico para evitar incidentes en cargas concurrentes (pool exhaustion, lost connections).
+
 ---
 
 ## 🔍 Áreas de auditoría

@@ -7,6 +7,10 @@
 Agente: Performance Auditor. Flujo operativo en 5 fases: `.github/prompts/performance_audit_dump_agent.prompt.md`.
 Guía: `.claude/performance-audit-guide.md` (cuellos CB1–CB8) y `docs/guides/performance_audit_guide.md`.
 
+> ⚠️ **Pre-requisito**: Antes de auditar rendimiento de dump, consultar `.github/prompts/engine_readiness_integration.prompt.md`
+> para validar que los engines origen **y destino** están correctamente configurados mediante `EngineReadinessAdvisor`.
+> Esto es crítico para volcados masivos (evita timeouts, lost connections, pool exhaustion).
+
 ## Inputs requeridos
 
 - **Objetivo**: áreas a optimizar (`lectura` | `constraints` | `indexes` | `todas`)
