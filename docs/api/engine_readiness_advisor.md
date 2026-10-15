@@ -90,11 +90,12 @@ con su `AsyncEngine` ([managers async](managers_async.md)).
 
 | Componente | Responsabilidad |
 |---|---|
-| `EngineReadinessAdvisor` | Punto de entrada: elige el validador por motor, ordena, informa y guarda por engine |
+| `EngineReadinessAdvisor` | Punto de entrada: elige el validador del motor en un registro (Strategy: `motor → validador`), ordena, informa y guarda por engine |
 | `AdvisoryFinding` | Un hallazgo |
 | `EngineReadinessReport` | Hallazgos y condiciones de la verificación |
 | `MySQLVariableValidator` | Lectura de variables de MySQL/MariaDB con `SHOW VARIABLES` ([referencia](mysql_variables.md)) |
-| Validadores de PostgreSQL, SQL Server, Oracle y SQLite | Internos (`connection/<motor>/_variables.py`): checks estáticos y dinámicos de cada motor |
+| `PostgreSQLVariableValidator`, `SQLServerVariableValidator`, `OracleVariableValidator`, `SQLiteVariableValidator` | Checks estáticos (`check_static`) y dinámicos (`check_dynamic`) de cada motor (`util_bbdd.connection.<motor>`); cumplen el Protocol `ReadinessValidator` |
+| `MySQLReadinessValidator` | Interno (`connection/mariadb/_readiness.py`): los checks de MySQL/MariaDB con la misma interfaz; lee las variables con `MySQLVariableValidator` |
 | `audit.readiness.ReadinessSheetWriter` | Hoja «Condiciones del motor» de los Excel de `bulk` y `dump` ([auditoría bulk](bulk_audit.md), [informe de volcado](dump_reporter.md)) |
 
 ## 4. Dependencias y Requisitos

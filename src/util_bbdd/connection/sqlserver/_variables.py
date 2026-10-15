@@ -87,105 +87,84 @@ class SQLServerVariableValidator:
         return findings
 
     def check_dynamic(self, connection: Any, conn_params: dict[str, Any]) -> list[AdvisoryFinding]:
-        """Checks dinámicos vía sys.configurations y sys.databases."""
-        findings: list[AdvisoryFinding] = []
-
-        # max_degree_of_parallelism (MAXDOP): 0 = ilimitado; recomendado nCPU/2 para OLTP bulk
-        maxdop = self._read_config_int(connection, "max degree of parallelism")
-        if maxdop is not None:
-            if maxdop == 0:
-                findings.append(
-                    AdvisoryFinding(
-                        level="INFO",
-                        param="max_degree_of_parallelism",
-                        current="0 (ilimitado)",
-                        recommendation="Para OLTP bulk: ajustar a nCPU/2 (máximo 8) con EXEC sp_configure "
-                        "'max degree of parallelism', <n>; RECONFIGURE; (o ALTER DATABASE SCOPED CONFIGURATION "
-                        "SET MAXDOP = <n>;); evita overhead de paralelismo en queries pequeñas",
-                    )
-                )
-            elif maxdop > 8:
-                findings.append(
-                    AdvisoryFinding(
-                        level="INFO",
-                        param="max_degree_of_parallelism",
-                        current=str(maxdop),
-                        recommendation="Valor alto; puede saturar CPU en bulk. Considerar nCPU/2 para balance OLTP/bulk",
-                    )
-                )
-            else:
-                findings.append(
-                    AdvisoryFinding(
-                        level="OK",
-                        param="max_degree_of_parallelism",
-                        current=str(maxdop),
-                        recommendation="",
-                    )
-                )
-
-        # cost threshold for parallelism: umbral de costo para paralelismo. T-03: el INFO saltaba por debajo de 10 con
-        # el texto «recomendado 50–100» (20 salía OK); el umbral pasa a 50, como el texto.
-        cost_threshold = self._read_config_int(connection, "cost threshold for parallelism")
-        if cost_threshold is not None:
-            if cost_threshold < 50:
-                findings.append(
-                    AdvisoryFinding(
-                        level="INFO",
-                        param="cost_threshold_for_parallelism",
-                        current=str(cost_threshold),
-                        recommendation="Valor bajo (<50; por defecto 5) puede activar paralelismo en queries pequeñas "
-                        "con overhead; recomendado 50–100 para OLTP bulk",
-                    )
-                )
-            else:
-                findings.append(
-                    AdvisoryFinding(
-                        level="OK",
-                        param="cost_threshold_for_parallelism",
-                        current=str(cost_threshold),
-                        recommendation="",
-                    )
-                )
-
-        # fill factor: 0 = 100% (óptimo para carga inicial); bajo puede ralentizar INSERT
-        fill_factor = self._read_config_int(connection, "fill factor (%)")
-        if fill_factor is not None and 0 < fill_factor < 70:
-            findings.append(
-                AdvisoryFinding(
-                    level="INFO",
-                    param="fill_factor",
-                    current=f"{fill_factor}%",
-                    recommendation="fill factor=0 (100%) es óptimo para carga inicial masiva",
-                )
-            )
-
-        # recovery model de la base de datos activa
+        """Checks dinámicos vía sys.configurations y sys.databases (uno por helper; T-06, Sonar S3776)."""
         database: str = str(conn_params.get("database", ""))
-        if database:
-            recovery = self._read_recovery_model(connection, database)
-            if recovery is not None:
-                recovery_name = {1: "FULL", 2: "BULK_LOGGED", 3: "SIMPLE"}.get(recovery, str(recovery))
-                if recovery == 1:  # FULL
-                    findings.append(
-                        AdvisoryFinding(
-                            level="INFO",
-                            param="recovery_model",
-                            current=recovery_name,
-                            recommendation="Para carga masiva sin replicación: "
-                            "ALTER DATABASE ... SET RECOVERY BULK_LOGGED durante la carga",
-                        )
-                    )
-                else:
-                    findings.append(
-                        AdvisoryFinding(
-                            level="OK",
-                            param="recovery_model",
-                            current=recovery_name,
-                            recommendation="",
-                        )
-                    )
+        checks = (
+            self._maxdop_finding(self._read_config_int(connection, "max degree of parallelism")),
+            self._cost_threshold_finding(self._read_config_int(connection, "cost threshold for parallelism")),
+            self._fill_factor_finding(self._read_config_int(connection, "fill factor (%)")),
+            self._recovery_model_finding(self._read_recovery_model(connection, database) if database else None),
+        )
+        return [finding for finding in checks if finding is not None]
 
-        return findings
+    @staticmethod
+    def _maxdop_finding(maxdop: int | None) -> AdvisoryFinding | None:
+        """max_degree_of_parallelism (MAXDOP): 0 = ilimitado; recomendado nCPU/2 para OLTP bulk."""
+        if maxdop is None:
+            return None
+        if maxdop == 0:
+            return AdvisoryFinding(
+                level="INFO",
+                param="max_degree_of_parallelism",
+                current="0 (ilimitado)",
+                recommendation="Para OLTP bulk: ajustar a nCPU/2 (máximo 8) con EXEC sp_configure "
+                "'max degree of parallelism', <n>; RECONFIGURE; (o ALTER DATABASE SCOPED CONFIGURATION "
+                "SET MAXDOP = <n>;); evita overhead de paralelismo en queries pequeñas",
+            )
+        if maxdop > 8:
+            return AdvisoryFinding(
+                level="INFO",
+                param="max_degree_of_parallelism",
+                current=str(maxdop),
+                recommendation="Valor alto; puede saturar CPU en bulk. Considerar nCPU/2 para balance OLTP/bulk",
+            )
+        return AdvisoryFinding(level="OK", param="max_degree_of_parallelism", current=str(maxdop), recommendation="")
+
+    @staticmethod
+    def _cost_threshold_finding(cost_threshold: int | None) -> AdvisoryFinding | None:
+        """cost threshold for parallelism. T-03: el INFO saltaba por debajo de 10 con el texto «recomendado 50–100» (20
+        salía OK); el umbral pasa a 50, como el texto."""
+        if cost_threshold is None:
+            return None
+        if cost_threshold < 50:
+            return AdvisoryFinding(
+                level="INFO",
+                param="cost_threshold_for_parallelism",
+                current=str(cost_threshold),
+                recommendation="Valor bajo (<50; por defecto 5) puede activar paralelismo en queries pequeñas "
+                "con overhead; recomendado 50–100 para OLTP bulk",
+            )
+        return AdvisoryFinding(
+            level="OK", param="cost_threshold_for_parallelism", current=str(cost_threshold), recommendation=""
+        )
+
+    @staticmethod
+    def _fill_factor_finding(fill_factor: int | None) -> AdvisoryFinding | None:
+        """fill factor: 0 = 100% (óptimo para carga inicial); bajo puede ralentizar INSERT."""
+        if fill_factor is None or not 0 < fill_factor < 70:
+            return None
+        return AdvisoryFinding(
+            level="INFO",
+            param="fill_factor",
+            current=f"{fill_factor}%",
+            recommendation="fill factor=0 (100%) es óptimo para carga inicial masiva",
+        )
+
+    @staticmethod
+    def _recovery_model_finding(recovery: int | None) -> AdvisoryFinding | None:
+        """recovery model de la base de datos activa (1 FULL, 2 BULK_LOGGED, 3 SIMPLE)."""
+        if recovery is None:
+            return None
+        recovery_name = {1: "FULL", 2: "BULK_LOGGED", 3: "SIMPLE"}.get(recovery, str(recovery))
+        if recovery == 1:  # FULL
+            return AdvisoryFinding(
+                level="INFO",
+                param="recovery_model",
+                current=recovery_name,
+                recommendation="Para carga masiva sin replicación: "
+                "ALTER DATABASE ... SET RECOVERY BULK_LOGGED durante la carga",
+            )
+        return AdvisoryFinding(level="OK", param="recovery_model", current=recovery_name, recommendation="")
 
     def _read_config_int(self, connection: Any, config_name: str) -> int | None:
         try:

@@ -8,7 +8,7 @@ import threading
 from collections.abc import Hashable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal, Protocol
 
 #: Avisos ya emitidos por ``warn_once`` (estado de proceso, como ``EngineReadinessAdvisor.report_once``): la misma
 #: configuración se repite en cada conexión de un pool o de un Engine y el aviso solo aporta la primera vez.
@@ -70,6 +70,23 @@ class EngineReadinessReport:
     error: str | None = None
 
 
+class ReadinessValidator(Protocol):
+    """Checks de un motor para ``EngineReadinessAdvisor`` (Strategy; T-06, 2026-10-16).
+
+    Lo cumplen ``PostgreSQLVariableValidator``, ``SQLServerVariableValidator``, ``OracleVariableValidator``,
+    ``SQLiteVariableValidator`` y el interno ``MySQLReadinessValidator``. El advisor crea una instancia por verificación,
+    llama a :meth:`check_static` y, con conexión, a :meth:`check_dynamic`.
+    """
+
+    def check_static(self, conn_params: dict[str, Any]) -> list[AdvisoryFinding]:
+        """Hallazgos a partir de ``conn_params`` (sin conexión)."""
+        ...
+
+    def check_dynamic(self, connection: Any, conn_params: dict[str, Any]) -> list[AdvisoryFinding]:
+        """Hallazgos a partir de los parámetros del servidor leídos con ``connection``."""
+        ...
+
+
 def fmt_bytes(size_bytes: int) -> str:
     """Convierte bytes a formato legible (GB, MB, KB, B)."""
     for unit, div in (("GB", 1_073_741_824), ("MB", 1_048_576), ("KB", 1024)):
@@ -78,4 +95,11 @@ def fmt_bytes(size_bytes: int) -> str:
     return f"{size_bytes} B"
 
 
-__all__: list[str] = ["AdvisoryFinding", "EngineReadinessReport", "fmt_bytes", "reset_warned", "warn_once"]
+__all__: list[str] = [
+    "AdvisoryFinding",
+    "EngineReadinessReport",
+    "ReadinessValidator",
+    "fmt_bytes",
+    "reset_warned",
+    "warn_once",
+]

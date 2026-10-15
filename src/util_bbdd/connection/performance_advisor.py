@@ -23,11 +23,11 @@ import logging
 import threading
 import weakref
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from ._advisory import AdvisoryFinding, EngineReadinessReport
-from .config import _to_bool, _to_int
+from ._advisory import AdvisoryFinding, EngineReadinessReport, ReadinessValidator
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine
@@ -41,6 +41,48 @@ _LEVEL_ORDER: dict[str, int] = {"OK": 0, "INFO": 1, "WARNING": 2, "CRITICAL": 3}
 #: informes usan el ``db_type`` de los managers (``sqlserver``), venga el informe de un manager o de un engine.
 _REPORT_NAMES: dict[str, str] = {"mssql": "sqlserver"}
 _LEVEL_ICONS: dict[str, str] = {"OK": "✅  OK  ", "INFO": "ℹ️  INFO", "WARNING": "⚠️  WARN", "CRITICAL": "🔴  CRIT"}
+
+
+def _mysql() -> ReadinessValidator:
+    from .mariadb._readiness import MySQLReadinessValidator
+
+    return MySQLReadinessValidator()
+
+
+def _postgresql() -> ReadinessValidator:
+    from .postgresql._variables import PostgreSQLVariableValidator
+
+    return PostgreSQLVariableValidator()
+
+
+def _sqlserver() -> ReadinessValidator:
+    from .sqlserver._variables import SQLServerVariableValidator
+
+    return SQLServerVariableValidator()
+
+
+def _oracle() -> ReadinessValidator:
+    from .oracle._variables import OracleVariableValidator
+
+    return OracleVariableValidator()
+
+
+def _sqlite() -> ReadinessValidator:
+    from .sqlite._variables import SQLiteVariableValidator
+
+    return SQLiteVariableValidator()
+
+
+#: Registro motor → fábrica del validador (Strategy, T-06): añadir un motor no toca :class:`EngineReadinessAdvisor`.
+_VALIDATORS: dict[str, Callable[[], ReadinessValidator]] = {
+    "mysql": _mysql,
+    "mariadb": _mysql,
+    "postgresql": _postgresql,
+    "mssql": _sqlserver,
+    "sqlserver": _sqlserver,
+    "oracle": _oracle,
+    "sqlite": _sqlite,
+}
 
 
 class EngineReadinessAdvisor:
@@ -63,18 +105,8 @@ class EngineReadinessAdvisor:
     _reports: ClassVar[weakref.WeakKeyDictionary[Engine, EngineReadinessReport]] = weakref.WeakKeyDictionary()
     _report_done: ClassVar[weakref.WeakKeyDictionary[Engine, threading.Event]] = weakref.WeakKeyDictionary()
 
-    #: Motores con checks específicos en :meth:`check`; el resto devuelve una lista vacía.
-    SUPPORTED_DB_TYPES: ClassVar[frozenset[str]] = frozenset(
-        {"mysql", "mariadb", "postgresql", "mssql", "sqlserver", "oracle", "sqlite"}
-    )
-
-    #: Checks estáticos de MariaDB/MySQL con mínimo: (parámetro, mínimo, unidad, recomendación si queda por debajo).
-    _MYSQL_MINIMUMS: ClassVar[tuple[tuple[str, int, str, str], ...]] = (
-        ("pool_size", 5, "", "Mínimo 5 para cargas concurrentes"),
-        # T-03: el texto decía «≥60 s» con mínimo 30 (45 s salía OK); se ajusta el texto, no el umbral del WARNING.
-        ("write_timeout", 30, "s", "Mínimo 30 s; en cargas masivas largas, 60 s o más evita 'Lost connection'"),
-        ("read_timeout", 30, "s", "Recomendado ≥30 s"),
-    )
+    #: Motores con checks específicos en :meth:`check` (las claves del registro); el resto devuelve una lista vacía.
+    SUPPORTED_DB_TYPES: ClassVar[frozenset[str]] = frozenset(_VALIDATORS)
 
     def check(
         self,
@@ -97,21 +129,11 @@ class EngineReadinessAdvisor:
         engine = db_type.lower().strip()
         findings: list[AdvisoryFinding] = []
 
-        try:
-            if engine in {"mysql", "mariadb"}:
-                findings.extend(self._check_mysql(conn_params, connection=connection))
-            elif engine == "postgresql":
-                findings.extend(self._check_postgresql(conn_params, connection=connection))
-            elif engine in {"mssql", "sqlserver"}:
-                findings.extend(self._check_sqlserver(conn_params, connection=connection))
-            elif engine == "oracle":
-                findings.extend(self._check_oracle(conn_params, connection=connection))
-            elif engine == "sqlite":
-                findings.extend(self._check_sqlite(conn_params, connection=connection))
-            else:
-                logger.debug(f"EngineReadinessAdvisor: motor '{db_type}' sin checks específicos")
-        except Exception as exc:
-            logger.debug(f"EngineReadinessAdvisor: error en checks para '{db_type}': {exc}")
+        factory = _VALIDATORS.get(engine)
+        if factory is None:
+            logger.debug(f"EngineReadinessAdvisor: motor '{db_type}' sin checks específicos")
+        else:
+            findings.extend(self._run_validator(engine, factory, conn_params, connection))
 
         findings.sort(key=lambda f: _LEVEL_ORDER.get(f.level, 0), reverse=True)
         return findings
@@ -426,6 +448,25 @@ class EngineReadinessAdvisor:
             logger.debug(f"No se pudo guardar la verificación del motor '{dialect}': {type(exc).__name__}")
 
     @staticmethod
+    def _run_validator(
+        engine: str, factory: Callable[[], ReadinessValidator], conn_params: dict[str, Any], connection: Any
+    ) -> list[AdvisoryFinding]:
+        """Estáticos y, con ``connection``, dinámicos del validador de ``engine``; un fallo da una lista vacía.
+
+        Es el envoltorio que repetían los ``_check_<motor>`` antes de T-06 (mismo comportamiento: el import perezoso
+        del validador y sus checks van dentro del ``try``).
+        """
+        try:
+            validator = factory()
+            findings = validator.check_static(conn_params)
+            if connection is not None:
+                findings.extend(validator.check_dynamic(connection, conn_params))
+            return findings
+        except Exception as exc:
+            logger.debug(f"EngineReadinessAdvisor: error en checks para '{engine}': {type(exc).__name__}: {exc}")
+            return []
+
+    @staticmethod
     def _conn_params_from_engine(engine: Engine) -> dict[str, Any]:
         """host/port/database de ``engine.url``, pool_size/max_overflow/pool_timeout del pool y, en mssql, el driver."""
         url = engine.url
@@ -454,279 +495,6 @@ class EngineReadinessAdvisor:
         if engine.dialect.name == "mssql":
             conn_params["sql_server_driver"] = "pyodbc" if "pyodbc" in str(url.drivername).lower() else "pymssql"
         return conn_params
-
-    # ─── Adaptadores por motor ────────────────────────────────────────────────
-
-    def _check_mysql(self, conn_params: dict[str, Any], *, connection: Any) -> list[AdvisoryFinding]:
-        findings: list[AdvisoryFinding] = []
-
-        # Checks estáticos de pool/config: solo los parámetros presentes. report_once() no conoce autocommit ni los
-        # timeouts del driver (no están en engine.url) y un valor por defecto no debe presentarse como leído.
-        if "autocommit" in conn_params:
-            ac_findings = self._check_mysql_autocommit(conn_params["autocommit"])
-            if ac_findings is None:
-                findings.append(
-                    AdvisoryFinding(
-                        level="CRITICAL",
-                        param="autocommit",
-                        current=str(conn_params["autocommit"]),
-                        recommendation="autocommit debe ser true/false (booleano o string: 'true', 'false', 'yes', 'no', '1', '0')",
-                    )
-                )
-                return findings
-            findings.extend(ac_findings)
-
-        for param, minimum, unit, recommendation in self._MYSQL_MINIMUMS:
-            if param in conn_params:
-                try:
-                    value = _to_int(conn_params[param], param, "mysql")
-                    findings.append(self._minimum_finding(param, value, minimum, unit, recommendation))
-                except ValueError:
-                    findings.append(
-                        AdvisoryFinding(
-                            level="CRITICAL",
-                            param=param,
-                            current=str(conn_params[param]),
-                            recommendation=f"{param} debe ser entero",
-                        )
-                    )
-
-        pt_findings = self._check_mysql_pool_timeout(conn_params.get("pool_timeout", 30))
-        if pt_findings is None:
-            findings.append(
-                AdvisoryFinding(
-                    level="CRITICAL",
-                    param="pool_timeout",
-                    current=str(conn_params.get("pool_timeout")),
-                    recommendation="pool_timeout debe ser entero",
-                )
-            )
-            return findings
-        findings.extend(pt_findings)
-
-        # Checks dinámicos: delegar en MySQLVariableValidator existente
-        if connection is not None:
-            findings.extend(self._check_mysql_dynamic(connection))
-
-        return findings
-
-    @staticmethod
-    def _check_mysql_autocommit(value: Any) -> list[AdvisoryFinding] | None:
-        """Valida y reporta autocommit. Retorna None si hay error crítico (para interrumpir checks)."""
-        try:
-            autocommit: bool = _to_bool(value, "autocommit", "mysql")
-        except ValueError:
-            return None
-        findings: list[AdvisoryFinding] = [
-            AdvisoryFinding(
-                level="WARNING" if autocommit else "OK",
-                param="autocommit",
-                current=str(autocommit),
-                recommendation="autocommit=True confirma cada INSERT individualmente; usar transacciones para bulk"
-                if autocommit
-                else "",
-            )
-        ]
-        return findings
-
-    @staticmethod
-    def _check_mysql_pool_timeout(value: Any) -> list[AdvisoryFinding] | None:
-        """Valida y reporta pool_timeout. Retorna None si hay error crítico (para interrumpir checks)."""
-        try:
-            pool_timeout: int = _to_int(value, "pool_timeout", "mysql")
-        except ValueError:
-            return None  # Señal de error crítico al llamador
-        findings: list[AdvisoryFinding] = []
-        if pool_timeout < 10:
-            findings.append(
-                AdvisoryFinding(
-                    level="WARNING",
-                    param="pool_timeout",
-                    current=f"{pool_timeout}s",
-                    recommendation="Recomendado ≥10 s para evitar timeouts en picos de carga",
-                )
-            )
-        return findings
-
-    @staticmethod
-    def _minimum_finding(param: str, value: int, minimum: int, unit: str, recommendation: str) -> AdvisoryFinding:
-        """WARNING con ``recommendation`` si ``value`` queda por debajo de ``minimum``; OK en otro caso."""
-        if value < minimum:
-            return AdvisoryFinding(
-                level="WARNING", param=param, current=f"{value}{unit}", recommendation=recommendation
-            )
-        return AdvisoryFinding(level="OK", param=param, current=f"{value}{unit}", recommendation="")
-
-    @staticmethod
-    def _check_mysql_thresholds(
-        validator: Any, current: dict[str, Any], thresholds: dict[str, int]
-    ) -> list[AdvisoryFinding]:
-        """Evalúa variables con umbral mínimo y devuelve hallazgos ordenados."""
-        findings: list[AdvisoryFinding] = []
-        for var, min_val in thresholds.items():
-            actual = current.get(var)
-            if actual is None:
-                continue
-            actual_fmt = validator.format_bytes(actual)
-            rec_fmt = validator.format_bytes(min_val)
-            if actual < min_val:
-                findings.append(
-                    AdvisoryFinding(
-                        level="WARNING",
-                        param=var,
-                        current=actual_fmt,
-                        recommendation=f"Recomendado ≥{rec_fmt}; "
-                        f"SET GLOBAL {var} = {min_val}; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)",
-                    )
-                )
-            else:
-                findings.append(AdvisoryFinding(level="OK", param=var, current=actual_fmt, recommendation=""))
-        return findings
-
-    @staticmethod
-    def _check_mysql_flush_log_at_trx_commit(value: Any) -> AdvisoryFinding | None:
-        """Evalúa innodb_flush_log_at_trx_commit: durabilidad primero (decisión A-05, 2026-10-16).
-
-        Es una variable global: el advisor no recomienda rebajar la durabilidad de todo el servidor. 1 (por defecto, el
-        único valor ACID) es OK; 2 se informa (pierde hasta ~1 s de commits si cae el SO) y 0 se avisa (también si cae
-        mysqld). Hasta v2.1.0, 1 era WARNING («cambiar a 2»), 2 OK y 0 CRITICAL.
-        """
-        if value is None:
-            return None
-        if value == 1:
-            return AdvisoryFinding(level="OK", param="innodb_flush_log_at_trx_commit", current="1", recommendation="")
-        if value == 2:
-            return AdvisoryFinding(
-                level="INFO",
-                param="innodb_flush_log_at_trx_commit",
-                current="2",
-                recommendation="Durabilidad reducida: si cae el sistema operativo se pierde hasta ~1 s de commits "
-                "confirmados; aceptable solo durante una ventana de carga; al terminar: "
-                "SET GLOBAL innodb_flush_log_at_trx_commit = 1;",
-            )
-        return AdvisoryFinding(
-            level="WARNING",
-            param="innodb_flush_log_at_trx_commit",
-            current=str(value),
-            recommendation="Se pierde hasta ~1 s de commits confirmados también si solo cae mysqld; volver a 1 "
-            "(SET GLOBAL innodb_flush_log_at_trx_commit = 1;) o, solo durante una carga, 2",
-        )
-
-    @staticmethod
-    def _check_mysql_log_file_size(validator: Any, value: Any) -> AdvisoryFinding | None:
-        """Evalúa innodb_log_file_size."""
-        if value is None:
-            return None
-        log_file_fmt = validator.format_bytes(value)
-        warn_threshold = 512 * 1_048_576
-        if value < warn_threshold:
-            return AdvisoryFinding(
-                level="INFO",
-                param="innodb_log_file_size",
-                current=log_file_fmt,
-                recommendation=f"Para bulk en datasets >10GB: aumentar a 1–2 GB "
-                f"(actual: {log_file_fmt}); evita rotación frecuente de redo log; "
-                f"MySQL 8.0.30+: ajustar innodb_redo_log_capacity (dinámica; innodb_log_file_size está obsoleta); "
-                f"MySQL 5.7 y MariaDB < 10.9: en my.cnf, requiere reinicio",
-            )
-        return AdvisoryFinding(level="OK", param="innodb_log_file_size", current=log_file_fmt, recommendation="")
-
-    @staticmethod
-    def _check_mysql_write_io_threads(value: Any) -> AdvisoryFinding | None:
-        """Evalúa innodb_write_io_threads."""
-        if value is None:
-            return None
-        if value < 4:
-            return AdvisoryFinding(
-                level="INFO",
-                param="innodb_write_io_threads",
-                current=str(value),
-                recommendation="En servidores SSD con ≥4 CPUs: aumentar a nCPU/2 "
-                "para paralelismo de escritura; en my.cnf (innodb_write_io_threads = <n>): en MySQL no es dinámica "
-                "y requiere reinicio",
-            )
-        return AdvisoryFinding(level="OK", param="innodb_write_io_threads", current=str(value), recommendation="")
-
-    def _check_mysql_dynamic(self, connection: Any) -> list[AdvisoryFinding]:
-        """Usa MySQLVariableValidator para leer variables del servidor."""
-        findings: list[AdvisoryFinding] = []
-        try:
-            from .mariadb._config import MySQLOptimalConfig
-            from .mariadb._variables import MySQLVariableValidator
-
-            validator = MySQLVariableValidator(connection)
-            current = validator.read_variables()
-            if not current:
-                return findings
-
-            recommended = MySQLOptimalConfig.production()
-            thresholds = {
-                "innodb_buffer_pool_size": recommended.innodb_buffer_pool_size,
-                "max_allowed_packet": recommended.max_allowed_packet,
-            }
-            findings.extend(self._check_mysql_thresholds(validator, current, thresholds))
-
-            checks = (
-                self._check_mysql_flush_log_at_trx_commit(current.get("innodb_flush_log_at_trx_commit")),
-                self._check_mysql_log_file_size(validator, current.get("innodb_log_file_size")),
-                self._check_mysql_write_io_threads(current.get("innodb_write_io_threads")),
-            )
-            findings.extend(check for check in checks if check is not None)
-        except Exception as exc:
-            logger.debug(f"_check_mysql_dynamic: {type(exc).__name__}: {exc}")
-        return findings
-
-    def _check_postgresql(self, conn_params: dict[str, Any], *, connection: Any) -> list[AdvisoryFinding]:
-        try:
-            from .postgresql._variables import PostgreSQLVariableValidator
-
-            v = PostgreSQLVariableValidator()
-            findings = v.check_static(conn_params)
-            if connection is not None:
-                findings.extend(v.check_dynamic(connection, conn_params))
-            return findings
-        except Exception as exc:
-            logger.debug(f"_check_postgresql: {type(exc).__name__}: {exc}")
-            return []
-
-    def _check_sqlserver(self, conn_params: dict[str, Any], *, connection: Any) -> list[AdvisoryFinding]:
-        try:
-            from .sqlserver._variables import SQLServerVariableValidator
-
-            v = SQLServerVariableValidator()
-            findings = v.check_static(conn_params)
-            if connection is not None:
-                findings.extend(v.check_dynamic(connection, conn_params))
-            return findings
-        except Exception as exc:
-            logger.debug(f"_check_sqlserver: {type(exc).__name__}: {exc}")
-            return []
-
-    def _check_oracle(self, conn_params: dict[str, Any], *, connection: Any) -> list[AdvisoryFinding]:
-        try:
-            from .oracle._variables import OracleVariableValidator
-
-            v = OracleVariableValidator()
-            findings = v.check_static(conn_params)
-            if connection is not None:
-                findings.extend(v.check_dynamic(connection, conn_params))
-            return findings
-        except Exception as exc:
-            logger.debug(f"_check_oracle: {type(exc).__name__}: {exc}")
-            return []
-
-    def _check_sqlite(self, conn_params: dict[str, Any], *, connection: Any) -> list[AdvisoryFinding]:
-        try:
-            from .sqlite._variables import SQLiteVariableValidator
-
-            v = SQLiteVariableValidator()
-            findings = v.check_static(conn_params)
-            if connection is not None:
-                findings.extend(v.check_dynamic(connection, conn_params))
-            return findings
-        except Exception as exc:
-            logger.debug(f"_check_sqlite: {type(exc).__name__}: {exc}")
-            return []
 
 
 __all__: list[str] = ["AdvisoryFinding", "EngineReadinessAdvisor", "EngineReadinessReport"]

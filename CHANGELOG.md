@@ -64,6 +64,11 @@ SemVer: MINOR (features aditivas, sin cambios incompatibles; la sección nueva e
   `cfg.output_dir / "x"` no pasaba el type-checker. Siguen aceptando `str` al construir y al reasignar; una
   reasignación con otro tipo da `ValueError` en el acto (antes, al ejecutar `run()`). Nuevos descriptores
   `PathField`/`OptionalPathField` en `_core/validation` (internos).
+- **connection** (refactor, sin cambios funcionales): `EngineReadinessAdvisor` elige el validador de cada motor en un
+  registro (Strategy, Protocol `ReadinessValidator`) en lugar de un método `_check_<motor>` por motor; los checks de
+  MySQL/MariaDB pasan a `connection/mariadb/_readiness.py` (`MySQLReadinessValidator`, interno) y
+  `SQLServerVariableValidator.check_dynamic` se divide en helpers. El advisor pasa de 732 a 501 líneas; los hallazgos
+  no cambian (205 casos de caracterización en `tests/unit/connection/data/advisor_characterization.json`).
 - **dump** (política, sin cambio de código): `DumpResult.constraint_reactivation_error` y la hoja «Errores de
   Reactivación» guardan el mensaje completo de la excepción, como los `error_msg` por tabla, constraint e índice; el
   advisor guarda solo el tipo porque sus errores de conexión pueden llevar la URL. Documentado en `docs/api/dump.md`.
