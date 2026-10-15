@@ -66,6 +66,14 @@
         "Índices",
         "Comentario Columna"
       ]
+    },
+    "CONDICIONES_MOTOR": {
+      "base": [
+        "Nivel",
+        "Parámetro",
+        "Valor actual",
+        "Recomendación"
+      ]
     }
   }
 }

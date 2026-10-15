@@ -27,6 +27,7 @@ from ...._core.exceptions import DatabaseException, DocumentationConfigError
 from ...._core.export_safety import safe_text
 from ....analysis.graphviz_ext import GraphvizRelationshipGraphExt
 from ...application.ports import DocumentationManagerPort, HeadersConfig
+from ...application.use_cases.engine_conditions import EngineConditionsSectionBuilder
 from .shared.diagram_legend import (
     build_diagram_legend_payload,
     build_diagram_legend_rows,
@@ -65,6 +66,7 @@ class DocumentChunkConfig:
         include_database_info: bool = False,
         database_info_flags: list[bool] | None = None,
         include_columns_charset: bool = False,
+        include_engine_conditions: bool = False,
     ) -> None:
         """Inicializa la configuración del documento.
 
@@ -82,6 +84,7 @@ class DocumentChunkConfig:
             include_database_info: Si incluir información de BD (versión, charset)
             database_info_flags: [version_flag, charset_collation_flag]
             include_columns_charset: Si incluir charset/collation de columnas
+            include_engine_conditions: Si incluir la sección «Condiciones del motor»
         """
         self.include_tables: bool = include_tables
         self.include_views: bool = include_views
@@ -96,6 +99,7 @@ class DocumentChunkConfig:
         self.include_database_info: bool = include_database_info
         self.database_info_flags: list[bool] = database_info_flags or [False, False]
         self.include_columns_charset: bool = include_columns_charset
+        self.include_engine_conditions: bool = include_engine_conditions
 
 
 class WordGenerator:
@@ -194,6 +198,7 @@ class WordGenerator:
                 include_database_info=include_database_info,
                 database_info_flags=database_info_flags,
                 include_columns_charset=resolved.get("include_columns_charset", False),
+                include_engine_conditions=bool(resolved.get("include_engine_conditions", False)),
             )
 
             total_chunks: int = len(table_chunks)
@@ -302,6 +307,9 @@ class WordGenerator:
 
             if config.include_storage and idx == total_chunks:
                 self._add_storage_inventory_section(document=document, data_provider=data_provider)
+
+            if config.include_engine_conditions and idx == total_chunks:
+                self._add_engine_conditions_section(document=document, data_provider=data_provider)
 
             target_file: Path = self._build_output_file_for_chunk(output_file, idx, total_chunks)
             document.save(str(target_file))
@@ -1110,6 +1118,36 @@ class WordGenerator:
                 document=document,
                 title="Información",
                 message="No se configuró información de base de datos para mostrar",
+            )
+
+    def _add_engine_conditions_section(self, document: Document, data_provider: DocumentationManagerPort) -> None:
+        """Agrega al final la sección «Condiciones del motor» (``EngineReadinessAdvisor``)."""
+        section = EngineConditionsSectionBuilder.of(data_provider)
+        document.add_page_break()
+        document.add_heading("Condiciones del motor", level=1)
+        for notice in section.notices:
+            document.add_paragraph(safe_text(notice))
+        if section.metadata:
+            self._add_table(
+                document=document,
+                title="Verificación",
+                headers=["Propiedad", "Valor"],
+                data=[list(item) for item in section.metadata],
+            )
+        if section.summary:
+            self._add_table(
+                document=document,
+                title="Resumen por severidad",
+                headers=["Nivel", "Hallazgos"],
+                data=[[level, str(count)] for level, count in section.summary],
+                right_align_indices=[1],
+            )
+        if section.rows:
+            self._add_table(
+                document=document,
+                title="Hallazgos",
+                headers=list(section.headers),
+                data=[list(row) for row in section.rows],
             )
 
     def _add_storage_inventory_section(self, document: Document, data_provider: DocumentationManagerPort) -> None:

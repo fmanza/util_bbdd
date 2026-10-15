@@ -12,7 +12,12 @@ if TYPE_CHECKING:
     from ....analysis.graphviz_ext import GraphvizRelationshipGraphExt
 
 from ...._core.exceptions import DatabaseException, DocumentationConfigError, DocumentationRenderError
-from ...domain.models import DocumentationBootstrapState, DocumentationFormatPlan, DocumentationSettings
+from ...domain.models import (
+    DocumentationBootstrapState,
+    DocumentationFormatPlan,
+    DocumentationSettings,
+    EngineConditionsSection,
+)
 from ...domain.services import DocumentationGraphDomainService
 from .._internal_ports import (
     HeadersRuntimePort,
@@ -24,11 +29,13 @@ from .._internal_ports import (
 )
 from ..ports import (
     DocumentationBackendPort,
+    EngineReadinessSourcePort,
     LoggerProtocol,
     OutputCache,
     OutputPolicyPort,
 )
 from .catalog_rows import CatalogRows
+from .engine_conditions import EngineConditionsSectionBuilder
 
 _UNSET_DATABASE_CHARSET_COLLATION: object = object()
 
@@ -142,6 +149,7 @@ class DocumentationSession:
     _database_charset_collation_cache: dict[str, Any] | None | object = _UNSET_DATABASE_CHARSET_COLLATION
     _columns_charset_collation_cache: dict[str, list[tuple[str, str | None, str | None]] | None] | None = None
     _storage_inventory_report_cache: dict[str, Any] | None = None
+    _engine_conditions_cache: EngineConditionsSection | None = None
 
     @classmethod
     def from_state(
@@ -293,6 +301,30 @@ class DocumentationSession:
                 print_config=self.imprimir_config,
             )
         return self._storage_inventory_report_cache
+
+    def get_engine_conditions(self) -> EngineConditionsSection:
+        """Sección «Condiciones del motor», verificada una sola vez por generación (la comparten los formatos).
+
+        Un origen que no cumple ``EngineReadinessSourcePort`` o que falla al verificar no interrumpe la generación:
+        la sección lleva el aviso correspondiente.
+        """
+        if self._engine_conditions_cache is None:
+            builder = EngineConditionsSectionBuilder(self.headers.get("CONDICIONES_MOTOR"))
+            source = self.db_manager
+            if not isinstance(source, EngineReadinessSourcePort):
+                section = builder.build(None)
+            else:
+                try:
+                    section = builder.build(source.get_engine_readiness())
+                except Exception as exc:
+                    self.logger.warning(
+                        f"No se pudieron verificar las condiciones del motor: {type(exc).__name__}", exc_info=True
+                    )
+                    section = builder.unavailable(
+                        f"No se pudieron verificar las condiciones del motor ({type(exc).__name__})."
+                    )
+            self._engine_conditions_cache = section
+        return self._engine_conditions_cache
 
     def _get_cached_scalar(self, cache_key: tuple[str, str, str], loader: Callable[[], str]) -> str:
         """Resuelve un valor escalar con cache local por sesión."""

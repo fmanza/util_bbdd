@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...application.ports import DocumentationSourcePort
+from ...application.ports import DocumentationSourcePort, EngineReadinessReportView, EngineReadinessSourcePort
 
 
 class SyncDatabaseManagerAdapter:
@@ -50,3 +50,11 @@ class SyncDatabaseManagerAdapter:
 
     def get_storage_rows(self, query_name: str, **params: Any) -> Any:
         return self._db_manager.get_storage_rows(query_name, **params)
+
+    # --- Condiciones del motor (EngineReadinessSourcePort, opcional) ---------------
+
+    def get_engine_readiness(self) -> EngineReadinessReportView | None:
+        """Verificación del motor del manager; ``None`` si el origen no la ofrece."""
+        if isinstance(self._db_manager, EngineReadinessSourcePort):
+            return self._db_manager.get_engine_readiness()
+        return None

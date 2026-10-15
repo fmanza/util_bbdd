@@ -16,6 +16,7 @@ from ...._core.exceptions import DatabaseException
 from ...._core.filenames import safe_file_stem
 from ....analysis.graphviz_ext import GraphvizRelationshipGraphExt
 from ...application.ports import DocumentationManagerPort, HeadersConfig
+from ...application.use_cases.engine_conditions import EngineConditionsSectionBuilder
 from .shared.diagram_legend import (
     build_diagram_direction_help,
     build_diagram_legend_payload,
@@ -156,6 +157,12 @@ class HtmlGenerator:
             storage_report, detail_template, output_target, generated_at
         )
 
+        engine_conditions_entries: list[dict[str, str]] = (
+            self._process_engine_conditions(data_provider, detail_template, output_target, generated_at)
+            if resolved.get("include_engine_conditions", False)
+            else []
+        )
+
         collection_links: dict[str, str] = self._render_collection_pages(
             collection_template=collection_template,
             output_dir=output_target,
@@ -180,6 +187,7 @@ class HtmlGenerator:
             output_target,
             database_info_entries,
             collection_links,
+            engine_conditions_entries,
         )
 
     def _resolve_print_config(
@@ -451,6 +459,62 @@ class HtmlGenerator:
             )
         return storage_entries
 
+    def _process_engine_conditions(
+        self,
+        data_provider: DocumentationManagerPort,
+        detail_template: Template,
+        output_dir: Path,
+        generated_at: str,
+    ) -> list[dict[str, str]]:
+        """Genera la página «Condiciones del motor» (``EngineReadinessAdvisor``) y devuelve su entrada del índice."""
+        section = EngineConditionsSectionBuilder.of(data_provider)
+        rel_path: Path = Path("condiciones") / "condiciones-motor.html"
+        worst_level: str = next((level for level, count in section.summary if count), "")
+        blocks: list[dict[str, Any]] = [
+            {
+                "title": "Verificación",
+                "status": "",
+                "headers": ["Propiedad", "Valor"],
+                "rows": [list(item) for item in section.metadata],
+            },
+            {
+                "title": "Resumen por severidad",
+                "status": "",
+                "headers": ["Nivel", "Hallazgos"],
+                "rows": [[level, count] for level, count in section.summary],
+                "numeric_columns": [1],
+            },
+            {
+                "title": "Hallazgos",
+                "status": worst_level,
+                "headers": list(section.headers),
+                "rows": [list(row) for row in section.rows],
+            },
+        ]
+        self._render_detail_page(
+            template=detail_template,
+            output_file=output_dir / rel_path,
+            entity_kind="condiciones del motor",
+            entity={
+                "name": dict(section.metadata).get("Motor", self.database),
+                "ddl": None,
+                "notices": list(section.notices),
+            },
+            generated_at=generated_at,
+            storage_report={
+                "heading": "Verificación de condiciones de ejecución",
+                "sections": [block for block in blocks if block["rows"]],
+            },
+        )
+        counts: str = " · ".join(f"{count} {level}" for level, count in section.summary if count)
+        return [
+            {
+                "name": "Condiciones del motor",
+                "comment": counts or (section.notices[0] if section.notices else ""),
+                "path": str(rel_path).replace("\\", "/"),
+            }
+        ]
+
     def _process_database_info(
         self,
         data_provider: DocumentationManagerPort,
@@ -573,6 +637,7 @@ class HtmlGenerator:
         output_dir: Path,
         database_info_entries: list[dict[str, str]] | None = None,
         collection_links: dict[str, str] | None = None,
+        engine_conditions_entries: list[dict[str, str]] | None = None,
     ) -> None:
         """Renderiza y escribe la página de índice."""
         if database_info_entries is None:
@@ -621,6 +686,7 @@ class HtmlGenerator:
             storage=storage_entries,
             storage_total_rows=int(storage_report.get("total_rows", 0) or 0),
             database_info=database_info_entries,
+            engine_conditions=engine_conditions_entries or [],
             routines=routines_index,
             inventory_summary=inventory_summary,
             collection_links=collection_links,

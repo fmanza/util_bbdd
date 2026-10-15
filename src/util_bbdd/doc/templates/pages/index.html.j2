@@ -62,6 +62,9 @@
           <option value="function">FUNCTION</option>
           <option value="storage">ALMACENAMIENTO</option>
           <option value="database-info">INFORMACIÓN BD</option>
+          {% if engine_conditions %}
+            <option value="engine-conditions">CONDICIONES DEL MOTOR</option>
+          {% endif %}
         </select>
       </div>
       <button id="panelToggle" class="panel-toggle" type="button" aria-expanded="true" aria-controls="sidebarPanel">Contraer panel lateral</button>
@@ -133,6 +136,12 @@
           <button id="databaseInfoNext" type="button">Siguiente</button>
         </div>
       </div>
+
+      {% if engine_conditions %}
+        <div id="scope-engine-conditions-block" data-scope-block="engine-conditions">
+          {{ ui.render_sidebar_section('Condiciones del motor', engine_conditions|length, engine_conditions, 'engine-conditions-item') }}
+        </div>
+      {% endif %}
     </aside>
 
     <main class="content">
@@ -233,6 +242,7 @@
       if (scope === 'function') return 'function';
       if (scope === 'storage') return 'almacenamiento';
       if (scope === 'database-info') return 'información de BD';
+      if (scope === 'engine-conditions') return 'condiciones del motor';
       return 'tabla';
     }
 

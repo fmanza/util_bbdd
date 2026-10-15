@@ -46,6 +46,7 @@ flowchart TD
 | `get_connection` / `release_connection` | `()` / `(connection=None)` | Conexión nativa del pool (o la única) y su devolución | `Any` / `None` |
 | `clear_cache` | `(context_database=None, table=None, routine=None, routine_type=None)` | Invalida la caché de metadatos (toda o por schema, tabla o rutina) | `None` |
 | `get_sqlalchemy_engine` | `()` | Engine SQLAlchemy configurado | `Engine` |
+| `get_engine_readiness` | `()` | Verificación de condiciones del motor (`EngineReadinessAdvisor.assess`): estáticos con `conn_params`, dinámicos con una conexión de `get_sqlalchemy_engine()`; sin conexión, solo estáticos y el motivo en `error` | `EngineReadinessReport` |
 | `close` | `(timeout_seconds=None, force=False)` | Cierra el Engine de `get_sqlalchemy_engine()`, el pool y la conexión; sin `timeout_seconds` usa `conn_params["close_timeout"]` (10 s) | `None` |
 | `get_supported_db_types` | `()` *(estático)* | Tipos de BD soportados | `list[str]` |
 

@@ -82,7 +82,8 @@ __all__: list[str] = [
     "HSQLDBConnectionConfig",
     # Advisor de rendimiento
     "EngineReadinessAdvisor",
+    "EngineReadinessReport",
     "AdvisoryFinding",
 ]
 
-from .performance_advisor import AdvisoryFinding, EngineReadinessAdvisor
+from .performance_advisor import AdvisoryFinding, EngineReadinessAdvisor, EngineReadinessReport

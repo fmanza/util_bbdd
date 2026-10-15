@@ -60,6 +60,26 @@ Opciones de `imprimir["grafo"]` relevantes para el rendimiento:
 | `workers` | núcleos, hasta 8 | Procesos `dot` simultáneos. Los diagramas se precargan por lotes (`dot -O`, un proceso por lote): arrancar `dot` cuesta ~0,25 s y renderizar ~0,01 s por grafo |
 | `images_paginated` / `max_subnodes` | `True` / `10` (5 en Word) | Diagramas de Word partidos en varias imágenes |
 
+### Sección «Condiciones del motor»
+
+`imprimir={"condiciones_motor": {"imprimir_condiciones_motor": True}}` (por defecto `False`) añade al final de la
+documentación la verificación de `EngineReadinessAdvisor`: los checks estáticos con los `conn_params` del manager y los
+dinámicos (variables del servidor) con una conexión de `get_sqlalchemy_engine()`. Se verifica una sola vez por
+generación (`SyncDatabaseManager.get_engine_readiness()`), aunque se pidan varios formatos.
+
+| Formato | Ubicación |
+|---|---|
+| Word | Al final del último documento, tras «Almacenamiento» |
+| Excel | Hoja «Condiciones del motor» |
+| HTML | `condiciones/condiciones-motor.html`, enlazada desde el índice |
+
+Contenido: tabla «Verificación» (motor, momento en UTC, checks dinámicos sí/no), «Resumen por severidad» y
+«Hallazgos» (nivel, parámetro, valor actual, recomendación; cabeceras ajustables con `CONDICIONES_MOTOR` en
+`headers_file`), ordenados por severidad y parámetro. Un aviso explica las tablas vacías o incompletas: sin hallazgos,
+motor sin checks (HSQLDB), solo checks estáticos (sin conexión; el motivo lleva el tipo de la excepción, nunca su
+mensaje) u origen que no cumple `EngineReadinessSourcePort` (`doc/application/ports.py`). Si la verificación falla, la
+generación continúa con el aviso.
+
 ### Contrato de salida
 
 - `generate()` retorna un `DocumentationResult`: `outputs` (ruta de cada formato), `tables`, `views` y `routines`.

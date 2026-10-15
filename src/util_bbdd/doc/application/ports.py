@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from ..._core.types import Rows
 from ...metadata.model import ALL_KINDS, Kind, SchemaSnapshot
+
+if TYPE_CHECKING:
+    from ..domain.models import EngineConditionsSection
 
 HeadersConfig = dict[str, Any]
 ConnectionParams = dict[str, Any]
@@ -82,6 +86,65 @@ class StorageInventoryPort(Protocol):
     """Lectura de inventario de almacenamiento ya normalizado."""
 
     def get_storage_inventory_report(self) -> dict[str, Any]: ...
+
+
+class AdvisoryFindingView(Protocol):
+    """Un hallazgo de la verificación del motor (lo cumple ``util_bbdd.connection.AdvisoryFinding``)."""
+
+    @property
+    def level(self) -> str: ...
+
+    @property
+    def param(self) -> str: ...
+
+    @property
+    def current(self) -> str: ...
+
+    @property
+    def recommendation(self) -> str: ...
+
+
+class EngineReadinessReportView(Protocol):
+    """Informe de la verificación del motor (lo cumple ``util_bbdd.connection.EngineReadinessReport``).
+
+    Contrato estructural: ``doc/`` no importa ``connection/`` (Regla #6).
+    """
+
+    @property
+    def db_type(self) -> str: ...
+
+    @property
+    def findings(self) -> Sequence[AdvisoryFindingView]: ...
+
+    @property
+    def checked_at(self) -> datetime: ...
+
+    @property
+    def dynamic(self) -> bool: ...
+
+    @property
+    def supported(self) -> bool: ...
+
+    @property
+    def error(self) -> str | None: ...
+
+
+@runtime_checkable
+class EngineReadinessSourcePort(Protocol):
+    """Origen que sabe verificar las condiciones de su motor (opcional: lo cumple ``SyncDatabaseManager``).
+
+    Es un puerto aparte para no ampliar los contratos públicos existentes: un origen que no lo cumple documenta la
+    sección «Condiciones del motor» como no disponible. ``None`` significa lo mismo.
+    """
+
+    def get_engine_readiness(self) -> EngineReadinessReportView | None: ...
+
+
+@runtime_checkable
+class EngineConditionsPort(Protocol):
+    """Sección «Condiciones del motor» ya preparada (opcional en ``data_provider``: la cumple ``DocumentationSession``)."""
+
+    def get_engine_conditions(self) -> EngineConditionsSection: ...
 
 
 class DocumentationCatalogPort(Protocol):

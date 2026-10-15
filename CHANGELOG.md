@@ -5,6 +5,20 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+SemVer: MINOR (features aditivas, sin cambios incompatibles; la sección nueva está desactivada por defecto).
+
+### Added
+
+- **doc**: sección «Condiciones del motor» en `DatabaseDocumentation` (Word, Excel y HTML) con los hallazgos de
+  `EngineReadinessAdvisor`, activable con `imprimir={"condiciones_motor": {"imprimir_condiciones_motor": True}}`.
+  Puertos opcionales `EngineReadinessSourcePort` y `EngineConditionsPort` (los puertos públicos existentes no cambian);
+  cabecera `CONDICIONES_MOTOR` en `headers_config.json`.
+- **connection**: `EngineReadinessAdvisor.assess()` y `EngineReadinessReport` (hallazgos + motor, momento UTC, checks
+  dinámicos sí/no, motor soportado y motivo sin revelar el mensaje del error); `EngineReadinessAdvisor.SUPPORTED_DB_TYPES`.
+- **managers**: `SyncDatabaseManager.get_engine_readiness()`.
+
 ## [2.1.0] - 2026-10-14
 
 Sesión `.ai/sessions/2026-10-14-performance-advisor-phase1-3/`. SemVer: MINOR (features aditivas, sin cambios incompatibles).

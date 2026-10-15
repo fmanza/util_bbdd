@@ -18,10 +18,13 @@ import pytest
 
 from util_bbdd.analysis.contracts import RelationshipGraphSource
 from util_bbdd.audit import AuditEventSource, AuditSink, JsonLinesAuditSink, MemoryAuditSink, NullAuditSink
+from util_bbdd.connection import EngineReadinessReport
 from util_bbdd.doc.application.ports import (
     DocumentationBackendPort,
     DocumentationManagerPort,
     DocumentationSourcePort,
+    EngineReadinessReportView,
+    EngineReadinessSourcePort,
 )
 from util_bbdd.doc.infrastructure.adapters.sync_database_manager_adapter import SyncDatabaseManagerAdapter
 from util_bbdd.managers import SyncDatabaseManager
@@ -48,6 +51,28 @@ def _manager_as_documentation_source(manager: SyncDatabaseManager) -> Documentat
 
 def _adapter_as_documentation_port(adapter: SyncDatabaseManagerAdapter) -> DocumentationBackendPort:
     return adapter
+
+
+# Sección «Condiciones del motor»: puerto opcional del origen y vista estructural del informe de ``connection``.
+def _manager_as_engine_readiness_source(manager: SyncDatabaseManager) -> EngineReadinessSourcePort:
+    return manager
+
+
+def _adapter_as_engine_readiness_source(adapter: SyncDatabaseManagerAdapter) -> EngineReadinessSourcePort:
+    return adapter
+
+
+def _report_as_engine_readiness_view(report: EngineReadinessReport) -> EngineReadinessReportView:
+    return report
+
+
+def test_manager_and_adapter_satisfy_engine_readiness_source() -> None:
+    manager = SyncDatabaseManager("sqlite", {"database": ":memory:"}, use_pool=False)
+    try:
+        assert isinstance(manager, EngineReadinessSourcePort)
+        assert isinstance(SyncDatabaseManagerAdapter(manager, {}), EngineReadinessSourcePort)
+    finally:
+        manager.close()
 
 
 # ---------------------------------------------------------------------------------------------------------------

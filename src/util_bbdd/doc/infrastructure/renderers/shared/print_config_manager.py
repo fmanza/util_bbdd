@@ -35,6 +35,11 @@ class PrintConfigManager:
         "imprimir_almacenamiento": False,
     }
 
+    #: Sección «Condiciones del motor» (``EngineReadinessAdvisor``), al final como el almacenamiento.
+    DEFAULT_ENGINE_CONDITIONS: dict[str, Any] = {
+        "imprimir_condiciones_motor": False,
+    }
+
     DEFAULT_INFO_DATABASE: dict[str, Any] = {
         "imprimir_info_database": False,
         "version": False,
@@ -95,6 +100,9 @@ class PrintConfigManager:
         )
         almacenamiento: dict[str, bool] = PrintConfigManager._normalize_boolean_section(
             normalized_input, "almacenamiento", PrintConfigManager.DEFAULT_STORAGE
+        )
+        condiciones_motor: dict[str, bool] = PrintConfigManager._normalize_boolean_section(
+            normalized_input, "condiciones_motor", PrintConfigManager.DEFAULT_ENGINE_CONDITIONS
         )
         info_database: dict[str, bool] = PrintConfigManager._normalize_boolean_section(
             normalized_input, "info_database", PrintConfigManager.DEFAULT_INFO_DATABASE
@@ -195,6 +203,7 @@ class PrintConfigManager:
             "vistas": vistas,
             "rutinas": rutinas,
             "almacenamiento": almacenamiento,
+            "condiciones_motor": condiciones_motor,
             "info_database": info_database,
             "columnas_charset": columnas_charset,
             "plantilla_word": PrintConfigManager._normalize_path_value(normalized_input.get("plantilla_word")),
@@ -220,6 +229,7 @@ class PrintConfigManager:
             "vistas": dict(PrintConfigManager.DEFAULT_VIEWS),
             "rutinas": dict(PrintConfigManager.DEFAULT_ROUTINES),
             "almacenamiento": dict(PrintConfigManager.DEFAULT_STORAGE),
+            "condiciones_motor": dict(PrintConfigManager.DEFAULT_ENGINE_CONDITIONS),
             "info_database": dict(PrintConfigManager.DEFAULT_INFO_DATABASE),
             "columnas_charset": dict(PrintConfigManager.DEFAULT_COLUMNS_CHARSET),
             "plantilla_word": None,
@@ -268,6 +278,11 @@ class PrintConfigManager:
         return [bool(info_db.get("version", False)), bool(info_db.get("charset_collation", False))]
 
     @staticmethod
+    def include_engine_conditions(config: dict[str, Any]) -> bool:
+        """True si la configuración normalizada pide la sección «Condiciones del motor»."""
+        return bool(config.get("condiciones_motor", {}).get("imprimir_condiciones_motor", False))
+
+    @staticmethod
     def resolve_for_word(config: dict[str, Any]) -> dict[str, Any]:
         """Resuelve opciones de ejecución para Word."""
         graph_cfg: dict[str, Any] = config.get("grafo", {})
@@ -309,6 +324,7 @@ class PrintConfigManager:
             "include_procedures": bool(config.get("rutinas", {}).get("imprimir_procedures", False)),
             "include_functions": bool(config.get("rutinas", {}).get("imprimir_function", False)),
             "include_storage": bool(config.get("almacenamiento", {}).get("imprimir_almacenamiento", False)),
+            "include_engine_conditions": PrintConfigManager.include_engine_conditions(config),
             "include_database_info": bool(config.get("info_database", {}).get("imprimir_info_database", False)),
             "include_columns_charset": bool(config.get("columnas_charset", {}).get("charset_collation", False)),
             "table_section_flags": PrintConfigManager.get_table_section_flags(config),
@@ -329,6 +345,7 @@ class PrintConfigManager:
             "include_procedures": bool(config.get("rutinas", {}).get("imprimir_procedures", False)),
             "include_functions": bool(config.get("rutinas", {}).get("imprimir_function", False)),
             "include_storage": bool(config.get("almacenamiento", {}).get("imprimir_almacenamiento", False)),
+            "include_engine_conditions": PrintConfigManager.include_engine_conditions(config),
             "include_database_info": bool(config.get("info_database", {}).get("imprimir_info_database", False)),
             "include_columns_charset": bool(config.get("columnas_charset", {}).get("charset_collation", False)),
             "table_section_flags": PrintConfigManager.get_table_section_flags(config),
@@ -380,6 +397,7 @@ class PrintConfigManager:
             "include_procedures": bool(config.get("rutinas", {}).get("imprimir_procedures", False)),
             "include_functions": bool(config.get("rutinas", {}).get("imprimir_function", False)),
             "include_storage": bool(config.get("almacenamiento", {}).get("imprimir_almacenamiento", False)),
+            "include_engine_conditions": PrintConfigManager.include_engine_conditions(config),
             "include_database_info": bool(config.get("info_database", {}).get("imprimir_info_database", False)),
             "include_columns_charset": bool(config.get("columnas_charset", {}).get("charset_collation", False)),
             "table_section_flags": table_section_flags,

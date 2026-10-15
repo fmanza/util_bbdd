@@ -7,6 +7,7 @@ import threading
 
 from collections.abc import Hashable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal
 
 #: Avisos ya emitidos por ``warn_once`` (estado de proceso, como ``EngineReadinessAdvisor.report_once``): la misma
@@ -40,6 +41,35 @@ class AdvisoryFinding:
     recommendation: str
 
 
+@dataclass(frozen=True, slots=True)
+class EngineReadinessReport:
+    """Resultado de :meth:`EngineReadinessAdvisor.assess`: los hallazgos y en qué condiciones se obtuvieron.
+
+    Distingue «sin hallazgos» de «no auditado»: un motor sin checks tiene ``supported=False`` y una verificación sin
+    conexión, ``dynamic=False`` con el motivo en ``error``.
+
+    Attributes:
+        db_type: Motor verificado, tal como se pidió.
+        findings: Hallazgos ordenados por severidad descendente.
+        checked_at: Momento de la verificación (UTC, con zona horaria).
+        dynamic: True si hubo conexión y se intentaron los checks dinámicos (variables del servidor).
+        supported: False si el motor no tiene checks (``findings`` vacío).
+        error: Por qué no hubo checks dinámicos; solo el tipo de la excepción, nunca su mensaje (puede llevar la URL).
+
+    Example:
+        >>> report = EngineReadinessAdvisor().assess("postgresql", {"pool_size": 2})
+        >>> report.dynamic, report.supported
+        (False, True)
+    """
+
+    db_type: str
+    findings: tuple[AdvisoryFinding, ...]
+    checked_at: datetime
+    dynamic: bool
+    supported: bool
+    error: str | None = None
+
+
 def fmt_bytes(size_bytes: int) -> str:
     """Convierte bytes a formato legible (GB, MB, KB, B)."""
     for unit, div in (("GB", 1_073_741_824), ("MB", 1_048_576), ("KB", 1024)):
@@ -48,4 +78,4 @@ def fmt_bytes(size_bytes: int) -> str:
     return f"{size_bytes} B"
 
 
-__all__: list[str] = ["AdvisoryFinding", "fmt_bytes", "reset_warned", "warn_once"]
+__all__: list[str] = ["AdvisoryFinding", "EngineReadinessReport", "fmt_bytes", "reset_warned", "warn_once"]

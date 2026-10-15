@@ -23,9 +23,10 @@ import logging
 import threading
 import weakref
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from ._advisory import AdvisoryFinding
+from ._advisory import AdvisoryFinding, EngineReadinessReport
 from .config import _to_bool, _to_int
 
 if TYPE_CHECKING:
@@ -53,6 +54,11 @@ class EngineReadinessAdvisor:
     # Engines ya verificados por report_once(); referencias débiles para no retenerlos.
     _reported_engines: ClassVar[weakref.WeakSet[Engine]] = weakref.WeakSet()
     _reported_lock: ClassVar[threading.Lock] = threading.Lock()
+
+    #: Motores con checks específicos en :meth:`check`; el resto devuelve una lista vacía.
+    SUPPORTED_DB_TYPES: ClassVar[frozenset[str]] = frozenset(
+        {"mysql", "mariadb", "postgresql", "mssql", "sqlserver", "oracle", "sqlite"}
+    )
 
     #: Checks estáticos de MariaDB/MySQL con mínimo: (parámetro, mínimo, unidad, recomendación si queda por debajo).
     _MYSQL_MINIMUMS: ClassVar[tuple[tuple[str, int, str, str], ...]] = (
@@ -100,6 +106,75 @@ class EngineReadinessAdvisor:
 
         findings.sort(key=lambda f: _LEVEL_ORDER.get(f.level, 0), reverse=True)
         return findings
+
+    def assess(
+        self,
+        db_type: str,
+        conn_params: dict[str, Any],
+        *,
+        engine: Engine | None = None,
+    ) -> EngineReadinessReport:
+        """Ejecuta :meth:`check` y devuelve los hallazgos junto con las condiciones en que se obtuvieron.
+
+        Los checks estáticos usan ``conn_params`` (la configuración del usuario, no la del pool de ``engine``, que
+        puede tener los valores por defecto de SQLAlchemy). ``engine`` solo aporta la conexión de los checks
+        dinámicos; si no se puede conectar, se hacen solo los estáticos y el motivo queda en ``error``.
+
+        Args:
+            db_type: Motor (``postgresql``, ``mysql``, ``mariadb``, ``oracle``, ``mssql``/``sqlserver``, ``sqlite``).
+            conn_params: Parámetros de conexión/pool.
+            engine: Engine SQLAlchemy síncrono para los checks dinámicos (opcional).
+
+        Returns:
+            El informe; ``supported=False`` si el motor no tiene checks.
+
+        Example:
+            >>> report = EngineReadinessAdvisor().assess("mysql", {"pool_size": 2})
+            >>> [(f.level, f.param) for f in report.findings]
+            [('WARNING', 'pool_size')]
+        """
+        checked_at = datetime.now(UTC)
+        if db_type.lower().strip() not in self.SUPPORTED_DB_TYPES:
+            return EngineReadinessReport(
+                db_type=db_type, findings=(), checked_at=checked_at, dynamic=False, supported=False
+            )
+        if engine is None:
+            findings = self.check(db_type, conn_params)
+            return EngineReadinessReport(
+                db_type=db_type,
+                findings=tuple(findings),
+                checked_at=checked_at,
+                dynamic=False,
+                supported=True,
+                error="Sin engine: solo checks estáticos",
+            )
+
+        dynamic_findings: list[AdvisoryFinding] | None = None
+        error: str | None = None
+        try:
+            with engine.connect() as conn:
+                dynamic_findings = self.check(db_type, conn_params, connection=conn)
+        except Exception as exc:
+            # Si ya hay hallazgos dinámicos, falló el cierre: se conservan. El mensaje puede llevar la URL: solo el tipo.
+            if dynamic_findings is None:
+                error = f"Sin conexión para los checks dinámicos ({type(exc).__name__})"
+            logger.debug(f"EngineReadinessAdvisor.assess: '{db_type}' sin conexión: {type(exc).__name__}")
+        if dynamic_findings is not None:
+            return EngineReadinessReport(
+                db_type=db_type,
+                findings=tuple(dynamic_findings),
+                checked_at=checked_at,
+                dynamic=True,
+                supported=True,
+            )
+        return EngineReadinessReport(
+            db_type=db_type,
+            findings=tuple(self.check(db_type, conn_params)),
+            checked_at=checked_at,
+            dynamic=False,
+            supported=True,
+            error=error,
+        )
 
     def report(
         self,
@@ -492,4 +567,4 @@ class EngineReadinessAdvisor:
             return []
 
 
-__all__: list[str] = ["AdvisoryFinding", "EngineReadinessAdvisor"]
+__all__: list[str] = ["AdvisoryFinding", "EngineReadinessAdvisor", "EngineReadinessReport"]

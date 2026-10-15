@@ -7,6 +7,7 @@ import logging
 import sys
 
 from collections.abc import Callable, Collection
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Self, cast
 
@@ -33,6 +34,7 @@ from .._drivers import (
 from ..connection.close import parse_close_timeout
 from ..connection.factory import ConnectionFactory
 from ..connection.params import ConnectionParamsManager
+from ..connection.performance_advisor import EngineReadinessAdvisor, EngineReadinessReport
 from ..connection.protocols import ConnectionPoolProtocol
 from ..executors.sync_query_executor import SyncQueryExecutor
 from ..factory.pool_factory import PoolFactory
@@ -741,6 +743,33 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             )
             self._sqlalchemy_engine = engine
         return engine
+
+    def get_engine_readiness(self) -> EngineReadinessReport:
+        """Verifica las condiciones de ejecución del motor (``EngineReadinessAdvisor.assess``).
+
+        Los checks estáticos usan los ``conn_params`` del manager; los dinámicos, una conexión de
+        :meth:`get_sqlalchemy_engine`. Si no se puede crear el engine o conectar, solo se hacen los estáticos y el
+        motivo queda en ``error``. ``DatabaseDocumentation`` lo usa para la sección «Condiciones del motor».
+
+        Returns:
+            Hallazgos y condiciones de la verificación.
+
+        Example:
+            >>> with SyncDatabaseManager("sqlite", {"database": ":memory:"}) as manager:
+            ...     report = manager.get_engine_readiness()
+            >>> report.supported
+            True
+        """
+        advisor = EngineReadinessAdvisor()
+        try:
+            engine = self.get_sqlalchemy_engine()
+        except Exception as exc:
+            self.logger.debug(f"get_engine_readiness: sin engine para '{self.db_type}': {type(exc).__name__}")
+            report = advisor.assess(self.db_type, self.conn_params)
+            if not report.supported:
+                return report
+            return replace(report, error=f"Sin engine para los checks dinámicos ({type(exc).__name__})")
+        return advisor.assess(self.db_type, self.conn_params, engine=engine)
 
     # ==================== CONTEXT MANAGER ====================
 

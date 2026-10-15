@@ -17,6 +17,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from ...._core.exceptions import DatabaseException
 from ...._core.export_safety import SafeWorkbook
 from ...application.ports import DocumentationManagerPort, HeadersConfig
+from ...application.use_cases.engine_conditions import EngineConditionsSectionBuilder
 from .shared.generator_shared import (
     GeneratorDatabaseInfoRuntime,
     GeneratorInventoryRuntime,
@@ -204,6 +205,9 @@ class ExcelGenerator:
             )
         if config["include_storage"]:
             self._create_storage_sheet(wb=wb, data_provider=data_provider)
+
+        if config.get("include_engine_conditions", False):
+            self._create_engine_conditions_sheet(wb=wb, data_provider=data_provider)
 
         if config.get("include_columns_charset", False):
             self._create_columns_charset_collation_sheet(
@@ -858,6 +862,53 @@ class ExcelGenerator:
             column_count=len(headers),
             prefix="Enriched",
         )
+
+    def _create_engine_conditions_sheet(self, wb: Workbook, data_provider: DocumentationManagerPort) -> None:
+        """Crea la hoja «Condiciones del motor» (``EngineReadinessAdvisor``): avisos, verificación, resumen y hallazgos."""
+        section = EngineConditionsSectionBuilder.of(data_provider)
+        ws = wb.create_sheet("Condiciones del motor")
+        ws["A1"] = "Condiciones del motor"
+        ws["A1"].font = Font(size=14, bold=True)
+        ws["A2"] = f"Base de datos: {self.database}"
+
+        current_row: int = 4
+        for notice in section.notices:
+            ws.cell(row=current_row, column=1, value=f"⚠️ {notice}")
+            current_row += 1
+        if section.notices:
+            current_row += 1
+
+        blocks: tuple[tuple[str, list[str], list[list[Any]], str], ...] = (
+            ("Verificación", ["Propiedad", "Valor"], [list(item) for item in section.metadata], "EngineCheck"),
+            (
+                "Resumen por severidad",
+                ["Nivel", "Hallazgos"],
+                [[level, count] for level, count in section.summary],
+                "EngineSummary",
+            ),
+            ("Hallazgos", list(section.headers), [list(row) for row in section.rows], "EngineFindings"),
+        )
+        for title, headers, rows, prefix in blocks:
+            if rows:
+                current_row = self._add_engine_conditions_block(ws, current_row, title, headers, rows, prefix) + 1
+
+    def _add_engine_conditions_block(
+        self, ws: Worksheet, start_row: int, title: str, headers: list[str], rows: list[list[Any]], prefix: str
+    ) -> int:
+        """Escribe título, cabeceras y filas como tabla con estilo; devuelve la fila siguiente al bloque."""
+        ws.cell(row=start_row, column=1, value=title).font = Font(bold=True)
+        header_row: int = start_row + 1
+        for col_idx, header in enumerate(headers, start=1):
+            ws.cell(row=header_row, column=col_idx, value=header).font = Font(bold=True)
+        current_row: int = header_row + 1
+        for row in rows:
+            for col_idx, value in enumerate(row, start=1):
+                ws.cell(row=current_row, column=col_idx, value=value)
+            current_row += 1
+        self._apply_table_style_to_range(
+            ws=ws, start_row=header_row, end_row=current_row - 1, column_count=len(headers), prefix=prefix
+        )
+        return current_row
 
     def _create_storage_sheet(self, wb: Workbook, data_provider: DocumentationManagerPort) -> None:
         """Crea hoja de almacenamiento con resumen y detalle de consultas disponibles."""

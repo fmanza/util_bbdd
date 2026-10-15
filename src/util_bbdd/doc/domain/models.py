@@ -41,6 +41,26 @@ class DocumentationFormatPlan:
 
 
 @dataclass(slots=True, frozen=True)
+class EngineConditionsSection:
+    """Sección «Condiciones del motor» (``EngineReadinessAdvisor``) ya preparada, igual para todos los formatos.
+
+    Attributes:
+        headers: Cabeceras de ``rows``.
+        rows: (nivel, parámetro, valor actual, recomendación), por severidad descendente y parámetro.
+        summary: (nivel, hallazgos) en orden CRITICAL, WARNING, INFO, OK, más los niveles desconocidos.
+        metadata: (etiqueta, valor) para la trazabilidad: motor, momento de la verificación (UTC) y checks dinámicos.
+        notices: Avisos que explican una tabla vacía o incompleta (origen no compatible, motor sin checks, sin
+            conexión para los checks dinámicos, sin hallazgos).
+    """
+
+    headers: tuple[str, ...]
+    rows: tuple[tuple[str, str, str, str], ...]
+    summary: tuple[tuple[str, int], ...]
+    metadata: tuple[tuple[str, str], ...]
+    notices: tuple[str, ...]
+
+
+@dataclass(slots=True, frozen=True)
 class DocumentationResult:
     """Lo que ha generado :meth:`DatabaseDocumentation.generate`.
 
