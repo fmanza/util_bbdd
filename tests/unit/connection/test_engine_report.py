@@ -121,3 +121,78 @@ def test_describe_engine_omits_credentials(tmp_path: Path) -> None:
 
     assert EngineReadinessAdvisor.describe_engine(fake) == "postgresql · db:5432/app"  # type: ignore[arg-type]
     assert EngineReadinessAdvisor.describe_engine(_engine(tmp_path)) == f"sqlite · {tmp_path / 'db.sqlite'}"
+
+
+# T-10 (decisión 2026-10-16): SQL Server se llama «sqlserver» en todos los informes, venga de un manager o de un engine
+# (antes, «mssql» desde un engine: el dialecto de SQLAlchemy).
+@pytest.mark.parametrize(
+    ("name", "expected"), [("mssql", "sqlserver"), ("SQLServer", "sqlserver"), (" MySQL ", "mysql")]
+)
+def test_report_name_uses_the_library_db_type(name: str, expected: str) -> None:
+    assert EngineReadinessAdvisor.report_name(name) == expected
+
+
+def test_assess_reports_sqlserver_for_mssql() -> None:
+    report = EngineReadinessAdvisor().assess("mssql", {"pool_size": 10})
+
+    assert (report.db_type, report.supported) == ("sqlserver", True)
+
+
+def test_engine_report_and_describe_engine_use_sqlserver_for_an_mssql_engine() -> None:
+    engine = create_engine("mssql+pymssql://usr:x@db:1433/bench")
+    with patch.object(Engine, "connect", side_effect=OperationalError("SELECT 1", {}, Exception("sin servidor"))):
+        report = EngineReadinessAdvisor().engine_report(engine)
+
+    assert (report.db_type, report.supported, report.dynamic) == ("sqlserver", True, False)
+    assert EngineReadinessAdvisor.describe_engine(engine) == "sqlserver · db:1433/bench"
+    engine.dispose()
+
+
+# T-10 (2026-10-16): assess_async y AsyncDatabaseManager.get_engine_readiness (antes solo existía en sync).
+@pytest.mark.asyncio
+async def test_assess_async_runs_the_dynamic_checks_on_the_async_engine(tmp_path: Path) -> None:
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    database = str(tmp_path / "async.db")
+    engine = create_async_engine(f"sqlite+aiosqlite:///{database}")
+    # Sin "database" en conn_params el validador de SQLite la trata como :memory: y omite los PRAGMA.
+    report = await EngineReadinessAdvisor().assess_async("sqlite", {"database": database}, engine=engine)
+
+    assert (report.db_type, report.supported, report.dynamic, report.error) == ("sqlite", True, True, None)
+    assert "journal_mode" in {f.param for f in report.findings}  # dinámico (PRAGMA), no solo estáticos
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_assess_async_without_connection_keeps_static_checks_and_only_the_error_type(tmp_path: Path) -> None:
+    from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'async.db'}")
+    with patch.object(AsyncEngine, "connect", side_effect=OperationalError("SELECT 1", {}, Exception("u:secreto@h"))):
+        report = await EngineReadinessAdvisor().assess_async("sqlite", {}, engine=engine)
+
+    assert (report.dynamic, report.error) == (False, "Sin conexión para los checks dinámicos (OperationalError)")
+    assert "secreto" not in repr(report)
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_assess_async_without_engine_or_unsupported_engine_is_assess() -> None:
+    advisor = EngineReadinessAdvisor()
+
+    without_engine = await advisor.assess_async("mssql", {"pool_size": 10})
+    unsupported = await advisor.assess_async("hsqldb", {}, engine=object())  # type: ignore[arg-type]
+
+    assert (without_engine.db_type, without_engine.dynamic) == ("sqlserver", False)
+    assert (unsupported.supported, unsupported.findings) == (False, ())
+
+
+@pytest.mark.asyncio
+async def test_async_manager_get_engine_readiness(tmp_path: Path) -> None:
+    from util_bbdd import AsyncDatabaseManager
+
+    async with AsyncDatabaseManager("sqlite", {"database": str(tmp_path / "manager.db")}) as manager:
+        report = await manager.get_engine_readiness()
+
+    assert (report.db_type, report.supported, report.dynamic) == ("sqlite", True, True)
+    assert "journal_mode" in {f.param for f in report.findings}

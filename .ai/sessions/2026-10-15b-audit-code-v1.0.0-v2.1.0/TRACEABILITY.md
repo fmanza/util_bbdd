@@ -69,6 +69,13 @@ terminal + fichero de sesión.
   mypy 1.19, `__init__` acepta `str | PathLike[str]` (tipo de `__set__`) y la lectura es `Path` (tipo de `__get__`);
   `dataclasses.replace`, `repr`, `==` y `asdict` funcionan. Puerta: pytest limpio 5838 passed; con banco 6217 passed.
 
+- T-10 (2026-10-16), tras preguntar: (a) «sqlserver» en todos los informes (`EngineReadinessAdvisor.report_name`, usado
+  por `assess`, `engine_report`, `report_once` y `describe_engine`); solo afecta a funcionalidad de `[Unreleased]`.
+  (b) `assess_async` + `AsyncDatabaseManager.get_engine_readiness()` con `AsyncConnection.run_sync`. Sonda contra el
+  banco (`probe_async_readiness.py`, scratchpad): asyncpg, aiomysql (MySQL y MariaDB) y oracledb async con checks
+  dinámicos; SQL Server (aioodbc) sin validar. `gen_arquitectura_capas.py` pasa (solo reescribió finales de línea;
+  restaurados). Puerta: pytest limpio 5847 passed; con banco 6226 passed.
+
 ## Artefactos generados
 
 | Artefacto | Ruta | Estado |
@@ -101,3 +108,6 @@ terminal + fichero de sesión.
 - **[tipado]**: para un campo de dataclass que acepta un tipo y se lee como otro, usar un descriptor
   (`_core/validation/paths.py`: `PathField`, `OptionalPathField`); mypy toma el `__init__` de `__set__`. Exige
   dataclass sin `slots=True` (guarda en `__dict__`).
+- **[advisor]**: el nombre del motor en los informes sale siempre de `EngineReadinessAdvisor.report_name()` (`mssql` →
+  `sqlserver`); en async, los checks dinámicos se hacen con `AsyncConnection.run_sync` sobre los mismos validadores
+  síncronos. En SQLite, sin `database` en `conn_params` el validador la trata como `:memory:` y omite los PRAGMA.

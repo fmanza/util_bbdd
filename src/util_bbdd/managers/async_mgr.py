@@ -6,6 +6,7 @@ import logging
 import re
 
 from collections.abc import Awaitable, Callable, Collection
+from dataclasses import replace
 from typing import Any, cast
 
 from util_bbdd._drivers.validator import DatabaseTypeValidator
@@ -16,6 +17,7 @@ from ..async_utils import maybe_await
 from ..connection.close import AsyncCloseMode, normalize_close_mode
 from ..connection.factory import ConnectionFactory
 from ..connection.params import ConnectionParamsManager
+from ..connection.performance_advisor import EngineReadinessAdvisor, EngineReadinessReport
 from ..executors.async_query_executor import AsyncQueryExecutor
 from ..factory.async_sqlalchemy_engine_factory import AsyncSQLAlchemyEngineFactory
 from ..factory.pool_factory import PoolFactory
@@ -516,6 +518,34 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         )
         self._sqlalchemy_engine = engine
         return engine
+
+    async def get_engine_readiness(self) -> EngineReadinessReport:
+        """Verifica las condiciones de ejecución del motor (``EngineReadinessAdvisor.assess_async``).
+
+        Equivalente async de ``SyncDatabaseManager.get_engine_readiness`` (T-10, 2026-10-16): los checks estáticos usan
+        los ``conn_params`` del manager; los dinámicos, una conexión de :meth:`get_sqlalchemy_engine` (el
+        ``AsyncEngine``, vía ``run_sync``). Si no se puede crear el engine o conectar, solo se hacen los estáticos y el
+        motivo queda en ``error``.
+
+        Returns:
+            Hallazgos y condiciones de la verificación.
+
+        Example:
+            >>> async with AsyncDatabaseManager("sqlite", {"database": ":memory:"}) as manager:
+            ...     report = await manager.get_engine_readiness()
+            >>> report.supported
+            True
+        """
+        advisor = EngineReadinessAdvisor()
+        try:
+            engine = await self.get_sqlalchemy_engine()
+        except Exception as exc:
+            self.logger.debug(f"get_engine_readiness: sin engine para '{self.db_type}': {type(exc).__name__}")
+            report = advisor.assess(self.db_type, self.conn_params)
+            if not report.supported:
+                return report
+            return replace(report, error=f"Sin engine para los checks dinámicos ({type(exc).__name__})")
+        return await advisor.assess_async(self.db_type, self.conn_params, engine=engine)
 
     @staticmethod
     def get_supported_db_types() -> list[str]:

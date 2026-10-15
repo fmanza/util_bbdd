@@ -32,15 +32,18 @@ Importación: `from util_bbdd.connection import EngineReadinessAdvisor, EngineRe
 | Método / atributo | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
 | `check` | `(db_type, conn_params, *, connection=None)` | Ejecuta los checks del motor; dinámicos solo con `connection` | `list[AdvisoryFinding]` |
+| `assess_async` | `async (db_type, conn_params, *, engine=None)` | Como `assess`, con un `AsyncEngine`: los dinámicos usan su conexión vía `run_sync` | `EngineReadinessReport` |
 | `assess` | `(db_type, conn_params, *, engine=None)` | `check` con las condiciones de la verificación; `engine` aporta la conexión de los dinámicos | `EngineReadinessReport` |
 | `report` | `(db_type, conn_params, *, connection=None)` | `check` y un único mensaje al LOG (WARNING si hay WARNING o CRITICAL; si no, INFO) | `list[AdvisoryFinding]` |
 | `report_once` | `(engine)` | Verifica e informa `engine` solo la primera vez en el proceso y guarda el informe | `bool` (`True` si verificó esta llamada) |
 | `engine_report` | `(engine, *, timeout=60.0)` | Informe guardado de `engine`; lo verifica si no lo estaba y espera si otro hilo lo está verificando | `EngineReadinessReport` |
-| `describe_engine` | `(engine)` (estático) | `dialecto · host:puerto/base`, sin usuario ni contraseña | `str` |
+| `describe_engine` | `(engine)` (estático) | `motor · host:puerto/base`, sin usuario ni contraseña | `str` |
+| `report_name` | `(db_type)` (estático) | Nombre del motor en los informes: minúsculas y `mssql` → `sqlserver` | `str` |
 | `SUPPORTED_DB_TYPES` | `frozenset[str]` | `mysql`, `mariadb`, `postgresql`, `mssql`, `sqlserver`, `oracle`, `sqlite` | — |
 
 `SyncDatabaseManager.get_engine_readiness()` llama a `assess` con los `conn_params` del manager y su engine de
-SQLAlchemy ([managers sync](managers_sync.md)).
+SQLAlchemy ([managers sync](managers_sync.md)); `await AsyncDatabaseManager.get_engine_readiness()`, a `assess_async`
+con su `AsyncEngine` ([managers async](managers_async.md)).
 
 ### Contrato de entrada
 
@@ -66,7 +69,7 @@ SQLAlchemy ([managers sync](managers_sync.md)).
 
 | Campo | Tipo | Descripción |
 |---|---|---|
-| `db_type` | `str` | Motor verificado: el pedido en `assess` o el dialecto del engine en `engine_report` (`mssql`, no `sqlserver`) |
+| `db_type` | `str` | Motor verificado, con el nombre de la librería en todos los caminos (`report_name`): SQL Server es siempre `sqlserver`, también desde un engine `mssql` |
 | `findings` | `tuple[AdvisoryFinding, ...]` | Hallazgos por severidad descendente |
 | `checked_at` | `datetime` | Momento de la verificación, en UTC |
 | `dynamic` | `bool` | `True` si hubo conexión y se intentaron los checks dinámicos |

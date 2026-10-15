@@ -23,7 +23,7 @@ D-01 (CHANGELOG 2.0.0).
 | T-07 | fase_media | Confirmado | Casting sin validar en PostgreSQL; MySQL corta los dinámicos ante un valor inválido | Pendiente (con T-06) |
 | T-08 | fase_media | Confirmado | `except Exception` + DEBUG en el advisor oculta errores de programación | Pendiente (con T-06) |
 | T-09 | fase_media | Confirmado | `DumpConfig` con rutas tipadas `StrPath` tras normalizar a `Path` | ✅ 2026-10-16: descriptores `PathField`/`OptionalPathField` (`_core/validation/paths.py`); mypy ve `Path`, sigue aceptando `str`; el orquestador ya no revalida; 4 casos de test |
-| T-10 | fase_media | Confirmado | `db_type` `sqlserver`/`mssql` según el camino; sin `get_engine_readiness` async | Pendiente |
+| T-10 | fase_media | Confirmado | `db_type` `sqlserver`/`mssql` según el camino; sin `get_engine_readiness` async | ✅ 2026-10-16 (decisiones: «sqlserver» en todo; versión async): `report_name()`; `assess_async()` + `AsyncDatabaseManager.get_engine_readiness()` vía `run_sync`; 8 tests; banco async PG/MySQL/MariaDB/Oracle con checks dinámicos |
 | T-11 | fase_media | Hipótesis | Dos escritores de la hoja de condiciones (audit y doc) | Pendiente |
 | T-12 | quick_win | Confirmado | Sin página de API del advisor; enlaces y referencia rotos; guía de prompts en la navegación de usuario | ✅ `docs/api/engine_readiness_advisor.md`, enlaces, nav |
 | T-13 | quick_win | Confirmado | `.ai/CURRENT_STATE.md` en v1.1.1 e `INDEX.md` sin 13 sesiones | ✅ Actualizados |

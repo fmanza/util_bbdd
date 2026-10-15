@@ -31,10 +31,15 @@ from .config import _to_bool, _to_int
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine
+    from sqlalchemy.ext.asyncio import AsyncEngine
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 _LEVEL_ORDER: dict[str, int] = {"OK": 0, "INFO": 1, "WARNING": 2, "CRITICAL": 3}
+
+#: Nombre de la librería para los dialectos de SQLAlchemy que se llaman distinto (T-10, decisión 2026-10-16): los
+#: informes usan el ``db_type`` de los managers (``sqlserver``), venga el informe de un manager o de un engine.
+_REPORT_NAMES: dict[str, str] = {"mssql": "sqlserver"}
 _LEVEL_ICONS: dict[str, str] = {"OK": "✅  OK  ", "INFO": "ℹ️  INFO", "WARNING": "⚠️  WARN", "CRITICAL": "🔴  CRIT"}
 
 
@@ -138,7 +143,8 @@ class EngineReadinessAdvisor:
             [('WARNING', 'pool_size')]
         """
         checked_at = datetime.now(UTC)
-        if db_type.lower().strip() not in self.SUPPORTED_DB_TYPES:
+        db_type = self.report_name(db_type)
+        if db_type not in self.SUPPORTED_DB_TYPES:
             return EngineReadinessReport(
                 db_type=db_type, findings=(), checked_at=checked_at, dynamic=False, supported=False
             )
@@ -174,6 +180,55 @@ class EngineReadinessAdvisor:
         return EngineReadinessReport(
             db_type=db_type,
             findings=tuple(self.check(db_type, conn_params)),
+            checked_at=checked_at,
+            dynamic=False,
+            supported=True,
+            error=error,
+        )
+
+    async def assess_async(
+        self,
+        db_type: str,
+        conn_params: dict[str, Any],
+        *,
+        engine: AsyncEngine | None = None,
+    ) -> EngineReadinessReport:
+        """:meth:`assess` con un ``AsyncEngine``: los checks dinámicos usan su conexión vía ``run_sync``.
+
+        Mismo contrato que :meth:`assess` (T-10, 2026-10-16): sin engine o sin conexión, solo los estáticos y el motivo en
+        ``error``; nunca un segundo engine síncrono.
+
+        Args:
+            db_type: Motor (``postgresql``, ``mysql``, ``mariadb``, ``oracle``, ``mssql``/``sqlserver``, ``sqlite``).
+            conn_params: Parámetros de conexión/pool.
+            engine: ``AsyncEngine`` de SQLAlchemy para los checks dinámicos (opcional).
+
+        Returns:
+            El informe; ``supported=False`` si el motor no tiene checks.
+        """
+        if engine is None or self.report_name(db_type) not in self.SUPPORTED_DB_TYPES:
+            return self.assess(db_type, conn_params)
+        checked_at = datetime.now(UTC)
+        name = self.report_name(db_type)
+        dynamic_findings: list[AdvisoryFinding] | None = None
+        error: str | None = None
+        try:
+            async with engine.connect() as conn:
+                dynamic_findings = await conn.run_sync(
+                    lambda sync_conn: self.check(name, conn_params, connection=sync_conn)
+                )
+        except Exception as exc:
+            # Como en assess(): si ya hay hallazgos, falló el cierre y se conservan; del error, solo el tipo.
+            if dynamic_findings is None:
+                error = f"Sin conexión para los checks dinámicos ({type(exc).__name__})"
+            logger.debug(f"EngineReadinessAdvisor.assess_async: '{name}' sin conexión: {type(exc).__name__}")
+        if dynamic_findings is not None:
+            return EngineReadinessReport(
+                db_type=name, findings=tuple(dynamic_findings), checked_at=checked_at, dynamic=True, supported=True
+            )
+        return EngineReadinessReport(
+            db_type=name,
+            findings=tuple(self.check(name, conn_params)),
             checked_at=checked_at,
             dynamic=False,
             supported=True,
@@ -300,7 +355,7 @@ class EngineReadinessAdvisor:
                 report = self._reports.get(engine)
         if report is not None:
             return report
-        dialect = engine.dialect.name
+        dialect = self.report_name(engine.dialect.name)
         return EngineReadinessReport(
             db_type=dialect,
             findings=(),
@@ -321,12 +376,24 @@ class EngineReadinessAdvisor:
         url = engine.url
         location = f"{url.host}:{url.port}" if url.host and url.port else str(url.host or "")
         target = f"{location}/{url.database}" if location and url.database else str(location or url.database or "")
-        return f"{engine.dialect.name} · {target}" if target else engine.dialect.name
+        name = EngineReadinessAdvisor.report_name(engine.dialect.name)
+        return f"{name} · {target}" if target else name
+
+    @staticmethod
+    def report_name(db_type: str) -> str:
+        """Nombre del motor en los informes: en minúsculas y con el de la librería (``mssql`` → ``sqlserver``).
+
+        Example:
+            >>> EngineReadinessAdvisor.report_name("mssql"), EngineReadinessAdvisor.report_name(" PostgreSQL ")
+            ('sqlserver', 'postgresql')
+        """
+        name = db_type.lower().strip()
+        return _REPORT_NAMES.get(name, name)
 
     def _verify_and_store(self, engine: Engine) -> None:
         """Verifica ``engine`` con :meth:`report` (con conexión o, si no la hay, solo estáticos) y guarda el informe."""
         checked_at = datetime.now(UTC)
-        dialect = engine.dialect.name
+        dialect = self.report_name(engine.dialect.name)
         findings: list[AdvisoryFinding] | None = None
         dynamic = False
         error: str | None = None

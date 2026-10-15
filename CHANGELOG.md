@@ -27,6 +27,10 @@ SemVer: MINOR (features aditivas, sin cambios incompatibles; la sección nueva e
 - **connection**: `EngineReadinessAdvisor.engine_report(engine)` (resultado de `report_once()` guardado por engine,
   sin nueva conexión; espera si otro hilo lo está calculando) y `describe_engine(engine)` (sin credenciales).
   `report()` devuelve ahora los hallazgos que informa (antes `None`).
+- **managers, connection**: `await AsyncDatabaseManager.get_engine_readiness()` y
+  `EngineReadinessAdvisor.assess_async(db_type, conn_params, *, engine=None)` (checks dinámicos con la conexión del
+  `AsyncEngine` vía `run_sync`), el equivalente async de `SyncDatabaseManager.get_engine_readiness()`;
+  `EngineReadinessAdvisor.report_name()`.
 
 ### Changed
 
@@ -52,6 +56,9 @@ SemVer: MINOR (features aditivas, sin cambios incompatibles; la sección nueva e
   da INFO por debajo de 50 (antes de 10) porque el texto recomienda 50–100: de 10 a 49 pasa de OK a INFO. El WARNING de
   `write_timeout` (MySQL/MariaDB) sigue por debajo de 30 s, y su texto dice ahora «Mínimo 30 s; 60 s o más en cargas
   largas» (antes «Recomendado ≥60 s», y 45 s salía OK).
+- **connection**: los informes de `EngineReadinessAdvisor` llaman a SQL Server `sqlserver` en todos los caminos
+  (`db_type`, fila «Motor» y título del bloque en `doc`, `bulk` y `dump`); desde un engine salía `mssql`, el dialecto
+  de SQLAlchemy. `assess()` devuelve además `db_type` en minúsculas y sin espacios.
 - **dump** (tipado): `DumpConfig.output_dir`, `bulk_audit_path` y `rejects_csv_path` se leen como `Path` (y
   `Path | None`) también para mypy; antes estaban anotadas `str | PathLike` aunque en ejecución ya eran `Path`, y
   `cfg.output_dir / "x"` no pasaba el type-checker. Siguen aceptando `str` al construir y al reasignar; una

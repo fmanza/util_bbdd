@@ -39,6 +39,7 @@ flowchart TD
 | `execute_custom_many` | `async (sql, params?)` | SQL libre → varias filas | `Rows` |
 | `execute_custom_one` | `async (sql, params?)` | SQL libre → una fila | `RowOrNone` |
 | `get_sqlalchemy_engine` | `async ()` | AsyncEngine SQLAlchemy | `AsyncEngine` |
+| `get_engine_readiness` | `async ()` | Verificación de condiciones del motor (`EngineReadinessAdvisor.assess_async`): estáticos con `conn_params`, dinámicos con una conexión del `AsyncEngine` (vía `run_sync`); sin conexión, solo estáticos y el motivo en `error` | `EngineReadinessReport` |
 | `close` | `async (mode?)` | Cierra el gestor y libera recursos | `None` |
 | `get_supported_db_types` | `()` *(estático)* | Tipos de BD soportados | `list[str]` |
 

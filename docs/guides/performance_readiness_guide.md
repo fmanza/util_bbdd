@@ -221,6 +221,7 @@ verifican por separado y `engine.dispose()` no provoca una nueva verificación.
 | `engine_report(engine, *, timeout=60.0)` | `EngineReadinessReport` | El informe guardado por `report_once()`, sin nueva conexión. Si el engine no se había verificado, lo verifica; si otro hilo lo está verificando, espera hasta `timeout` |
 | `describe_engine(engine)` | `str` | `dialecto · host:puerto/base`, sin usuario ni contraseña |
 | `SyncDatabaseManager.get_engine_readiness()` | `EngineReadinessReport` | `assess()` con los `conn_params` del manager y una conexión de `get_sqlalchemy_engine()` |
+| `await AsyncDatabaseManager.get_engine_readiness()` | `EngineReadinessReport` | `assess_async()` con los `conn_params` del manager y una conexión de su `AsyncEngine` |
 
 `EngineReadinessReport` (de `util_bbdd.connection`) distingue «sin hallazgos» de «no verificado»:
 
