@@ -87,6 +87,35 @@ def test_fallo_del_informe_emite_los_eventos_y_un_run_fallido(tmp_path: Path) ->
     dst.dispose()
 
 
+def test_fallo_al_reactivar_constraints_da_un_run_fallido(tmp_path: Path) -> None:
+    # Hotfix A-01 (audit-code 2026-10-15b): el run salía "ok" con las constraints del destino sin reactivar.
+    src, dst = _engines(tmp_path)
+    sink = MemoryAuditSink()
+
+    with patch(
+        "util_bbdd.dump._constraints.ConstraintManager.enable_all", side_effect=RuntimeError("conexión perdida")
+    ):
+        result = DumpOrchestrator(DumpConfig(src, dst, output_dir=tmp_path, audit_sink=sink)).run()
+
+    assert result.constraint_reactivation_error == "conexión perdida"
+    (run,) = _by_kind(sink.events(), "run")
+    assert (run.status, run.attribute("constraint_reactivation_failed")) == ("failed", True)
+    src.dispose()
+    dst.dispose()
+
+
+def test_run_correcto_informa_que_la_reactivacion_no_fallo(tmp_path: Path) -> None:
+    src, dst = _engines(tmp_path)
+    sink = MemoryAuditSink()
+
+    DumpOrchestrator(DumpConfig(src, dst, output_dir=tmp_path, audit_sink=sink)).run()
+
+    (run,) = _by_kind(sink.events(), "run")
+    assert (run.status, run.attribute("constraint_reactivation_failed")) == ("ok", False)
+    src.dispose()
+    dst.dispose()
+
+
 class _BrokenSink:
     def write(self, events: Sequence[AuditEvent], /) -> None:
         raise OSError("disco lleno")

@@ -99,7 +99,9 @@ class SQLServerVariableValidator:
                         level="INFO",
                         param="max_degree_of_parallelism",
                         current="0 (ilimitado)",
-                        recommendation="Para OLTP bulk: ajustar a nCPU/2 con SET MAXDOP; evita overhead de paralelismo en queries pequeñas",
+                        recommendation="Para OLTP bulk: ajustar a nCPU/2 (máximo 8) con EXEC sp_configure "
+                        "'max degree of parallelism', <n>; RECONFIGURE; (o ALTER DATABASE SCOPED CONFIGURATION "
+                        "SET MAXDOP = <n>;); evita overhead de paralelismo en queries pequeñas",
                     )
                 )
             elif maxdop > 8:

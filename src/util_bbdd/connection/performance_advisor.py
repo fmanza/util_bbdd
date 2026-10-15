@@ -552,7 +552,8 @@ class EngineReadinessAdvisor:
                 current=log_file_fmt,
                 recommendation=f"Para bulk en datasets >10GB: aumentar a 1–2 GB "
                 f"(actual: {log_file_fmt}); evita rotación frecuente de redo log; "
-                f"dinámico en MySQL 8.0.30+, estático en 5.7 (requiere reinicio)",
+                f"MySQL 8.0.30+: ajustar innodb_redo_log_capacity (dinámica; innodb_log_file_size está obsoleta); "
+                f"MySQL 5.7 y MariaDB < 10.9: en my.cnf, requiere reinicio",
             )
         return AdvisoryFinding(level="OK", param="innodb_log_file_size", current=log_file_fmt, recommendation="")
 
@@ -567,7 +568,8 @@ class EngineReadinessAdvisor:
                 param="innodb_write_io_threads",
                 current=str(value),
                 recommendation="En servidores SSD con ≥4 CPUs: aumentar a nCPU/2 "
-                "para paralelismo de escritura; SET GLOBAL innodb_write_io_threads = <value>;",
+                "para paralelismo de escritura; en my.cnf (innodb_write_io_threads = <n>): en MySQL no es dinámica "
+                "y requiere reinicio",
             )
         return AdvisoryFinding(level="OK", param="innodb_write_io_threads", current=str(value), recommendation="")
 

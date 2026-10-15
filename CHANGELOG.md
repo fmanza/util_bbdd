@@ -44,6 +44,20 @@ SemVer: MINOR (features aditivas, sin cambios incompatibles; la sección nueva e
   valor (negativo, `bool`, `str`, `float`) da `DocumentationConfigError`. Antes un negativo no agrupaba nunca y un `str`
   fallaba ya en `generate()`.
 
+### Fixed
+
+- **dump** (hotfix): el evento `run` de `DumpConfig.audit_sink` salía `ok` aunque fallase la reactivación general de
+  constraints (`DumpResult.constraint_reactivation_error`, desde v1.2.0), con el destino sin FK/CHECK. Ahora es
+  `failed` y lleva el atributo `constraint_reactivation_failed`.
+- **executors** (hotfix): con asyncpg, un `:nombre` o `%(nombre)s` dentro de un literal (`'...'`), un identificador
+  entre comillas o un comentario se traducía a `$n` si coincidía con un parámetro y el literal cambiaba de valor sin
+  error (desde v1.1.0). Ahora solo se traducen los marcadores fuera de ellos.
+- **connection** (hotfix): recomendaciones de `EngineReadinessAdvisor` que fallaban al aplicarlas:
+  `SET GLOBAL innodb_write_io_threads` (no es dinámica en MySQL), `innodb_log_file_size` «dinámico en MySQL 8.0.30+»
+  (lo dinámico es `innodb_redo_log_capacity`) y `SET MAXDOP` (no existe: `sp_configure` o
+  `ALTER DATABASE SCOPED CONFIGURATION`). Corregida también la guía de rendimiento.
+- **changelog**: la entrada 2.0.0 decía «Por publicar» con el tag `v2.0.0` ya creado (2026-10-14).
+
 ### Documentation
 
 - Página de API `docs/api/engine_readiness_advisor.md` (`EngineReadinessAdvisor`, `EngineReadinessReport`,
@@ -69,7 +83,7 @@ Sesión `.ai/sessions/2026-10-14-performance-advisor-phase1-3/`. SemVer: MINOR (
   Cada validador emite `AdvisoryFinding` con recomendaciones específicas sin escalada de permisos (sin SUPER, sysadmin).
   Graceful fallback: parámetro no encontrado → omite check sin error. Tests: 27 nuevos, 0 regresiones (119/119 pasan).
 
-## [2.0.0] - Por publicar
+## [2.0.0] - 2026-10-14
 
 Sesión `.ai/sessions/2026-10-14-remove-reserved-exceptions/`. SemVer: MAJOR (cambios incompatibles).
 

@@ -138,15 +138,19 @@ class DumpAuditEvents:
         result: DumpResult | None,
         error: BaseException | None,
     ) -> AuditEvent:
-        """Evento ``run`` de cierre del volcado: ``failed`` si lanzó una excepción o alguna tabla terminó en error."""
+        """Evento ``run`` de cierre del volcado: ``failed`` si lanzó una excepción, alguna tabla terminó en error o falló la
+        reactivación general de constraints (``DumpResult.constraint_reactivation_error``)."""
         failed_tables = 0 if result is None else sum(1 for r in result.table_results if r.status == "error")
-        status: AuditStatus = "failed" if error is not None or failed_tables else "ok"
+        # Hotfix A-01 (audit-code 2026-10-15b): sin esto, un destino con las constraints sin reactivar salía "ok".
+        reactivation_failed = result is not None and result.constraint_reactivation_error is not None
+        status: AuditStatus = "failed" if error is not None or failed_tables or reactivation_failed else "ok"
         attributes: dict[str, str | int | float | bool | None] = {"failed_tables": failed_tables}
         if result is not None:
             attributes |= {
                 "tables": len(result.table_results),
                 "rows_rejected": result.rows_rejected,
                 "constraints_failed": sum(1 for r in result.constraint_results if r.status == "failed"),
+                "constraint_reactivation_failed": reactivation_failed,
                 "report": str(result.report),
             }
         return AuditEvent.now(

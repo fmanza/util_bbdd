@@ -4,7 +4,7 @@
 - id: 2026-10-15b-audit-code-v1.0.0-v2.1.0
 - fecha: 2026-10-15
 - rama: develop (HEAD `0c0e6a65`)
-- skill: audit_code → tech_debt
+- skill: audit_code → tech_debt → hotfix
 - fase: audit_code (PLAN + AUDIT_PLAN + AUDIT_CODE + VERSION, solo lectura); tech_debt (PLAN + AUDIT_PLAN + AUDIT_CODE; IMPLEMENT de la Fase 1 + VERSION, sin commit)
 
 ## Prompt issued
@@ -38,6 +38,21 @@ terminal + fichero de sesión.
   incidencias; pytest limpio 5826 passed / 531 skipped; con banco (sin SQL Server) 6205 passed / 152 skipped.
 - Sin commit (lo decide el usuario). Commit propuesto:
   `refactor: deuda técnica fase 1 tras audit-code v1.0.0..v2.1.0` (o separado: `fix(dump)`, `fix(doc)`, `docs`, `refactor(dump)`).
+
+- `/hotfix` (2026-10-16) de A-01, A-02, A-04 y D-01, test-first (los tests nuevos fallan sin el fix):
+  - A-01 `dump/_audit_events.py`: el evento `run` es `failed` con `constraint_reactivation_error`; atributo
+    `constraint_reactivation_failed`. Tests en `tests/unit/dump/test_audit_sink.py`.
+  - A-02 `executors/async_query_executor.py`: la regex de asyncpg salta literales, identificadores entre comillas y
+    comentarios. 6 casos en `tests/unit/test_async_executor_asyncpg.py`.
+  - A-04 `connection/performance_advisor.py`, `connection/sqlserver/_variables.py` y la guía de rendimiento:
+    recomendaciones aplicables (`my.cnf`, `innodb_redo_log_capacity`, `sp_configure`/`ALTER DATABASE SCOPED
+    CONFIGURATION`). Aserciones en `tests/unit/connection/test_performance_advisor.py`.
+  - D-01 `CHANGELOG.md`: `[2.0.0] - 2026-10-14`; entradas `Fixed` en `[Unreleased]`.
+  - Puerta: ruff, mypy (336) y `zensical build --strict` limpios; pytest limpio 5834 passed / 531 skipped; con banco
+    (sin SQL Server) 6213 passed / 152 skipped; integración async de PostgreSQL 4 passed.
+  - Riesgos residuales: asyncpg no reconoce `$$...$$` ni las cadenas `E'...'` con `\'`; en MySQL 8.0.30+ el check sigue leyendo
+    `innodb_log_file_size` (obsoleta) en lugar de `innodb_redo_log_capacity`; el aviso de Sonar de complejidad de
+    `SQLServerVariableValidator.check_dynamic` ya existía (T-06).
 
 ## Artefactos generados
 

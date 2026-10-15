@@ -126,3 +126,19 @@ async def test_other_drivers_keep_the_cursor_path() -> None:
 
     assert await executor.execute_custom_many("SELECT 1") == [(1,)]
     cursor.execute.assert_awaited_once_with("SELECT 1")
+
+
+@pytest.mark.parametrize(
+    ("sql", "expected"),
+    [
+        # Hotfix A-02 (audit-code 2026-10-15b): los marcadores dentro de literales cambiaban el valor del literal.
+        ("SELECT ':name' AS lit, :name AS v", "SELECT ':name' AS lit, $1 AS v"),
+        ("SELECT '%(name)s' AS lit, %(name)s AS v", "SELECT '%(name)s' AS lit, $1 AS v"),
+        ("SELECT 'it''s :name', :name", "SELECT 'it''s :name', $1"),
+        ('SELECT ":name" FROM t WHERE c = :name', 'SELECT ":name" FROM t WHERE c = $1'),
+        ("SELECT :name -- filtro por :name\n", "SELECT $1 -- filtro por :name\n"),
+        ("SELECT /* :name */ :name", "SELECT /* :name */ $1"),
+    ],
+)
+def test_placeholders_inside_literals_identifiers_and_comments_are_kept(sql: str, expected: str) -> None:
+    assert AsyncQueryExecutor._to_asyncpg(sql, {"name": 1}) == (expected, [1])

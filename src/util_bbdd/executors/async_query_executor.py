@@ -26,8 +26,13 @@ _PYFORMAT_LITERAL_PERCENT: re.Pattern[str] = re.compile(r"%%|%(?!\([A-Za-z_]\w*\
 
 # asyncpg no es DB-API: se ejecuta con ``fetch``/``fetchrow`` y parámetros ``$n``. Se traducen los dos estilos con nombre
 # que ya reconoce el ejecutor (``%(nombre)s``, el de psycopg en sync, y ``:nombre``); ``::`` (cast) y ``'10:30'`` no son
-# parámetros.
-_ASYNCPG_PARAM: re.Pattern[str] = re.compile(r"%\((?P<pyformat>[A-Za-z_]\w*)\)s|(?<![:\w]):(?P<named>[A-Za-z_]\w*)")
+# parámetros. Hotfix A-02 (audit-code 2026-10-15b): literales ``'...'``, identificadores ``"..."`` y comentarios se
+# reconocen antes y se dejan tal cual; sin ello ``SELECT ':id', :id`` enviaba ``'$1'`` y cambiaba el literal.
+_ASYNCPG_PARAM: re.Pattern[str] = re.compile(
+    r"""(?P<skip>'(?:[^']|'')*'|"(?:[^"]|"")*"|--[^\n]*|/\*.*?\*/)"""
+    r"|%\((?P<pyformat>[A-Za-z_]\w*)\)s|(?<![:\w]):(?P<named>[A-Za-z_]\w*)",
+    re.DOTALL,
+)
 
 
 class AsyncQueryExecutor:
@@ -133,6 +138,8 @@ class AsyncQueryExecutor:
 
         def replace(match: re.Match[str]) -> str:
             nonlocal pyformat
+            if match.group("skip") is not None:
+                return match.group(0)
             name: str = match.group("pyformat") or match.group("named")
             if name not in params:
                 return match.group(0)

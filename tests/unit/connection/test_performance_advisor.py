@@ -606,6 +606,9 @@ class TestSQLServerDynamicChecks:
         findings = self.advisor.check("mssql", {"pool_size": 10}, connection=conn)
         f = _find(findings, "max_degree_of_parallelism")
         assert f is not None and f.level == "INFO"
+        # Hotfix A-04 (audit-code 2026-10-15b): recomendaba «SET MAXDOP», que no existe como sentencia.
+        assert "sp_configure 'max degree of parallelism'" in f.recommendation
+        assert "con SET MAXDOP" not in f.recommendation
 
     def test_maxdop_medium_ok(self) -> None:
         conn = self._make_conn({"max degree of parallelism": 4})
@@ -735,6 +738,9 @@ class TestMySQLDynamicChecks:
         findings = self.advisor.check(engine, {"pool_size": 10}, connection=conn)
         f = _find(findings, "innodb_log_file_size")
         assert f is not None and f.level == "INFO"
+        # Hotfix A-04: en MySQL 8.0.30+ lo dinámico es innodb_redo_log_capacity, no innodb_log_file_size.
+        assert "innodb_redo_log_capacity" in f.recommendation
+        assert "dinámico en MySQL 8.0.30+" not in f.recommendation
 
     @pytest.mark.parametrize("engine", ["mysql", "mariadb"])
     def test_innodb_log_file_size_high_ok(self, engine: str) -> None:
@@ -749,6 +755,9 @@ class TestMySQLDynamicChecks:
         findings = self.advisor.check(engine, {"pool_size": 10}, connection=conn)
         f = _find(findings, "innodb_write_io_threads")
         assert f is not None and f.level == "INFO"
+        # Hotfix A-04: no es dinámica en MySQL; SET GLOBAL falla con «read only variable».
+        assert "SET GLOBAL" not in f.recommendation
+        assert "my.cnf" in f.recommendation
 
     @pytest.mark.parametrize("engine", ["mysql", "mariadb"])
     def test_innodb_write_io_threads_high_ok(self, engine: str) -> None:

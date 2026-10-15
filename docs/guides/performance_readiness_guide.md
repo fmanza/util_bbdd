@@ -37,12 +37,13 @@ Además del LOG, los hallazgos aparecen en los documentos y los Excel de auditor
 | Parámetro | Tipo | Rango | Recomendación |
 |-----------|------|-------|----------------|
 | `innodb_flush_log_at_trx_commit` | Dinámico | 0, 1, 2 | **2** (equilibrio durabilidad/rendimiento en bulk) |
-| `innodb_log_file_size` | Dinámico* | ≥512 MB | **1–2 GB** (evita rotación frecuente redo log >10GB datasets) |
-| `innodb_write_io_threads` | Dinámico | ≥1 | **nCPU/2** en SSD (paralelismo escritura) |
+| `innodb_log_file_size` | Estático* | ≥512 MB | **1–2 GB** (evita rotación frecuente redo log >10GB datasets) |
+| `innodb_write_io_threads` | Estático en MySQL | ≥1 | **nCPU/2** en SSD (paralelismo escritura; en `my.cnf`, requiere reinicio) |
 | `innodb_buffer_pool_size` | Dinámico | ≥1 GB | **25–50% RAM** (25% mínimo, 50% óptimo) |
 | `max_allowed_packet` | Dinámico | ≥16 MB | **64 MB** (INSERT multi-fila de ~1000 filas) |
 
-**\*MySQL 8.0.30+: dinámico; 5.7: estático (requiere reinicio)**
+**\*MySQL 8.0.30+: `innodb_log_file_size` está obsoleta; el tamaño del redo log se ajusta en caliente con
+`innodb_redo_log_capacity`. MySQL 5.7 y MariaDB anteriores a 10.9: en `my.cnf`, requiere reinicio.**
 
 **Ejemplo de hallazgos:**
 
@@ -315,15 +316,18 @@ sudo systemctl restart postgresql
 **Causa:** `max_degree_of_parallelism = 0`.  
 **Solución:**
 ```sql
--- Sesión actual
-SET STATISTICS IO ON;
-exec sp_configure 'max degree of parallelism', 4;
-RECONFIGURE WITH OVERRIDE;
-
--- Permanente
+-- Todo el servidor (opción avanzada: requiere 'show advanced options' = 1)
 EXEC sp_configure 'max degree of parallelism', 4;
 RECONFIGURE;
+
+-- Solo esta base de datos (SQL Server 2016+)
+ALTER DATABASE SCOPED CONFIGURATION SET MAXDOP = 4;
+
+-- Solo una consulta
+SELECT ... OPTION (MAXDOP 4);
 ```
+
+No existe `SET MAXDOP` como sentencia de sesión.
 
 ---
 
