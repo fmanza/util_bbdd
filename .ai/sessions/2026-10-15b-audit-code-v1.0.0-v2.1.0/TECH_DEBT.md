@@ -16,8 +16,8 @@ D-01 (CHANGELOG 2.0.0).
 |---|---|---|---|---|
 | T-01 | quick_win | Confirmado | Comentarios de justificación perdidos en `21df2668` (`dump/orchestrator.py`) | ✅ Restaurados (solo comentarios) |
 | T-02 | quick_win | Confirmado | Hoja «Errores de Reactivación»: orden y anchos (`dump/reporters.py`) | ✅ Al final (antes de «Condiciones del motor»), anchos 30/80, ajuste de texto; 3 tests |
-| T-03 | quick_win | Confirmado | Umbrales incoherentes con su texto (`write_timeout`, `cost threshold`) | Pendiente de A-05 |
-| T-04 | quick_win | Hipótesis | `reactivation_error = str(exc)` frente a la política «solo el tipo» | Pendiente de A-07 |
+| T-03 | quick_win | Confirmado | Umbrales incoherentes con su texto (`write_timeout`, `cost threshold`) | Desbloqueado (A-05 decidido 2026-10-16) |
+| T-04 | quick_win | Hipótesis | `reactivation_error = str(exc)` frente a la política «solo el tipo» | ✅ Cerrado por la decisión A-07: mensaje completo, documentado (comentario en `_constraints.py`, `docs/api/dump.md`) |
 | T-05 | quick_win | Confirmado | `batch_window_seconds` sin validar; nombres reservados de Windows | ✅ Validación + 7 casos de test; la parte de Windows era un falso positivo (A-11) |
 | T-06 | deuda_estructural | Confirmado | `_check_*` duplicados y MySQL dentro del advisor → Strategy con registro por motor | Pendiente (`/refactor`) |
 | T-07 | fase_media | Confirmado | Casting sin validar en PostgreSQL; MySQL corta los dinámicos ante un valor inválido | Pendiente (con T-06) |

@@ -54,6 +54,14 @@ terminal + fichero de sesión.
     `innodb_log_file_size` (obsoleta) en lugar de `innodb_redo_log_capacity`; el aviso de Sonar de complejidad de
     `SQLServerVariableValidator.check_dynamic` ya existía (T-06).
 
+- Decisiones del usuario (2026-10-16), tras explicar cada opción:
+  - A-05 «durabilidad primero»: `innodb_flush_log_at_trx_commit` 1 → OK, 2 → INFO (riesgo ~1 s si cae el SO; solo en
+    una ventana de carga), 0 → WARNING. Implementado en `performance_advisor.py`; tests y guía de rendimiento
+    actualizados. En el banco, MySQL y MariaDB (valor 1) pasan de WARNING a OK.
+  - A-07 «mensaje completo y documentar»: coherente con los `error_msg` del informe. Comentario en
+    `dump/_constraints.py`, `docs/api/dump.md` y CHANGELOG; T-04 cerrado.
+  - Puerta: ruff, mypy y `zensical build --strict` limpios; pytest limpio 5834 passed; con banco 6213 passed.
+
 ## Artefactos generados
 
 | Artefacto | Ruta | Estado |
@@ -79,3 +87,7 @@ terminal + fichero de sesión.
 ## Rollback
 - Sin commit: `git restore` de los ficheros listados y borrar `docs/api/engine_readiness_advisor.md`. Con commit:
   `git revert`. No hay migraciones ni datos.
+- **[advisor]**: `innodb_flush_log_at_trx_commit` sigue la política «durabilidad primero» (decisión A-05): el advisor no
+  recomienda rebajar la durabilidad de todo el servidor; 2 solo se acepta como medida temporal de una carga.
+- **[dump]**: los mensajes de error del informe (`error_msg`, `constraint_reactivation_error`) son el `str(exc)`
+  completo por decisión (A-07); el advisor guarda solo el tipo. No unificar sin una nueva decisión.

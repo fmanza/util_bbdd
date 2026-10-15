@@ -43,6 +43,14 @@ SemVer: MINOR (features aditivas, sin cambios incompatibles; la sección nueva e
 - **doc**: `DatabaseDocumentation(batch_window_seconds=...)` valida el valor al construir: un entero ≥ 0 o `None`; otro
   valor (negativo, `bool`, `str`, `float`) da `DocumentationConfigError`. Antes un negativo no agrupaba nunca y un `str`
   fallaba ya en `generate()`.
+- **connection**: `EngineReadinessAdvisor` evalúa `innodb_flush_log_at_trx_commit` con durabilidad primero (es una
+  variable global del servidor): `1` (por defecto, el único valor ACID) pasa de WARNING («cambiar a 2») a **OK**; `2`,
+  de OK a **INFO** (pierde hasta ~1 s de commits si cae el sistema operativo: solo en una ventana de carga, y volver a
+  1); `0`, de CRITICAL a **WARNING** (pierde también si cae `mysqld`). Cambian los niveles del LOG y de las hojas
+  «Condiciones del motor».
+- **dump** (política, sin cambio de código): `DumpResult.constraint_reactivation_error` y la hoja «Errores de
+  Reactivación» guardan el mensaje completo de la excepción, como los `error_msg` por tabla, constraint e índice; el
+  advisor guarda solo el tipo porque sus errores de conexión pueden llevar la URL. Documentado en `docs/api/dump.md`.
 
 ### Fixed
 

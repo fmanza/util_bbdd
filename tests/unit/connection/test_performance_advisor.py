@@ -711,26 +711,33 @@ class TestMySQLDynamicChecks:
         f = _find(findings, "innodb_buffer_pool_size")
         assert f is not None and f.level == "OK"
 
+    # Decisión A-05 (2026-10-16): durabilidad primero. Hasta v2.1.0: 0 CRITICAL, 1 WARNING («cambiar a 2»), 2 OK.
     @pytest.mark.parametrize("engine", ["mysql", "mariadb"])
-    def test_innodb_flush_log_zero_critical(self, engine: str) -> None:
+    def test_innodb_flush_log_zero_warning(self, engine: str) -> None:
         conn = self._make_mysql_conn({"innodb_flush_log_at_trx_commit": 0})
         findings = self.advisor.check(engine, {"pool_size": 10}, connection=conn)
         f = _find(findings, "innodb_flush_log_at_trx_commit")
-        assert f is not None and f.level == "CRITICAL"
+        assert f is not None
+        assert f.level == "WARNING"
+        assert "cae mysqld" in f.recommendation
 
     @pytest.mark.parametrize("engine", ["mysql", "mariadb"])
-    def test_innodb_flush_log_one_warning(self, engine: str) -> None:
+    def test_innodb_flush_log_one_ok(self, engine: str) -> None:
         conn = self._make_mysql_conn({"innodb_flush_log_at_trx_commit": 1})
         findings = self.advisor.check(engine, {"pool_size": 10}, connection=conn)
         f = _find(findings, "innodb_flush_log_at_trx_commit")
-        assert f is not None and f.level == "WARNING"
+        assert f is not None
+        assert f.level == "OK"
 
     @pytest.mark.parametrize("engine", ["mysql", "mariadb"])
-    def test_innodb_flush_log_two_ok(self, engine: str) -> None:
+    def test_innodb_flush_log_two_info_with_durability_risk(self, engine: str) -> None:
         conn = self._make_mysql_conn({"innodb_flush_log_at_trx_commit": 2})
         findings = self.advisor.check(engine, {"pool_size": 10}, connection=conn)
         f = _find(findings, "innodb_flush_log_at_trx_commit")
-        assert f is not None and f.level == "OK"
+        assert f is not None
+        assert f.level == "INFO"
+        assert "Durabilidad reducida" in f.recommendation
+        assert "innodb_flush_log_at_trx_commit = 1" in f.recommendation
 
     @pytest.mark.parametrize("engine", ["mysql", "mariadb"])
     def test_innodb_log_file_size_low_info(self, engine: str) -> None:

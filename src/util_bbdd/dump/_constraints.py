@@ -72,6 +72,9 @@ class ConstraintManager:
         try:
             self.constraint_results = self.enable_all()
         except Exception as exc:  # noqa: BLE001
+            # Mensaje completo, como los error_msg por constraint, índice y tabla del informe (decisión A-07,
+            # 2026-10-16): sirve para diagnosticar y los errores de SQLAlchemy no llevan la contraseña. El advisor
+            # guarda solo el tipo porque sus errores de conexión pueden llevar la URL.
             self.reactivation_error = str(exc)
             self.logger.exception("Error al rehabilitar constraints — la excepción original no se enmascara")
 

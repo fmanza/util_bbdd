@@ -517,25 +517,31 @@ class EngineReadinessAdvisor:
 
     @staticmethod
     def _check_mysql_flush_log_at_trx_commit(value: Any) -> AdvisoryFinding | None:
-        """Evalúa innodb_flush_log_at_trx_commit."""
+        """Evalúa innodb_flush_log_at_trx_commit: durabilidad primero (decisión A-05, 2026-10-16).
+
+        Es una variable global: el advisor no recomienda rebajar la durabilidad de todo el servidor. 1 (por defecto, el
+        único valor ACID) es OK; 2 se informa (pierde hasta ~1 s de commits si cae el SO) y 0 se avisa (también si cae
+        mysqld). Hasta v2.1.0, 1 era WARNING («cambiar a 2»), 2 OK y 0 CRITICAL.
+        """
         if value is None:
             return None
-        if value == 2:
-            return AdvisoryFinding(level="OK", param="innodb_flush_log_at_trx_commit", current="2", recommendation="")
         if value == 1:
+            return AdvisoryFinding(level="OK", param="innodb_flush_log_at_trx_commit", current="1", recommendation="")
+        if value == 2:
             return AdvisoryFinding(
-                level="WARNING",
+                level="INFO",
                 param="innodb_flush_log_at_trx_commit",
-                current="1",
-                recommendation="Para bulk operations: cambiar a 2 (equilibrio entre durabilidad y rendimiento); "
-                "SET GLOBAL innodb_flush_log_at_trx_commit = 2;",
+                current="2",
+                recommendation="Durabilidad reducida: si cae el sistema operativo se pierde hasta ~1 s de commits "
+                "confirmados; aceptable solo durante una ventana de carga; al terminar: "
+                "SET GLOBAL innodb_flush_log_at_trx_commit = 1;",
             )
         return AdvisoryFinding(
-            level="CRITICAL",
+            level="WARNING",
             param="innodb_flush_log_at_trx_commit",
             current=str(value),
-            recommendation="Valor inseguro para producción; cambiar a 1 ó 2; "
-            "SET GLOBAL innodb_flush_log_at_trx_commit = 2;",
+            recommendation="Se pierde hasta ~1 s de commits confirmados también si solo cae mysqld; volver a 1 "
+            "(SET GLOBAL innodb_flush_log_at_trx_commit = 1;) o, solo durante una carga, 2",
         )
 
     @staticmethod

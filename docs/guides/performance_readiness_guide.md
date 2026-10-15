@@ -36,7 +36,7 @@ Además del LOG, los hallazgos aparecen en los documentos y los Excel de auditor
 
 | Parámetro | Tipo | Rango | Recomendación |
 |-----------|------|-------|----------------|
-| `innodb_flush_log_at_trx_commit` | Dinámico | 0, 1, 2 | **2** (equilibrio durabilidad/rendimiento en bulk) |
+| `innodb_flush_log_at_trx_commit` | Dinámico | 0, 1, 2 | **1** (único valor ACID; OK). **2** se informa (INFO): más rápido en cargas, pero pierde hasta ~1 s de commits si cae el sistema operativo; solo durante una ventana de carga y volver a 1. **0** se avisa (WARNING): pierde también si cae `mysqld` |
 | `innodb_log_file_size` | Estático* | ≥512 MB | **1–2 GB** (evita rotación frecuente redo log >10GB datasets) |
 | `innodb_write_io_threads` | Estático en MySQL | ≥1 | **nCPU/2** en SSD (paralelismo escritura; en `my.cnf`, requiere reinicio) |
 | `innodb_buffer_pool_size` | Dinámico | ≥1 GB | **25–50% RAM** (25% mínimo, 50% óptimo) |
@@ -49,8 +49,8 @@ Además del LOG, los hallazgos aparecen en los documentos y los Excel de auditor
 
 ```
 ✅ OK — innodb_buffer_pool_size = 1 GB
-⚠️ WARNING — innodb_flush_log_at_trx_commit = 1 (cambiar a 2 para bulk)
-🔴 CRITICAL — innodb_flush_log_at_trx_commit = 0 (inseguro)
+ℹ️ INFO — innodb_flush_log_at_trx_commit = 2 (durabilidad reducida; volver a 1 al terminar la carga)
+⚠️ WARNING — innodb_flush_log_at_trx_commit = 0 (pierde commits también si cae mysqld)
 ```
 
 ---
@@ -183,11 +183,11 @@ advisor.report(
 # ╔═══════════════════════════════════╗
 # ║  ENGINE READINESS REPORT  ·  mysql  ║
 # ╚═══════════════════════════════════╝
-#   [🔴 CRIT]  innodb_flush_log_at_trx_commit=0    → Cambiar a 2
+#   [⚠️ WARN]  innodb_flush_log_at_trx_commit=0    → Volver a 1 (pierde commits si cae mysqld)
 #   [⚠️ WARN]  innodb_buffer_pool_size=256 MB     → Recomendado ≥1 GB
 #   [✅ OK]    pool_size=10
 # ─────────────────────────────────────
-#   Resumen: 1 CRITICAL · 1 WARNING · 1 OK
+#   Resumen: 2 WARNING · 1 OK
 ```
 
 ### 4. Verificación Única por Engine
