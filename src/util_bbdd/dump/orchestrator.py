@@ -43,7 +43,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import sqltypes
 
 from util_bbdd._core.batching import resolve_write_batch_size
-from util_bbdd._core.validation import validate_optional_path, validate_path
 from util_bbdd.audit.counters import AuditCounters
 from util_bbdd.audit.events import AuditEvent
 from util_bbdd.audit.readiness import ReadinessBlock
@@ -165,8 +164,8 @@ class DumpOrchestrator:
     def _init_dump_run(self) -> tuple[Path, Path | None, datetime]:
         """Inicializa paths y auditoría para el volcado."""
         cfg = self._cfg
-        output_dir: Path = validate_path(cfg.output_dir, "output_dir")
-        bulk_audit_path: Path | None = validate_optional_path(cfg.bulk_audit_path, "bulk_audit_path")
+        output_dir: Path = cfg.output_dir  # Path por DumpConfig (PathField, T-09); antes se revalidaba aquí
+        bulk_audit_path: Path | None = cfg.bulk_audit_path
         dump_inicio = datetime.now()
         self._reset_audit_tracking()
         # 3.4 (PF-08): tamaño del CSV de auditoría al empezar; el resumen solo lee lo añadido desde aquí.

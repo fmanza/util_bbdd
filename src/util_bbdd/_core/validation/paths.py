@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 
 from pathlib import Path
-from typing import Any
+from typing import Any, overload
 
 #: Ruta aceptada por la API pública: ``str`` o cualquier ``os.PathLike[str]`` (``pathlib.Path`` incluido).
 type StrPath = str | os.PathLike[str]
@@ -45,3 +45,65 @@ def validate_path(value: Any, name: str) -> Path:
 def validate_optional_path(value: Any, name: str) -> Path | None:
     """Como :func:`validate_path`, pero ``None`` se devuelve tal cual (parámetro opcional sin indicar)."""
     return None if value is None else validate_path(value, name)
+
+
+class PathField:
+    """Campo de dataclass que acepta ``str`` o ``os.PathLike[str]`` al asignarse y se lee siempre como ``Path``.
+
+    T-09 (tech-debt 2026-10-16): con el campo anotado ``StrPath`` y la conversión en ``__post_init__``, mypy veía
+    ``cfg.output_dir`` como ``str | PathLike`` aunque en ejecución fuera ``Path``. Con un descriptor, mypy toma el tipo de
+    ``__init__`` de :meth:`__set__` (``StrPath``) y el de lectura de :meth:`__get__` (``Path``). También valida al
+    reasignar el atributo. Sin ``slots=True``: guarda el valor en ``__dict__`` de la instancia.
+
+    Example:
+        >>> from dataclasses import dataclass
+        >>> @dataclass
+        ... class Config:
+        ...     output_dir: PathField = PathField(Path())
+        >>> Config("salida").output_dir == Path("salida")
+        True
+    """
+
+    def __init__(self, default: Path) -> None:
+        self._default: Path = default
+        self._name: str = ""
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self._name = name
+
+    @overload
+    def __get__(self, obj: None, owner: type | None = None) -> Path: ...
+    @overload
+    def __get__(self, obj: object, owner: type | None = None) -> Path: ...
+    def __get__(self, obj: object | None, owner: type | None = None) -> Path:
+        # Sin instancia, el valor por defecto: ``dataclass`` lo usa como default del campo.
+        if obj is None:
+            return self._default
+        value: Path = obj.__dict__[self._name]
+        return value
+
+    def __set__(self, obj: object, value: StrPath) -> None:
+        obj.__dict__[self._name] = validate_path(value, self._name)
+
+
+class OptionalPathField:
+    """Como :class:`PathField`, pero opcional: ``None`` (el valor por defecto) se guarda tal cual."""
+
+    def __init__(self) -> None:
+        self._name: str = ""
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self._name = name
+
+    @overload
+    def __get__(self, obj: None, owner: type | None = None) -> Path | None: ...
+    @overload
+    def __get__(self, obj: object, owner: type | None = None) -> Path | None: ...
+    def __get__(self, obj: object | None, owner: type | None = None) -> Path | None:
+        if obj is None:
+            return None
+        value: Path | None = obj.__dict__[self._name]
+        return value
+
+    def __set__(self, obj: object, value: StrPath | None) -> None:
+        obj.__dict__[self._name] = validate_optional_path(value, self._name)

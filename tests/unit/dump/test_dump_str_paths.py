@@ -6,6 +6,8 @@ informe, sin devolver el ``DumpResult``; ``bulk_audit_path`` como ``str`` fallab
 
 from __future__ import annotations
 
+import dataclasses
+
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -60,10 +62,28 @@ class TestDumpConfig:
     def test_default_output_dir_is_still_the_working_directory(self) -> None:
         assert DumpConfig(source_engine=_mock_engine(), target_engine=_mock_engine()).output_dir == Path()
 
-    @pytest.mark.parametrize("parameter", ["output_dir", "bulk_audit_path"])
+    @pytest.mark.parametrize("parameter", ["output_dir", "bulk_audit_path", "rejects_csv_path"])
     def test_other_types_raise_value_error_at_construction(self, parameter: str) -> None:
         with pytest.raises(ValueError, match=rf"{parameter} debe ser una ruta"):
             DumpConfig(source_engine=_mock_engine(), target_engine=_mock_engine(), **{parameter: 123})  # type: ignore[arg-type]
+
+    def test_reassigning_an_invalid_type_raises_at_once(self) -> None:
+        # T-09: las rutas son descriptores; antes una reasignación inválida solo fallaba en run().
+        cfg = DumpConfig(source_engine=_mock_engine(), target_engine=_mock_engine())
+
+        with pytest.raises(ValueError, match=r"output_dir debe ser una ruta"):
+            cfg.output_dir = 123  # type: ignore[assignment]
+        assert cfg.output_dir == Path()
+
+    def test_replace_and_repr_keep_paths(self) -> None:
+        cfg = DumpConfig(source_engine=_mock_engine(), target_engine=_mock_engine(), bulk_audit_path="a.csv")
+
+        replaced = dataclasses.replace(cfg, output_dir="otra")
+
+        assert replaced.output_dir == Path("otra")
+        assert replaced.bulk_audit_path == Path("a.csv")
+        assert replaced.rejects_csv_path is None
+        assert "output_dir=" in repr(replaced)
 
 
 class TestDumpRun:

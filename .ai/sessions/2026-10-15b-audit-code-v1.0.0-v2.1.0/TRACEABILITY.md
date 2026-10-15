@@ -65,6 +65,10 @@ terminal + fichero de sesión.
 - T-03 (2026-10-16): criterio «WARNING → se ajusta el texto (sin alarmas nuevas); INFO → se ajusta el umbral al texto».
   `write_timeout` mantiene el mínimo 30 s con texto coherente; `cost threshold for parallelism` INFO por debajo de 50.
 
+- T-09 (2026-10-16): rutas de `DumpConfig` como descriptores. Sonda previa en el scratchpad (`probe_descriptor.py`): con
+  mypy 1.19, `__init__` acepta `str | PathLike[str]` (tipo de `__set__`) y la lectura es `Path` (tipo de `__get__`);
+  `dataclasses.replace`, `repr`, `==` y `asdict` funcionan. Puerta: pytest limpio 5838 passed; con banco 6217 passed.
+
 ## Artefactos generados
 
 | Artefacto | Ruta | Estado |
@@ -94,3 +98,6 @@ terminal + fichero de sesión.
   recomienda rebajar la durabilidad de todo el servidor; 2 solo se acepta como medida temporal de una carga.
 - **[dump]**: los mensajes de error del informe (`error_msg`, `constraint_reactivation_error`) son el `str(exc)`
   completo por decisión (A-07); el advisor guarda solo el tipo. No unificar sin una nueva decisión.
+- **[tipado]**: para un campo de dataclass que acepta un tipo y se lee como otro, usar un descriptor
+  (`_core/validation/paths.py`: `PathField`, `OptionalPathField`); mypy toma el `__init__` de `__set__`. Exige
+  dataclass sin `slots=True` (guarda en `__dict__`).

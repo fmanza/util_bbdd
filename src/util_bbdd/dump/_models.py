@@ -6,13 +6,13 @@ Separados en un módulo propio para romper la dependencia circular entre
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 from sqlalchemy import Engine
 
-from util_bbdd._core.validation import StrPath, validate_batch_config, validate_optional_path, validate_path
+from util_bbdd._core.validation import OptionalPathField, PathField, validate_batch_config
 from util_bbdd.audit.contracts import AuditSink
 from util_bbdd.bulk._models import PKSyncResult
 from util_bbdd.bulk._support.rejects import validate_isolation
@@ -170,10 +170,10 @@ class DumpConfig:
     target_schema: str | None = None
     tables: list[str] | None = None
     chunk_size: int = 5000
-    # Rutas: aceptan str o Path y __post_init__ las deja como Path (v1.1.0).
-    output_dir: StrPath = field(default_factory=Path)
+    # Rutas: aceptan str o Path (v1.1.0) y se leen siempre como Path (T-09: descriptores, antes anotadas StrPath).
+    output_dir: PathField = PathField(Path())
     truncate_target: bool = True
-    bulk_audit_path: StrPath | None = None
+    bulk_audit_path: OptionalPathField = OptionalPathField()
     collect_row_counts: bool = True
     sync_pk_sequences: bool = True
     commit_every_n_chunks: int | None = None
@@ -183,7 +183,7 @@ class DumpConfig:
     bulk_audit_strict: bool = False
     write_batch_size: int | None = None
     on_error: Literal["raise", "isolate"] = "raise"
-    rejects_csv_path: StrPath | None = None
+    rejects_csv_path: OptionalPathField = OptionalPathField()
     max_rejects: int | None = None
     audit_sink: AuditSink | None = None
 
@@ -194,10 +194,8 @@ class DumpConfig:
         # Refactor v0.30.1: usa validador centralizado validate_batch_config().
         validate_batch_config(self.chunk_size, self.commit_every_n_chunks, self.write_batch_size)
         # v1.1.0: con output_dir como str, run() cargaba los datos y fallaba al escribir el informe sin devolver el
-        # DumpResult; bulk_audit_path como str fallaba antes de cargar. Se normalizan aquí, antes de tocar el destino.
-        self.output_dir = validate_path(self.output_dir, "output_dir")
-        self.bulk_audit_path = validate_optional_path(self.bulk_audit_path, "bulk_audit_path")
-        self.rejects_csv_path = validate_optional_path(self.rejects_csv_path, "rejects_csv_path")
+        # DumpResult; bulk_audit_path como str fallaba antes de cargar. Las rutas ya llegan aquí como Path: las
+        # normalizan y validan sus descriptores (PathField/OptionalPathField) al asignarse en __init__.
         validate_isolation(self.on_error, self.rejects_csv_path, self.max_rejects)
 
 
