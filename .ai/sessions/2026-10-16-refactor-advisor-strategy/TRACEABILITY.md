@@ -5,7 +5,7 @@
 - fecha: 2026-10-16
 - rama: develop (base `1c4b07b4`)
 - skill: refactor (+ dos `fix:`)
-- fase: PLAN + AUDIT_PLAN + IMPLEMENT (F0–F3) + AUDIT_CODE + VERSION (sin release ni push)
+- fase: PLAN + AUDIT_PLAN + IMPLEMENT (F0–F3) + AUDIT_CODE + VERSION + `/version-closure` v2.2.0 (tag y `main` pendientes del CI)
 
 ## Prompt issued
 «PLAN de T-06» y, tras el PLAN, «si» (empezar por F0). Decisiones del usuario en `PLAN_AUDIT_PLAN.md` § Decisiones.
@@ -27,6 +27,13 @@
   solo `SQLAlchemyError`. Escaneo de logs: 21 avisos, todos de tests unitarios que inyectan fallos; 0 en integración.
 - T-11 cerrado sin cambios (decisión).
 - Puertas por fase (limpio / 6 motores): F1 6053 / 6577; F2 6060 / 6584; F3 6063 / 6587.
+- Push de `develop` (`eacd2eb1..c85a405b`, 17 commits). El CI no se puede consultar desde aquí (repo privado, sin
+  `gh`): el usuario lo confirma antes del tag.
+- `/version-closure` v2.2.0: `[Unreleased]` → `[2.2.0] - 2026-10-16` con resumen de cambios visibles; versión en
+  `pyproject.toml`, `README.md` (×2), `docs/index.md`, `docs/roadmap.md`, pie de `docs/architecture.md` (337 ficheros);
+  `.ai/CURRENT_STATE.md` (fila v2.2.0, tests, R3) y `SESSIONS_DIGEST.md`. Puerta: ruff, format, mypy (337),
+  `zensical build --strict`, `test_docs_version` (6 passed), pytest limpio 6063 passed, `python -m build`
+  (`util_bbdd-2.2.0`); con banco (6 motores) 6587 passed sobre el mismo código (F3).
 
 ## Artefactos generados
 
@@ -57,3 +64,5 @@
 - **[tests]**: un cambio en hallazgos del advisor se valida contra `advisor_characterization.json`; regenerar solo a
   propósito (`UTIL_BBDD_REGEN_ADVISOR_GOLDEN=1`) y revisar el diff caso a caso.
 - **[banco]**: SQL Server en 51833 (`UTIL_BBDD_BENCH_MSSQL_PORT`); ver la memoria `reference-mssql-bench-port-51833`.
+- **[release]**: `gen_arquitectura_capas.py` reescribe `arquitectura-capas.css` y `-tabla.txt` con finales LF; si el
+  diff solo es de finales de línea (`git diff --ignore-cr-at-eol` vacío), restaurarlos con `git checkout --`.

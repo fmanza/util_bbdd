@@ -5,9 +5,17 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.2.0] - 2026-10-16
 
-SemVer: MINOR (features aditivas, sin cambios incompatibles; la sección nueva está desactivada por defecto).
+Sesiones `.ai/sessions/2026-10-15-engine-conditions-doc/`, `2026-10-15-engine-readiness-audit-sheets/`,
+`2026-10-15-refactor-doc-readiness/`, `2026-10-15b-audit-code-v1.0.0-v2.1.0/` (audit-code, tech-debt y hotfix) y
+`2026-10-16-refactor-advisor-strategy/` (T-06). SemVer: MINOR (features aditivas, sin cambios incompatibles en la API
+pública; la sección de `doc` está desactivada por defecto).
+
+**Cambios de comportamiento visibles** (ver *Changed* y *Fixed*): orden de la hoja «Errores de Reactivación» en el
+informe de `dump`; niveles de `innodb_flush_log_at_trx_commit` y de `cost threshold for parallelism`; SQL Server como
+`sqlserver` en los informes del advisor; `conn_params` con tipo inválido da CRITICAL por parámetro; el evento `run` de
+`audit_sink` es `failed` si falla la reactivación de constraints; errores internos del advisor en WARNING.
 
 ### Added
 
