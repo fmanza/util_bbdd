@@ -18,6 +18,7 @@ import pytest
 
 from util_bbdd.analysis.contracts import RelationshipGraphSource
 from util_bbdd.audit import AuditEventSource, AuditSink, JsonLinesAuditSink, MemoryAuditSink, NullAuditSink
+from util_bbdd.audit.readiness import ReadinessReportView
 from util_bbdd.connection import EngineReadinessReport
 from util_bbdd.doc.application.ports import (
     DocumentationBackendPort,
@@ -63,6 +64,11 @@ def _adapter_as_engine_readiness_source(adapter: SyncDatabaseManagerAdapter) -> 
 
 
 def _report_as_engine_readiness_view(report: EngineReadinessReport) -> EngineReadinessReportView:
+    return report
+
+
+# Hoja «Condiciones del motor» de los Excel de bulk y dump: ``audit`` (capa 3) lee el informe de ``connection`` (capa 4).
+def _report_as_readiness_report_view(report: EngineReadinessReport) -> ReadinessReportView:
     return report
 
 

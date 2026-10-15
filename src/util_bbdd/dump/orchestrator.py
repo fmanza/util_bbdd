@@ -46,12 +46,14 @@ from util_bbdd._core.batching import resolve_write_batch_size
 from util_bbdd._core.validation import validate_optional_path, validate_path
 from util_bbdd.audit.counters import AuditCounters
 from util_bbdd.audit.events import AuditEvent
+from util_bbdd.audit.readiness import ReadinessBlock
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader, RangePartitioner
 from util_bbdd.bulk._support.dialect import MYSQL_FAMILY
 from util_bbdd.bulk._support.iterables import close_if_closable
 from util_bbdd.bulk._support.pool import pool_capacity
 
 from .._core.exceptions import AuditError, DumpError, DumpReportError
+from ..connection.performance_advisor import EngineReadinessAdvisor
 from ..metadata.reflection import (
     MetadataKind,
     TableMetadata,
@@ -172,6 +174,30 @@ class DumpOrchestrator:
         if bulk_audit_path is None and cfg.audit_sink is None:
             self.logger.info("Auditoría bulk deshabilitada en el volcado (bulk_audit_path=None).")
         return output_dir, bulk_audit_path, dump_inicio
+
+    def _engine_readiness(self) -> list[ReadinessBlock]:
+        """Condiciones de origen y destino (``EngineReadinessAdvisor``) para la hoja «Condiciones del motor».
+
+        Se verifican al empezar, una vez por engine en el proceso: el ``BulkCrud`` del destino reutiliza la verificación
+        y no la repite. Nunca lanza: un motor que no se puede verificar sale con su aviso y el volcado sigue.
+        """
+        cfg = self._cfg
+        roles: list[tuple[str, Engine]] = (
+            [("Origen y destino", cfg.target_engine)]
+            if cfg.source_engine is cfg.target_engine
+            else [("Origen", cfg.source_engine), ("Destino", cfg.target_engine)]
+        )
+        advisor = EngineReadinessAdvisor()
+        blocks: list[ReadinessBlock] = []
+        for role, engine in roles:
+            try:
+                blocks.append((f"{role} · {advisor.describe_engine(engine)}", advisor.engine_report(engine)))
+            except Exception as exc:
+                self.logger.warning(
+                    "No se pudieron verificar las condiciones del motor (%s): %s", role, type(exc).__name__
+                )
+                blocks.append((role, None))
+        return blocks
 
     def _analyze_dump_phase(self) -> tuple[list[str], dict[str, str], list[str], list[str], list[list[str]]]:
         """FASE 1: Análisis de carga. Retorna (src_tables, dst_lower, missing_in_dst, load_order, cycles)."""
@@ -297,6 +323,7 @@ class DumpOrchestrator:
         pk_sync_results: list[PKSyncResult] | None,
         constraint_reactivation_error: str | None,
         output_dir: Path,
+        engine_readiness: list[ReadinessBlock] | None = None,
     ) -> Path:
         """Genera el informe Excel (FASE 5b)."""
         try:
@@ -309,6 +336,7 @@ class DumpOrchestrator:
                 audit_summary=audit_summary,
                 pk_sync_results=pk_sync_results,
                 constraint_reactivation_error=constraint_reactivation_error,
+                engine_readiness=engine_readiness,
             )
         except DumpReportError as exc:
             dump_result.report = exc.output_path or output_dir
@@ -350,6 +378,7 @@ class DumpOrchestrator:
     def _run_dump(self) -> DumpResult:
         """Cuerpo de :meth:`run` (mismas excepciones)."""
         output_dir, bulk_audit_path, dump_inicio = self._init_dump_run()
+        engine_readiness = self._engine_readiness()
         src_tables, dst_lower, missing_in_dst, load_order, cycles = self._analyze_dump_phase()
         src_to_dst, effective_src_order, effective_dst_order = self._compute_load_order(
             src_tables, dst_lower, load_order
@@ -396,6 +425,7 @@ class DumpOrchestrator:
             pk_sync_results,
             constraint_reactivation_error,
             output_dir,
+            engine_readiness,
         )
         return dump_result
 

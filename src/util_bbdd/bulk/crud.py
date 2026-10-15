@@ -324,7 +324,7 @@ class BulkCrud:
         )
         # Con audit_sink la auditoría no está deshabilitada aunque no haya CSV: no se avisa.
         self.audit_manager: AuditManager = AuditManager(
-            audit_path, warn_if_disabled=warn_if_audit_disabled and audit_sink is None
+            audit_path, warn_if_disabled=warn_if_audit_disabled and audit_sink is None, engine=self.engine
         )
         # Sin destino no hay eventos ni run_id, como en ParallelBulkLoader (audit-code 2026-10-02c, 3).
         self._audit_run_id: str | None = None if audit_sink is None else (audit_run_id or uuid.uuid4().hex)

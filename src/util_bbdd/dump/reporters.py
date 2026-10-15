@@ -1,6 +1,6 @@
 """Generador del informe Excel de auditoría para volcados de datos.
 
-Genera un único fichero ``.xlsx`` con tres hojas fijas y hasta cuatro opcionales, en este orden:
+Genera un único fichero ``.xlsx`` con tres hojas fijas y hasta cinco opcionales, en este orden:
   - ``Auditoría Tablas``: volumetría origen vs. destino por tabla.
   - ``Tablas Faltantes``: tablas del origen sin correspondencia en destino.
   - ``Columnas Inexistentes``: columnas presentes en origen pero ausentes en destino.
@@ -8,6 +8,8 @@ Genera un único fichero ``.xlsx`` con tres hojas fijas y hasta cuatro opcionale
   - ``Índices`` (opcional): índices secundarios deshabilitados y reconstruidos.
   - ``Auditoría Bulk`` (opcional): resumen del CSV de auditoría de ``bulk`` y contadores del volcado.
   - ``Secuencias PK`` (opcional): resincronización de los contadores de PK en destino.
+  - ``Condiciones del motor`` (opcional; ``DumpOrchestrator`` la pide siempre): ``EngineReadinessAdvisor`` de origen y
+    destino.
 
 Las hojas opcionales se añaden siempre al final, para no mover las demás.
 """
@@ -16,6 +18,7 @@ from __future__ import annotations
 
 import logging
 
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
@@ -28,6 +31,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from .._core.exceptions import DumpReportError
 from .._core.export_safety import SafeWorkbook
+from ..audit.readiness import ReadinessBlock, ReadinessSheetWriter
 from ._constraints import ConstraintResult
 from ._models import DumpAuditSummary, IndexActionResult, PKSyncResult, TableDumpResult
 
@@ -35,7 +39,7 @@ from ._models import DumpAuditSummary, IndexActionResult, PKSyncResult, TableDum
 class DumpReporter:
     """Genera el informe Excel de auditoría de un volcado de datos.
 
-    Genera un único fichero ``.xlsx`` con 3 hojas fijas y hasta 4 opcionales:
+    Genera un único fichero ``.xlsx`` con 3 hojas fijas y hasta 5 opcionales:
 
     - **Auditoría Tablas** (fija): volumetría origen vs. destino por tabla, estado, y
       sección de constraints con incidencia si aplica.
@@ -47,6 +51,7 @@ class DumpReporter:
     - **Índices** (opcional): índices secundarios deshabilitados/reconstruidos.
     - **Auditoría Bulk** (opcional): resumen del CSV de auditoría y contadores del volcado.
     - **Secuencias PK** (opcional): sincronización de contadores de PK en destino.
+    - **Condiciones del motor** (opcional): condiciones de ejecución de origen y destino (``EngineReadinessAdvisor``).
 
     Las hojas opcionales se añaden siempre al final, para no mover las demás.
     """
@@ -161,6 +166,7 @@ class DumpReporter:
         audit_summary: DumpAuditSummary | None = None,
         pk_sync_results: list[PKSyncResult] | None = None,
         constraint_reactivation_error: str | None = None,
+        engine_readiness: Sequence[ReadinessBlock] | None = None,
     ) -> Path:
         """Genera el fichero Excel y retorna su ruta.
 
@@ -180,6 +186,8 @@ class DumpReporter:
                 no se añade la hoja "Secuencias PK".
             constraint_reactivation_error: Mensaje de error si la reactivación general de constraints falló.
                 ``None`` (default) cuando la reactivación fue exitosa: no se añade la hoja "Errores de Reactivación".
+            engine_readiness: Bloques (título, informe) de ``EngineReadinessAdvisor`` para la hoja "Condiciones del
+                motor", la última. ``None`` (default): no se añade.
 
         Raises:
             DumpReportError: Ante cualquier fallo al generar el informe: directorio de salida, escritura del fichero
@@ -206,6 +214,8 @@ class DumpReporter:
                 self._sheet_bulk_audit(wb, audit_summary)
             if pk_sync_results is not None:
                 self._sheet_pk_sync(wb, pk_sync_results)
+            if engine_readiness is not None:
+                ReadinessSheetWriter().write(wb.create_sheet("Condiciones del motor"), engine_readiness)
 
             wb.save(output_path)
         except Exception as exc:

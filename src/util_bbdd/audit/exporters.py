@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -20,6 +21,7 @@ from .._core.export_safety import neutralize_formulas as _desactivar_formulas, s
 from .analytics import AuditAnalyticsService
 from .html_template import AUDIT_HTML_TEMPLATE
 from .legacy_csv import AuditCsvRepository
+from .readiness import ReadinessBlock, ReadinessSheetWriter
 
 
 class AuditExporters:
@@ -38,8 +40,21 @@ class AuditExporters:
         self.logger: logging.Logger = logger
         self.error_audit_path_required: str = error_audit_path_required
 
-    def exportar_resumen_excel(self, agrupar_por: Literal["tabla", "fecha", "tabla_fecha"] = "tabla") -> Path:
-        """Exporta resumen de auditoría a Excel."""
+    #: Hoja con las condiciones del motor (la última; nombre con guion bajo como el resto del libro).
+    READINESS_SHEET: str = "Condiciones_motor"
+
+    def exportar_resumen_excel(
+        self,
+        agrupar_por: Literal["tabla", "fecha", "tabla_fecha"] = "tabla",
+        condiciones_motor: Sequence[ReadinessBlock] = (),
+    ) -> Path:
+        """Exporta resumen de auditoría a Excel.
+
+        Args:
+            agrupar_por: Agrupación de las hojas por operación.
+            condiciones_motor: Bloques (título, informe) de ``EngineReadinessAdvisor``; si hay alguno, se añade al final
+                la hoja ``Condiciones_motor``.
+        """
         if self.repository.audit_csv_path is None:
             raise AuditConfigError(self.error_audit_path_required)
 
@@ -57,7 +72,7 @@ class AuditExporters:
         group_cols: list[str] = self.service.determinar_group_cols(agrupar_por)
         try:
             output_excel.parent.mkdir(parents=True, exist_ok=True)
-            self._escribir_excel(output_excel, dataframe, operaciones, group_cols, agrupar_por)
+            self._escribir_excel(output_excel, dataframe, operaciones, group_cols, agrupar_por, condiciones_motor)
         except OSError as error:
             # p.ej. auditoria.xlsx abierto en Excel (PermissionError). AuditExportError es también OSError.
             raise AuditExportError(f"❌ Error al exportar Excel '{output_excel}': {error}") from error
@@ -72,8 +87,9 @@ class AuditExporters:
         operaciones: list[Any],
         group_cols: list[str],
         agrupar_por: str,
+        condiciones_motor: Sequence[ReadinessBlock] = (),
     ) -> None:
-        """Escribe una hoja por operación y ``Resumen_global`` en ``output_excel``."""
+        """Escribe una hoja por operación, ``Resumen_global`` y, con bloques, ``Condiciones_motor`` en ``output_excel``."""
         resumen_global: list[pd.DataFrame] = []
 
         with pd.ExcelWriter(output_excel, engine="openpyxl") as writer:
@@ -105,6 +121,9 @@ class AuditExporters:
                     ]
                 safe_frame(dataframe_global).to_excel(writer, sheet_name="Resumen_global", index=False)
                 _desactivar_formulas(writer.sheets["Resumen_global"])
+
+            if condiciones_motor:
+                ReadinessSheetWriter().write(writer.book.create_sheet(self.READINESS_SHEET), condiciones_motor)
 
     def exportar_resumen_json(self, output_path: Path | None = None) -> Path:
         """Exporta resumen de auditoría a JSON."""

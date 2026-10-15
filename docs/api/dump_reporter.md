@@ -1,6 +1,6 @@
 # Generador de Reportes de Volcado (DumpReporter)
 
-Genera el informe Excel de auditoría para volcados de datos, con múltiples hojas que documentan volumetría, tablas/columnas faltantes, estado de constraints, índices, el resumen de la auditoría de `bulk` y la resincronización de contadores de PK.
+Genera el informe Excel de auditoría para volcados de datos, con múltiples hojas que documentan volumetría, tablas/columnas faltantes, estado de constraints, índices, el resumen de la auditoría de `bulk`, la resincronización de contadores de PK y las condiciones de ejecución de los motores.
 
 ## 1. Arquitectura y Diseño
 
@@ -17,7 +17,9 @@ flowchart TD
     H -- Sí --> I[Hoja 6: Auditoría Bulk]
     A --> J{pk_sync_results?}
     J -- Sí --> K[Hoja 7: Secuencias PK]
-    B & C & D & E1 & F1 & I & K --> G[Fichero dump_report_YYYYMMDD_HHMMSS.xlsx]
+    A --> L{engine_readiness?}
+    L -- Sí --> M[Hoja 8: Condiciones del motor]
+    B & C & D & E1 & F1 & I & K & M --> G[Fichero dump_report_YYYYMMDD_HHMMSS.xlsx]
 ```
 
 ## 2. Modelo de Datos / Contratos
@@ -27,7 +29,7 @@ flowchart TD
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
 | `DumpReporter` | `(output_dir: Path)` | Inicializa; `generate()` crea `output_dir` si no existe | `DumpReporter` |
-| `generate` | `(table_results, missing_tables, constraint_results, cycles, index_results?, audit_summary?, pk_sync_results?, constraint_reactivation_error?)` | Genera el fichero Excel con auditoría completa | `Path` |
+| `generate` | `(table_results, missing_tables, constraint_results, cycles, index_results?, audit_summary?, pk_sync_results?, constraint_reactivation_error?, engine_readiness?)` | Genera el fichero Excel con auditoría completa | `Path` |
 
 ### Contrato de entrada
 
@@ -42,6 +44,7 @@ flowchart TD
 | `audit_summary` | `DumpAuditSummary \| None` | Resumen de la auditoría de `bulk` del volcado (`DumpResult.audit_summary`); `None` omite la hoja Auditoría Bulk | Default `None` |
 | `pk_sync_results` | `list[PKSyncResult] \| None` | Resincronización de contadores de PK (`DumpResult.pk_sync_results`); `None` omite la hoja Secuencias PK | Default `None` |
 | `constraint_reactivation_error` | `str \| None` | Error general de reactivación de constraints (`DumpResult.constraint_reactivation_error`); `None` omite la hoja Errores de Reactivación | Default `None` |
+| `engine_readiness` | `Sequence[ReadinessBlock] \| None` | Bloques (título, informe de `EngineReadinessAdvisor`) de origen y destino; `None` omite la hoja Condiciones del motor. `DumpOrchestrator` la pasa siempre | Default `None` |
 
 ### Contrato de salida
 
@@ -53,7 +56,8 @@ flowchart TD
 - **Hoja 5 — Índices** (solo si `index_results` no es `None`): tabla, índice, dialect, acción (`REBUILT`, `RECREATED`, `FAILED`, `UNSUPPORTED`) y mensaje.
 - **Hoja 6 — Auditoría Bulk** (solo si `audit_summary` no es `None`): métrica y valor. Ruta del CSV, operaciones y filas del CSV, filas escritas por el volcado (`audited_rows`), tiempos, tablas auditadas y tabla más activa, y los contadores de incidencia. Se resaltan en rojo `audit_failures` y `audit_uncommitted_records` mayores que 0, en naranja `unaudited_committed_rows` mayor que 0, y en amarillo las filas del CSV y las del volcado cuando no coinciden.
 - **Hoja 7 — Secuencias PK** (solo si `pk_sync_results` no es `None`): tabla, columna PK, dialect, `MAX(PK)` (`—` si la tabla estaba vacía), estado y mensaje. Estado en verde (`SYNCED`, `NO_ROWS`), amarillo (`SKIPPED`: sin secuencia, p.ej. PK natural), naranja (`UNSUPPORTED`) o rojo (`ERROR`).
-- Las hojas opcionales van siempre detrás de las fijas, en el orden 4-5-6-7, para no mover las existentes.
+- **Hoja 8 — Condiciones del motor** (solo si `engine_readiness` no es `None`; `DumpOrchestrator` la pide siempre): un bloque por motor (`Origen · <motor>`, `Destino · <motor>`, o uno solo `Origen y destino` si es el mismo engine) con la verificación (motor, momento en UTC, checks dinámicos sí/no), el resumen por severidad y los hallazgos (nivel, parámetro, valor actual, recomendación), ordenados por severidad. Son las condiciones verificadas en el proceso (`EngineReadinessAdvisor.engine_report`): el destino no se vuelve a verificar porque su `BulkCrud` reutiliza el resultado. Un aviso explica los bloques vacíos o incompletos (motor sin checks, sin conexión, sin hallazgos); si la verificación falla, el volcado sigue y el bloque lleva el aviso.
+- Las hojas opcionales van siempre detrás de las fijas, en el orden 4-5-6-7-8, para no mover las existentes.
 - Ninguna celda se guarda como fórmula: un texto que empieza por `=` (nombre de tabla del catálogo o del CSV, mensaje de error) se escribe como texto en todas las hojas.
 
 ### Errores y casos especiales

@@ -54,6 +54,9 @@ class EngineReadinessAdvisor:
     # Engines ya verificados por report_once(); referencias débiles para no retenerlos.
     _reported_engines: ClassVar[weakref.WeakSet[Engine]] = weakref.WeakSet()
     _reported_lock: ClassVar[threading.Lock] = threading.Lock()
+    # Resultado de report_once() por engine (engine_report) y su señal de fin para los hilos que lo esperan.
+    _reports: ClassVar[weakref.WeakKeyDictionary[Engine, EngineReadinessReport]] = weakref.WeakKeyDictionary()
+    _report_done: ClassVar[weakref.WeakKeyDictionary[Engine, threading.Event]] = weakref.WeakKeyDictionary()
 
     #: Motores con checks específicos en :meth:`check`; el resto devuelve una lista vacía.
     SUPPORTED_DB_TYPES: ClassVar[frozenset[str]] = frozenset(
@@ -182,7 +185,7 @@ class EngineReadinessAdvisor:
         conn_params: dict[str, Any],
         *,
         connection: Any = None,
-    ) -> None:
+    ) -> list[AdvisoryFinding]:
         """Emite el informe de condiciones de ejecución en una única llamada al logger.
 
         El nivel de log es ``warning`` si hay WARNING o CRITICAL, ``info`` en caso contrario.
@@ -191,10 +194,13 @@ class EngineReadinessAdvisor:
             db_type: Dialecto SQLAlchemy.
             conn_params: Parámetros de conexión/pool.
             connection: Conexión activa para checks dinámicos (opcional).
+
+        Returns:
+            Los hallazgos informados (los de :meth:`check`); sin hallazgos no se escribe nada.
         """
         findings = self.check(db_type, conn_params, connection=connection)
         if not findings:
-            return
+            return findings
 
         # Redactar credenciales para evitar filtración en logs
         redacted_params = {
@@ -231,12 +237,14 @@ class EngineReadinessAdvisor:
             logger.warning(block)
         else:
             logger.info(block)
+        return findings
 
     def report_once(self, engine: Engine) -> bool:
         """Verifica ``engine`` y emite su informe solo la primera vez que se pide en el proceso.
 
         Los parámetros se leen de ``engine.url`` y ``engine.pool``. Con conexión se ejecutan
         los checks estáticos y dinámicos; si no se puede conectar, solo los estáticos (sin reintento).
+        El resultado se guarda por engine: :meth:`engine_report` lo devuelve sin volver a conectar.
 
         Thread-safe: el engine se registra antes de verificarlo, de modo que los hilos
         concurrentes ni repiten la verificación ni esperan a que termine. La clave es el
@@ -254,22 +262,100 @@ class EngineReadinessAdvisor:
             if engine in self._reported_engines:
                 return False
             self._reported_engines.add(engine)
+            done = threading.Event()
+            self._report_done[engine] = done
 
-        dialect = engine.dialect.name
-        conn_params = self._conn_params_from_engine(engine)
-        reported = False
         try:
-            with engine.connect() as conn:
-                self.report(dialect, conn_params, connection=conn)
-                reported = True
-        except Exception:
-            # Sin conexión activa, solo checks estáticos; si ya se informó (falló el cierre), no se repite
-            if not reported:
-                try:
-                    self.report(dialect, conn_params)
-                except Exception as exc:
-                    logger.debug(f"Error en verificación de motor '{dialect}': {exc}")
+            self._verify_and_store(engine)
+        finally:
+            done.set()
         return True
+
+    def engine_report(self, engine: Engine, *, timeout: float = 60.0) -> EngineReadinessReport:
+        """Condiciones de ``engine`` verificadas en este proceso (las de :meth:`report_once`).
+
+        Si el engine no se había verificado, lo verifica ahora (y lo informa una vez en el LOG, como
+        :meth:`report_once`); si otro hilo lo está verificando, espera hasta ``timeout`` segundos. Nunca lanza: si no hay
+        resultado, el informe lleva el motivo en ``error``.
+
+        Args:
+            engine: Engine SQLAlchemy síncrono.
+            timeout: Segundos de espera si otro hilo está verificando el mismo engine.
+
+        Returns:
+            El informe guardado para ``engine``.
+
+        Example:
+            >>> crud = BulkCrud(engine)  # verifica el engine al crearse
+            >>> EngineReadinessAdvisor().engine_report(engine).dynamic  # sin nueva conexión
+            True
+        """
+        self.report_once(engine)
+        with self._reported_lock:
+            report = self._reports.get(engine)
+            done = self._report_done.get(engine)
+        if report is None and done is not None and done.wait(timeout):
+            with self._reported_lock:
+                report = self._reports.get(engine)
+        if report is not None:
+            return report
+        dialect = engine.dialect.name
+        return EngineReadinessReport(
+            db_type=dialect,
+            findings=(),
+            checked_at=datetime.now(UTC),
+            dynamic=False,
+            supported=dialect in self.SUPPORTED_DB_TYPES,
+            error="La verificación del motor no está disponible (no terminó o falló)",
+        )
+
+    @staticmethod
+    def describe_engine(engine: Engine) -> str:
+        """``dialecto · host:puerto/base`` de ``engine``, sin usuario ni contraseña (títulos de informes).
+
+        Example:
+            >>> EngineReadinessAdvisor.describe_engine(create_engine("postgresql://u:p@db:5432/app"))
+            'postgresql · db:5432/app'
+        """
+        url = engine.url
+        location = f"{url.host}:{url.port}" if url.host and url.port else str(url.host or "")
+        target = f"{location}/{url.database}" if location and url.database else str(location or url.database or "")
+        return f"{engine.dialect.name} · {target}" if target else engine.dialect.name
+
+    def _verify_and_store(self, engine: Engine) -> None:
+        """Verifica ``engine`` con :meth:`report` (con conexión o, si no la hay, solo estáticos) y guarda el informe."""
+        checked_at = datetime.now(UTC)
+        dialect = engine.dialect.name
+        findings: list[AdvisoryFinding] | None = None
+        dynamic = False
+        error: str | None = None
+        try:
+            conn_params = self._conn_params_from_engine(engine)
+            try:
+                with engine.connect() as conn:
+                    findings = self.report(dialect, conn_params, connection=conn)
+                    dynamic = True
+            except Exception as exc:
+                # Sin conexión activa, solo checks estáticos; si ya se informó (falló el cierre), no se repite
+                if findings is None:
+                    error = f"Sin conexión para los checks dinámicos ({type(exc).__name__})"
+                    try:
+                        findings = self.report(dialect, conn_params)
+                    except Exception as static_exc:
+                        error = f"No se pudo verificar el motor ({type(static_exc).__name__})"
+                        logger.debug(f"Error en verificación de motor '{dialect}': {static_exc}")
+            report = EngineReadinessReport(
+                db_type=dialect,
+                findings=tuple(findings or ()),
+                checked_at=checked_at,
+                dynamic=dynamic,
+                supported=dialect in self.SUPPORTED_DB_TYPES,
+                error=error,
+            )
+            with self._reported_lock:
+                self._reports[engine] = report
+        except Exception as exc:  # el informe es opcional: nunca debe interrumpir a quien crea el BulkCrud
+            logger.debug(f"No se pudo guardar la verificación del motor '{dialect}': {type(exc).__name__}")
 
     @staticmethod
     def _conn_params_from_engine(engine: Engine) -> dict[str, Any]:

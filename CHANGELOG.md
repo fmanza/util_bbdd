@@ -18,6 +18,20 @@ SemVer: MINOR (features aditivas, sin cambios incompatibles; la sección nueva e
 - **connection**: `EngineReadinessAdvisor.assess()` y `EngineReadinessReport` (hallazgos + motor, momento UTC, checks
   dinámicos sí/no, motor soportado y motivo sin revelar el mensaje del error); `EngineReadinessAdvisor.SUPPORTED_DB_TYPES`.
 - **managers**: `SyncDatabaseManager.get_engine_readiness()`.
+- **dump**: hoja «Condiciones del motor» al final de `dump_report_*.xlsx`, siempre, con un bloque por motor (origen y
+  destino; uno solo si es el mismo engine). `DumpReporter.generate(..., engine_readiness=None)`.
+- **bulk**: hoja `Condiciones_motor` al final de `auditoria.xlsx` cuando el `AuditManager` tiene engine (siempre con
+  `crud.audit_manager`); `AuditManager(..., engine=None)` y `exportar_resumen_excel(..., engine=None)`.
+- **audit**: `audit/readiness.py` (`ReadinessSheetWriter`, `ReadinessRows`, contrato estructural `ReadinessReportView`;
+  no importa `connection`). `AuditExporters.exportar_resumen_excel(..., condiciones_motor=())`.
+- **connection**: `EngineReadinessAdvisor.engine_report(engine)` (resultado de `report_once()` guardado por engine,
+  sin nueva conexión; espera si otro hilo lo está calculando) y `describe_engine(engine)` (sin credenciales).
+  `report()` devuelve ahora los hallazgos que informa (antes `None`).
+
+### Changed
+
+- **dump**: el volcado verifica también el motor de **origen** al empezar (una conexión y su bloque en el LOG, una vez
+  por engine en el proceso). La figura de capas (`docs/architecture.md`) incluye la arista `dump → connection`.
 
 ## [2.1.0] - 2026-10-14
 

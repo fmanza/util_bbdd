@@ -58,7 +58,7 @@ LEVEL = {name: LEVEL_OF_LAYER[layer] for name, layer in LAYER.items()}
 # Every arrow drawn between packages. Arrows into Foundation from levels 2 and 3 are collapsed into one.
 DRAWN = {
     ("dump", "bulk"), ("doc", "analysis"), ("analysis", "metadata"), ("doc", "metadata"), ("dump", "metadata"),
-    ("bulk", "connection"), ("bulk", "metadata"), ("comparar", "metadata"), ("migrate", "metadata"),
+    ("bulk", "connection"), ("dump", "connection"), ("bulk", "metadata"), ("comparar", "metadata"), ("migrate", "metadata"),
     ("metadata", "results"), ("executors", "query"), ("executors", "results"),
     ("query", "validators"), ("factory", "connection"), ("_drivers", "_core"),
     ("bulk", "audit"), ("dump", "audit"), ("migrate", "audit"),
@@ -326,6 +326,7 @@ def render_svg(f: _Facts) -> str:
     s.edge(f"M{c[1]} 83 H{c[0] + NODE_W}")  # dump -> bulk
     s.edge(f"M{c[3] + NODE_W} 83 H{c[4]}")  # doc -> analysis
     s.edge(f"M86 {Y3 + NODE_H} V{Y2A}", "lazy" if f.bulk_connection_lazy else "")  # bulk -> connection
+    s.edge(f"M180 {Y3 + NODE_H} V{Y2A + 6} H{c[0] + NODE_W}")  # dump -> connection (EngineReadinessAdvisor)
     s.edge(f"M736 {Y3 + NODE_H} V214")  # managers -> level 2 band
     s.edge(f"M900 {Y3 + NODE_H} V196 H822 V{Y2A}")  # migrate -> metadata (the other importers share the summary note)
     for d in ("M796 306 L900 354", "M876 306 L812 354", "M940 306 V354"):
@@ -361,7 +362,8 @@ def render_svg(f: _Facts) -> str:
     s.node(838, Y1, "async_utils.py", "maybe_await", 132, " arq-shared")
 
     # labels, badges and counters
-    s.text(96, 180, f"{'import perezoso' if f.bulk_connection_lazy else 'import de módulo'} · {f.bulk_connection_where}")
+    s.text(190, 172, f"bulk/: {'import perezoso' if f.bulk_connection_lazy else 'import de módulo'}")
+    s.text(190, 188, f.bulk_connection_where)
     s.text(728, 160, "importa connection, factory, executors,", anchor="end")
     s.text(728, 176, "metadata, query y results (6 de 7)", anchor="end")
     s.text(892, 152, "analysis/, bulk/, comparar/,", anchor="end")

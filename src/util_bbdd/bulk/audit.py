@@ -18,7 +18,7 @@ import warnings
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import pandas as pd
 
@@ -26,6 +26,8 @@ from .._core.validation import StrPath, validate_optional_path
 from ..audit.analytics import AuditAnalyticsService
 from ..audit.exporters import AuditExporters
 from ..audit.legacy_csv import AUDIT_COLUMNS, AuditCsvRepository, AuditRecord, AuditRecordValidator
+from ..audit.readiness import ReadinessBlock
+from ..connection.performance_advisor import EngineReadinessAdvisor
 from ._audit.errors import (
     AuditConfigError,
     AuditDataError,
@@ -34,6 +36,9 @@ from ._audit.errors import (
     AuditFileError,
     AuditValidationError,
 )
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import Engine
 
 
 class AuditManager:
@@ -48,6 +53,7 @@ class AuditManager:
         cache_ttl_seconds: int = 300,
         *,
         warn_if_disabled: bool = True,
+        engine: Engine | None = None,
     ) -> None:
         """
         Args:
@@ -57,6 +63,8 @@ class AuditManager:
             warn_if_disabled: Si ``True`` (default), sin ``audit_csv_path`` la primera operación registrada emite un
                 WARNING "Auditoría deshabilitada". ``False`` lo omite (M-4, audit-code de ``ParallelBulkLoader``: el
                 loader crea una instancia por partición y avisa él una sola vez).
+            engine: Engine cuyas condiciones (``EngineReadinessAdvisor``) se añaden como hoja ``Condiciones_motor`` en
+                :meth:`exportar_resumen_excel`. ``BulkCrud`` pasa el suyo; sin engine no se añade la hoja.
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
 
@@ -77,6 +85,7 @@ class AuditManager:
             error_audit_path_required=self.ERROR_AUDIT_PATH_REQUIRED,
         )
         self._aviso_deshabilitada_emitido: bool = not warn_if_disabled
+        self._engine: Engine | None = engine
 
     @property
     def audit_csv_path(self) -> Path | None:
@@ -203,9 +212,38 @@ class AuditManager:
         """Invalidar el cache en memoria (alias de limpiar_cache)."""
         self.limpiar_cache()
 
-    def exportar_resumen_excel(self, agrupar_por: Literal["tabla", "fecha", "tabla_fecha"] = "tabla") -> Path:
-        """Exportar resumen de auditoría a archivo Excel."""
-        return self._exporters.exportar_resumen_excel(agrupar_por=agrupar_por)
+    def exportar_resumen_excel(
+        self,
+        agrupar_por: Literal["tabla", "fecha", "tabla_fecha"] = "tabla",
+        *,
+        engine: Engine | None = None,
+    ) -> Path:
+        """Exportar resumen de auditoría a archivo Excel.
+
+        Con un engine (``engine`` o el del constructor) añade al final la hoja ``Condiciones_motor``: las condiciones de
+        ese engine verificadas en este proceso (``EngineReadinessAdvisor.engine_report``; si ``BulkCrud`` ya lo verificó
+        al crearse, sin nueva conexión).
+
+        Args:
+            agrupar_por: Agrupación de las hojas por operación.
+            engine: Engine de la carga, para un ``AuditManager`` creado aparte (p.ej. tras ``ParallelBulkLoader``).
+
+        Example:
+            >>> crud = BulkCrud(engine, audit_csv_path=Path("audit.csv"))
+            >>> crud.bulk_insert_from_df(df, "clientes")
+            >>> crud.audit_manager.exportar_resumen_excel()  # incluye la hoja Condiciones_motor
+        """
+        return self._exporters.exportar_resumen_excel(
+            agrupar_por=agrupar_por, condiciones_motor=self._readiness_blocks(engine or self._engine)
+        )
+
+    @staticmethod
+    def _readiness_blocks(engine: Engine | None) -> tuple[ReadinessBlock, ...]:
+        """Bloque de condiciones del motor de ``engine``; sin engine, ninguno."""
+        if engine is None:
+            return ()
+        advisor = EngineReadinessAdvisor()
+        return ((f"Engine · {advisor.describe_engine(engine)}", advisor.engine_report(engine)),)
 
     def obtener_estadisticas(self) -> dict[str, Any]:
         """Obtener estadísticas generales de auditoría."""
