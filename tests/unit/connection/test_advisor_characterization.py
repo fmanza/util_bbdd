@@ -281,6 +281,9 @@ def test_findings_match_golden(
     assert _run(engine, params, server) == _golden()[case_id]
     # El advisor se traga las excepciones: un SQL que la conexión falsa no conoce no debe pasar inadvertido.
     assert "SQL no previsto" not in caplog.text
+    # T-08: lo esperable (servidor caído, sin permiso, valores raros) lo capturan los validadores; la red de seguridad
+    # del advisor (WARNING «error interno») solo salta con un error de programación.
+    assert "error interno" not in caplog.text
 
 
 @pytest.mark.skipif(REGENERATE, reason="regenerando el fichero dorado")
@@ -315,3 +318,55 @@ def test_mysql_invalid_autocommit_keeps_the_dynamic_checks() -> None:
 
     assert levels["autocommit"] == "CRITICAL"
     assert "innodb_buffer_pool_size" in levels
+
+
+# T-08 (fix, 2026-10-16): un error de programación en un validador ya no queda oculto en DEBUG.
+def test_an_internal_error_in_a_validator_is_a_warning_with_traceback(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from util_bbdd.connection.postgresql._variables import PostgreSQLVariableValidator
+
+    def broken(self: PostgreSQLVariableValidator, conn_params: dict[str, Any]) -> list[Any]:
+        raise TypeError("error de programación")
+
+    monkeypatch.setattr(PostgreSQLVariableValidator, "check_static", broken)
+    caplog.set_level(logging.DEBUG, logger="util_bbdd.connection")
+
+    findings = EngineReadinessAdvisor().check("postgresql", {"pool_size": 10})  # sigue sin lanzar
+
+    assert findings == []
+    (record,) = [r for r in caplog.records if "error interno" in r.getMessage()]
+    assert record.levelno == logging.WARNING
+    assert record.exc_info is not None
+
+
+def test_mysql_dynamic_only_swallows_server_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    from util_bbdd.connection.mariadb._variables import MySQLVariableValidator
+
+    def broken(self: MySQLVariableValidator) -> dict[str, int]:
+        raise TypeError("error de programación")
+
+    monkeypatch.setattr(MySQLVariableValidator, "read_variables", broken)
+
+    # Antes check_dynamic se lo tragaba en DEBUG; ahora sube a la red de seguridad del advisor (WARNING).
+    with pytest.raises(TypeError):
+        from util_bbdd.connection.mariadb._readiness import MySQLReadinessValidator
+
+        MySQLReadinessValidator().check_dynamic(_connections()["tipicos"], {})
+
+
+def test_an_internal_error_in_the_dynamic_checks_keeps_the_static_findings(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Antes, en PostgreSQL, SQL Server, Oracle y SQLite un fallo en los dinámicos perdía también los estáticos.
+    from util_bbdd.connection.postgresql._variables import PostgreSQLVariableValidator
+
+    def broken(self: PostgreSQLVariableValidator, connection: Any, conn_params: dict[str, Any]) -> list[Any]:
+        raise TypeError("error de programación")
+
+    monkeypatch.setattr(PostgreSQLVariableValidator, "check_dynamic", broken)
+
+    findings = EngineReadinessAdvisor().check("postgresql", {"pool_size": 10}, connection=_connections()["tipicos"])
+
+    assert "pool_size" in {f.param for f in findings}
+    assert "error interno en los checks dinámicos de 'postgresql'" in caplog.text

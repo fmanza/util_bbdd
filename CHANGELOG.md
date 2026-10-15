@@ -75,6 +75,10 @@ SemVer: MINOR (features aditivas, sin cambios incompatibles; la sección nueva e
 
 ### Fixed
 
+- **connection**: un error de programación en `EngineReadinessAdvisor` o en un validador se registraba en DEBUG y
+  pasaba inadvertido (T-08). Ahora es un WARNING con traza («error interno en los checks …») y el advisor sigue sin
+  lanzar; los errores esperables (del servidor o del driver, valores no interpretables) siguen en DEBUG. Un error en
+  los checks dinámicos conserva los estáticos (antes, en PostgreSQL, SQL Server, Oracle y SQLite se perdían todos).
 - **connection**: `EngineReadinessAdvisor` valida el tipo de `conn_params` en todos los motores (T-07). En
   PostgreSQL, SQL Server, Oracle y SQLite un valor inválido (`pool_size="abc"`) hacía perder **todos** los hallazgos
   del motor, y `keepalives="false"`/`use_mars="false"` se leían como `True`. En MySQL/MariaDB un `autocommit` o

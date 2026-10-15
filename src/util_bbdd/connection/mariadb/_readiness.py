@@ -12,6 +12,8 @@ import logging
 
 from typing import Any, ClassVar
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from .._advisory import AdvisoryFinding
 from ..config import _to_bool, _to_int
 from ._config import MySQLOptimalConfig
@@ -108,7 +110,9 @@ class MySQLReadinessValidator:
                 self._check_write_io_threads(current.get("innodb_write_io_threads")),
             )
             findings.extend(check for check in checks if check is not None)
-        except Exception as exc:
+        except SQLAlchemyError as exc:
+            # T-08: solo errores del servidor o del driver; un error de programación sube a EngineReadinessAdvisor,
+            # que lo registra en WARNING con traza (antes, DEBUG).
             logger.debug(f"MySQLReadinessValidator.check_dynamic: {type(exc).__name__}: {exc}")
         return findings
 

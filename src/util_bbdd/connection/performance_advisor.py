@@ -432,8 +432,13 @@ class EngineReadinessAdvisor:
                     try:
                         findings = self.report(dialect, conn_params)
                     except Exception as static_exc:
+                        # T-08: report() no lanza por fallos de los checks; esto es un error interno (WARNING con traza).
                         error = f"No se pudo verificar el motor ({type(static_exc).__name__})"
-                        logger.debug(f"Error en verificación de motor '{dialect}': {static_exc}")
+                        logger.warning(
+                            f"EngineReadinessAdvisor: error interno al verificar '{dialect}' sin conexión "
+                            f"({type(static_exc).__name__})",
+                            exc_info=True,
+                        )
             report = EngineReadinessReport(
                 db_type=dialect,
                 findings=tuple(findings or ()),
@@ -445,26 +450,45 @@ class EngineReadinessAdvisor:
             with self._reported_lock:
                 self._reports[engine] = report
         except Exception as exc:  # el informe es opcional: nunca debe interrumpir a quien crea el BulkCrud
-            logger.debug(f"No se pudo guardar la verificación del motor '{dialect}': {type(exc).__name__}")
+            # T-08: un fallo aquí es un error interno (WARNING con traza; antes, DEBUG).
+            logger.warning(
+                f"EngineReadinessAdvisor: error interno al guardar la verificación de '{dialect}' "
+                f"({type(exc).__name__})",
+                exc_info=True,
+            )
 
     @staticmethod
     def _run_validator(
         engine: str, factory: Callable[[], ReadinessValidator], conn_params: dict[str, Any], connection: Any
     ) -> list[AdvisoryFinding]:
-        """Estáticos y, con ``connection``, dinámicos del validador de ``engine``; un fallo da una lista vacía.
+        """Estáticos y, con ``connection``, dinámicos del validador de ``engine``; nunca lanza.
 
-        Es el envoltorio que repetían los ``_check_<motor>`` antes de T-06 (mismo comportamiento: el import perezoso
-        del validador y sus checks van dentro del ``try``).
+        T-08 (2026-10-16): los validadores capturan lo esperable (``SQLAlchemyError``, valores que no se pueden
+        interpretar); lo que llega aquí es un error interno y se registra en WARNING con traza (antes, DEBUG). Un error
+        en los dinámicos conserva los estáticos (antes, en PostgreSQL, SQL Server, Oracle y SQLite se perdían todos).
         """
         try:
             validator = factory()
             findings = validator.check_static(conn_params)
-            if connection is not None:
-                findings.extend(validator.check_dynamic(connection, conn_params))
-            return findings
         except Exception as exc:
-            logger.debug(f"EngineReadinessAdvisor: error en checks para '{engine}': {type(exc).__name__}: {exc}")
+            EngineReadinessAdvisor._log_internal_error(engine, "estáticos", exc)
             return []
+        if connection is None:
+            return findings
+        try:
+            findings.extend(validator.check_dynamic(connection, conn_params))
+        except Exception as exc:
+            EngineReadinessAdvisor._log_internal_error(engine, "dinámicos", exc)
+        return findings
+
+    @staticmethod
+    def _log_internal_error(engine: str, kind: str, exc: Exception) -> None:
+        """WARNING con traza de un error interno de los checks (``kind``: ``estáticos`` o ``dinámicos``)."""
+        logger.warning(
+            f"EngineReadinessAdvisor: error interno en los checks {kind} de '{engine}' ({type(exc).__name__}); "
+            f"se omiten",
+            exc_info=exc,
+        )
 
     @staticmethod
     def _conn_params_from_engine(engine: Engine) -> dict[str, Any]:

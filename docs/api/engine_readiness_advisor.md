@@ -81,7 +81,8 @@ con su `AsyncEngine` ([managers async](managers_async.md)).
 | Situación | Comportamiento |
 |---|---|
 | Valor de `conn_params` con tipo inválido (`pool_size="abc"`, `keepalives="quizá"`) | Un CRITICAL para ese parámetro («debe ser entero/booleano/numérico») y se omite solo su check; el resto, también los dinámicos, sigue. Los booleanos aceptan `"true"`/`"false"`, `"yes"`/`"no"`, `"on"`/`"off"` y `1`/`0` |
-| Fallo de un check o del driver al leer un parámetro | Se registra en DEBUG y el check se omite; `check` no lanza |
+| Fallo del servidor o del driver al leer un parámetro (`SQLAlchemyError`), o valor del servidor que no se puede interpretar | Se registra en DEBUG y ese check se omite |
+| Error interno del advisor o de un validador (de programación) | WARNING con traza («error interno en los checks …»); `check` no lanza. Si falla en los checks dinámicos, se conservan los estáticos |
 | Sin conexión en `assess`, `report_once` o `engine_report` | Solo checks estáticos; `dynamic=False` y el motivo en `error` |
 | `engine_report` cuando otro hilo no termina en `timeout` | Informe vacío con `error` explicativo; no lanza |
 | Contraseña en `conn_params` | `report` sustituye `password`, `passwd`, `pwd` y `secret` por `***` antes de escribir |
