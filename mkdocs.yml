@@ -115,6 +115,7 @@ nav:
       - Rendimiento:
           - Performance & Benchmarks: guides/benchmarks.md
           - Validación de Parámetros (EngineReadinessAdvisor): guides/performance_readiness_guide.md
+          - Integración de EngineReadinessAdvisor (auditorías): guides/engine_readiness_usage_guide.md
           - Performance Audit (General): guides/performance_audit_guide.md
           - Performance Audit (Constraints): guides/performance_audit_constraints_guide.md
       - Reutilización de Código: guides/code_reusability_analysis_guide.md

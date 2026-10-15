@@ -47,18 +47,178 @@ con `formatos=[...]`.
 | `db_manager` | `DocumentationSourcePort` | Fuente de metadatos y consultas, normalmente un `SyncDatabaseManager` con conexión activa | No puede ser `None`; debe cumplir el puerto (`doc/application/ports.py`), incluido `get_schema_metadata()`: el catálogo se lee por lotes, una consulta por tipo de objeto (`doc.application.use_cases.catalog_rows`); no soporta `AsyncDatabaseManager` |
 | `directorio_salida` | `Path` | Directorio base donde escribir ficheros | Se crean subdirectorios por ejecución y formato |
 | `fichero_salida` | `Path \| None` | Nombre base sin extensión | `None` genera automáticamente con timestamp y clave de BD; se reutiliza si hay generaciones seguidas dentro de `batch_window_seconds` |
-| `imprimir` | `dict[str, Any] \| None` | Configuración de secciones, estilos y grafos | `None` usa valores por defecto |
+| `imprimir` | `dict[str, Any] \| None` | Configuración de secciones, estilos y grafos: qué se documenta, con qué plantilla y estilo, y cómo se dibujan los diagramas. Referencia completa en [Configuración de `imprimir`](#configuracion-de-imprimir) | `None` usa los valores por defecto (todas las secciones desactivadas) |
 | `formatos` | `list[str] \| None` | `["word"]`, `["excel"]`, `["html"]` o combinaciones | `None` usa `["word"]`; valores inválidos lanzan `DocumentationConfigError` |
 | `headers_file` | `Path` | JSON de cabeceras: `{"headers": {"COLUMNAS": {"base": [...]}, ...}}` | Desde 0.41.0 solo `base` por sección (las cabeceras son iguales en todos los motores) |
 | `batch_window_seconds` | `int \| None` | Ventana temporal en segundos para agrupar generaciones automáticas | `None` usa 90 s; solo aplica si `fichero_salida` es `None`. Generaciones lanzadas en esta ventana reutilizan el mismo nombre. Usar 0 para deshabilitar |
 
-Opciones de `imprimir["grafo"]` relevantes para el rendimiento:
+### Configuración de `imprimir`
+
+`imprimir` decide qué secciones lleva la documentación, con qué plantilla y estilo se presentan y cómo se dibujan los
+diagramas de relaciones. Se normaliza una sola vez (`PrintConfigManager.normalize`) y vale igual para los tres formatos;
+cada formato ignora lo que no le aplica (las plantillas o `tablas_por_documento`, por ejemplo).
+
+**Reglas de lectura**:
+
+- Es un `dict`; cualquier otro tipo lanza `DocumentationConfigError` al crear la instancia. `None` equivale a `{}`.
+- Las claves pueden ir directamente o dentro de un bloque `{"imprimir": {...}}` (la forma de una sección `[imprimir]` de
+  un fichero TOML cargado con `tomllib`).
+- **Todo está desactivado por defecto**: sin activar ninguna sección, los documentos solo llevan el título y el
+  «Resumen de inventario».
+- Cada sección es un `dict` de banderas. Se convierten con `bool()`: usa `True`/`False`. Una cadena no vacía, incluida
+  `"false"`, cuenta como `True`. Una sección que no es un `dict` se trata como vacía.
+- Los números (`tablas_por_documento`, `html_items_por_pagina`, `max_depth`, `dpi`…) que no son enteros positivos
+  vuelven a su valor por defecto. Los textos con valores fijos (`direction`, `columns.mode`, `render_format`) también.
+- Las claves desconocidas se ignoran sin aviso: revisa la ortografía si una sección no aparece.
+
+#### Secciones de contenido
+
+| Sección | Clave | Por defecto | Qué añade |
+|---|---|---|---|
+| `tablas` | `imprimir_tablas` | `False` | Activa la documentación de tablas: una entrada por tabla con su comentario |
+| | `ddl` | `False` | DDL de la tabla |
+| | `columnas` | `False` | Columnas: nombre, tipo, nulo, valor por defecto, generación y comentario |
+| | `pk` | `False` | Clave primaria |
+| | `fk` | `False` | Claves foráneas, con tabla y columna referenciadas y reglas `ON DELETE`/`ON UPDATE` |
+| | `unicas` | `False` | Restricciones `UNIQUE` |
+| | `indices` | `False` | Índices |
+| | `charset_collation` | `False` | Sin efecto: se admite por compatibilidad. El charset y la collation de columnas se piden con `columnas_charset` |
+| `vistas` | `imprimir_vistas` | `False` | Activa la documentación de vistas |
+| | `ddl` | `False` | Definición de la vista |
+| | `columnas` | `False` | Columnas de la vista |
+| `rutinas` | `imprimir_procedures` | `False` | Procedimientos almacenados, con su DDL y parámetros |
+| | `imprimir_function` | `False` | Funciones, con su DDL y parámetros |
+| `almacenamiento` | `imprimir_almacenamiento` | `False` | Inventario físico (tablespaces, ficheros, tamaños) con las consultas de cada motor; HSQLDB, sin consultas propias, recibe un aviso |
+| `condiciones_motor` | `imprimir_condiciones_motor` | `False` | Verificación de `EngineReadinessAdvisor` al final del documento (ver [Sección «Condiciones del motor»](#seccion-condiciones-del-motor)) |
+| `info_database` | `imprimir_info_database` | `False` | Activa la información de la base de datos |
+| | `version` | `False` | Versión del servidor |
+| | `charset_collation` | `False` | Charset y collation de la base de datos |
+| `columnas_charset` | `charset_collation` | `False` | Charset y collation de cada columna (Word y HTML junto a la tabla; Excel en la hoja «Charset & Collation») |
+
+Las subclaves de `tablas` y `vistas` solo tienen efecto con `imprimir_tablas` / `imprimir_vistas` a `True`, y las de
+`info_database` con `imprimir_info_database` a `True`.
+
+#### Presentación
+
+| Clave | Por defecto | Formato | Efecto |
+|---|---|---|---|
+| `plantilla_word` | `None` | Word | Ruta (`str` o `Path`) a un `.docx` cuyos estilos, encabezados y pies se reutilizan. Si no existe, `DocumentationConfigError` al crear la instancia (solo cuando se pide Word) |
+| `plantilla_html` | `None` | HTML | Plantilla Jinja2 propia para las páginas de detalle (tablas, vistas, rutinas). El índice y las páginas de colección siguen siendo las de serie |
+| `tablas_por_documento` | `50` | Word | Tablas por fichero `.docx`; con más tablas se generan varios documentos `<nombre>_parte_N.docx`. Las secciones finales (información de la BD, almacenamiento, condiciones del motor) van en el último |
+| `table_style` | `"Table Grid"` | Word, Excel | Estilo de las tablas. En Word, el nombre de un estilo de tabla del documento o de la plantilla; si no existe, se usa `"Table Grid"` o `"Normal Table"`. En Excel, un estilo `TableStyle*` o `PivotStyle*`; `"Table Grid"` y `"Medium Shading 2 Accent 1"` se traducen a `TableStyleMedium2`, y cualquier otro valor se sustituye por ese con un aviso |
+| `html_items_por_pagina` | `15` | HTML | Elementos por página en las listas del índice |
+
+#### Diagramas de relaciones (`grafo`)
+
+También se acepta la clave `graph`. Los diagramas necesitan Graphviz (el extra `analysis` y el binario `dot`) y solo se
+dibujan en Word y HTML.
 
 | Clave | Por defecto | Efecto |
 |---|---|---|
-| `enabled` | `False` | Diagramas de relaciones en Word y HTML (necesita Graphviz) |
+| `enabled` | `False` | Activa los diagramas de cada tabla |
+| `show_columns` | `True` | Muestra columnas dentro de los nodos |
+| `render_format` | `"svg"` | `"svg"` o `"png"` (también con la clave `format`). Word usa siempre `png` |
+| `direction` | `"both"` | Relaciones que se siguen desde la tabla: `"incoming"` (quién la referencia), `"outgoing"` (a quién referencia) o `"both"` |
+| `max_depth` | `1` | Niveles de relaciones que se siguen desde la tabla |
+| `view_policy` | `"exclude"` | Único valor admitido: las vistas no llevan diagrama |
+| `images_paginated` | `True` | Parte los diagramas grandes de Word en varias imágenes |
+| `max_subnodes` | `10` (`5` en Word) | Tablas por imagen al paginar. Word usa 5 mientras no se cambie el valor por defecto |
+| `dpi` | `150` | Resolución de las imágenes `png` |
 | `workers` | núcleos, hasta 8 | Procesos `dot` simultáneos. Los diagramas se precargan por lotes (`dot -O`, un proceso por lote): arrancar `dot` cuesta ~0,25 s y renderizar ~0,01 s por grafo |
-| `images_paginated` / `max_subnodes` | `True` / `10` (5 en Word) | Diagramas de Word partidos en varias imágenes |
+| `output_dir` | Word: `./_table_diagrams`; HTML: `<HTML>/graphs` | Carpeta de los ficheros de los diagramas |
+| `columns.mode` | `"relations"` | Columnas visibles en cada nodo: `"relations"` (solo las que participan en las relaciones dibujadas), `"compact"` (esas primero y después las demás hasta completar) o `"all"` (todas, en su orden) |
+| `columns.max_items` | `8` | Máximo de columnas por nodo; las que no caben se indican como ocultas |
+| `columns.show_data_types` | `False` | Añade el tipo de cada columna |
+| `cardinality.show_constraint_name` | `False` | Rotula cada relación con el nombre de su clave foránea |
+| `cardinality.style` | `"end_markers"` | Sin efecto: es el único estilo (marcas de cardinalidad en los extremos) |
+| `summary.enabled` | `True` | Línea de resumen bajo cada diagrama: profundidad visible y niveles de entrada y salida dibujados frente a los existentes |
+
+#### Ejemplo completo
+
+Todas las claves con un valor distinto del de por defecto o explicado en el comentario:
+
+```python
+from pathlib import Path
+
+from util_bbdd import SyncDatabaseManager
+from util_bbdd.doc import DatabaseDocumentation
+
+imprimir = {
+    # --- Presentación ---
+    "plantilla_word": Path("plantillas/corporativa.docx"),  # debe existir si se pide Word
+    "plantilla_html": None,  # None: páginas de detalle de serie
+    "tablas_por_documento": 40,  # Word: una parte nueva cada 40 tablas
+    "table_style": "Light Grid Accent 1",  # estilo de Word; Excel usará TableStyleMedium2 con un aviso
+    "html_items_por_pagina": 25,
+    # --- Contenido ---
+    "tablas": {
+        "imprimir_tablas": True,
+        "ddl": True,
+        "columnas": True,
+        "pk": True,
+        "fk": True,
+        "unicas": True,
+        "indices": True,
+    },
+    "vistas": {"imprimir_vistas": True, "ddl": True, "columnas": True},
+    "rutinas": {"imprimir_procedures": True, "imprimir_function": True},
+    "info_database": {"imprimir_info_database": True, "version": True, "charset_collation": True},
+    "columnas_charset": {"charset_collation": True},
+    "almacenamiento": {"imprimir_almacenamiento": True},
+    "condiciones_motor": {"imprimir_condiciones_motor": True},
+    # --- Diagramas de relaciones (Word y HTML; necesitan Graphviz) ---
+    "grafo": {
+        "enabled": True,
+        "show_columns": True,
+        "render_format": "svg",  # Word usa png de todos modos
+        "direction": "both",
+        "max_depth": 2,
+        "images_paginated": True,
+        "max_subnodes": 8,
+        "dpi": 200,
+        "workers": 4,
+        "columns": {"mode": "relations", "max_items": 10, "show_data_types": True},
+        "cardinality": {"show_constraint_name": True},
+        "summary": {"enabled": True},
+    },
+}
+
+with SyncDatabaseManager("postgresql", conn_params) as manager:
+    result = DatabaseDocumentation(
+        manager,
+        Path("docs_bd"),
+        imprimir=imprimir,
+        formatos=["word", "excel", "html"],
+    ).generate()
+
+print(result.outputs)  # {"word": .../WORD/<nombre>.docx, "excel": .../EXCEL/<nombre>.xlsx, "html": .../HTML}
+```
+
+La misma configuración en un fichero TOML (`tomllib.load(f)` devuelve el `dict` con el bloque `imprimir`):
+
+```toml
+[imprimir]
+tablas_por_documento = 40
+table_style = "Light Grid Accent 1"
+
+[imprimir.tablas]
+imprimir_tablas = true
+ddl = true
+columnas = true
+pk = true
+fk = true
+
+[imprimir.condiciones_motor]
+imprimir_condiciones_motor = true
+
+[imprimir.grafo]
+enabled = true
+max_depth = 2
+
+[imprimir.grafo.columns]
+mode = "relations"
+max_items = 10
+```
 
 ### Sección «Condiciones del motor»
 

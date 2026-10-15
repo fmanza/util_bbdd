@@ -25,6 +25,8 @@ Soporta MariaDB, MySQL, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB. Puede g
 | Auto-naming de ficheros | Si no se especifica nombre de fichero, se genera automáticamente con identificador de BD y timestamp; generaciones seguidas dentro de `batch_window_seconds` (default 90 s) reutilizan la misma carpeta | Para deshabilitar el batching, usar `batch_window_seconds=0`; para ventanas distintas, configurar `batch_window_seconds` en segundos |
 | Tablas por documento Word | Por defecto se generan 50 tablas por documento (`imprimir["tablas_por_documento"]`); esquemas grandes producen varios ficheros numerados | Valores muy altos pueden generar documentos Word difíciles de abrir |
 | Grafos: profundidad máxima | La profundidad máxima de relaciones en los grafos controla la complejidad visual | Valores superiores a 3 en esquemas con muchas FK generan grafos ilegibles |
+| Secciones bajo demanda | Cada sección (tablas, vistas, rutinas, información de la BD, almacenamiento, condiciones del motor) se pide expresamente en `imprimir`; nada se incluye por defecto | Sin configuración, el documento solo lleva el título y el resumen de inventario |
+| Condiciones del motor | La sección final «Condiciones del motor» muestra si la configuración de conexión y del servidor es adecuada para cargas masivas; se verifica una vez por generación y un fallo de la verificación no detiene la documentación | Sin conexión al servidor solo se revisa la configuración de conexión; la sección lo indica con un aviso |
 
 ## 3. Casos de Uso
 

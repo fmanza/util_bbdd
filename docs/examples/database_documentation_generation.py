@@ -84,8 +84,8 @@ imprimir_config = {
         "columnas": True,  # Listar columnas
         "pk": True,  # Mostrar claves primarias
         "fk": True,  # Mostrar claves foráneas
+        "unicas": True,  # Mostrar restricciones UNIQUE
         "indices": True,  # Mostrar índices
-        "constraints": True,  # Mostrar constraints
     },
     # Qué documentar: Vistas
     "vistas": {
@@ -98,7 +98,12 @@ imprimir_config = {
         "imprimir_procedures": False,  # SQLite no tiene stored procedures
         "imprimir_function": False,  # SQLite no tiene functions de catálogo comparables
     },
-    # Configuración de gráficos de relaciones
+    # Secciones finales (al final del documento)
+    "info_database": {"imprimir_info_database": True, "version": True},  # Versión del servidor
+    "columnas_charset": {"charset_collation": False},  # SQLite no tiene charset por columna
+    "almacenamiento": {"imprimir_almacenamiento": True},  # Inventario físico (ficheros, tamaños)
+    "condiciones_motor": {"imprimir_condiciones_motor": True},  # EngineReadinessAdvisor (PRAGMAs de SQLite)
+    # Configuración de gráficos de relaciones (necesita Graphviz)
     "grafo": {
         "enabled": True,
         "max_depth": 2,  # Profundidad máxima de relaciones

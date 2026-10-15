@@ -16,10 +16,17 @@ manager = SyncDatabaseManager(
     conn_params={"host": "localhost", "database": "mydb", "pool_size": 10}
 )
 
-# Verificar readiness automáticamente (una sola vez por Engine)
+# Verificar readiness (una sola vez por Engine en el proceso; BulkCrud lo hace al crearse)
 advisor = EngineReadinessAdvisor()
-advisor.report_once(manager.engine)
+advisor.report_once(manager.get_sqlalchemy_engine())
+
+# O el informe completo, sin pasar por el LOG: hallazgos + condiciones de la verificación
+report = manager.get_engine_readiness()
+print(report.supported, report.dynamic, [(f.level, f.param) for f in report.findings])
 ```
+
+Además del LOG, los hallazgos aparecen en los documentos y los Excel de auditoría (ver
+[Informes: documentación y Excel de auditoría](#6-informes-documentacion-y-excel-de-auditoria)).
 
 ---
 
@@ -185,18 +192,81 @@ advisor.report(
 ### 4. Verificación Única por Engine
 
 ```python
-# report_once() verifica solo una sola vez por Engine en el proceso
-# Útil en ciclos con muchas instancias BulkCrud/DumpOrchestrator
+from util_bbdd import BulkCrud
+
+engine = manager.get_sqlalchemy_engine()
 advisor = EngineReadinessAdvisor()
 
-# Primera instancia → verifica + reporta
-advisor.report_once(manager.engine)
+# Primera vez en el proceso → verifica, escribe el bloque en el LOG y guarda el informe
+assert advisor.report_once(engine) is True
 
-# Siguientes instancias → omite (ya verificado)
-for i in range(10):
-    bulk = BulkCrud(manager, ...)
-    bulk.insert(df)  # sin re-verificar
+# Siguientes → no repite (tampoco BulkCrud, que llama a report_once al crearse)
+for df in particiones:
+    BulkCrud(engine).bulk_insert_from_df(df, "users")
+assert advisor.report_once(engine) is False
 ```
+
+`report_once()` es seguro con varios hilos y la clave es el objeto `Engine`, no su URL: dos engines al mismo servidor se
+verifican por separado y `engine.dispose()` no provoca una nueva verificación.
+
+### 5. Informe estructurado (`EngineReadinessReport`)
+
+| Método | Devuelve | Cuándo usarlo |
+|---|---|---|
+| `check(db_type, conn_params, *, connection=None)` | `list[AdvisoryFinding]` | Hallazgos sueltos, ordenados por severidad |
+| `report(db_type, conn_params, *, connection=None)` | `list[AdvisoryFinding]` | Igual que `check`, y además escribe el bloque en el LOG |
+| `assess(db_type, conn_params, *, engine=None)` | `EngineReadinessReport` | Hallazgos más las condiciones de la verificación. Los checks estáticos usan `conn_params`; `engine` solo aporta la conexión para los dinámicos |
+| `report_once(engine)` | `bool` | Verifica e informa una vez por engine; guarda el informe |
+| `engine_report(engine, *, timeout=60.0)` | `EngineReadinessReport` | El informe guardado por `report_once()`, sin nueva conexión. Si el engine no se había verificado, lo verifica; si otro hilo lo está verificando, espera hasta `timeout` |
+| `describe_engine(engine)` | `str` | `dialecto · host:puerto/base`, sin usuario ni contraseña |
+| `SyncDatabaseManager.get_engine_readiness()` | `EngineReadinessReport` | `assess()` con los `conn_params` del manager y una conexión de `get_sqlalchemy_engine()` |
+
+`EngineReadinessReport` (de `util_bbdd.connection`) distingue «sin hallazgos» de «no verificado»:
+
+| Campo | Significado |
+|---|---|
+| `db_type` | Motor verificado |
+| `findings` | Hallazgos, por severidad descendente |
+| `checked_at` | Momento de la verificación, en UTC |
+| `dynamic` | `True` si hubo conexión y se intentaron los checks de variables del servidor |
+| `supported` | `False` si el motor no tiene checks (p.ej. HSQLDB); `findings` vacío |
+| `error` | Por qué no hubo checks dinámicos. Solo lleva el tipo de la excepción, nunca su mensaje (puede contener la URL) |
+
+```python
+report = EngineReadinessAdvisor().assess("mysql", {"pool_size": 2})
+report.dynamic, report.error   # (False, 'Sin engine: solo checks estáticos')
+[(f.level, f.param) for f in report.findings]   # [('WARNING', 'pool_size')]
+```
+
+`engine_report()` y `report_once()` nunca lanzan excepciones: si la verificación falla, el informe lleva el motivo en
+`error` y quien lo usa (carga, volcado, documentación) sigue adelante.
+
+### 6. Informes: documentación y Excel de auditoría
+
+Los mismos hallazgos, con la misma presentación (verificación, resumen por severidad y hallazgos ordenados), aparecen en:
+
+| Salida | Dónde | Cuándo |
+|---|---|---|
+| `DatabaseDocumentation` (Word, Excel, HTML) | Sección «Condiciones del motor», al final | Con `imprimir={"condiciones_motor": {"imprimir_condiciones_motor": True}}` ([referencia](../api/database_documentation.md#seccion-condiciones-del-motor)) |
+| `dump_report_*.xlsx` de `DumpOrchestrator` | Última hoja, «Condiciones del motor», con un bloque para el origen y otro para el destino | Siempre ([referencia](../api/dump_reporter.md)) |
+| `auditoria.xlsx` de `AuditManager.exportar_resumen_excel()` | Última hoja, `Condiciones_motor` | Con `crud.audit_manager`, siempre; con un `AuditManager` creado aparte, si recibe `engine=` ([referencia](../api/bulk_audit.md)) |
+
+```python
+from pathlib import Path
+
+from util_bbdd import BulkCrud
+from util_bbdd.bulk import AuditManager
+
+crud = BulkCrud(engine, audit_csv_path=Path("audit/audit.csv"))  # verifica el engine al crearse
+crud.bulk_insert_from_df(df, "users")
+crud.audit_manager.exportar_resumen_excel()  # ... + hoja Condiciones_motor, sin nueva conexión
+
+# Tras ParallelBulkLoader, con un AuditManager propio:
+AuditManager(Path("audit/audit.csv")).exportar_resumen_excel(engine=engine)
+```
+
+Los textos de esa presentación salen de un único sitio, `util_bbdd.audit.readiness.ReadinessRows`: cambiar uno cambia
+todas las salidas.
 
 ---
 
@@ -260,26 +330,20 @@ RECONFIGURE;
 ## Integración con BulkCrud / DumpOrchestrator
 
 ```python
-from util_bbdd import BulkCrud, SyncDatabaseManager
-from util_bbdd.connection import EngineReadinessAdvisor
+from util_bbdd import BulkCrud, DumpOrchestrator, SyncDatabaseManager
+from util_bbdd.dump import DumpConfig
 
-manager = SyncDatabaseManager(
-    db_type="mysql",
-    conn_params={...}
-)
+manager = SyncDatabaseManager(db_type="mysql", conn_params={...})
+engine = manager.get_sqlalchemy_engine()
 
-# Verificación automática en BulkCrud.__init__
-advisor = EngineReadinessAdvisor()
-bulk = BulkCrud(
-    manager,
-    table_name="users",
-    audit_csv_path="audit.csv"
-)
-# → report_once(manager.engine) se ejecuta internamente
-
-# Luego, sin re-verificar
+# BulkCrud.__init__ llama a report_once(engine): primera instancia verifica, las demás no
+bulk = BulkCrud(engine, audit_csv_path="audit.csv")
 for partition in partitions:
-    bulk.insert_from_df(partition)
+    bulk.bulk_insert_from_df(partition, "users")
+
+# DumpOrchestrator verifica origen y destino al empezar (una vez por engine en el proceso)
+# y los muestra en la hoja «Condiciones del motor» del informe Excel
+DumpOrchestrator(DumpConfig(source_engine=origen, target_engine=engine)).run()
 ```
 
 ---
