@@ -86,7 +86,7 @@ findings = advisor.check("postgresql", {"pool_size": 10}, connection=conn)
 | Parámetro | Tipo | Rango | Recomendación |
 |-----------|------|-------|----------------|
 | `max_degree_of_parallelism` (MAXDOP) | Dinámico | 0–64 | **nCPU/2** (evita overhead en queries pequeñas) |
-| `cost_threshold_for_parallelism` | Dinámico | ≥1 | **50–100** (umbral de costo para paralelismo) |
+| `cost_threshold_for_parallelism` | Dinámico | ≥1 | **50–100** (umbral de costo para paralelismo; por debajo de 50, incluido el 5 por defecto, se informa como INFO) |
 | `fill_factor` | Dinámico | 0–100 | **0 (100%)** para carga inicial masiva |
 | `recovery_model` | Dinámico | FULL/BULK_LOGGED/SIMPLE | **BULK_LOGGED** durante carga masiva |
 

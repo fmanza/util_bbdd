@@ -48,6 +48,10 @@ SemVer: MINOR (features aditivas, sin cambios incompatibles; la sección nueva e
   de OK a **INFO** (pierde hasta ~1 s de commits si cae el sistema operativo: solo en una ventana de carga, y volver a
   1); `0`, de CRITICAL a **WARNING** (pierde también si cae `mysqld`). Cambian los niveles del LOG y de las hojas
   «Condiciones del motor».
+- **connection**: umbrales del advisor coherentes con su recomendación. `cost threshold for parallelism` (SQL Server)
+  da INFO por debajo de 50 (antes de 10) porque el texto recomienda 50–100: de 10 a 49 pasa de OK a INFO. El WARNING de
+  `write_timeout` (MySQL/MariaDB) sigue por debajo de 30 s, y su texto dice ahora «Mínimo 30 s; 60 s o más en cargas
+  largas» (antes «Recomendado ≥60 s», y 45 s salía OK).
 - **dump** (política, sin cambio de código): `DumpResult.constraint_reactivation_error` y la hoja «Errores de
   Reactivación» guardan el mensaje completo de la excepción, como los `error_msg` por tabla, constraint e índice; el
   advisor guarda solo el tipo porque sus errores de conexión pueden llevar la URL. Documentado en `docs/api/dump.md`.

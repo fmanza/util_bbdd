@@ -123,17 +123,18 @@ class SQLServerVariableValidator:
                     )
                 )
 
-        # cost threshold for parallelism: umbral de costo para paralelismo
+        # cost threshold for parallelism: umbral de costo para paralelismo. T-03: el INFO saltaba por debajo de 10 con
+        # el texto «recomendado 50–100» (20 salía OK); el umbral pasa a 50, como el texto.
         cost_threshold = self._read_config_int(connection, "cost threshold for parallelism")
         if cost_threshold is not None:
-            if cost_threshold < 10:
+            if cost_threshold < 50:
                 findings.append(
                     AdvisoryFinding(
                         level="INFO",
                         param="cost_threshold_for_parallelism",
                         current=str(cost_threshold),
-                        recommendation="Valor bajo (<10) puede activar paralelismo en queries pequeñas con overhead; "
-                        "recomendado 50–100 para OLTP bulk",
+                        recommendation="Valor bajo (<50; por defecto 5) puede activar paralelismo en queries pequeñas "
+                        "con overhead; recomendado 50–100 para OLTP bulk",
                     )
                 )
             else:

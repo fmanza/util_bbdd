@@ -62,6 +62,9 @@ terminal + fichero de sesión.
     `dump/_constraints.py`, `docs/api/dump.md` y CHANGELOG; T-04 cerrado.
   - Puerta: ruff, mypy y `zensical build --strict` limpios; pytest limpio 5834 passed; con banco 6213 passed.
 
+- T-03 (2026-10-16): criterio «WARNING → se ajusta el texto (sin alarmas nuevas); INFO → se ajusta el umbral al texto».
+  `write_timeout` mantiene el mínimo 30 s con texto coherente; `cost threshold for parallelism` INFO por debajo de 50.
+
 ## Artefactos generados
 
 | Artefacto | Ruta | Estado |

@@ -66,7 +66,8 @@ class EngineReadinessAdvisor:
     #: Checks estáticos de MariaDB/MySQL con mínimo: (parámetro, mínimo, unidad, recomendación si queda por debajo).
     _MYSQL_MINIMUMS: ClassVar[tuple[tuple[str, int, str, str], ...]] = (
         ("pool_size", 5, "", "Mínimo 5 para cargas concurrentes"),
-        ("write_timeout", 30, "s", "Recomendado ≥60 s en cargas masivas para evitar 'Lost connection'"),
+        # T-03: el texto decía «≥60 s» con mínimo 30 (45 s salía OK); se ajusta el texto, no el umbral del WARNING.
+        ("write_timeout", 30, "s", "Mínimo 30 s; en cargas masivas largas, 60 s o más evita 'Lost connection'"),
         ("read_timeout", 30, "s", "Recomendado ≥30 s"),
     )
 

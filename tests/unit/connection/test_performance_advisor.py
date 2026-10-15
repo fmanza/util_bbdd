@@ -403,6 +403,8 @@ class TestMySQLStaticChecks:
         findings = self._check(engine, {"pool_size": 10, "write_timeout": 10})
         f = _find(findings, "write_timeout")
         assert f is not None and f.level == "WARNING"
+        # T-03: el texto coincide con el umbral del WARNING (antes decía «≥60 s» con mínimo 30).
+        assert f.recommendation.startswith("Mínimo 30 s")
 
     @pytest.mark.parametrize("engine", ["mysql", "mariadb"])
     def test_pool_size_low_warning(self, engine: str) -> None:
@@ -627,6 +629,15 @@ class TestSQLServerDynamicChecks:
         findings = self.advisor.check("mssql", {"pool_size": 10}, connection=conn)
         f = _find(findings, "cost_threshold_for_parallelism")
         assert f is not None and f.level == "INFO"
+
+    def test_cost_threshold_below_the_recommended_50_is_info(self) -> None:
+        # T-03: con umbral 10, un 20 salía OK aunque el texto recomendaba 50–100.
+        conn = self._make_conn({"cost threshold for parallelism": 20})
+        findings = self.advisor.check("mssql", {"pool_size": 10}, connection=conn)
+        f = _find(findings, "cost_threshold_for_parallelism")
+        assert f is not None
+        assert f.level == "INFO"
+        assert "50–100" in f.recommendation
 
     def test_cost_threshold_medium_ok(self) -> None:
         conn = self._make_conn({"cost threshold for parallelism": 50})
