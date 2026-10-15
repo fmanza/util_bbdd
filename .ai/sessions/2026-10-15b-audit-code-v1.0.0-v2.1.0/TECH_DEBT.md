@@ -19,12 +19,12 @@ D-01 (CHANGELOG 2.0.0).
 | T-03 | quick_win | Confirmado | Umbrales incoherentes con su texto (`write_timeout`, `cost threshold`) | ✅ 2026-10-16: `cost threshold` INFO por debajo de 50 (como su texto); texto de `write_timeout` alineado con su mínimo de 30 s; 2 aserciones nuevas |
 | T-04 | quick_win | Hipótesis | `reactivation_error = str(exc)` frente a la política «solo el tipo» | ✅ Cerrado por la decisión A-07: mensaje completo, documentado (comentario en `_constraints.py`, `docs/api/dump.md`) |
 | T-05 | quick_win | Confirmado | `batch_window_seconds` sin validar; nombres reservados de Windows | ✅ Validación + 7 casos de test; la parte de Windows era un falso positivo (A-11) |
-| T-06 | deuda_estructural | Confirmado | `_check_*` duplicados y MySQL dentro del advisor → Strategy con registro por motor | Pendiente (`/refactor`) |
-| T-07 | fase_media | Confirmado | Casting sin validar en PostgreSQL; MySQL corta los dinámicos ante un valor inválido | Pendiente (con T-06) |
-| T-08 | fase_media | Confirmado | `except Exception` + DEBUG en el advisor oculta errores de programación | Pendiente (con T-06) |
+| T-06 | deuda_estructural | Confirmado | `_check_*` duplicados y MySQL dentro del advisor → Strategy con registro por motor | ✅ 2026-10-16 (`2026-10-16-refactor-advisor-strategy`): F0 `394462f1`, F1 `e1e87c53` (Strategy + registro; advisor 732 → 501 líneas) |
+| T-07 | fase_media | Confirmado | Casting sin validar en PostgreSQL; MySQL corta los dinámicos ante un valor inválido | ✅ 2026-10-16: F2 `4102765f` (`ConnParamReader`; CRITICAL por parámetro) |
+| T-08 | fase_media | Confirmado | `except Exception` + DEBUG en el advisor oculta errores de programación | ✅ 2026-10-16: F3 `fa6347da` (WARNING con traza; dinámicos aislados de estáticos) |
 | T-09 | fase_media | Confirmado | `DumpConfig` con rutas tipadas `StrPath` tras normalizar a `Path` | ✅ 2026-10-16: descriptores `PathField`/`OptionalPathField` (`_core/validation/paths.py`); mypy ve `Path`, sigue aceptando `str`; el orquestador ya no revalida; 4 casos de test |
 | T-10 | fase_media | Confirmado | `db_type` `sqlserver`/`mssql` según el camino; sin `get_engine_readiness` async | ✅ 2026-10-16 (decisiones: «sqlserver» en todo; versión async): `report_name()`; `assess_async()` + `AsyncDatabaseManager.get_engine_readiness()` vía `run_sync`; 8 tests; banco async PG/MySQL/MariaDB/Oracle con checks dinámicos |
-| T-11 | fase_media | Hipótesis | Dos escritores de la hoja de condiciones (audit y doc) | Pendiente |
+| T-11 | fase_media | Hipótesis | Dos escritores de la hoja de condiciones (audit y doc) | ✅ Cerrado sin cambios (decisión 2026-10-16: el contenido ya tiene una fuente, solo difiere el estilo) |
 | T-12 | quick_win | Confirmado | Sin página de API del advisor; enlaces y referencia rotos; guía de prompts en la navegación de usuario | ✅ `docs/api/engine_readiness_advisor.md`, enlaces, nav |
 | T-13 | quick_win | Confirmado | `.ai/CURRENT_STATE.md` en v1.1.1 e `INDEX.md` sin 13 sesiones | ✅ Actualizados |
 

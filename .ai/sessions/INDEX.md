@@ -288,6 +288,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-10-15-engine-readiness-audit-sheets | Hoja «Condiciones del motor» en los Excel de `bulk` y `dump` | develop | new_feature | CLOSED | `2026-10-15-engine-readiness-audit-sheets/TRACEABILITY.md` |
 | 2026-10-15-refactor-doc-readiness | La sección de `doc` reutiliza `audit.readiness` | develop | refactor | CLOSED | `2026-10-15-refactor-doc-readiness/TRACEABILITY.md` |
 | 2026-10-15b-audit-code-v1.0.0-v2.1.0 | **audit-code v1.0.0 → HEAD** + `/tech-debt` (Fase 1 implementada: T-01, T-02, T-05, T-12, T-13) | develop | audit_code + tech_debt | CLOSED | `2026-10-15b-audit-code-v1.0.0-v2.1.0/TRACEABILITY.md` |
+| 2026-10-16-refactor-advisor-strategy | **T-06**: validadores de `EngineReadinessAdvisor` como Strategy (F0 caracterización, F1 refactor, F2 casting T-07, F3 excepciones T-08); SQL Server del banco en 51833 | develop | refactor | CLOSED | `2026-10-16-refactor-advisor-strategy/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 

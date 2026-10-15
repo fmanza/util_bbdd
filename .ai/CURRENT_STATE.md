@@ -132,8 +132,8 @@ mismo `mkdocs.yml`; el CI publica con Zensical. Ver `ZENICAL.md`.
 | Q1 | audit-code v1.0.0 → HEAD (`.ai/sessions/2026-10-15b-audit-code-v1.0.0-v2.1.0/AUDIT_REPORT.md`): bugs A-01 (evento `run` de `audit_sink` `ok` con constraints sin reactivar), A-04 (recomendaciones del advisor que fallan en MySQL/SQL Server), A-02 (asyncpg reescribe marcadores en literales), D-01 (CHANGELOG `[2.0.0] - Por publicar`) | ✅ Hecho 2026-10-16 (`/hotfix`, sin publicar) | `/hotfix` |
 | Q2 | Decisiones: A-05 (nivel de `innodb_flush_log_at_trx_commit=1`) y A-07 (mensaje completo del driver en el Excel de `dump`) | ✅ Decidido 2026-10-16: A-05 «durabilidad primero» (1 OK, 2 INFO, 0 WARNING; implementado); A-07 «mensaje completo y documentar» (T-04 cerrado sin cambio de código) | — |
 | Q3 | `/tech-debt` Fase 1 (T-01, T-02, T-05, T-12, T-13) | ✅ Hecho 2026-10-15, sin commit | `tech_debt` |
-| Q4 | `/tech-debt` resto (T-03, T-04, T-09 y T-10 hechos 2026-10-16): T-06 + T-07 + T-08 (validadores del advisor como Strategy, casting y excepciones), T-11 | Pendiente | `/refactor` |
-| Q5 | Validar SQL Server en el banco: `util_bbdd_bench_mssql` no arranca (puerto 51433 en un rango excluido por Windows; cambiar `UTIL_BBDD_BENCH_MSSQL_PORT` o reiniciar `winnat`) | Usuario | — |
+| Q4 | `/tech-debt` completo: T-03, T-04, T-09, T-10 y T-06 (+ T-07, T-08; T-11 cerrado sin cambios) hechos el 2026-10-16 (`.ai/sessions/2026-10-16-refactor-advisor-strategy/`) | ✅ Hecho, sin publicar | `/refactor` |
+| Q5 | SQL Server en el banco | ✅ 2026-10-16: recreado en 51833 (`UTIL_BBDD_BENCH_MSSQL_PORT`); copia `util_bbdd_bench_mssql_backup:2026-10-16` | — |
 | — | Aparcados: S-1 (`bulk` con procesos, NO_GO hasta ≥ 10M filas/tabla) y las dos limitaciones de driver de `docs/roadmap.md` | Aparcado | — |
 
 ---
