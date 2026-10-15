@@ -2,7 +2,7 @@
 
 **Generado**: 2026-06-05 (cabecera y «Próximos pasos» actualizados el 2026-10-10 tras v1.0.0)  
 **Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.39.1` (la tabla de abajo no recoge todas las versiones intermedias: el detalle está en el CHANGELOG)  
-**Versión**: `v2.2.0` (2026-10-16, cerrada en `develop`; tag `v2.2.0` y `main` pendientes de confirmar el CI). Anteriores: `v2.1.0` (`eacd2eb1`), `v2.0.0` (`4e946e4c`, `main` hasta esta release), `v1.2.0` (`65b2071f`), `v1.1.1` (`a341195c`). Últimos tags: `v0.35.5` a `v0.44.0` (ver CHANGELOG), `v1.0.0`, `v1.1.0`, `v1.1.1`, `v1.2.0`, `v2.0.0`, `v2.1.0`  
+**Versión**: `v2.2.0` (2026-10-16, publicada: tag `v2.2.0`, `develop` y `main` en `a4afd8af`). Anteriores: `v2.1.0` (`eacd2eb1`), `v2.0.0` (`4e946e4c`, `main` hasta esta release), `v1.2.0` (`65b2071f`), `v1.1.1` (`a341195c`). Últimos tags: `v0.35.5` a `v0.44.0` (ver CHANGELOG), `v1.0.0`, `v1.1.0`, `v1.1.1`, `v1.2.0`, `v2.0.0`, `v2.1.0`, `v2.2.0`  
 **Rama activa**: `develop`
 
 ---
@@ -68,7 +68,7 @@
 | `v1.2.0` | Liberado 2026-10-14 (tag sobre `65b2071f`) — `DumpResult.constraint_reactivation_error` y hoja «Errores de Reactivación» en el informe de `dump` (`.ai/sessions/2026-10-14-dump-constraint-reactivation/`) | ✅ |
 | `v2.0.0` | Liberado 2026-10-14 (tag sobre `4e946e4c`; `main` en v2.0.0) — **MAJOR**: retiradas `PoolExhaustedError` y `DiffReportGenerationError` (`.ai/sessions/2026-10-14-remove-reserved-exceptions/`) | ✅ |
 | `v2.1.0` | Liberado 2026-10-14 (tag sobre `eacd2eb1`; `main` sigue en v2.0.0) — 9 validadores nuevos en `EngineReadinessAdvisor` (MySQL/MariaDB, PostgreSQL, SQL Server, Oracle). El CHANGELOG cita la sesión `2026-10-14-performance-advisor-phase1-3`, que no existe en `.ai/sessions/` | ✅ |
-| `v2.2.0` | Cerrada 2026-10-16 en `develop` (tag y `main` pendientes) — «Condiciones del motor» en `doc`/`bulk`/`dump`; `get_engine_readiness` async; audit-code v1.0.0→v2.1.0 con sus hotfix y la deuda técnica T-01–T-11; `EngineReadinessAdvisor` como Strategy con validación de tipos y errores internos visibles (`.ai/sessions/2026-10-15b-audit-code-v1.0.0-v2.1.0/`, `2026-10-16-refactor-advisor-strategy/`) | 🔶 |
+| `v2.2.0` | Liberado 2026-10-16 (tag sobre `a4afd8af`; `main` en v2.2.0) — «Condiciones del motor» en `doc`/`bulk`/`dump`; `get_engine_readiness` async; audit-code v1.0.0→v2.1.0 con sus hotfix y la deuda técnica T-01–T-11; `EngineReadinessAdvisor` como Strategy con validación de tipos y errores internos visibles (`.ai/sessions/2026-10-15b-audit-code-v1.0.0-v2.1.0/`, `2026-10-16-refactor-advisor-strategy/`) | ✅ |
 | Zenical | Hecho — `migrate/zenical-pure` fusionada (PR #19, `c6d765a8`); `zensical` 0.0.44 es el generador del CI y lee `mkdocs.yml` (no se usa `zensical.toml`) | ✅ |
 
 PR #18 (`MySQLVariableValidator`): su código (`9a71e056`) está en `main` y `develop`; el estado de la PR en GitHub no se ha comprobado (sin `gh`) — cerrarla si sigue abierta.  
@@ -135,7 +135,7 @@ mismo `mkdocs.yml`; el CI publica con Zensical. Ver `ZENICAL.md`.
 | Q3 | `/tech-debt` Fase 1 (T-01, T-02, T-05, T-12, T-13) | ✅ Hecho 2026-10-15, sin commit | `tech_debt` |
 | Q4 | `/tech-debt` completo: T-03, T-04, T-09, T-10 y T-06 (+ T-07, T-08; T-11 cerrado sin cambios) hechos el 2026-10-16 (`.ai/sessions/2026-10-16-refactor-advisor-strategy/`) | ✅ Hecho, sin publicar | `/refactor` |
 | Q5 | SQL Server en el banco | ✅ 2026-10-16: recreado en 51833 (`UTIL_BBDD_BENCH_MSSQL_PORT`); copia `util_bbdd_bench_mssql_backup:2026-10-16` | — |
-| R3 | Release 2.2.0: CI de `c85a405b`/release en verde, tag `v2.2.0`, push y fast-forward de `main` (en v2.0.0) | Pendiente de confirmar el CI | `release` |
+| R3 | Release 2.2.0: tag `v2.2.0`, push de `develop` y fast-forward de `main` (desde v2.0.0) | ✅ Hecho 2026-10-16 (`a4afd8af`; CI confirmado por el usuario) | `release` |
 | — | Aparcados: S-1 (`bulk` con procesos, NO_GO hasta ≥ 10M filas/tabla) y las dos limitaciones de driver de `docs/roadmap.md` | Aparcado | — |
 
 ---
