@@ -212,7 +212,7 @@ class FakeServerConnection:
         if self.fail:
             raise OperationalError(sql, params, Exception("servidor caído"))
         lower = sql.lower()
-        if match := re.match(r"show variables like '([a-z_]+)'", lower):
+        if match := re.match(r"show variables where variable_name = '([a-z_]+)'", lower):
             name = match.group(1)
             return _Result([(name, str(self.values[name]))] if name in self.values else [])
         if match := re.match(r"show ([a-z_]+)$", lower):

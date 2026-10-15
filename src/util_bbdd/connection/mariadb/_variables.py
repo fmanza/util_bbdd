@@ -52,8 +52,9 @@ class MySQLVariableValidator:
     def read_variables(self) -> dict[str, int]:
         """Lee variables críticas del servidor MySQL/MariaDB.
 
-        Ejecuta `SHOW VARIABLES LIKE 'variable_name'` para cada variable crítica.
-        Retorna dict vacío si la lectura falla (ej. permisos insuficientes).
+        Ejecuta `SHOW VARIABLES WHERE Variable_name = 'variable_name'` (coincidencia exacta) para cada variable crítica.
+        Una variable que no existe, que no se puede leer o con una fila o un valor inesperados se omite (WARNING o
+        DEBUG); el resto se lee igual. Retorna dict vacío si no se pudo leer ninguna (ej. permisos insuficientes).
 
         Returns:
             dict con nombre→valor (en bytes). Ej:
@@ -68,22 +69,27 @@ class MySQLVariableValidator:
         result: dict[str, int] = {}
 
         for var_name in self._CRITICAL_VARIABLES:
+            # R-1b (2.2.1): coincidencia exacta; con LIKE el ``_`` del nombre es un comodín y rows[0] podía ser otra
+            # variable. El nombre es una constante de la clase, no entrada del usuario.
+            stmt = text(f"SHOW VARIABLES WHERE Variable_name = '{var_name}'")
             try:
-                query: str = f"SHOW VARIABLES LIKE '{var_name}'"
-                stmt = text(query)
                 rows: list[tuple[str, str]] = self._connection.execute(stmt).fetchall()
-
-                if rows:
-                    _name, value_str = rows[0]
-                    try:
-                        result[var_name] = int(value_str)
-                    except (ValueError, TypeError):
-                        logger.warning(f"No se pudo parsear variable '{var_name}' como int: {value_str}")
-                else:
-                    logger.debug(f"Variable '{var_name}' no encontrada en SHOW VARIABLES")
-
             except SQLAlchemyError as exc:
                 logger.warning(f"Error leyendo variable '{var_name}': {exc}")
+                continue
+            if not rows:
+                logger.debug(f"Variable '{var_name}' no encontrada en SHOW VARIABLES")
+                continue
+            try:
+                _name, value_str = rows[0]
+            except (ValueError, TypeError, IndexError):
+                # R-1 (2.2.1): una fila con otra forma lanzaba fuera y se perdían todas las variables.
+                logger.warning(f"Fila inesperada para la variable '{var_name}' en SHOW VARIABLES; se omite")
+                continue
+            try:
+                result[var_name] = int(value_str)
+            except (ValueError, TypeError):
+                logger.warning(f"No se pudo parsear variable '{var_name}' como int: {value_str}")
 
         return result
 

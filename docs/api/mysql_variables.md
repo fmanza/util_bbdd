@@ -8,7 +8,7 @@ Proporciona validación read-only de variables críticas MySQL/MariaDB antes de 
 flowchart TD
     A["BulkCrud.__init__()"] -->|una vez por engine| P["EngineReadinessAdvisor.report_once"]
     P -->|motor mysql/mariadb| B["MySQLVariableValidator"]
-    B -->|SHOW VARIABLES LIKE …| C["MySQL/MariaDB"]
+    B -->|SHOW VARIABLES WHERE Variable_name = …| C["MySQL/MariaDB"]
     C -->|max_allowed_packet\ninnodb_buffer_pool_size| B
     B -->|read_variables| D["dict de valores actuales"]
     B -->|validate required| E["dict variable → bool"]
@@ -63,7 +63,7 @@ Ambas clases se importan de `util_bbdd.connection.mariadb` (válidas para MariaD
 |---|---|
 | `ValueError` | `connection=None` al crear el validador |
 | Variable no encontrada | DEBUG log; se omite de `read_variables` sin error |
-| Valor no entero o error de SQLAlchemy al leerla | WARNING log; se omite de `read_variables` |
+| Valor no entero, fila con forma inesperada o error de SQLAlchemy al leerla | WARNING log; se omite esa variable de `read_variables` y el resto se lee igual |
 | Variable requerida que no se pudo leer | `validate` la da como `False` (WARNING) |
 
 ## 3. Componentes y Clases

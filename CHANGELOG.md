@@ -5,6 +5,15 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **connection**: `MySQLVariableValidator.read_variables()` busca cada variable por nombre exacto
+  (`SHOW VARIABLES WHERE Variable_name = '…'`; con `LIKE` el `_` del nombre era un comodín) y una fila con forma
+  inesperada omite solo esa variable con un WARNING. Antes lanzaba fuera de la función y, desde 2.2.0,
+  `EngineReadinessAdvisor` perdía todos los checks dinámicos de MySQL/MariaDB.
+
 ## [2.2.0] - 2026-10-16
 
 Sesiones `.ai/sessions/2026-10-15-engine-conditions-doc/`, `2026-10-15-engine-readiness-audit-sheets/`,

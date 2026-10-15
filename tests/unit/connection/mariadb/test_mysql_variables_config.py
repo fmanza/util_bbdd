@@ -222,3 +222,43 @@ class TestMySQLVariableValidator:
 
                 # Debería haber logueado un warning
                 assert mock_logger.warning.called
+
+
+class TestReadVariablesRobustness:
+    """2.2.1 (R-1, R-1b): coincidencia exacta y filas con forma inesperada."""
+
+    @staticmethod
+    def _conn(rows_by_name: dict[str, object]) -> MagicMock:
+        conn = MagicMock()
+
+        def execute(stmt: object) -> MagicMock:
+            sql = str(stmt)
+            name = sql.split("'")[1]
+            result = MagicMock()
+            result.fetchall.return_value = rows_by_name.get(name, [])
+            return result
+
+        conn.execute.side_effect = execute
+        return conn
+
+    def test_queries_with_exact_match_not_like(self) -> None:
+        conn = self._conn({})
+        MySQLVariableValidator(conn).read_variables()
+
+        sqls = [str(call.args[0]) for call in conn.execute.call_args_list]
+        assert sqls
+        assert all(sql.startswith("SHOW VARIABLES WHERE Variable_name = '") for sql in sqls)
+        assert not any("LIKE" in sql for sql in sqls)
+
+    def test_an_unexpected_row_skips_only_that_variable(self, caplog: pytest.LogCaptureFixture) -> None:
+        conn = self._conn(
+            {
+                "max_allowed_packet": [("max_allowed_packet",)],  # una sola columna
+                "innodb_buffer_pool_size": [("innodb_buffer_pool_size", "134217728")],
+            }
+        )
+
+        result = MySQLVariableValidator(conn).read_variables()
+
+        assert result == {"innodb_buffer_pool_size": 134_217_728}
+        assert "Fila inesperada para la variable 'max_allowed_packet'" in caplog.text

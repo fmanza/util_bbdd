@@ -16,8 +16,8 @@ Resuelve el problema de descubrir en producción que la configuración del servi
 
 Aspectos críticos:
 
-- **`MySQLVariableValidator.read_variables()`**: ejecuta `SHOW VARIABLES LIKE ...` para cada variable crítica; no requiere privilegios especiales. Se importa de `util_bbdd.connection.mariadb` (sirve para MySQL y MariaDB).
-- **Conexión simulada**: los ejemplos 1, 2 y 5 usan un mock que responde a `SHOW VARIABLES LIKE '<nombre>'`; en uso real se pasa una `Connection` de SQLAlchemy.
+- **`MySQLVariableValidator.read_variables()`**: ejecuta `SHOW VARIABLES WHERE Variable_name = '<nombre>'` (coincidencia exacta) para cada variable crítica; no requiere privilegios especiales. Se importa de `util_bbdd.connection.mariadb` (sirve para MySQL y MariaDB).
+- **Conexión simulada**: los ejemplos 1, 2 y 5 usan un mock que responde a `SHOW VARIABLES WHERE Variable_name = '<nombre>'`; en uso real se pasa una `Connection` de SQLAlchemy.
 - **`MySQLOptimalConfig.suggest(num_rows)`**: heurística que retorna el perfil recomendado según el volumen: `dev()` hasta 100K filas, `production()` hasta 1M, `high_volume()` por encima.
 - **Integración con `BulkCrud`**: al crear una `BulkCrud` con un engine MySQL/MariaDB, la primera vez por engine se registra un «ENGINE READINESS REPORT» con estas variables (OK, o WARN con el `SET GLOBAL` recomendado). El ejemplo 6 lo muestra con `UTIL_BBDD_EXAMPLE_URL`.
 - **Thread-safety**: `MySQLVariableValidator` no es thread-safe. Crear una instancia por hilo si se usa en contextos concurrentes.

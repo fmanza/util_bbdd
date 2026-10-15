@@ -3,7 +3,7 @@ Ejemplos ejecutables: Validación de Variables MySQL/MariaDB
 
 Este módulo demuestra cómo usar MySQLVariableValidator y MySQLOptimalConfig.
 
-Los ejemplos 1, 2 y 5 usan una conexión simulada (mock) que responde a ``SHOW VARIABLES LIKE '<nombre>'``,
+Los ejemplos 1, 2 y 5 usan una conexión simulada (mock) que responde a ``SHOW VARIABLES WHERE Variable_name = '<nombre>'``,
 así que no necesitan servidor. El ejemplo 6 crea una ``BulkCrud`` real si se define la variable de entorno
 UTIL_BBDD_EXAMPLE_URL con la URL SQLAlchemy de un MySQL o MariaDB de pruebas
 (p. ej. ``mysql+pymysql://usuario:clave@servidor/bd``).
@@ -21,7 +21,7 @@ from util_bbdd.connection.mariadb import MySQLOptimalConfig, MySQLVariableValida
 
 
 def _mock_connection(values: dict[str, int]) -> MagicMock:
-    """Conexión simulada: responde a SHOW VARIABLES LIKE '<nombre>' con el valor de ``values``."""
+    """Conexión simulada: responde a SHOW VARIABLES WHERE Variable_name = '<nombre>' con el valor de ``values``."""
 
     def execute(statement: object) -> MagicMock:
         result = MagicMock()
