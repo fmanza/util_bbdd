@@ -75,6 +75,11 @@ SemVer: MINOR (features aditivas, sin cambios incompatibles; la sección nueva e
 
 ### Fixed
 
+- **connection**: `EngineReadinessAdvisor` valida el tipo de `conn_params` en todos los motores (T-07). En
+  PostgreSQL, SQL Server, Oracle y SQLite un valor inválido (`pool_size="abc"`) hacía perder **todos** los hallazgos
+  del motor, y `keepalives="false"`/`use_mars="false"` se leían como `True`. En MySQL/MariaDB un `autocommit` o
+  `pool_timeout` inválido cortaba el resto de checks, también los dinámicos. Ahora cada valor inválido da un
+  CRITICAL para ese parámetro y el resto sigue; `None` equivale a no indicarlo.
 - **dump** (hotfix): el evento `run` de `DumpConfig.audit_sink` salía `ok` aunque fallase la reactivación general de
   constraints (`DumpResult.constraint_reactivation_error`, desde v1.2.0), con el destino sin FK/CHECK. Ahora es
   `failed` y lleva el atributo `constraint_reactivation_failed`.

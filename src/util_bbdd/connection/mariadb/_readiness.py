@@ -23,8 +23,8 @@ logger: logging.Logger = logging.getLogger(__name__)
 class MySQLReadinessValidator:
     """Checks estáticos (``conn_params``) y dinámicos (``SHOW VARIABLES``) de MySQL y MariaDB.
 
-    Una instancia por verificación: :meth:`check_static` recuerda si debe omitirse :meth:`check_dynamic` (un
-    ``autocommit`` o ``pool_timeout`` inválido corta los checks, como antes del refactor).
+    Un ``autocommit`` o ``pool_timeout`` inválido da su CRITICAL y el resto de checks, también los dinámicos, sigue
+    (T-07, 2026-10-16; antes cortaba los checks).
     """
 
     #: Checks estáticos con mínimo: (parámetro, mínimo, unidad, recomendación si queda por debajo).
@@ -35,9 +35,6 @@ class MySQLReadinessValidator:
         ("read_timeout", 30, "s", "Recomendado ≥30 s"),
     )
 
-    def __init__(self) -> None:
-        self._dynamic_allowed: bool = True
-
     def check_static(self, conn_params: dict[str, Any]) -> list[AdvisoryFinding]:
         """Checks de pool/config: solo los parámetros presentes.
 
@@ -45,7 +42,6 @@ class MySQLReadinessValidator:
         defecto no debe presentarse como leído.
         """
         findings: list[AdvisoryFinding] = []
-        self._dynamic_allowed = True
 
         if "autocommit" in conn_params:
             ac_findings = self._check_autocommit(conn_params["autocommit"])
@@ -58,9 +54,8 @@ class MySQLReadinessValidator:
                         recommendation="autocommit debe ser true/false (booleano o string: 'true', 'false', 'yes', 'no', '1', '0')",
                     )
                 )
-                self._dynamic_allowed = False
-                return findings
-            findings.extend(ac_findings)
+            else:
+                findings.extend(ac_findings)
 
         for param, minimum, unit, recommendation in self.MINIMUMS:
             if param in conn_params:
@@ -87,16 +82,13 @@ class MySQLReadinessValidator:
                     recommendation="pool_timeout debe ser entero",
                 )
             )
-            self._dynamic_allowed = False
-            return findings
-        findings.extend(pt_findings)
+        else:
+            findings.extend(pt_findings)
         return findings
 
     def check_dynamic(self, connection: Any, conn_params: dict[str, Any]) -> list[AdvisoryFinding]:
         """Variables del servidor con ``MySQLVariableValidator``; un fallo deja los hallazgos ya obtenidos."""
         findings: list[AdvisoryFinding] = []
-        if not self._dynamic_allowed:
-            return findings
         try:
             validator = MySQLVariableValidator(connection)
             current = validator.read_variables()

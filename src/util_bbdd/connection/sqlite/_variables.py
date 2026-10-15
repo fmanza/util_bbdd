@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from .._advisory import AdvisoryFinding
+from .._advisory import AdvisoryFinding, ConnParamReader
 
 _IN_MEMORY: frozenset[str] = frozenset({":memory:", ""})
 
@@ -36,9 +36,11 @@ class SQLiteVariableValidator:
 
     def check_static(self, conn_params: dict[str, Any]) -> list[AdvisoryFinding]:
         """Evalúa conn_params sin conexión al servidor."""
-        findings: list[AdvisoryFinding] = []
+        # T-07: tipo validado; un timeout inválido da su CRITICAL y solo se omite su check (antes se perdía todo).
+        reader = ConnParamReader(conn_params, "sqlite")
         database: str = str(conn_params.get("database", "") or "")
-        timeout: float = float(conn_params.get("timeout", 5.0))
+        timeout = reader.as_float("timeout", 5.0)
+        findings: list[AdvisoryFinding] = reader.invalid
         is_memory: bool = database.strip() in _IN_MEMORY
 
         if is_memory:
@@ -53,7 +55,9 @@ class SQLiteVariableValidator:
         else:
             findings.append(AdvisoryFinding(level="OK", param="database", current=database, recommendation=""))
 
-        if timeout < 5.0:
+        if timeout is None:
+            pass
+        elif timeout < 5.0:
             findings.append(
                 AdvisoryFinding(
                     level="WARNING",

@@ -500,6 +500,60 @@
    "autocommit",
    "quizá",
    "autocommit debe ser true/false (booleano o string: 'true', 'false', 'yes', 'no', '1', '0')"
+  ],
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "write_timeout",
+   "y",
+   "write_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "read_timeout",
+   "z",
+   "read_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "WARNING",
+   "innodb_buffer_pool_size",
+   "8.0 MB",
+   "Recomendado ≥1.0 GB; SET GLOBAL innodb_buffer_pool_size = 1073741824; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "WARNING",
+   "max_allowed_packet",
+   "4.0 MB",
+   "Recomendado ≥64.0 MB; SET GLOBAL max_allowed_packet = 67108864; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "WARNING",
+   "innodb_flush_log_at_trx_commit",
+   "0",
+   "Se pierde hasta ~1 s de commits confirmados también si solo cae mysqld; volver a 1 (SET GLOBAL innodb_flush_log_at_trx_commit = 1;) o, solo durante una carga, 2"
+  ],
+  [
+   "INFO",
+   "innodb_log_file_size",
+   "5.0 MB",
+   "Para bulk en datasets >10GB: aumentar a 1–2 GB (actual: 5.0 MB); evita rotación frecuente de redo log; MySQL 8.0.30+: ajustar innodb_redo_log_capacity (dinámica; innodb_log_file_size está obsoleta); MySQL 5.7 y MariaDB < 10.9: en my.cnf, requiere reinicio"
+  ],
+  [
+   "INFO",
+   "innodb_write_io_threads",
+   "1",
+   "En servidores SSD con ≥4 CPUs: aumentar a nCPU/2 para paralelismo de escritura; en my.cnf (innodb_write_io_threads = <n>): en MySQL no es dinámica y requiere reinicio"
   ]
  ],
  "mariadb|invalidos|optimos": [
@@ -508,6 +562,60 @@
    "autocommit",
    "quizá",
    "autocommit debe ser true/false (booleano o string: 'true', 'false', 'yes', 'no', '1', '0')"
+  ],
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "write_timeout",
+   "y",
+   "write_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "read_timeout",
+   "z",
+   "read_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "INFO",
+   "innodb_flush_log_at_trx_commit",
+   "2",
+   "Durabilidad reducida: si cae el sistema operativo se pierde hasta ~1 s de commits confirmados; aceptable solo durante una ventana de carga; al terminar: SET GLOBAL innodb_flush_log_at_trx_commit = 1;"
+  ],
+  [
+   "OK",
+   "innodb_buffer_pool_size",
+   "8.0 GB",
+   ""
+  ],
+  [
+   "OK",
+   "max_allowed_packet",
+   "1.0 GB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_log_file_size",
+   "2.0 GB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_write_io_threads",
+   "16",
+   ""
   ]
  ],
  "mariadb|invalidos|servidor_caido": [
@@ -516,6 +624,30 @@
    "autocommit",
    "quizá",
    "autocommit debe ser true/false (booleano o string: 'true', 'false', 'yes', 'no', '1', '0')"
+  ],
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "write_timeout",
+   "y",
+   "write_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "read_timeout",
+   "z",
+   "read_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
   ]
  ],
  "mariadb|invalidos|sin_conexion": [
@@ -524,6 +656,30 @@
    "autocommit",
    "quizá",
    "autocommit debe ser true/false (booleano o string: 'true', 'false', 'yes', 'no', '1', '0')"
+  ],
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "write_timeout",
+   "y",
+   "write_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "read_timeout",
+   "z",
+   "read_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
   ]
  ],
  "mariadb|invalidos|tipicos": [
@@ -532,6 +688,60 @@
    "autocommit",
    "quizá",
    "autocommit debe ser true/false (booleano o string: 'true', 'false', 'yes', 'no', '1', '0')"
+  ],
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "write_timeout",
+   "y",
+   "write_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "read_timeout",
+   "z",
+   "read_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "WARNING",
+   "innodb_buffer_pool_size",
+   "128.0 MB",
+   "Recomendado ≥1.0 GB; SET GLOBAL innodb_buffer_pool_size = 1073741824; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "INFO",
+   "innodb_log_file_size",
+   "48.0 MB",
+   "Para bulk en datasets >10GB: aumentar a 1–2 GB (actual: 48.0 MB); evita rotación frecuente de redo log; MySQL 8.0.30+: ajustar innodb_redo_log_capacity (dinámica; innodb_log_file_size está obsoleta); MySQL 5.7 y MariaDB < 10.9: en my.cnf, requiere reinicio"
+  ],
+  [
+   "OK",
+   "max_allowed_packet",
+   "64.0 MB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_flush_log_at_trx_commit",
+   "1",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_write_io_threads",
+   "4",
+   ""
   ]
  ],
  "mariadb|texto|bajos": [
@@ -1232,12 +1442,31 @@
    ""
   ]
  ],
- "mssql|invalidos|bajos": [],
- "mssql|invalidos|optimos": [],
- "mssql|invalidos|servidor_caido": [],
- "mssql|invalidos|sin_conexion": [],
- "mssql|invalidos|tipicos": [],
- "mssql|texto|bajos": [
+ "mssql|invalidos|bajos": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_overflow",
+   "x",
+   "max_overflow debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "use_mars",
+   "puede",
+   "use_mars debe ser booleano (true/false, yes/no, 1/0)"
+  ],
   [
    "INFO",
    "sql_server_driver",
@@ -1264,9 +1493,205 @@
   ],
   [
    "OK",
-   "use_mars",
-   "True",
+   "recovery_model",
+   "BULK_LOGGED",
    ""
+  ]
+ ],
+ "mssql|invalidos|optimos": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_overflow",
+   "x",
+   "max_overflow debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "use_mars",
+   "puede",
+   "use_mars debe ser booleano (true/false, yes/no, 1/0)"
+  ],
+  [
+   "INFO",
+   "sql_server_driver",
+   "pymssql",
+   "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
+  ],
+  [
+   "OK",
+   "max_degree_of_parallelism",
+   "4",
+   ""
+  ],
+  [
+   "OK",
+   "cost_threshold_for_parallelism",
+   "50",
+   ""
+  ],
+  [
+   "OK",
+   "recovery_model",
+   "SIMPLE",
+   ""
+  ]
+ ],
+ "mssql|invalidos|servidor_caido": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_overflow",
+   "x",
+   "max_overflow debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "use_mars",
+   "puede",
+   "use_mars debe ser booleano (true/false, yes/no, 1/0)"
+  ],
+  [
+   "INFO",
+   "sql_server_driver",
+   "pymssql",
+   "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
+  ]
+ ],
+ "mssql|invalidos|sin_conexion": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_overflow",
+   "x",
+   "max_overflow debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "use_mars",
+   "puede",
+   "use_mars debe ser booleano (true/false, yes/no, 1/0)"
+  ],
+  [
+   "INFO",
+   "sql_server_driver",
+   "pymssql",
+   "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
+  ]
+ ],
+ "mssql|invalidos|tipicos": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_overflow",
+   "x",
+   "max_overflow debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "use_mars",
+   "puede",
+   "use_mars debe ser booleano (true/false, yes/no, 1/0)"
+  ],
+  [
+   "INFO",
+   "sql_server_driver",
+   "pymssql",
+   "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
+  ],
+  [
+   "INFO",
+   "max_degree_of_parallelism",
+   "0 (ilimitado)",
+   "Para OLTP bulk: ajustar a nCPU/2 (máximo 8) con EXEC sp_configure 'max degree of parallelism', <n>; RECONFIGURE; (o ALTER DATABASE SCOPED CONFIGURATION SET MAXDOP = <n>;); evita overhead de paralelismo en queries pequeñas"
+  ],
+  [
+   "INFO",
+   "cost_threshold_for_parallelism",
+   "5",
+   "Valor bajo (<50; por defecto 5) puede activar paralelismo en queries pequeñas con overhead; recomendado 50–100 para OLTP bulk"
+  ],
+  [
+   "INFO",
+   "recovery_model",
+   "FULL",
+   "Para carga masiva sin replicación: ALTER DATABASE ... SET RECOVERY BULK_LOGGED durante la carga"
+  ]
+ ],
+ "mssql|texto|bajos": [
+  [
+   "WARNING",
+   "use_mars",
+   "False",
+   "Activar use_mars=True (Multiple Active Result Sets) para múltiples cursores activos"
+  ],
+  [
+   "INFO",
+   "sql_server_driver",
+   "pymssql",
+   "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
+  ],
+  [
+   "INFO",
+   "max_degree_of_parallelism",
+   "16",
+   "Valor alto; puede saturar CPU en bulk. Considerar nCPU/2 para balance OLTP/bulk"
+  ],
+  [
+   "INFO",
+   "cost_threshold_for_parallelism",
+   "1",
+   "Valor bajo (<50; por defecto 5) puede activar paralelismo en queries pequeñas con overhead; recomendado 50–100 para OLTP bulk"
+  ],
+  [
+   "INFO",
+   "fill_factor",
+   "50%",
+   "fill factor=0 (100%) es óptimo para carga inicial masiva"
   ],
   [
    "OK",
@@ -1283,16 +1708,16 @@
  ],
  "mssql|texto|optimos": [
   [
+   "WARNING",
+   "use_mars",
+   "False",
+   "Activar use_mars=True (Multiple Active Result Sets) para múltiples cursores activos"
+  ],
+  [
    "INFO",
    "sql_server_driver",
    "pymssql",
    "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
-  ],
-  [
-   "OK",
-   "use_mars",
-   "True",
-   ""
   ],
   [
    "OK",
@@ -1321,16 +1746,16 @@
  ],
  "mssql|texto|servidor_caido": [
   [
+   "WARNING",
+   "use_mars",
+   "False",
+   "Activar use_mars=True (Multiple Active Result Sets) para múltiples cursores activos"
+  ],
+  [
    "INFO",
    "sql_server_driver",
    "pymssql",
    "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
-  ],
-  [
-   "OK",
-   "use_mars",
-   "True",
-   ""
   ],
   [
    "OK",
@@ -1341,16 +1766,16 @@
  ],
  "mssql|texto|sin_conexion": [
   [
+   "WARNING",
+   "use_mars",
+   "False",
+   "Activar use_mars=True (Multiple Active Result Sets) para múltiples cursores activos"
+  ],
+  [
    "INFO",
    "sql_server_driver",
    "pymssql",
    "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
-  ],
-  [
-   "OK",
-   "use_mars",
-   "True",
-   ""
   ],
   [
    "OK",
@@ -1360,6 +1785,12 @@
   ]
  ],
  "mssql|texto|tipicos": [
+  [
+   "WARNING",
+   "use_mars",
+   "False",
+   "Activar use_mars=True (Multiple Active Result Sets) para múltiples cursores activos"
+  ],
   [
    "INFO",
    "sql_server_driver",
@@ -1383,12 +1814,6 @@
    "recovery_model",
    "FULL",
    "Para carga masiva sin replicación: ALTER DATABASE ... SET RECOVERY BULK_LOGGED durante la carga"
-  ],
-  [
-   "OK",
-   "use_mars",
-   "True",
-   ""
   ],
   [
    "OK",
@@ -2015,6 +2440,60 @@
    "autocommit",
    "quizá",
    "autocommit debe ser true/false (booleano o string: 'true', 'false', 'yes', 'no', '1', '0')"
+  ],
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "write_timeout",
+   "y",
+   "write_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "read_timeout",
+   "z",
+   "read_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "WARNING",
+   "innodb_buffer_pool_size",
+   "8.0 MB",
+   "Recomendado ≥1.0 GB; SET GLOBAL innodb_buffer_pool_size = 1073741824; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "WARNING",
+   "max_allowed_packet",
+   "4.0 MB",
+   "Recomendado ≥64.0 MB; SET GLOBAL max_allowed_packet = 67108864; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "WARNING",
+   "innodb_flush_log_at_trx_commit",
+   "0",
+   "Se pierde hasta ~1 s de commits confirmados también si solo cae mysqld; volver a 1 (SET GLOBAL innodb_flush_log_at_trx_commit = 1;) o, solo durante una carga, 2"
+  ],
+  [
+   "INFO",
+   "innodb_log_file_size",
+   "5.0 MB",
+   "Para bulk en datasets >10GB: aumentar a 1–2 GB (actual: 5.0 MB); evita rotación frecuente de redo log; MySQL 8.0.30+: ajustar innodb_redo_log_capacity (dinámica; innodb_log_file_size está obsoleta); MySQL 5.7 y MariaDB < 10.9: en my.cnf, requiere reinicio"
+  ],
+  [
+   "INFO",
+   "innodb_write_io_threads",
+   "1",
+   "En servidores SSD con ≥4 CPUs: aumentar a nCPU/2 para paralelismo de escritura; en my.cnf (innodb_write_io_threads = <n>): en MySQL no es dinámica y requiere reinicio"
   ]
  ],
  "mysql|invalidos|optimos": [
@@ -2023,6 +2502,60 @@
    "autocommit",
    "quizá",
    "autocommit debe ser true/false (booleano o string: 'true', 'false', 'yes', 'no', '1', '0')"
+  ],
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "write_timeout",
+   "y",
+   "write_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "read_timeout",
+   "z",
+   "read_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "INFO",
+   "innodb_flush_log_at_trx_commit",
+   "2",
+   "Durabilidad reducida: si cae el sistema operativo se pierde hasta ~1 s de commits confirmados; aceptable solo durante una ventana de carga; al terminar: SET GLOBAL innodb_flush_log_at_trx_commit = 1;"
+  ],
+  [
+   "OK",
+   "innodb_buffer_pool_size",
+   "8.0 GB",
+   ""
+  ],
+  [
+   "OK",
+   "max_allowed_packet",
+   "1.0 GB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_log_file_size",
+   "2.0 GB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_write_io_threads",
+   "16",
+   ""
   ]
  ],
  "mysql|invalidos|servidor_caido": [
@@ -2031,6 +2564,30 @@
    "autocommit",
    "quizá",
    "autocommit debe ser true/false (booleano o string: 'true', 'false', 'yes', 'no', '1', '0')"
+  ],
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "write_timeout",
+   "y",
+   "write_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "read_timeout",
+   "z",
+   "read_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
   ]
  ],
  "mysql|invalidos|sin_conexion": [
@@ -2039,6 +2596,30 @@
    "autocommit",
    "quizá",
    "autocommit debe ser true/false (booleano o string: 'true', 'false', 'yes', 'no', '1', '0')"
+  ],
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "write_timeout",
+   "y",
+   "write_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "read_timeout",
+   "z",
+   "read_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
   ]
  ],
  "mysql|invalidos|tipicos": [
@@ -2047,6 +2628,60 @@
    "autocommit",
    "quizá",
    "autocommit debe ser true/false (booleano o string: 'true', 'false', 'yes', 'no', '1', '0')"
+  ],
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "write_timeout",
+   "y",
+   "write_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "read_timeout",
+   "z",
+   "read_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "WARNING",
+   "innodb_buffer_pool_size",
+   "128.0 MB",
+   "Recomendado ≥1.0 GB; SET GLOBAL innodb_buffer_pool_size = 1073741824; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "INFO",
+   "innodb_log_file_size",
+   "48.0 MB",
+   "Para bulk en datasets >10GB: aumentar a 1–2 GB (actual: 48.0 MB); evita rotación frecuente de redo log; MySQL 8.0.30+: ajustar innodb_redo_log_capacity (dinámica; innodb_log_file_size está obsoleta); MySQL 5.7 y MariaDB < 10.9: en my.cnf, requiere reinicio"
+  ],
+  [
+   "OK",
+   "max_allowed_packet",
+   "64.0 MB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_flush_log_at_trx_commit",
+   "1",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_write_io_threads",
+   "4",
+   ""
   ]
  ],
  "mysql|texto|bajos": [
@@ -2763,12 +3398,204 @@
    ""
   ]
  ],
- "oracle|invalidos|bajos": [],
- "oracle|invalidos|optimos": [],
- "oracle|invalidos|servidor_caido": [],
- "oracle|invalidos|sin_conexion": [],
- "oracle|invalidos|sin_permiso_v_parameter": [],
- "oracle|invalidos|tipicos": [],
+ "oracle|invalidos|bajos": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_lifetime",
+   "nunca",
+   "max_lifetime debe ser entero"
+  ],
+  [
+   "WARNING",
+   "pga_aggregate_target",
+   "10.0 MB",
+   "Recomendado ≥256 MB para sort/hash en carga masiva"
+  ],
+  [
+   "WARNING",
+   "sga_target",
+   "100.0 MB",
+   "Recomendado ≥512 MB; buffer cache insuficiente para cargas grandes"
+  ],
+  [
+   "INFO",
+   "arraysize/prefetchrows",
+   "(parámetros de cursor, no verificables en conn_params)",
+   "Ajustar arraysize≥1000 y prefetchrows≥500 en el cursor oracledb para reducir round-trips"
+  ],
+  [
+   "INFO",
+   "undo_retention",
+   "60s",
+   "Valor bajo (<900s); queries largas pueden fallar con 'snapshot too old'; aumentar a ≥3600s para bulk: ALTER SYSTEM SET undo_retention=3600;"
+  ]
+ ],
+ "oracle|invalidos|optimos": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_lifetime",
+   "nunca",
+   "max_lifetime debe ser entero"
+  ],
+  [
+   "WARNING",
+   "cursor_sharing",
+   "FORCE",
+   "cursor_sharing=FORCE puede invalidar bind variables; recomendado EXACT"
+  ],
+  [
+   "INFO",
+   "arraysize/prefetchrows",
+   "(parámetros de cursor, no verificables en conn_params)",
+   "Ajustar arraysize≥1000 y prefetchrows≥500 en el cursor oracledb para reducir round-trips"
+  ],
+  [
+   "OK",
+   "pga_aggregate_target",
+   "2.0 GB",
+   ""
+  ],
+  [
+   "OK",
+   "sga_target",
+   "8.0 GB",
+   ""
+  ],
+  [
+   "OK",
+   "undo_retention",
+   "3600s",
+   ""
+  ]
+ ],
+ "oracle|invalidos|servidor_caido": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_lifetime",
+   "nunca",
+   "max_lifetime debe ser entero"
+  ],
+  [
+   "INFO",
+   "arraysize/prefetchrows",
+   "(parámetros de cursor, no verificables en conn_params)",
+   "Ajustar arraysize≥1000 y prefetchrows≥500 en el cursor oracledb para reducir round-trips"
+  ],
+  [
+   "INFO",
+   "v$parameter",
+   "sin permiso",
+   "Otorgar SELECT ANY DICTIONARY o SELECT_CATALOG_ROLE para checks dinámicos"
+  ]
+ ],
+ "oracle|invalidos|sin_conexion": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_lifetime",
+   "nunca",
+   "max_lifetime debe ser entero"
+  ],
+  [
+   "INFO",
+   "arraysize/prefetchrows",
+   "(parámetros de cursor, no verificables en conn_params)",
+   "Ajustar arraysize≥1000 y prefetchrows≥500 en el cursor oracledb para reducir round-trips"
+  ]
+ ],
+ "oracle|invalidos|sin_permiso_v_parameter": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_lifetime",
+   "nunca",
+   "max_lifetime debe ser entero"
+  ],
+  [
+   "INFO",
+   "arraysize/prefetchrows",
+   "(parámetros de cursor, no verificables en conn_params)",
+   "Ajustar arraysize≥1000 y prefetchrows≥500 en el cursor oracledb para reducir round-trips"
+  ],
+  [
+   "INFO",
+   "v$parameter",
+   "sin permiso",
+   "Otorgar SELECT ANY DICTIONARY o SELECT_CATALOG_ROLE para checks dinámicos"
+  ]
+ ],
+ "oracle|invalidos|tipicos": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_lifetime",
+   "nunca",
+   "max_lifetime debe ser entero"
+  ],
+  [
+   "WARNING",
+   "pga_aggregate_target",
+   "200.0 MB",
+   "Recomendado ≥256 MB para sort/hash en carga masiva"
+  ],
+  [
+   "INFO",
+   "arraysize/prefetchrows",
+   "(parámetros de cursor, no verificables en conn_params)",
+   "Ajustar arraysize≥1000 y prefetchrows≥500 en el cursor oracledb para reducir round-trips"
+  ],
+  [
+   "INFO",
+   "db_writer_processes",
+   "1",
+   "En servidores con ≥4 CPUs, aumentar db_writer_processes a nCPUs/8"
+  ],
+  [
+   "OK",
+   "sga_target",
+   "800.0 MB",
+   ""
+  ],
+  [
+   "OK",
+   "undo_retention",
+   "900s",
+   ""
+  ]
+ ],
  "oracle|texto|bajos": [
   [
    "WARNING",
@@ -3623,17 +4450,274 @@
    ""
   ]
  ],
- "postgresql|invalidos|bajos": [],
- "postgresql|invalidos|optimos": [],
- "postgresql|invalidos|servidor_caido": [],
- "postgresql|invalidos|sin_conexion": [],
- "postgresql|invalidos|tipicos": [],
+ "postgresql|invalidos|bajos": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_overflow",
+   "x",
+   "max_overflow debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "keepalives",
+   "talvez",
+   "keepalives debe ser booleano (true/false, yes/no, 1/0)"
+  ],
+  [
+   "WARNING",
+   "work_mem",
+   "1.0 MB",
+   "Recomendado ≥16 MB para bulk; SET work_mem = '64MB' en la sesión"
+  ],
+  [
+   "WARNING",
+   "maintenance_work_mem",
+   "16.0 MB",
+   "Recomendado ≥64 MB para CREATE INDEX post-carga masiva"
+  ],
+  [
+   "WARNING",
+   "shared_buffers",
+   "32.0 MB",
+   "Recomendado ≥256 MB para cargas masivas (actual default ~128 MB); SET shared_buffers en postgresql.conf (requiere reinicio)"
+  ],
+  [
+   "WARNING",
+   "effective_cache_size",
+   "256.0 MB",
+   "Recomendado ≥512 MB (hint al planner, no reserva memoria); SET effective_cache_size = '2GB'; típicamente 50% de RAM disponible"
+  ],
+  [
+   "INFO",
+   "sslmode",
+   "None",
+   "Sin cifrado en tránsito; considera sslmode='require' en producción"
+  ],
+  [
+   "INFO",
+   "random_page_cost",
+   "10.0",
+   "Valor alto (>3.0) indica tuning para HDD; en SSD: reducir a 1.1 (SET random_page_cost = 1.1;) para priorizar índices"
+  ]
+ ],
+ "postgresql|invalidos|optimos": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_overflow",
+   "x",
+   "max_overflow debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "keepalives",
+   "talvez",
+   "keepalives debe ser booleano (true/false, yes/no, 1/0)"
+  ],
+  [
+   "INFO",
+   "sslmode",
+   "None",
+   "Sin cifrado en tránsito; considera sslmode='require' en producción"
+  ],
+  [
+   "INFO",
+   "synchronous_commit",
+   "off",
+   "Máximo rendimiento pero sin durabilidad garantizada post-crash"
+  ],
+  [
+   "OK",
+   "work_mem",
+   "64.0 MB",
+   ""
+  ],
+  [
+   "OK",
+   "maintenance_work_mem",
+   "1.0 GB",
+   ""
+  ],
+  [
+   "OK",
+   "shared_buffers",
+   "2.0 GB",
+   ""
+  ],
+  [
+   "OK",
+   "effective_cache_size",
+   "8.0 GB",
+   ""
+  ],
+  [
+   "OK",
+   "random_page_cost",
+   "1.1",
+   ""
+  ]
+ ],
+ "postgresql|invalidos|servidor_caido": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_overflow",
+   "x",
+   "max_overflow debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "keepalives",
+   "talvez",
+   "keepalives debe ser booleano (true/false, yes/no, 1/0)"
+  ],
+  [
+   "INFO",
+   "sslmode",
+   "None",
+   "Sin cifrado en tránsito; considera sslmode='require' en producción"
+  ]
+ ],
+ "postgresql|invalidos|sin_conexion": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_overflow",
+   "x",
+   "max_overflow debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "keepalives",
+   "talvez",
+   "keepalives debe ser booleano (true/false, yes/no, 1/0)"
+  ],
+  [
+   "INFO",
+   "sslmode",
+   "None",
+   "Sin cifrado en tránsito; considera sslmode='require' en producción"
+  ]
+ ],
+ "postgresql|invalidos|tipicos": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_overflow",
+   "x",
+   "max_overflow debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "keepalives",
+   "talvez",
+   "keepalives debe ser booleano (true/false, yes/no, 1/0)"
+  ],
+  [
+   "WARNING",
+   "work_mem",
+   "4.0 MB",
+   "Recomendado ≥16 MB para bulk; SET work_mem = '64MB' en la sesión"
+  ],
+  [
+   "WARNING",
+   "shared_buffers",
+   "128.0 MB",
+   "Recomendado ≥256 MB para cargas masivas (actual default ~128 MB); SET shared_buffers en postgresql.conf (requiere reinicio)"
+  ],
+  [
+   "INFO",
+   "sslmode",
+   "None",
+   "Sin cifrado en tránsito; considera sslmode='require' en producción"
+  ],
+  [
+   "INFO",
+   "maintenance_work_mem",
+   "64.0 MB",
+   "Para re-indexado masivo: ≥256 MB"
+  ],
+  [
+   "INFO",
+   "random_page_cost",
+   "4.0",
+   "Valor alto (>3.0) indica tuning para HDD; en SSD: reducir a 1.1 (SET random_page_cost = 1.1;) para priorizar índices"
+  ],
+  [
+   "OK",
+   "effective_cache_size",
+   "4.0 GB",
+   ""
+  ]
+ ],
  "postgresql|texto|bajos": [
   [
    "CRITICAL",
    "max_connections",
    "servidor=10, pool(10)+overflow(20)=30",
    "Reducir pool o aumentar max_connections en postgresql.conf"
+  ],
+  [
+   "WARNING",
+   "keepalives",
+   "False",
+   "Activar keepalives=True; las conexiones mueren silenciosamente bajo NAT/firewall"
   ],
   [
    "WARNING",
@@ -3676,15 +4760,15 @@
    "pool_size",
    "10",
    ""
-  ],
-  [
-   "OK",
-   "keepalives",
-   "True",
-   ""
   ]
  ],
  "postgresql|texto|optimos": [
+  [
+   "WARNING",
+   "keepalives",
+   "False",
+   "Activar keepalives=True; las conexiones mueren silenciosamente bajo NAT/firewall"
+  ],
   [
    "INFO",
    "sslmode",
@@ -3701,12 +4785,6 @@
    "OK",
    "pool_size",
    "10",
-   ""
-  ],
-  [
-   "OK",
-   "keepalives",
-   "True",
    ""
   ],
   [
@@ -3748,6 +4826,12 @@
  ],
  "postgresql|texto|servidor_caido": [
   [
+   "WARNING",
+   "keepalives",
+   "False",
+   "Activar keepalives=True; las conexiones mueren silenciosamente bajo NAT/firewall"
+  ],
+  [
    "INFO",
    "sslmode",
    "None",
@@ -3757,17 +4841,17 @@
    "OK",
    "pool_size",
    "10",
-   ""
-  ],
-  [
-   "OK",
-   "keepalives",
-   "True",
    ""
   ]
  ],
  "postgresql|texto|sin_conexion": [
   [
+   "WARNING",
+   "keepalives",
+   "False",
+   "Activar keepalives=True; las conexiones mueren silenciosamente bajo NAT/firewall"
+  ],
+  [
    "INFO",
    "sslmode",
    "None",
@@ -3778,15 +4862,15 @@
    "pool_size",
    "10",
    ""
-  ],
-  [
-   "OK",
-   "keepalives",
-   "True",
-   ""
   ]
  ],
  "postgresql|texto|tipicos": [
+  [
+   "WARNING",
+   "keepalives",
+   "False",
+   "Activar keepalives=True; las conexiones mueren silenciosamente bajo NAT/firewall"
+  ],
   [
    "WARNING",
    "work_mem",
@@ -3821,12 +4905,6 @@
    "OK",
    "pool_size",
    "10",
-   ""
-  ],
-  [
-   "OK",
-   "keepalives",
-   "True",
    ""
   ],
   [
@@ -4304,11 +5382,130 @@
    ""
   ]
  ],
- "sqlite|invalidos|bajos": [],
- "sqlite|invalidos|optimos": [],
- "sqlite|invalidos|servidor_caido": [],
- "sqlite|invalidos|sin_conexion": [],
- "sqlite|invalidos|tipicos": [],
+ "sqlite|invalidos|bajos": [
+  [
+   "CRITICAL",
+   "timeout",
+   "w",
+   "timeout debe ser numérico"
+  ],
+  [
+   "WARNING",
+   "journal_mode",
+   "off",
+   "PRAGMA journal_mode=WAL mejora escritura concurrente y rendimiento"
+  ],
+  [
+   "INFO",
+   "cache_size",
+   "100 (400 KB)",
+   "PRAGMA cache_size=-65536 establece 64 MB de caché de páginas"
+  ],
+  [
+   "INFO",
+   "temp_store",
+   "FILE",
+   "PRAGMA temp_store=MEMORY acelera operaciones con tablas temporales"
+  ],
+  [
+   "OK",
+   "database",
+   "datos.db",
+   ""
+  ],
+  [
+   "OK",
+   "synchronous",
+   "OFF",
+   ""
+  ]
+ ],
+ "sqlite|invalidos|optimos": [
+  [
+   "CRITICAL",
+   "timeout",
+   "w",
+   "timeout debe ser numérico"
+  ],
+  [
+   "OK",
+   "database",
+   "datos.db",
+   ""
+  ],
+  [
+   "OK",
+   "journal_mode",
+   "wal",
+   ""
+  ],
+  [
+   "OK",
+   "synchronous",
+   "NORMAL",
+   ""
+  ]
+ ],
+ "sqlite|invalidos|servidor_caido": [
+  [
+   "CRITICAL",
+   "timeout",
+   "w",
+   "timeout debe ser numérico"
+  ],
+  [
+   "OK",
+   "database",
+   "datos.db",
+   ""
+  ]
+ ],
+ "sqlite|invalidos|sin_conexion": [
+  [
+   "CRITICAL",
+   "timeout",
+   "w",
+   "timeout debe ser numérico"
+  ],
+  [
+   "OK",
+   "database",
+   "datos.db",
+   ""
+  ]
+ ],
+ "sqlite|invalidos|tipicos": [
+  [
+   "CRITICAL",
+   "timeout",
+   "w",
+   "timeout debe ser numérico"
+  ],
+  [
+   "WARNING",
+   "journal_mode",
+   "delete",
+   "PRAGMA journal_mode=WAL mejora escritura concurrente y rendimiento"
+  ],
+  [
+   "INFO",
+   "synchronous",
+   "FULL",
+   "PRAGMA synchronous=NORMAL reduce fsync en carga masiva sin riesgo de corrupción"
+  ],
+  [
+   "INFO",
+   "cache_size",
+   "-2000 (2000 KB)",
+   "PRAGMA cache_size=-65536 establece 64 MB de caché de páginas"
+  ],
+  [
+   "OK",
+   "database",
+   "datos.db",
+   ""
+  ]
+ ],
  "sqlite|texto|bajos": [
   [
    "WARNING",
@@ -4883,12 +6080,31 @@
    ""
   ]
  ],
- "sqlserver|invalidos|bajos": [],
- "sqlserver|invalidos|optimos": [],
- "sqlserver|invalidos|servidor_caido": [],
- "sqlserver|invalidos|sin_conexion": [],
- "sqlserver|invalidos|tipicos": [],
- "sqlserver|texto|bajos": [
+ "sqlserver|invalidos|bajos": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_overflow",
+   "x",
+   "max_overflow debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "use_mars",
+   "puede",
+   "use_mars debe ser booleano (true/false, yes/no, 1/0)"
+  ],
   [
    "INFO",
    "sql_server_driver",
@@ -4915,9 +6131,205 @@
   ],
   [
    "OK",
-   "use_mars",
-   "True",
+   "recovery_model",
+   "BULK_LOGGED",
    ""
+  ]
+ ],
+ "sqlserver|invalidos|optimos": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_overflow",
+   "x",
+   "max_overflow debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "use_mars",
+   "puede",
+   "use_mars debe ser booleano (true/false, yes/no, 1/0)"
+  ],
+  [
+   "INFO",
+   "sql_server_driver",
+   "pymssql",
+   "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
+  ],
+  [
+   "OK",
+   "max_degree_of_parallelism",
+   "4",
+   ""
+  ],
+  [
+   "OK",
+   "cost_threshold_for_parallelism",
+   "50",
+   ""
+  ],
+  [
+   "OK",
+   "recovery_model",
+   "SIMPLE",
+   ""
+  ]
+ ],
+ "sqlserver|invalidos|servidor_caido": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_overflow",
+   "x",
+   "max_overflow debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "use_mars",
+   "puede",
+   "use_mars debe ser booleano (true/false, yes/no, 1/0)"
+  ],
+  [
+   "INFO",
+   "sql_server_driver",
+   "pymssql",
+   "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
+  ]
+ ],
+ "sqlserver|invalidos|sin_conexion": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_overflow",
+   "x",
+   "max_overflow debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "use_mars",
+   "puede",
+   "use_mars debe ser booleano (true/false, yes/no, 1/0)"
+  ],
+  [
+   "INFO",
+   "sql_server_driver",
+   "pymssql",
+   "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
+  ]
+ ],
+ "sqlserver|invalidos|tipicos": [
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "max_overflow",
+   "x",
+   "max_overflow debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "use_mars",
+   "puede",
+   "use_mars debe ser booleano (true/false, yes/no, 1/0)"
+  ],
+  [
+   "INFO",
+   "sql_server_driver",
+   "pymssql",
+   "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
+  ],
+  [
+   "INFO",
+   "max_degree_of_parallelism",
+   "0 (ilimitado)",
+   "Para OLTP bulk: ajustar a nCPU/2 (máximo 8) con EXEC sp_configure 'max degree of parallelism', <n>; RECONFIGURE; (o ALTER DATABASE SCOPED CONFIGURATION SET MAXDOP = <n>;); evita overhead de paralelismo en queries pequeñas"
+  ],
+  [
+   "INFO",
+   "cost_threshold_for_parallelism",
+   "5",
+   "Valor bajo (<50; por defecto 5) puede activar paralelismo en queries pequeñas con overhead; recomendado 50–100 para OLTP bulk"
+  ],
+  [
+   "INFO",
+   "recovery_model",
+   "FULL",
+   "Para carga masiva sin replicación: ALTER DATABASE ... SET RECOVERY BULK_LOGGED durante la carga"
+  ]
+ ],
+ "sqlserver|texto|bajos": [
+  [
+   "WARNING",
+   "use_mars",
+   "False",
+   "Activar use_mars=True (Multiple Active Result Sets) para múltiples cursores activos"
+  ],
+  [
+   "INFO",
+   "sql_server_driver",
+   "pymssql",
+   "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
+  ],
+  [
+   "INFO",
+   "max_degree_of_parallelism",
+   "16",
+   "Valor alto; puede saturar CPU en bulk. Considerar nCPU/2 para balance OLTP/bulk"
+  ],
+  [
+   "INFO",
+   "cost_threshold_for_parallelism",
+   "1",
+   "Valor bajo (<50; por defecto 5) puede activar paralelismo en queries pequeñas con overhead; recomendado 50–100 para OLTP bulk"
+  ],
+  [
+   "INFO",
+   "fill_factor",
+   "50%",
+   "fill factor=0 (100%) es óptimo para carga inicial masiva"
   ],
   [
    "OK",
@@ -4934,16 +6346,16 @@
  ],
  "sqlserver|texto|optimos": [
   [
+   "WARNING",
+   "use_mars",
+   "False",
+   "Activar use_mars=True (Multiple Active Result Sets) para múltiples cursores activos"
+  ],
+  [
    "INFO",
    "sql_server_driver",
    "pymssql",
    "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
-  ],
-  [
-   "OK",
-   "use_mars",
-   "True",
-   ""
   ],
   [
    "OK",
@@ -4972,16 +6384,16 @@
  ],
  "sqlserver|texto|servidor_caido": [
   [
+   "WARNING",
+   "use_mars",
+   "False",
+   "Activar use_mars=True (Multiple Active Result Sets) para múltiples cursores activos"
+  ],
+  [
    "INFO",
    "sql_server_driver",
    "pymssql",
    "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
-  ],
-  [
-   "OK",
-   "use_mars",
-   "True",
-   ""
   ],
   [
    "OK",
@@ -4992,16 +6404,16 @@
  ],
  "sqlserver|texto|sin_conexion": [
   [
+   "WARNING",
+   "use_mars",
+   "False",
+   "Activar use_mars=True (Multiple Active Result Sets) para múltiples cursores activos"
+  ],
+  [
    "INFO",
    "sql_server_driver",
    "pymssql",
    "pyodbc + ODBC Driver 17/18 es ~15× más rápido en INSERT/UPDATE masivo (ver docs/guides/benchmarks.md)"
-  ],
-  [
-   "OK",
-   "use_mars",
-   "True",
-   ""
   ],
   [
    "OK",
@@ -5011,6 +6423,12 @@
   ]
  ],
  "sqlserver|texto|tipicos": [
+  [
+   "WARNING",
+   "use_mars",
+   "False",
+   "Activar use_mars=True (Multiple Active Result Sets) para múltiples cursores activos"
+  ],
   [
    "INFO",
    "sql_server_driver",
@@ -5034,12 +6452,6 @@
    "recovery_model",
    "FULL",
    "Para carga masiva sin replicación: ALTER DATABASE ... SET RECOVERY BULK_LOGGED durante la carga"
-  ],
-  [
-   "OK",
-   "use_mars",
-   "True",
-   ""
   ],
   [
    "OK",

@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from .._advisory import AdvisoryFinding
+from .._advisory import AdvisoryFinding, ConnParamReader
 
 
 class SQLServerVariableValidator:
@@ -20,14 +20,18 @@ class SQLServerVariableValidator:
 
     def check_static(self, conn_params: dict[str, Any]) -> list[AdvisoryFinding]:
         """Evalúa conn_params y pool config sin conexión."""
-        findings: list[AdvisoryFinding] = []
-        pool_size: int = int(conn_params.get("pool_size", 5))
-        max_overflow: int = int(conn_params.get("max_overflow", 10))
-        pool_timeout: int = int(conn_params.get("pool_timeout", 30))
-        use_mars: bool = bool(conn_params.get("use_mars", True))
+        # T-07: tipo validado; un valor inválido da su CRITICAL y solo se omite su check (antes se perdía todo).
+        reader = ConnParamReader(conn_params, "sqlserver")
+        pool_size = reader.as_int("pool_size", 5)
+        max_overflow = reader.as_int("max_overflow", 10)
+        pool_timeout = reader.as_int("pool_timeout", 30)
+        use_mars = reader.as_bool("use_mars", True)
         driver: str = str(conn_params.get("sql_server_driver", "pymssql")).lower()
+        findings: list[AdvisoryFinding] = reader.invalid
 
-        if not use_mars:
+        if use_mars is None:
+            pass
+        elif not use_mars:
             findings.append(
                 AdvisoryFinding(
                     level="WARNING",
@@ -39,7 +43,9 @@ class SQLServerVariableValidator:
         else:
             findings.append(AdvisoryFinding(level="OK", param="use_mars", current="True", recommendation=""))
 
-        if pool_size < 5:
+        if pool_size is None:
+            pass
+        elif pool_size < 5:
             findings.append(
                 AdvisoryFinding(
                     level="WARNING",
@@ -51,7 +57,7 @@ class SQLServerVariableValidator:
         else:
             findings.append(AdvisoryFinding(level="OK", param="pool_size", current=str(pool_size), recommendation=""))
 
-        if max_overflow < 5:
+        if max_overflow is not None and max_overflow < 5:
             findings.append(
                 AdvisoryFinding(
                     level="WARNING",
@@ -61,7 +67,7 @@ class SQLServerVariableValidator:
                 )
             )
 
-        if pool_timeout < 10:
+        if pool_timeout is not None and pool_timeout < 10:
             findings.append(
                 AdvisoryFinding(
                     level="WARNING",

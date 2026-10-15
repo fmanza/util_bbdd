@@ -7,7 +7,7 @@ from typing import Any, Literal
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from .._advisory import AdvisoryFinding, fmt_bytes as _fmt_bytes
+from .._advisory import AdvisoryFinding, ConnParamReader, fmt_bytes as _fmt_bytes
 
 # Umbrales de memoria para checks dinámicos
 _WARN_WORK_MEM: int = 16 * 1_048_576  # 16 MB
@@ -58,14 +58,18 @@ class PostgreSQLVariableValidator:
 
     def check_static(self, conn_params: dict[str, Any]) -> list[AdvisoryFinding]:
         """Evalúa conn_params y pool config sin conexión."""
-        findings: list[AdvisoryFinding] = []
-        pool_size: int = int(conn_params.get("pool_size", 5))
-        max_overflow: int = int(conn_params.get("max_overflow", 10))
-        pool_timeout: int = int(conn_params.get("pool_timeout", 30))
-        keepalives: bool = bool(conn_params.get("keepalives", True))
+        # T-07: tipo validado; un valor inválido da su CRITICAL y solo se omite su check (antes se perdía todo).
+        reader = ConnParamReader(conn_params, "postgresql")
+        pool_size = reader.as_int("pool_size", 5)
+        max_overflow = reader.as_int("max_overflow", 10)  # sin check propio: se valida y se cita en el de pool_size
+        pool_timeout = reader.as_int("pool_timeout", 30)
+        keepalives = reader.as_bool("keepalives", True)
         sslmode: str | None = conn_params.get("sslmode")
+        findings: list[AdvisoryFinding] = reader.invalid
 
-        if pool_size < 5:
+        if pool_size is None:
+            pass
+        elif pool_size < 5:
             findings.append(
                 AdvisoryFinding(
                     level="WARNING",
@@ -86,7 +90,9 @@ class PostgreSQLVariableValidator:
         else:
             findings.append(AdvisoryFinding(level="OK", param="pool_size", current=str(pool_size), recommendation=""))
 
-        if not keepalives:
+        if keepalives is None:
+            pass
+        elif not keepalives:
             findings.append(
                 AdvisoryFinding(
                     level="WARNING",
@@ -110,7 +116,7 @@ class PostgreSQLVariableValidator:
         else:
             findings.append(AdvisoryFinding(level="OK", param="sslmode", current=sslmode, recommendation=""))
 
-        if pool_timeout < 10:
+        if pool_timeout is not None and pool_timeout < 10:
             findings.append(
                 AdvisoryFinding(
                     level="WARNING",

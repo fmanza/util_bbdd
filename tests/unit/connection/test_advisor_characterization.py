@@ -286,3 +286,32 @@ def test_findings_match_golden(
 @pytest.mark.skipif(REGENERATE, reason="regenerando el fichero dorado")
 def test_golden_has_exactly_the_cases_of_the_matrix() -> None:
     assert sorted(_golden()) == sorted(case[0] for case in _cases())
+
+
+# T-07 (fix, 2026-10-16): casos con nombre de lo que cambió al validar el tipo de conn_params.
+def _levels(engine: str, params: dict[str, Any], server: str = "sin_conexion") -> dict[str, str]:
+    findings = EngineReadinessAdvisor().check(engine, params, connection=_connections()[server])
+    return {f.param: f.level for f in findings}
+
+
+@pytest.mark.parametrize(("engine", "param"), [("postgresql", "keepalives"), ("sqlserver", "use_mars")])
+def test_false_as_text_is_false(engine: str, param: str) -> None:
+    # Antes bool("false") daba True y el check salía OK.
+    assert _levels(engine, {param: "false"})[param] == "WARNING"
+
+
+@pytest.mark.parametrize("engine", ["postgresql", "sqlserver", "oracle", "sqlite"])
+def test_an_invalid_value_is_critical_and_keeps_the_other_findings(engine: str) -> None:
+    # Antes int("abc") perdía todos los hallazgos del motor (lista vacía).
+    levels = _levels(engine, {"pool_size": "abc", "timeout": "abc"}, "tipicos")
+
+    assert "CRITICAL" in levels.values()
+    assert any(level != "CRITICAL" for level in levels.values())
+
+
+def test_mysql_invalid_autocommit_keeps_the_dynamic_checks() -> None:
+    # Antes un autocommit inválido cortaba los checks (también los dinámicos).
+    levels = _levels("mysql", {"autocommit": "quizá"}, "tipicos")
+
+    assert levels["autocommit"] == "CRITICAL"
+    assert "innodb_buffer_pool_size" in levels

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 
-from collections.abc import Hashable
+from collections.abc import Callable, Hashable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal, Protocol
@@ -70,6 +70,60 @@ class EngineReadinessReport:
     error: str | None = None
 
 
+class ConnParamReader:
+    """Lee ``conn_params`` con tipo validado para los checks estáticos (T-07, 2026-10-16).
+
+    Antes, ``int()``/``bool()`` sin validar: ``keepalives="false"`` daba ``True`` y un ``"abc"`` hacía perder todos los
+    hallazgos del motor. Ahora un valor inválido devuelve ``None`` (su check se omite) y deja un CRITICAL en
+    :attr:`invalid`; el resto de checks sigue. Ausente o ``None``: el valor por defecto.
+
+    Example:
+        >>> reader = ConnParamReader({"pool_size": "abc", "keepalives": "false"}, "postgresql")
+        >>> reader.as_int("pool_size", 5), reader.as_bool("keepalives", True), [f.param for f in reader.invalid]
+        (None, False, ['pool_size'])
+    """
+
+    def __init__(self, conn_params: dict[str, Any], db_type: str) -> None:
+        self._conn_params: dict[str, Any] = conn_params
+        self._db_type: str = db_type
+        #: CRITICAL de cada parámetro con un valor inválido, en el orden en que se leyeron.
+        self.invalid: list[AdvisoryFinding] = []
+
+    def as_int(self, key: str, default: int) -> int | None:
+        """Entero (también ``"10"``); ``None`` si no lo es."""
+        from .config import _to_int
+
+        return self._read(key, default, lambda value: _to_int(value, key, self._db_type), "entero")
+
+    def as_float(self, key: str, default: float) -> float | None:
+        """Número (también ``"2.5"``); ``None`` si no lo es."""
+        from .config import _to_float
+
+        return self._read(key, default, lambda value: _to_float(value, key, self._db_type), "numérico")
+
+    def as_bool(self, key: str, default: bool) -> bool | None:
+        """Booleano (``True``/``False``, ``1``/``0``, ``"true"``/``"false"``, ``"yes"``/``"no"``, ``"on"``/``"off"``)."""
+        from .config import _to_bool
+
+        return self._read(
+            key, default, lambda value: _to_bool(value, key, self._db_type), "booleano (true/false, yes/no, 1/0)"
+        )
+
+    def _read[T](self, key: str, default: T, parse: Callable[[Any], T], expected: str) -> T | None:
+        value = self._conn_params.get(key)
+        if value is None:
+            return default
+        try:
+            return parse(value)
+        except ValueError:
+            self.invalid.append(
+                AdvisoryFinding(
+                    level="CRITICAL", param=key, current=str(value), recommendation=f"{key} debe ser {expected}"
+                )
+            )
+            return None
+
+
 class ReadinessValidator(Protocol):
     """Checks de un motor para ``EngineReadinessAdvisor`` (Strategy; T-06, 2026-10-16).
 
@@ -97,6 +151,7 @@ def fmt_bytes(size_bytes: int) -> str:
 
 __all__: list[str] = [
     "AdvisoryFinding",
+    "ConnParamReader",
     "EngineReadinessReport",
     "ReadinessValidator",
     "fmt_bytes",

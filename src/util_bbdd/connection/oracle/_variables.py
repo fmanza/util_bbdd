@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from .._advisory import AdvisoryFinding, fmt_bytes as _fmt_bytes
+from .._advisory import AdvisoryFinding, ConnParamReader, fmt_bytes as _fmt_bytes
 
 # Mínimos recomendados para carga masiva
 _WARN_PGA_BYTES: int = 256 * 1_048_576  # 256 MB
@@ -24,11 +24,15 @@ class OracleVariableValidator:
 
     def check_static(self, conn_params: dict[str, Any]) -> list[AdvisoryFinding]:
         """Evalúa conn_params y pool config sin conexión."""
-        findings: list[AdvisoryFinding] = []
-        pool_size: int = int(conn_params.get("pool_size", 5))
-        max_lifetime: int = int(conn_params.get("max_lifetime", 3600))
+        # T-07: tipo validado; un valor inválido da su CRITICAL y solo se omite su check (antes se perdía todo).
+        reader = ConnParamReader(conn_params, "oracle")
+        pool_size = reader.as_int("pool_size", 5)
+        max_lifetime = reader.as_int("max_lifetime", 3600)
+        findings: list[AdvisoryFinding] = reader.invalid
 
-        if pool_size < 5:
+        if pool_size is None:
+            pass
+        elif pool_size < 5:
             findings.append(
                 AdvisoryFinding(
                     level="WARNING",
@@ -40,7 +44,9 @@ class OracleVariableValidator:
         else:
             findings.append(AdvisoryFinding(level="OK", param="pool_size", current=str(pool_size), recommendation=""))
 
-        if max_lifetime < 600:
+        if max_lifetime is None:
+            pass
+        elif max_lifetime < 600:
             findings.append(
                 AdvisoryFinding(
                     level="WARNING",
