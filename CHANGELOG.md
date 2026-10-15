@@ -30,6 +30,9 @@ SemVer: MINOR (features aditivas, sin cambios incompatibles; la sección nueva e
 
 ### Changed
 
+- **doc** (refactor, sin cambios funcionales): la sección «Condiciones del motor» toma filas, resumen, verificación y
+  avisos de `audit.readiness.ReadinessRows`, la misma fuente que las hojas de bulk y dump. `AdvisoryFindingView` y
+  `EngineReadinessReportView` de `doc.application.ports` pasan a ser alias de los Protocols de `audit.readiness`.
 - **dump**: el volcado verifica también el motor de **origen** al empezar (una conexión y su bloque en el LOG, una vez
   por engine en el proceso). La figura de capas (`docs/architecture.md`) incluye la arista `dump → connection`.
 

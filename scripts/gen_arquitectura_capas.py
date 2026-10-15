@@ -61,7 +61,7 @@ DRAWN = {
     ("bulk", "connection"), ("dump", "connection"), ("bulk", "metadata"), ("comparar", "metadata"), ("migrate", "metadata"),
     ("metadata", "results"), ("executors", "query"), ("executors", "results"),
     ("query", "validators"), ("factory", "connection"), ("_drivers", "_core"),
-    ("bulk", "audit"), ("dump", "audit"), ("migrate", "audit"),
+    ("bulk", "audit"), ("doc", "audit"), ("dump", "audit"), ("migrate", "audit"),
 } | {("managers", t) for t in ("connection", "factory", "executors", "metadata", "query", "results")}  # fmt: skip
 
 # Top-level modules deliberately left out of the figure.

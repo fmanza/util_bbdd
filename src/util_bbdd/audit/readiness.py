@@ -63,7 +63,11 @@ ReadinessBlock = tuple[str, ReadinessReportView | None]
 
 @dataclass(frozen=True, slots=True)
 class ReadinessRows:
-    """Contenido de un bloque, igual en todos los Excel: hallazgos ordenados, resumen, verificación y avisos."""
+    """Contenido de un bloque: hallazgos ordenados, resumen, verificación y avisos.
+
+    Única fuente de esos textos: la usan las hojas de los Excel de ``bulk`` y ``dump`` y la sección «Condiciones del
+    motor» de ``doc`` (Word, Excel y HTML). Cambiar un texto aquí cambia todas esas salidas.
+    """
 
     LEVELS: ClassVar[tuple[str, ...]] = ("CRITICAL", "WARNING", "INFO", "OK")
     NOTICE_UNAVAILABLE: ClassVar[str] = "No se pudieron verificar las condiciones de este motor."

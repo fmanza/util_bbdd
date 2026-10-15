@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
-from datetime import datetime
+from collections.abc import Collection
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from ..._core.types import Rows
+from ...audit.readiness import ReadinessFindingView, ReadinessReportView
 from ...metadata.model import ALL_KINDS, Kind, SchemaSnapshot
 
 if TYPE_CHECKING:
@@ -88,45 +88,11 @@ class StorageInventoryPort(Protocol):
     def get_storage_inventory_report(self) -> dict[str, Any]: ...
 
 
-class AdvisoryFindingView(Protocol):
-    """Un hallazgo de la verificación del motor (lo cumple ``util_bbdd.connection.AdvisoryFinding``)."""
-
-    @property
-    def level(self) -> str: ...
-
-    @property
-    def param(self) -> str: ...
-
-    @property
-    def current(self) -> str: ...
-
-    @property
-    def recommendation(self) -> str: ...
-
-
-class EngineReadinessReportView(Protocol):
-    """Informe de la verificación del motor (lo cumple ``util_bbdd.connection.EngineReadinessReport``).
-
-    Contrato estructural: ``doc/`` no importa ``connection/`` (Regla #6).
-    """
-
-    @property
-    def db_type(self) -> str: ...
-
-    @property
-    def findings(self) -> Sequence[AdvisoryFindingView]: ...
-
-    @property
-    def checked_at(self) -> datetime: ...
-
-    @property
-    def dynamic(self) -> bool: ...
-
-    @property
-    def supported(self) -> bool: ...
-
-    @property
-    def error(self) -> str | None: ...
+#: Hallazgo e informe de la verificación del motor (``util_bbdd.connection.AdvisoryFinding`` / ``EngineReadinessReport``):
+#: el contrato estructural de ``audit.readiness``, una sola definición para ``doc``, ``bulk`` y ``dump``. ``doc/`` no
+#: importa ``connection/`` (Regla #6).
+AdvisoryFindingView = ReadinessFindingView
+EngineReadinessReportView = ReadinessReportView
 
 
 @runtime_checkable
