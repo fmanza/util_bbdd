@@ -810,6 +810,9 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         Los grafos sin salida (error de sintaxis, ``dot`` ausente…) se renderizan uno a uno con ``dot.pipe`` para que su
         ``Future`` guarde el resultado o la excepción exacta de una llamada sin precarga.
         """
+        if graphviz is None:
+            raise ImportError(GRAPHVIZ_MISSING_MSG)
+
         format_, engine = items[0][0][0], items[0][0][1]
         rendered: dict[_PipeKey, bytes] = {}
         try:

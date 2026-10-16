@@ -38,10 +38,9 @@ import logging
 from typing import TYPE_CHECKING, ClassVar, Literal, LiteralString, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
     from pathlib import Path
 
-    from sqlalchemy.engine import Dialect, Inspector
+    from sqlalchemy.engine import Inspector
     from sqlalchemy.engine.interfaces import (
         ReflectedColumn,
         ReflectedForeignKeyConstraint,
@@ -265,7 +264,7 @@ class SqlDiffReporter:
     #: Factoría de ``Dialect`` de SQLAlchemy por dialecto, usada solo para obtener su
     #: ``identifier_preparer`` (citado de identificadores dialect-aware). No se usa para
     #: compilar ni ejecutar SQL.
-    _DIALECT_FACTORY: ClassVar[dict[str, Callable[[], Dialect]]] = {
+    _DIALECT_FACTORY: ClassVar[dict[str, type[DefaultDialect]]] = {
         "generic": DefaultDialect,
         "mariadb": mysql.dialect,
         "mysql": mysql.dialect,
@@ -1186,19 +1185,17 @@ class SqlDiffReporter:
             ]
 
         # modified
-        lines: list[str] = []
-        if vd.source_definition:
-            if self._dialect == "sqlserver":
-                lines.append(drop_tpl.format(name=self._quote(vd.view_name)))
-                lines.append("GO")
-                lines.append(f"{self._build_view_create_sql(vd.view_name, vd.source_definition)};")
-                lines.append("GO")
-            else:
-                lines.append(f"{self._build_view_create_sql(vd.view_name, vd.source_definition, or_replace=True)};")
-        else:
-            lines.append(f"-- ⚠ {vd.view_name}: modificada pero definición origen no disponible en SchemaDiff.")
-        lines.append("")
-        return lines
+        if not vd.source_definition:
+            return [f"-- ⚠ {vd.view_name}: modificada pero definición origen no disponible en SchemaDiff.", ""]
+        if self._dialect == "sqlserver":
+            return [
+                drop_tpl.format(name=self._quote(vd.view_name)),
+                "GO",
+                f"{self._build_view_create_sql(vd.view_name, vd.source_definition)};",
+                "GO",
+                "",
+            ]
+        return [f"{self._build_view_create_sql(vd.view_name, vd.source_definition, or_replace=True)};", ""]
 
     # ------------------------------------------------------------------
     # Rutinas
