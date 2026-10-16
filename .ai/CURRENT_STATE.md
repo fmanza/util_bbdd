@@ -144,7 +144,7 @@ mismo `mkdocs.yml`; el CI publica con Zensical. Ver `ZENICAL.md`.
 | Q4 | `/tech-debt` completo: T-03, T-04, T-09, T-10 y T-06 (+ T-07, T-08; T-11 cerrado sin cambios) hechos el 2026-10-16 (`.ai/sessions/2026-10-16-refactor-advisor-strategy/`) | ✅ Hecho, sin publicar | `/refactor` |
 | Q5 | SQL Server en el banco | ✅ 2026-10-16: recreado en 51833 (`UTIL_BBDD_BENCH_MSSQL_PORT`); copia `util_bbdd_bench_mssql_backup:2026-10-16` | — |
 | R3 | Release 2.2.0: tag `v2.2.0`, push de `develop` y fast-forward de `main` (desde v2.0.0) | ✅ Hecho 2026-10-16 (`a4afd8af`; CI confirmado por el usuario) | `release` |
-| R4 | Release 3.0.3: tag `v3.0.3` y fast-forward de `main` (el push de `develop` se hizo al cerrar la sesión). Al etiquetar, valorar mover los `@v3.0.2` de las instrucciones de instalación a `@v3.0.3` | Pendiente (usuario) | `release` |
+| R4 | Release 3.0.3: tag `v3.0.3` y fast-forward de `main` | ✅ Hecho 2026-10-17: tag anotado `v3.0.3` sobre `f655f03a`, `main` en `f655f03a` (push de `develop`, del tag y de `main`); las 17 instrucciones de instalación pasan a `@v3.0.3` | `release` |
 | D4 | Restos de la revisión de documentación de 2026-10-16i: fechas de ADR-004 (dice 2025-01-15; el commit es del 2026-10-05), verificar `onboarding_dev.md` para 3.0 (sello «v1.1.0»), páginas funcionales de `connection` y `factory`, 99 métodos públicos con docstring sin `Args:` (resúmenes de una línea en su mayoría) | Pendiente | `docs` |
 | — | Aparcados: S-1 (`bulk` con procesos, NO_GO hasta ≥ 10M filas/tabla) y las dos limitaciones de driver de `docs/roadmap.md` | Aparcado | — |
 
