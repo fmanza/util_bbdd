@@ -4,7 +4,7 @@ Librería Python para **operaciones de base de datos** en MariaDB, MySQL, Oracle
 async) y HSQLDB (sync): conexiones con pool, carga masiva desde DataFrames, volcado entre motores, migración DDL,
 comparación de esquemas y documentación de la base de datos.
 
-**Version:** 2.2.0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 2.2.1 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -342,7 +342,7 @@ pruebas (`scripts/bench_env.example.sh`). Flujo con asistentes de IA (Claude Cod
 [Semantic Versioning](https://semver.org/): desde 1.0.0, la API pública (la raíz y los submódulos públicos listados
 arriba) solo cambia de forma incompatible en una versión MAJOR.
 
-**Current Version: v2.2.0** (condiciones del motor en `doc`, `bulk` y `dump`; `EngineReadinessAdvisor` refactorizado y corregido tras una auditoría de código; API pública estable)
+**Current Version: v2.2.1** (lectura robusta de variables de MySQL/MariaDB y redo log de MySQL 8.0.30+ en `EngineReadinessAdvisor`; API pública estable)
 
 Historial completo: [CHANGELOG.md](CHANGELOG.md) · Hoja de ruta: [docs/roadmap.md](docs/roadmap.md).
 

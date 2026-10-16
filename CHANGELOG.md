@@ -5,7 +5,10 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.2.1] - 2026-10-16
+
+Sesión `.ai/sessions/2026-10-16b-fix-mysql-redo-variables/`. SemVer: PATCH (correcciones; `read_variables` devuelve una
+clave más cuando el servidor la tiene).
 
 ### Fixed
 
