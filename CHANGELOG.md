@@ -5,6 +5,49 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [3.0.1] - 2026-10-16
+
+Sesión `.ai/sessions/2026-10-16g-tech-debt-parallel-followups/` (`/tech-debt` sobre la deuda D1–D5 del `/audit-code` de v3.0.0). SemVer: PATCH
+(sin cambios de API).
+
+### Fixed
+
+- **dump**: con `parallel_pk_ranges="auto"`, el número de rangos de cada tabla se decide con las filas reales del origen
+  (el `COUNT(*)` que ya hace `collect_row_counts`) cuando son menos que `MAX(pk) − MIN(pk) + 1`. Antes, una PK con
+  huecos sobrestimaba el volumen y una tabla dispersa con destino SQL Server podía particionarse por debajo del umbral
+  medido (3,5M filas). Sin recuento (`collect_row_counts=False`), la cota de siempre.
+
+### Changed
+
+- **bulk**: el UPDATE paralelo de PostgreSQL desde `BulkCrud(parallel=...)` ya no abre una conexión más para que el
+  loader vuelva a comprobar el privilegio `TEMP`: la fachada le pasa el que ya comprobó y `ParallelBulkLoader` lo cachea
+  por instancia (cada worker lo sigue comprobando en su sesión).
+- **bulk**: `ParallelBulkLoader` registra el INFO «Auditoría deshabilitada en la carga paralela» solo con
+  `AuditOptions.warn_if_disabled=True`; la carga paralela de `BulkCrud` ya no lo repite en cada llamada (la instancia
+  avisó al crearse).
+
+### Added
+
+- **scripts**: `scripts/bench_parallel.py`, banco de la carga paralela de `BulkCrud` (serie frente a N hilos) para
+  validar las reglas de `ParallelPlanner`: tanda de calentamiento, configuraciones alternas, mediana y rango
+  intercuartílico, veredicto con el criterio del planificador (≥ 1,5× sin solape) y `--out` para guardar la tabla.
+
+### Performance
+
+- Oracle 23 Free medido con ese protocolo (200K y 1M filas, 1/2/4 hilos, 5 tandas): no gana en paralelo (0,92×–1,15× en
+  INSERT, UPDATE y DELETE). La regla sigue en serie; las ganancias de v3.0.0 (1,39×/1,89×) eran de tandas sin
+  calentamiento. Tabla en `docs/guides/benchmarks.md`.
+
+### Docs
+
+- `docs/api/bulk_crud.md`: por qué las filas de una carga paralela no cuentan en `rows_committed` (es el prefijo
+  confirmado desde el que reanudar; las particiones no lo forman).
+
+### Tests
+
+- 16 tests nuevos. `pytest` sin URLs del banco: 6219 passed, 532 skipped; `tests/integration` contra el banco: 589
+  passed, 7 skipped.
+
 ## [3.0.0] - 2026-10-16
 
 Sesión `.ai/sessions/2026-10-16f-bulk-options-parallel-planner/` (`/new-feature` + refactor incompatible pedido

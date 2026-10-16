@@ -294,6 +294,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-10-16d-audit-followups-v2.2.2 | **v2.2.3**: bloqueo de la precarga de Graphviz (A1) y pendientes de la auditoría de v2.2.2 (A2–A4, A6) | develop | fix + refactor | CLOSED | `2026-10-16d-audit-followups-v2.2.2/TRACEABILITY.md` |
 | 2026-10-16e-hotfix-comparar-oracle-label | **v2.2.4**: etiquetas Origen/Destino de `comparar` sin schema en Oracle (usuario enmascarado, sin `default_schema_name`) | develop | audit-code + hotfix | CLOSED | `2026-10-16e-hotfix-comparar-oracle-label/TRACEABILITY.md` |
 | 2026-10-16f-bulk-options-parallel-planner | **v3.0.0** (MAJOR): paquetes de opciones de `BulkCrud`/`ParallelBulkLoader`, `ParallelPlanner` (`mode="auto"`), carga paralela desde `BulkCrud`, `parallel_pk_ranges="auto"` | develop | new-feature + refactor | CLOSED | `2026-10-16f-bulk-options-parallel-planner/TRACEABILITY.md` |
+| 2026-10-16g-tech-debt-parallel-followups | **v3.0.1**: deuda D1–D5 de v3.0.0 (TEMP, INFO de auditoría, `rows_committed`, filas en `parallel_pk_ranges="auto"`, Oracle) y `scripts/bench_parallel.py` | develop | tech-debt | CLOSED | `2026-10-16g-tech-debt-parallel-followups/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 
