@@ -40,9 +40,9 @@ Extras, drivers por motor y solución de problemas: [docs/installation.md](docs/
 
 ---
 
-## 🧭 API pública 1.0
+## 🧭 API pública
 
-La raíz exporta solo los **puntos de entrada y sus resultados**:
+Estable desde 1.0.0 y bajo SemVer. La raíz exporta solo los **puntos de entrada y sus resultados**:
 
 ```python
 from util_bbdd import (
@@ -70,7 +70,8 @@ El resto se importa desde su submódulo público:
 | `util_bbdd.bulk`, `.dump`, `.migrate`, `.comparar`, `.doc` | Tipos auxiliares de cada punto de entrada |
 
 `import util_bbdd` solo carga los managers: los puntos de entrada que usan pandas, openpyxl, python-docx o jinja2 se
-cargan la primera vez que se usan. Si vienes de 0.x: [guía de migración a la API 1.0](docs/guides/api_1_0_migration.md).
+cargan la primera vez que se usan. Si vienes de 0.x: [guía de migración a la API 1.0](docs/guides/api_1_0_migration.md)
+(incluye los cambios de 2.0.0); si vienes de 2.x: [guía de migración a la API 3.0](docs/guides/api_3_0_migration.md).
 
 ---
 
@@ -307,6 +308,7 @@ centraliza en `util_bbdd.metadata` (ADR-003). Detalle y diagrama de capas: [docs
 |---|---|
 | Instalación | [docs/installation.md](docs/installation.md) |
 | Referencia de la API | [docs/api/intro.md](docs/api/intro.md) |
+| Migración a la API 3.0 | [docs/guides/api_3_0_migration.md](docs/guides/api_3_0_migration.md) |
 | Migración a la API 1.0 | [docs/guides/api_1_0_migration.md](docs/guides/api_1_0_migration.md) |
 | Excepciones | [docs/guides/exceptions.md](docs/guides/exceptions.md) |
 | Programación async | [docs/guides/async_guide.md](docs/guides/async_guide.md) |
