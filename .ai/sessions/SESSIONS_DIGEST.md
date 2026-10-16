@@ -225,6 +225,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-10-16 | Riesgos residuales del advisor de MySQL → v2.2.1 (`2026-10-16b-fix-mysql-redo-variables`) | `read_variables` con `WHERE Variable_name =` y filas inesperadas omitidas; MySQL 8.0.30+ evaluado con `innodb_redo_log_capacity` (banco: 48 MB ignorados → 100 MB reales) | CLOSED |
 | 2026-10-16 | Avisos de SonarLint y Pylance → v2.2.2 (`2026-10-16c-sonarlint-cleanup`) | ~35 avisos en `analysis`, `bulk`, `comparar`, `connection`, `factory`, `metadata`, `migrate`; `_connect_by_hierarchy` (complejidad 81) y `_transpile_view` divididas con comparación antes/después (1086 casos, 0 diferencias); `logger.exception` en las 14 conexiones | CLOSED |
 | 2026-10-16 | Pendientes de la auditoría de v2.2.2 → v2.2.3 (`2026-10-16d-audit-followups-v2.2.2`) | Precarga de Graphviz sin `Future` sin resolver (podía bloquearse); `_CURRENT_TIMESTAMP`; `_rejected_optional_param` única; tests de `_strip_pg_cast` y de dialectos del planner | CLOSED |
+| 2026-10-16 | Etiqueta Origen/Destino de `comparar` en Oracle → v2.2.4 (`2026-10-16e-hotfix-comparar-oracle-label`) | `_build_label` oculta solo la contraseña (usuario visible) y añade `[default_schema_name]` sin schema explícito | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 

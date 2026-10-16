@@ -5,6 +5,19 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [2.2.4] - 2026-10-16
+
+Sesión `.ai/sessions/2026-10-16e-hotfix-comparar-oracle-label/` (`/audit-code` + `/hotfix`). SemVer: PATCH.
+
+### Fixed
+
+- **comparar**: las etiquetas Origen/Destino de `SchemaDiff` (`source_label`/`target_label`, cabecera de todos los
+  reporters) identifican el schema comparado. En Oracle sin `source_schema`/`target_schema` solo mostraban
+  `oracle+oracledb://***@host:1521/?service_name=…`: el usuario (que en Oracle es el schema) se enmascaraba y no se
+  añadía el schema por defecto. Ahora se oculta solo la contraseña (`usuario:***@`) y, si no se pasa schema, se añade
+  `[inspector.default_schema_name]`. El texto de la etiqueta cambia en todos los motores (usuario visible y, sin schema
+  explícito, `[schema por defecto]`); una URL que no se puede parsear sigue enmascarada entera.
+
 ## [2.2.3] - 2026-10-16
 
 Sesión `.ai/sessions/2026-10-16d-audit-followups-v2.2.2/` (pendientes del `/audit-code` de v2.2.2). SemVer: PATCH.

@@ -292,6 +292,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-10-16b-fix-mysql-redo-variables | **v2.2.1**: `read_variables` exacto y tolerante (R-1, R-1b); redo log de MySQL 8.0.30+ (R-2) | develop | fix | CLOSED | `2026-10-16b-fix-mysql-redo-variables/TRACEABILITY.md` |
 | 2026-10-16c-sonarlint-cleanup | **v2.2.2**: avisos de SonarLint y Pylance (complejidad cognitiva, literales, regex, tipos) sin cambios funcionales | develop | refactor | CLOSED | `2026-10-16c-sonarlint-cleanup/TRACEABILITY.md` |
 | 2026-10-16d-audit-followups-v2.2.2 | **v2.2.3**: bloqueo de la precarga de Graphviz (A1) y pendientes de la auditoría de v2.2.2 (A2–A4, A6) | develop | fix + refactor | CLOSED | `2026-10-16d-audit-followups-v2.2.2/TRACEABILITY.md` |
+| 2026-10-16e-hotfix-comparar-oracle-label | **v2.2.4**: etiquetas Origen/Destino de `comparar` sin schema en Oracle (usuario enmascarado, sin `default_schema_name`) | develop | audit-code + hotfix | CLOSED | `2026-10-16e-hotfix-comparar-oracle-label/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 
