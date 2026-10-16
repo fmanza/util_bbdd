@@ -68,7 +68,20 @@ sequenceDiagram
 - Si el proceso se interrumpe durante la escritura, la última fila puede quedar incompleta.
 - No cifra ni protege el CSV: tratarlo como información sensible si los nombres de tabla lo son. Abrir el CSV directamente en Excel puede interpretar como fórmula un nombre de tabla que empiece por `=`; los exports a Excel de la librería ya lo guardan como texto.
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests de la auditoría de operaciones masivas.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Un INSERT de 3 filas y un DELETE de 1 dentro de `bulk_session` | Se confirma la sesión | El CSV recibe dos filas (INSERT con 3 y DELETE con 1) y no antes del commit |
+| AC-02 | Una sesión que falla y se deshace (p. ej. PK duplicada) | Termina la sesión | El CSV no recibe ninguna fila y el log avisa de los registros descartados |
+| AC-03 | Una operación con `generar_sql=True` en una sesión que después se deshace | Termina la sesión | La fila de la generación de SQL sí queda en el CSV, marcada `sql=Sí` |
+| AC-04 | El CSV no se puede escribir, sin `audit_strict` | Se inserta fuera de una sesión | Las filas quedan en la base de datos, `audit_failures` cuenta el fallo y el log registra un ERROR con la operación perdida |
+| AC-05 | El CSV no se puede escribir, sin `audit_strict` | Se ejecutan dos inserciones dentro de una sesión | La sesión se confirma igualmente y `audit_failures` cuenta los dos registros perdidos |
+| AC-06 | Ocho hilos del mismo proceso escriben en el mismo CSV | Terminan todos | El CSV tiene una sola cabecera y ninguna fila intercalada |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

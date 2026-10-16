@@ -84,7 +84,21 @@ pasan a ser alias de las columnas del `SELECT`.
 - La semántica de Oracle con cadenas vacías y `NULL` solo se avisa; no se corrige
 - En MySQL, MariaDB y Oracle la validación es solo sintáctica: no detecta funciones o columnas inexistentes
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests de la reescritura y validación de vistas.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Estrategia `"auto"` | Se resuelve con y sin sqlglot instalado | Con sqlglot se reescribe; sin él se copia el SQL sin reescribir |
+| AC-02 | Estrategia `"transpile"` sin sqlglot, o una estrategia desconocida | Se resuelve o se crea el planificador | `ImportError` que indica el extra `util_bbdd[migrate]`, o `ValueError` sobre `view_strategy` |
+| AC-03 | Una vista de MySQL que referencia `zzv.zzv_clientes` | Se reescribe a PostgreSQL | Pierde el prefijo del schema de origen, usa nombres entrecomillados del destino y lleva el aviso `INFO` «VIEW (reescrita)» |
+| AC-04 | Una vista con origen o destino Oracle | Se reescribe | Lleva el aviso «VIEW (semántica Oracle)» |
+| AC-05 | `WHERE activo = 1 AND ROWNUM <= 3` en Oracle | Se reescribe a MySQL | Termina en `LIMIT 3`, sin `ROWNUM` y conservando el resto del filtro |
+| AC-06 | `ROWNUM` fuera de un límite de filas, `CONNECT BY` sin traducción fiable o SQL que no se puede analizar | Se reescribe | Se copia sin cambios con el aviso «VIEW (sin reescribir)» |
+| AC-07 | Una vista válida y otra con error de sintaxis | Se validan en una transacción | Se informa cuál es válida y el error de la otra, y la base de datos queda sin tablas ni vistas nuevas |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

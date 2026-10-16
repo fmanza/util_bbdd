@@ -77,7 +77,21 @@ tabla y, de MariaDB a MySQL, los tipos que MySQL no tiene.
   booleanos); una función propia del motor origen sin equivalente (p. ej. `newid()`) se emite como literal con un
   aviso en el plan para revisarla
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests de la migración con MySQL como origen o destino.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Destino MySQL sin collation explícita | Se crea el planificador | Se usa `utf8mb4_0900_ai_ci`; con destino MariaDB se mantiene `utf8mb4_uca1400_ai_ci` |
+| AC-02 | La collation `utf8mb4_uca1400_ai_ci` (exclusiva de MariaDB) | Se valida para destino MySQL | Se rechaza con `ValueError` |
+| AC-03 | Columnas `INT(11)` y `TINYINT(1)` | Se emite DDL para MySQL | Se escribe `INT` sin ancho y se conserva `TINYINT(1)` |
+| AC-04 | Columnas `UUID`, `INET4` e `INET6` de MariaDB | Se transforman a MySQL | Pasan a `CHAR(36)`, `VARCHAR(15)` y `VARCHAR(39)`, cada una con aviso |
+| AC-05 | Columnas `enum('a','b')`, `int unsigned`, `decimal(10,2)` o `json` | Se transforman entre MySQL y MariaDB, en cualquier sentido | Se conserva el tipo tal cual, sin avisos |
+| AC-06 | Defaults `sin nombre` (texto), `0.00` (decimal), `CURRENT_TIMESTAMP` (expresión) e `it's` | Se leen del catálogo de MySQL | Quedan como `'sin nombre'`, `0.00`, `CURRENT_TIMESTAMP` e `'it''s'` |
+| AC-07 | Los cinco motores de migración | Se combinan origen y destino distintos | Los 20 pares están soportados |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

@@ -75,7 +75,22 @@ sequenceDiagram
 - Los locks de fichero son por proceso: varios **procesos** sobre el mismo fichero pueden intercalar líneas.
 - Las filas rechazadas no generan un evento cada una: constan en `rows_rejected` de los eventos de partición y de tabla, y sus valores en el CSV de rechazos.
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests del módulo de auditoría y de sus consumidores.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Las mismas operaciones que generaron los CSV de referencia de v0.28.0 | Se escribe el CSV de auditoría o el de rechazos | El fichero es idéntico byte a byte al de referencia |
+| AC-02 | `AuditOptions(sink=...)` y un INSERT dentro de `bulk_session` | Se confirma la sesión | El evento llega al destino al confirmar, no antes |
+| AC-03 | Una sesión con destino que se deshace después de insertar | Termina la sesión | No se emite ningún evento de lo deshecho |
+| AC-04 | El destino falla, sin `strict` | Se inserta | Las filas quedan en la base de datos y `audit_failures` cuenta el fallo |
+| AC-05 | El destino falla, con `strict=True`, dentro de una sesión | Se inserta | La operación falla y la sesión se deshace: no queda ninguna fila |
+| AC-06 | Una carga paralela cuyo destino falla al escribir los eventos de cierre | Termina la carga | El resultado no cambia (todas las filas, sin errores de partición) y el log registra un ERROR |
+| AC-07 | Un mensaje de error con saltos de línea o de más de 500 caracteres | Se crea el evento | El mensaje queda en una sola línea y truncado a 500 caracteres |
+| AC-08 | Una `BulkCrud` sin destino de eventos | Se consulta su `audit_run_id` | Es `None` |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

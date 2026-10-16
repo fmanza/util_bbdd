@@ -58,7 +58,19 @@ flowchart TD
   se escriben en el script (desde 0.23.0)
 - Los tipos espaciales, arrays y enums se mapean a tipos de texto con aviso de severidad ERROR
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests de la migración con PostgreSQL como origen.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Una columna con default `nextval(...)` (en cualquier capitalización) o declarada `IDENTITY` | Se extrae | Se marca como autoincremento; con default `42` o sin default, no |
+| AC-02 | Una tabla `users` con `id integer` y default `nextval('users_id_seq'::regclass)` | Se planifica la migración a MariaDB | La columna queda como `INT` con autoincremento |
+| AC-03 | Una columna `character varying` sin longitud | Se transforma a MariaDB, Oracle o SQL Server | Se obtiene `LONGTEXT`, `CLOB` o `NVARCHAR(MAX)` |
+| AC-04 | Una columna `character varying(255)` | Se transforma a MariaDB | Se obtiene `VARCHAR(255)` |
+| AC-05 | Una vista | Se transforma a MariaDB | Lleva un aviso de revisión que menciona PostgreSQL |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

@@ -70,7 +70,21 @@ sequenceDiagram
 - Las vistas se reescriben con sqlglot (extra `util_bbdd[migrate]`); sin él, se copian sin reescribir ([reescritura de vistas](migrate_views.md))
 - No modifica ni consulta la base de datos MariaDB de forma destructiva
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests de la migración con MariaDB como origen.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Una columna `TEXT` | Se transforma a Oracle, SQL Server o PostgreSQL | Se obtiene `CLOB`, `NVARCHAR(MAX)` o `TEXT` respectivamente |
+| AC-02 | Una columna `AUTO_INCREMENT` de la clave primaria | Se transforma a cualquiera de los tres destinos | Conserva el autoincremento |
+| AC-03 | Un nombre de tabla de 40 caracteres | Se transforma a Oracle | Se recorta a 30 con aviso |
+| AC-04 | Un nombre de tabla de 70 caracteres | Se transforma a PostgreSQL | Se recorta a 63 con aviso |
+| AC-05 | Un nombre de tabla de 40 caracteres, o de 140 | Se transforma a SQL Server | El de 40 se conserva sin aviso; el de 140 se recorta a 128 con aviso |
+| AC-06 | Una columna `ENUM` | Se transforma a PostgreSQL | Pasa a `TEXT` con un aviso `WARNING` |
+| AC-07 | Una clave foránea a una tabla fuera del schema migrado | Se transforma | Queda marcada con aviso para gestionarla a mano |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

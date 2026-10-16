@@ -62,7 +62,20 @@ sequenceDiagram
 - No genera documentación HTML ni Word
 - Los binarios de Graphviz del sistema operativo no se instalan con el extra `analysis`
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests del análisis de relaciones.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Una tabla con una tabla padre y dos niveles de tablas hijas | Se construye su grafo con `max_depth=2` y `direction=BOTH` | Se incluyen las relaciones de ambos sentidos y no queda ningún nivel oculto |
+| AC-02 | Dos niveles de tablas hijas y `max_depth=1` | Se construye el grafo entrante | Solo se incluye el primer nivel y se informa de un nivel oculto |
+| AC-03 | Tablas con claves foráneas en ciclo | Se construye el grafo | Termina sin recursión infinita e incluye las relaciones del ciclo |
+| AC-04 | Una tabla con dos claves foráneas y sin columnas propias | Se construye el grafo | Se clasifica como tabla de asociación y sus tablas padre como entidades |
+| AC-05 | Una tabla con más relaciones que el máximo por imagen | Se reparten para dibujarlas | Se generan varios bloques equilibrados que conservan el orden de las relaciones |
+| AC-06 | La generación de una tabla falla durante la generación de todas las tablas | Termina el lote | Esa tabla queda con estado `error` y su mensaje; las demás terminan en `success` |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

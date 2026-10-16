@@ -62,11 +62,6 @@ Tabla: | ID | Dado | Cuando | Entonces |  (derivados del código y de los tests)
 ## 5. Glosario y Términos
 Tabla: | Término | Definición |
 ```
-
-> **Transición**: las páginas de `docs/functional/` que aún no tienen `## 4. Criterios de Aceptación` (su glosario
-> sigue en `## 4.`) se completan por área, empezando por managers, bulk y dump; hasta entonces no se consideran
-> incumplimiento en revisión.
-
 **Reglas de lenguaje**:
 
 - Terminología de negocio, no técnica; sin jerga técnica sin explicación.

@@ -62,7 +62,20 @@ sequenceDiagram
 - No incluye caché de resultados; cada llamada ejecuta contra la base de datos
 - No transforma tipos de columna (fechas, decimales); el consumidor recibe tipos nativos del driver
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests de los ejecutores de consultas.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Una consulta que no está en el registro del motor | Se ejecuta por su nombre | Error de query no encontrada |
+| AC-02 | La base de datos falla al ejecutar SQL libre | Se ejecuta la consulta | Se lanza un error de operación y la conexión se libera igualmente |
+| AC-03 | Una consulta que tarda más que el `timeout` indicado | Se ejecuta | Error de timeout y la conexión se libera |
+| AC-04 | Falla el cierre del cursor después de leer las filas | Se ejecuta SQL libre | Se devuelven las filas leídas y la conexión se libera |
+| AC-05 | El driver no devuelve filas (`None`) | Se normaliza el resultado de varias filas | Se obtiene una lista vacía |
+| AC-06 | El driver devuelve una fila como lista | Se normaliza el resultado de una fila | Se obtiene una tupla |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

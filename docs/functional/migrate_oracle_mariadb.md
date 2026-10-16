@@ -68,7 +68,21 @@ sequenceDiagram
 - Las rutinas se emiten verbatim (pass-through): la sintaxis PL/SQL no se traduce automáticamente
 - No modifica ni consulta la base de datos Oracle de forma destructiva
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests de la migración con Oracle como origen (destino MariaDB salvo que se indique).
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Columnas `NUMBER(10,2)`, `NUMBER(15,0)` y `NUMBER` sin precisión | Se transforma la tabla | Se obtiene `DECIMAL(10,2)`, `BIGINT` y `DOUBLE`; el último con aviso |
+| AC-02 | Una columna `ROWID` | Se transforma la tabla | La columna se omite del DDL |
+| AC-03 | Una columna de PK con default `MI_SECUENCIA.NEXTVAL` | Se transforma la tabla | Pasa a autoincremento y pierde el default de la secuencia |
+| AC-04 | Un nombre de tabla de más de 64 caracteres | Se transforma | Se recorta a 64 con sufijo hash y queda un aviso de categoría `IDENTIFIER` |
+| AC-05 | Dos nombres largos distintos, o el mismo nombre dos veces | Se recortan | El mismo nombre da siempre el mismo resultado y nombres distintos dan resultados distintos |
+| AC-06 | Una clave foránea a una tabla fuera del schema migrado | Se transforma | Queda un aviso para gestionarla a mano |
+| AC-07 | Dos tablas con claves foráneas entre sí | Se genera el DDL | Se detecta el ciclo y esas claves se emiten como `ALTER TABLE` al final del script |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

@@ -68,7 +68,21 @@ sequenceDiagram
 - No compara permisos de usuario ni roles
 - La comparación de comentarios solo cubre columnas comunes a ambos esquemas
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests del comparador de esquemas.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Dos esquemas idénticos | Se comparan | No hay diferencias y el resumen dice «Sin diferencias» |
+| AC-02 | Una vista con la misma definición salvo la columna seleccionada | Se comparan | La vista aparece como modificada |
+| AC-03 | `include_views=False` y una vista solo en origen | Se comparan | No se informan diferencias de vistas |
+| AC-04 | Origen Oracle en mayúsculas y destino MariaDB en minúsculas con las mismas tablas y columnas | Se comparan | No se informan tablas ni columnas que falten o sobren por la capitalización |
+| AC-05 | Comentarios distintos y `include_tables=False` | Se comparan | Los comentarios no se comparan aunque `include_comments=True` |
+| AC-06 | Una URL de conexión con contraseña | Se genera la etiqueta del esquema en el informe | La contraseña aparece como `***` y el usuario se mantiene |
+| AC-07 | La lectura de columnas falla en uno de los esquemas | Se comparan | El error llega al llamante con su mensaje; no se oculta |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

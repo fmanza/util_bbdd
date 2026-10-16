@@ -133,7 +133,21 @@ Soporte por motor: MariaDB/MySQL (`FOREIGN_KEY_CHECKS`), Oracle (`DISABLE CONSTR
 PostgreSQL (`DISABLE TRIGGER ALL`, requiere propietario), SQL Server (`NOCHECK CONSTRAINT ALL`); SQLite no lo admite y
 carga sin optimización. Las restricciones se restauran siempre al salir, incluso si se produce una excepción.
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests de la carga paralela.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Tres particiones y una de ellas falla con un error de base de datos | Se ejecuta la carga | Las otras dos se cargan, el total cuenta solo sus filas y el error de la partición fallida queda en el resultado |
+| AC-02 | Se piden más hilos que la capacidad del pool de conexiones | Se crea el cargador | Los hilos se recortan a la capacidad del pool y se avisa en el log |
+| AC-03 | Destino SQLite y varios hilos pedidos | Se ejecuta la carga | Se carga con un solo hilo, todas las filas llegan y se avisa en el log |
+| AC-04 | Rangos de partición que se solapan (p. ej. 1–5 y 5–10) o en número distinto al de lectores | Se ejecuta la carga | Se rechaza con `ValueError` antes de cargar nada |
+| AC-05 | Un error transitorio (timeout) y `RetryOptions(max_retries=N)` | Se carga la partición | Se reintenta hasta N veces; si un reintento funciona, la partición termina sin error |
+| AC-06 | Un error permanente (p. ej. de integridad) con reintentos configurados | Se carga la partición | No se reintenta y el error queda en el resultado de la partición |
+| AC-07 | Un intervalo de claves y N particiones | Se generan los rangos con `RangePartitioner` | Los rangos son contiguos, sin solaparse, y cubren desde el mínimo hasta el máximo |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

@@ -60,7 +60,20 @@ sequenceDiagram
 - No soporta queries dinámicas (construcción condicional de cláusulas WHERE): los templates son estáticos con placeholders fijos
 - Los parámetros interpolados son identificadores, no valores de datos: para valores de usuario usar consultas libres con parámetros bind de SQLAlchemy
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests del registro y del resolvedor de queries.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | La ruta del JSON de queries no existe | Se crea el registro | Se rechaza con `FileNotFoundError` |
+| AC-02 | Una query registrada para un motor | Se pide con el motor en otra capitalización (`MariaDB`, `MARIADB`) | Se devuelve la misma definición |
+| AC-03 | Una query que no existe para el motor | Se resuelve | Error de query no encontrada |
+| AC-04 | Una query con un parámetro obligatorio | Se resuelve sin ese parámetro | Error de validación o de parámetros antes de construir el SQL |
+| AC-05 | Un parámetro de identificador con SQL inyectado (`x; DROP TABLE users; --`) | Se resuelve | Error de validación; el SQL final no se construye |
+| AC-06 | Un resolvedor sin motor y una llamada sin motor | Se resuelve | Error de parámetros: el resolvedor necesita un motor |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

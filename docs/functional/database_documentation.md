@@ -73,7 +73,19 @@ todos ellos si cada columna es PK, FK y en qué índices está.
 - No valida el contenido del documento generado: la calidad depende de los metadatos presentes en el motor
 - No genera documentación mediante APIs externas
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests de la generación de documentación.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Una configuración válida | Se crea el generador | Se valida sin leer la base de datos |
+| AC-02 | Un formato no soportado (`pdf`), `formatos` como texto, una plantilla o fichero de cabeceras inexistente o un `batch_window_seconds` negativo o no entero | Se crea el generador | Se rechaza con un error de configuración (que también es `ValueError`) |
+| AC-03 | Una plantilla de Word inexistente y solo el formato HTML | Se crea el generador | Se acepta: la plantilla solo se exige si se pide Word |
+| AC-04 | Los formatos Word, Excel y HTML | Se llama a `generate()` | Se escribe cada formato en su carpeta, el resultado indica dónde y cuántas tablas, vistas y rutinas se documentaron, y el catálogo se lee una vez para todos |
+| AC-05 | Una base SQLite con dos tablas, dos vistas y una clave foránea | Se genera en los tres formatos | El Excel, el Word y el HTML contienen las tablas, columnas, índices y la regla de la clave foránea |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

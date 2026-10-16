@@ -59,7 +59,20 @@ flowchart TD
   (desde 0.22.0; MariaDB/MySQL no tienen comentarios de vista: aviso `VIEW_COMMENT_UNSUPPORTED`). Los de rutinas
   se escriben en el script (desde 0.23.0)
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests de la migración con SQL Server como origen.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Columnas `VARCHAR(MAX)`/`NVARCHAR(MAX)` y `VARBINARY(MAX)` (longitud `-1` en el catálogo) | Se transforman a MariaDB, Oracle o PostgreSQL | Se obtiene `LONGTEXT`/`LONGBLOB`, `CLOB`/`BLOB` o `TEXT`/`BYTEA` |
+| AC-02 | Una columna `IMAGE` | Se transforma a MariaDB | Pasa a `LONGBLOB` con aviso |
+| AC-03 | Una columna IDENTITY | Se extrae y se transforma a Oracle o PostgreSQL | Se marca como autoincremento y lo conserva en el destino; una columna con default `((0))` conserva el default y no es autoincremento |
+| AC-04 | Una vista con una definición de más de 4000 caracteres | Se extrae | Se obtiene la definición completa, sin truncar |
+| AC-05 | Una vista cuya definición no está disponible (p. ej. cifrada) o con lista de columnas en la cabecera | Se extrae | Queda el aviso `VIEW_DEFINITION_UNAVAILABLE` o `VIEW_HEADER_COLUMNS` |
+| AC-06 | Una rutina CLR junto a una T-SQL | Se extraen las rutinas | Solo se migra la de T-SQL |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

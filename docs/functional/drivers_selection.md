@@ -61,7 +61,17 @@ sequenceDiagram
 - No cachea conexiones: cada llamada crea una conexión nueva
 - No configura parámetros de pool: la configuración del pool es responsabilidad del gestor
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests de selección de la factoría async.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Un constructor de conexión async registrado para un motor | Se pide una conexión de ese motor | Se usa ese constructor y recibe los parámetros de conexión y los argumentos adicionales |
+| AC-02 | Un constructor de pool async registrado para un motor | Se pide un pool de ese motor | Se usa ese constructor y recibe los parámetros y los argumentos adicionales |
+| AC-03 | El motor HSQLDB, que no tiene soporte async | Se pide una conexión o un pool async | Se rechaza con `NotImplementedError` indicando que HSQLDB no está soportado en async |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

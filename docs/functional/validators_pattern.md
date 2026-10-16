@@ -61,7 +61,20 @@ sequenceDiagram
 - Solo cubre validación de queries predefinidas del registro; las queries libres no pasan por este sistema
 - No es el punto de validación del tipo de motor: eso lo hace el gestor, no el validador de queries
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests de los validadores.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Una query con un parámetro obligatorio | Se valida sin ese parámetro | Devuelve `False` y al menos un mensaje, sin lanzar excepción |
+| AC-02 | Un identificador con SQL inyectado en `tabla`, `rutina`, `tipo_rutina`, `tablespace` o, en MariaDB y PostgreSQL, `database` | Se valida | Devuelve `False` con mensajes |
+| AC-03 | Un identificador legítimo (`CORE_USUARIOS_2024`) | Se valida en cualquier motor | Devuelve `True` |
+| AC-04 | Un schema de Oracle de 31 caracteres | Se valida | Devuelve `False` (límite de 30) |
+| AC-05 | Un tipo de motor | Se pide su validador | Se obtiene el validador de ese motor, sin distinguir mayúsculas |
+| AC-06 | Un tipo de motor no soportado o vacío | Se pide su validador | Se rechaza con `ValueError` |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|
