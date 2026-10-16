@@ -486,3 +486,13 @@ class TestMigrationPlanExecuteOnConnection:
         received = MagicMock(spec=["raw_connection", "dispose"])
         plan.execute(received)
         received.dispose.assert_not_called()
+
+
+def test_every_planner_engine_has_a_sqlglot_dialect_for_views() -> None:
+    # _transpile_view resuelve SQLGLOT_DIALECT[motor] sin más comprobación: un motor del planner sin dialecto daría
+    # KeyError al transpilar sus vistas en lugar del ValueError de MigrationPlanner.
+    from util_bbdd.migrate import planner
+    from util_bbdd.migrate.views._dialects import SQLGLOT_DIALECT
+
+    assert planner._SUPPORTED_SOURCE <= set(SQLGLOT_DIALECT)
+    assert planner._SUPPORTED_TARGET <= set(SQLGLOT_DIALECT)

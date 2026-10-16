@@ -22,16 +22,18 @@ from __future__ import annotations
 
 import re
 
+#: Forma canónica del DEFAULT de fecha y hora actual.
+_CURRENT_TIMESTAMP = "CURRENT_TIMESTAMP"
 #: MariaDB y MySQL comparten las funciones de fecha y hora de un DEFAULT.
 _MYSQL_TIMESTAMP_FUNCTIONS: frozenset[str] = frozenset(
-    {"CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP()", "NOW()", "LOCALTIMESTAMP", "LOCALTIMESTAMP()"}
+    {_CURRENT_TIMESTAMP, "CURRENT_TIMESTAMP()", "NOW()", "LOCALTIMESTAMP", "LOCALTIMESTAMP()"}
 )
 _TIMESTAMP_FUNCTIONS: dict[str, frozenset[str]] = {
     "postgresql": frozenset(
-        {"NOW()", "CURRENT_TIMESTAMP", "LOCALTIMESTAMP", "STATEMENT_TIMESTAMP()", "TRANSACTION_TIMESTAMP()"}
+        {"NOW()", _CURRENT_TIMESTAMP, "LOCALTIMESTAMP", "STATEMENT_TIMESTAMP()", "TRANSACTION_TIMESTAMP()"}
     ),
-    "sqlserver": frozenset({"GETDATE()", "SYSDATETIME()", "CURRENT_TIMESTAMP", "GETUTCDATE()", "SYSUTCDATETIME()"}),
-    "oracle": frozenset({"SYSDATE", "SYSTIMESTAMP", "CURRENT_TIMESTAMP", "LOCALTIMESTAMP"}),
+    "sqlserver": frozenset({"GETDATE()", "SYSDATETIME()", _CURRENT_TIMESTAMP, "GETUTCDATE()", "SYSUTCDATETIME()"}),
+    "oracle": frozenset({"SYSDATE", "SYSTIMESTAMP", _CURRENT_TIMESTAMP, "LOCALTIMESTAMP"}),
     "mariadb": _MYSQL_TIMESTAMP_FUNCTIONS,
     "mysql": _MYSQL_TIMESTAMP_FUNCTIONS,
 }
@@ -173,7 +175,7 @@ def normalize_default(source_engine: str, value: str | None) -> str | None:
     if upper == "NULL":
         return "NULL"
     if upper in _TIMESTAMP_FUNCTIONS.get(source, frozenset()):
-        return "CURRENT_TIMESTAMP"
+        return _CURRENT_TIMESTAMP
     if upper in _DATE_FUNCTIONS:
         return "CURRENT_DATE"
     precision = _TIMESTAMP_WITH_PRECISION_RE.match(normalized)

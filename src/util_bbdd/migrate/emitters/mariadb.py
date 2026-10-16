@@ -33,6 +33,9 @@ def _bt(name: str) -> str:
     return f"`{name.replace('`', '``')}`"
 
 
+#: Forma canónica del DEFAULT de fecha y hora actual.
+_CURRENT_TIMESTAMP = "CURRENT_TIMESTAMP"
+
 #: Display width convencional de MariaDB/MySQL por tipo entero, aplicado a columnas
 #: AUTO_INCREMENT cuando target_type no trae ya uno propio (p.ej. "BIGINT" sin ancho
 #: mapeado por sqlserver_to_mariadb/postgresql_to_mariadb, a diferencia de oracle_to_mariadb
@@ -494,7 +497,7 @@ def _with_timestamp_precision(default_val: str, column_type: str) -> str:
     MySQL rechaza ``DATETIME(6) DEFAULT CURRENT_TIMESTAMP`` ("Invalid default value"): la precisión del default debe
     coincidir con la de la columna.
     """
-    if default_val.upper() not in {"CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP()", "NOW()"}:
+    if default_val.upper() not in {_CURRENT_TIMESTAMP, "CURRENT_TIMESTAMP()", "NOW()"}:
         return default_val
     match = _FRACTIONAL_TEMPORAL_RE.match(column_type.strip())
     return f"CURRENT_TIMESTAMP({match.group(2)})" if match else default_val
@@ -510,7 +513,7 @@ def _format_default(value: str) -> str:
     # Funciones SQL conocidas (Oracle y MariaDB): pasar sin entrecomillar
     sql_functions = {
         "NOW()",
-        "CURRENT_TIMESTAMP",
+        _CURRENT_TIMESTAMP,
         "CURRENT_DATE",
         "NULL",
         "0",

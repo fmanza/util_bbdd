@@ -31,6 +31,15 @@ from util_bbdd.migrate.ir.models import CanonicalColumn, CanonicalTable
         ("postgresql", "NULL::character varying", "NULL"),
         ("postgresql", "nextval('t_id_seq'::regclass)", "nextval('t_id_seq'::regclass)"),
         ("postgresql", "gen_random_uuid()", "gen_random_uuid()"),
+        # Cast final (v2.2.2: desde el último '::', precisión sin validar su forma)
+        ("postgresql", "'x'::character varying(30)", "'x'"),
+        ("postgresql", "'0'::numeric( 10 , 2 )", "0"),
+        ("postgresql", "'{}'::text[][]", "'{}'"),
+        ("postgresql", "'a'::\"MyType\"", "'a'"),
+        ("postgresql", "'a'::public.mytype", "'a'"),
+        ("postgresql", "'a::b'", "'a::b'"),
+        ("postgresql", "'a::b'::text", "'a::b'"),
+        ("postgresql", "'0'::numeric(,)", "0"),
         # SQL Server
         ("sqlserver", "((0))", "0"),
         ("sqlserver", "((1.5))", "1.5"),
