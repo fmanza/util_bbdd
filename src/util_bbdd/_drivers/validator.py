@@ -359,7 +359,7 @@ def get_database_validator(config_file: Path | None = None) -> DatabaseTypeValid
     Returns:
         DatabaseTypeValidator: Instancia singleton del validador
 
-    Example:
+    Examples:
         >>> # Primera llamada: crea instancia
         >>> validator = get_database_validator()
         >>> validator.is_db_type_supported('postgresql')
@@ -405,7 +405,7 @@ def validate_db_type(db_type: str) -> bool:
     Raises:
         InvalidDatabaseType: Si el tipo de BD no es soportado
 
-    Example:
+    Examples:
         >>> validate_db_type('postgresql')
         True
         >>> validate_db_type('invalid_db')
@@ -433,7 +433,7 @@ def get_db_type_info(db_type: str) -> JsonDict:
         JsonDict: Diccionario con información del tipo de BD
                  (driver, parameters, examples, etc.)
 
-    Example:
+    Examples:
         >>> info = get_db_type_info('postgresql')
         >>> info['driver']
         'psycopg'

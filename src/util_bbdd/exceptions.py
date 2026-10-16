@@ -4,7 +4,7 @@ Punto de importación estable de todas las excepciones de la librería (API 1.0)
 ``util_bbdd._core.exceptions``; este módulo solo la reexporta. Todas heredan de :class:`DatabaseException`, la única
 que se exporta también desde la raíz ``util_bbdd``.
 
-Example:
+Examples:
     >>> from util_bbdd.exceptions import DatabaseException, QueryNotFoundError
     >>> issubclass(QueryNotFoundError, DatabaseException)
     True

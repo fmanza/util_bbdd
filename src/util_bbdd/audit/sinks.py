@@ -40,7 +40,7 @@ class _ClosableSink:
 class NullAuditSink(_ClosableSink):
     """Destino que descarta los eventos (auditoría deshabilitada).
 
-    Example:
+    Examples:
         >>> sink = NullAuditSink()
         >>> sink.write([])
     """
@@ -95,7 +95,7 @@ class JsonLinesAuditSink(_ClosableSink):
     Args:
         path: Fichero de destino (se crea su directorio).
 
-    Example:
+    Examples:
         >>> sink = JsonLinesAuditSink(Path("auditoria.jsonl"))  # doctest: +SKIP
         >>> crud = BulkCrud(engine, audit=AuditOptions(sink=sink))  # doctest: +SKIP
     """

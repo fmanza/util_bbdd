@@ -5,7 +5,7 @@ Cada tipo de objeto (:class:`~util_bbdd.metadata.model.Kind`) se lee con **una**
 snapshot sin volver al catálogo. Con ``tables=`` se limita la lectura a unas pocas tablas (``bulk`` con una tabla en un
 schema de miles); por encima de :data:`FILTER_MAX_TABLES` se lee el schema completo.
 
-Example:
+Examples:
     >>> source = CatalogSource.from_engine(engine)
     >>> snapshot = source.snapshot("ventas", kinds={Kind.TABLES, Kind.COLUMNS, Kind.FOREIGN_KEYS})
     >>> {fk.ref_table for fk in snapshot.all_foreign_keys()}

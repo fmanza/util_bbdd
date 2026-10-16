@@ -401,7 +401,7 @@ def build_graph_generator_from_options(source: Any, options: dict[str, Any]) -> 
         source: Fuente de metadatos (``RelationshipGraphSource``), p. ej. el manager adaptado de la sesión.
         options: Sub-diccionario ``grafo`` de ``print_config`` normalizado.
 
-    Example:
+    Examples:
         >>> gen = build_graph_generator_from_options(session.db_manager, {"max_depth": 2, "workers": 4})
     """
     from .....analysis.graphviz_ext import GraphvizRelationshipGraphExt as _Ext

@@ -19,7 +19,7 @@ class AuditText:
     def safe_csv_cell(text: str) -> str:
         """``text`` con un apóstrofo delante si empieza como una fórmula de hoja de cálculo.
 
-        Example:
+        Examples:
             >>> AuditText.safe_csv_cell("=HYPERLINK(1)")
             "'=HYPERLINK(1)"
         """

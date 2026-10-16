@@ -770,7 +770,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         Returns:
             Número de grafos renderizados.
 
-        Example:
+        Examples:
             >>> gen.prefetch(lambda t: gen.pipe_single_table_graph_ext(table_name=t, format="png"), ["a", "b"])
             >>> png = gen.pipe_single_table_graph_ext(table_name="a", format="png")  # ya renderizado
         """
@@ -875,7 +875,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             OSError: Si el ejecutable dot no está disponible o falla durante el pipe
             RuntimeError: Si Graphviz produce una salida vacía o inválida
 
-        Example:
+        Examples:
             >>> png_bytes = self._pipe_graph_bytes(dot, "png", "orders")
             >>> len(png_bytes) > 0
             True
@@ -922,7 +922,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             OSError: Si el ejecutable dot no está disponible
             RuntimeError: Si la generación falla
 
-        Example:
+        Examples:
             >>> png_bytes = generator.pipe_single_table_graph_ext("orders", format="png")
             >>> len(png_bytes) > 0
             True
@@ -973,7 +973,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             OSError: Si el ejecutable dot no está disponible
             RuntimeError: Si Graphviz falla durante el pipe
 
-        Example:
+        Examples:
             >>> svg_bytes = generator._pipe_graph_internal_ext("orders", "svg", doc)
             >>> len(svg_bytes) > 0
             True
@@ -1021,7 +1021,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             OSError: Si el ejecutable dot no está disponible
             RuntimeError: Si Graphviz falla durante el pipe
 
-        Example:
+        Examples:
             >>> pages = generator.pipe_paginated_graph_ext("orders", format="png")
             >>> len(pages) >= 1
             True
@@ -1102,7 +1102,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             OSError: Si el ejecutable dot no está disponible
             RuntimeError: Si Graphviz falla durante el pipe
 
-        Example:
+        Examples:
             >>> groups = generator.pipe_level_graphs_ext("orders", format="svg")
             >>> len(groups["outgoing"]) >= 1
             True

@@ -122,7 +122,7 @@ class DdlNormalizer:
         Returns:
             DDL con artefactos eliminados pero con case y espacios originales.
 
-        Example:
+        Examples:
             >>> DdlNormalizer.strip_dialect_artifacts("CREATE OR REPLACE FORCE VIEW v AS SELECT 1")
             'CREATE OR REPLACE  VIEW v AS SELECT 1'
 
@@ -151,7 +151,7 @@ class DdlNormalizer:
             DDL normalizado en minúsculas con espacios colapsados, apto para
             comparación textual entre motores distintos.
 
-        Example:
+        Examples:
             >>> DdlNormalizer.normalize_for_comparison("CREATE OR REPLACE FORCE VIEW v AS SELECT 1")
             'create or replace view v as select 1'
         """

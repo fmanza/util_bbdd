@@ -735,7 +735,7 @@ class BulkCrud:
                 de numpy).
             RuntimeError: Si ya hay un ``rejects_scope`` abierto en la instancia.
 
-        Example:
+        Examples:
             >>> with crud.bulk_session(), crud.rejects_scope():
             ...     for chunk in pd.read_csv("datos.csv", chunksize=50_000):
             ...         crud.bulk_insert_from_df(chunk, "items", generar_sql=False)
@@ -810,7 +810,7 @@ class BulkCrud:
         ``plan.reasons`` explica la decisión. Sin ``parallel`` en el constructor, en serie. En el UPDATE de PostgreSQL
         comprueba (una vez por instancia, solo si el plan es paralelo) el privilegio ``TEMP``.
 
-        Example:
+        Examples:
             >>> crud = BulkCrud(engine, parallel=ParallelOptions(mode="auto"))  # doctest: +SKIP
             >>> crud.parallel_plan("insert", 2_000_000).reasons  # doctest: +SKIP
             ('INSERT en mssql: INSERT 50K-1M: 2,4-2,8× con 4 hilos',)

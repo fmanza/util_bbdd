@@ -424,7 +424,7 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             QueryTimeoutError: Si se supera ``timeout``.
             DatabaseOperationError: Si falla la ejecución (el error original queda en ``__cause__``).
 
-        Example:
+        Examples:
             La librería no trae consultas registradas: se leen de un JSON ``{motor: {nombre: SQL}}``
             (ver ``docs/examples/query_execution_example.py``).
 
@@ -484,7 +484,7 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             DatabaseOperationError: Si falla la ejecución (el error del driver queda en ``__cause__``).
             QueryTimeoutError: Si se supera ``timeout``.
 
-        Example:
+        Examples:
             Ejecutar una query personalizada:
 
             >>> from util_bbdd import SyncDatabaseManager
@@ -537,7 +537,7 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             DatabaseOperationError: Si falla la ejecución (el error del driver queda en ``__cause__``).
             QueryTimeoutError: Si se supera ``timeout``.
 
-        Example:
+        Examples:
             Obtener un registro único:
 
             >>> from util_bbdd import SyncDatabaseManager
@@ -754,7 +754,7 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         Returns:
             ``SchemaSnapshot`` inmutable con modelos neutros (``TableMeta``, ``ColumnMeta``, ``ForeignKeyMeta``…).
 
-        Example:
+        Examples:
             >>> snapshot = manager.get_schema_metadata(kinds={Kind.TABLES, Kind.FOREIGN_KEYS})
             >>> [(fk.table, fk.ref_table) for fk in snapshot.all_foreign_keys()]
         """
@@ -807,7 +807,7 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         Returns:
             Hallazgos y condiciones de la verificación.
 
-        Example:
+        Examples:
             >>> with SyncDatabaseManager("sqlite", {"database": ":memory:"}) as manager:
             ...     report = manager.get_engine_readiness()
             >>> report.supported

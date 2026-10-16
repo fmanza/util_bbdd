@@ -107,7 +107,7 @@ class ConnectionFactory:
             InvalidDatabaseType: Si db_type no está soportado
             ConnectionError: Si hay error en la creación de la conexión nativa
 
-        Example:
+        Examples:
             >>> conn = ConnectionFactory.create_connection(
             ...     "mariadb",
             ...     {"host": "localhost", "user": "root",

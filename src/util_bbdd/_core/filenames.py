@@ -16,7 +16,7 @@ def safe_file_stem(raw_name: str) -> str:
     Returns:
         Nombre saneado, nunca vacío.
 
-    Example:
+    Examples:
         >>> safe_file_stem("../../etc/passwd")
         'etc-passwd'
         >>> safe_file_stem("My Table (v2)")

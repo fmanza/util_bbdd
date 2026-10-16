@@ -103,7 +103,7 @@ class CharsetStateDetector:
         paramstyle: `paramstyle` del driver. Se conserva por compatibilidad de firma: las consultas de diagnóstico
             son literales y no necesitan traducción.
 
-    Example:
+    Examples:
         >>> detector = CharsetStateDetector(conn, "named")
         >>> diagnosis = detector.diagnose()
         >>> if not diagnosis.is_healthy():

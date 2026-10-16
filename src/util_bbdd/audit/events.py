@@ -86,7 +86,7 @@ class AuditEvent:
             ejecuciones anidadas heredan el ``run_id`` de la de fuera); queda para quien emita sus propios eventos.
         attributes: Datos adicionales como pares ``(nombre, valor)`` ordenados por nombre: inmutable y hashable.
 
-    Example:
+    Examples:
         >>> event = AuditEvent.now(source="bulk", kind="operation", status="ok", engine="sqlite",
         ...                        target="clientes", operation="INSERT", rows=1000, elapsed_s=0.42)
         >>> event.attribute("batch_size") is None

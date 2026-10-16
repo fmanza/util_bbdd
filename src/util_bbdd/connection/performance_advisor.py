@@ -159,7 +159,7 @@ class EngineReadinessAdvisor:
         Returns:
             El informe; ``supported=False`` si el motor no tiene checks.
 
-        Example:
+        Examples:
             >>> report = EngineReadinessAdvisor().assess("mysql", {"pool_size": 2})
             >>> [(f.level, f.param) for f in report.findings]
             [('WARNING', 'pool_size')]
@@ -363,7 +363,7 @@ class EngineReadinessAdvisor:
         Returns:
             El informe guardado para ``engine``.
 
-        Example:
+        Examples:
             >>> crud = BulkCrud(engine)  # verifica el engine al crearse
             >>> EngineReadinessAdvisor().engine_report(engine).dynamic  # sin nueva conexión
             True
@@ -391,7 +391,7 @@ class EngineReadinessAdvisor:
     def describe_engine(engine: Engine) -> str:
         """``dialecto · host:puerto/base`` de ``engine``, sin usuario ni contraseña (títulos de informes).
 
-        Example:
+        Examples:
             >>> EngineReadinessAdvisor.describe_engine(create_engine("postgresql://u:p@db:5432/app"))
             'postgresql · db:5432/app'
         """
@@ -405,7 +405,7 @@ class EngineReadinessAdvisor:
     def report_name(db_type: str) -> str:
         """Nombre del motor en los informes: en minúsculas y con el de la librería (``mssql`` → ``sqlserver``).
 
-        Example:
+        Examples:
             >>> EngineReadinessAdvisor.report_name("mssql"), EngineReadinessAdvisor.report_name(" PostgreSQL ")
             ('sqlserver', 'postgresql')
         """

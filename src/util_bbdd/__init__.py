@@ -12,7 +12,7 @@ que ``import util_bbdd`` solo carga los managers.
 Los nombres que la raíz exportaba hasta 0.42 se retiraron en 1.0.0; la guía de migración
 (``docs/guides/api_1_0_migration.md``) dice desde qué submódulo se importa cada uno.
 
-Example:
+Examples:
     >>> from util_bbdd import SyncDatabaseManager
     >>> from util_bbdd.exceptions import QueryNotFoundError
 """

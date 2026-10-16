@@ -317,7 +317,7 @@ class MigrationPlan:
             DatabaseOperationError: Si una sentencia falla; indica su posición y su primera línea. Las anteriores
                 quedan aplicadas.
 
-        Example:
+        Examples:
             >>> from util_bbdd.audit import MemoryAuditSink
             >>> sink = MemoryAuditSink()
             >>> plan.execute(target_manager, audit_sink=sink)  # doctest: +SKIP
@@ -362,7 +362,7 @@ class MigrationPlan:
     def audit_events(self) -> list[AuditEvent]:
         """Los avisos del plan como eventos de auditoría (``plan_warning``), para escribirlos en un ``AuditSink``.
 
-        Example:
+        Examples:
             >>> sink.write(plan.audit_events())  # doctest: +SKIP
         """
         from .._audit_events import MigrationAuditEvents

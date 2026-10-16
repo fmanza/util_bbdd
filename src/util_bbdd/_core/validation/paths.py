@@ -31,7 +31,7 @@ def validate_path(value: Any, name: str) -> Path:
     Raises:
         ValueError: Si ``value`` no es ``str`` ni ``os.PathLike[str]``.
 
-    Example:
+    Examples:
         >>> validate_path("salida/audit.csv", "audit_csv_path").name
         'audit.csv'
     """
@@ -55,7 +55,7 @@ class PathField:
     ``__init__`` de :meth:`__set__` (``StrPath``) y el de lectura de :meth:`__get__` (``Path``). También valida al
     reasignar el atributo. Sin ``slots=True``: guarda el valor en ``__dict__`` de la instancia.
 
-    Example:
+    Examples:
         >>> from dataclasses import dataclass
         >>> @dataclass
         ... class Config:

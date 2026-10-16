@@ -228,7 +228,7 @@ class AuditManager:
             agrupar_por: Agrupación de las hojas por operación.
             engine: Engine de la carga, para un ``AuditManager`` creado aparte (p.ej. tras ``ParallelBulkLoader``).
 
-        Example:
+        Examples:
             >>> crud = BulkCrud(engine, audit=AuditOptions(csv_path=Path("audit.csv")))
             >>> crud.bulk_insert_from_df(df, "clientes")
             >>> crud.audit_manager.exportar_resumen_excel()  # incluye la hoja Condiciones_motor

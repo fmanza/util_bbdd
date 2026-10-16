@@ -1757,7 +1757,7 @@ class HtmlGenerator:
         Returns:
             str: Markup SVG con enlaces inyectados, sin declaración XML
 
-        Example:
+        Examples:
             >>> markup = generator._inject_links_into_svg_markup(svg_bytes, {"orders": "orders.html"})
             >>> markup.startswith("<svg")
             True

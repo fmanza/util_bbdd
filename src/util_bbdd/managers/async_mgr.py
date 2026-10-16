@@ -237,7 +237,7 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
             DatabaseOperationError: Si falla la ejecución (el error del driver queda en ``__cause__``).
             QueryTimeoutError: Si se supera el plazo.
 
-        Example:
+        Examples:
             Ejecutar una query personalizada (async):
 
             >>> import asyncio
@@ -285,7 +285,7 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
             DatabaseOperationError: Si falla la ejecución (el error del driver queda en ``__cause__``).
             QueryTimeoutError: Si se supera el plazo.
 
-        Example:
+        Examples:
             Obtener un registro único (async):
 
             >>> import asyncio
@@ -534,7 +534,7 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
     ) -> SchemaSnapshot:
         """Metadatos de un schema con una consulta por tipo de objeto (ver ``SyncDatabaseManager.get_schema_metadata``).
 
-        Example:
+        Examples:
             >>> snapshot = await manager.get_schema_metadata(kinds={Kind.TABLES, Kind.COLUMNS})
         """
         return await self.metadata_source.snapshot(schema, kinds=kinds, tables=tables)
@@ -565,7 +565,7 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         Returns:
             Hallazgos y condiciones de la verificación.
 
-        Example:
+        Examples:
             >>> async with AsyncDatabaseManager("sqlite", {"database": ":memory:"}) as manager:
             ...     report = await manager.get_engine_readiness()
             >>> report.supported

@@ -687,7 +687,7 @@ class WordGenerator:
         Returns:
             tuple[int, int]: (max_width, max_height) en unidades EMU
 
-        Example:
+        Examples:
             >>> max_w, max_h = generator._compute_max_dimensions(document, title_paragraph)
             >>> max_w > 0 and max_h > 0
             True
@@ -738,7 +738,7 @@ class WordGenerator:
         Raises:
             OSError: Si python-docx no puede procesar los bytes como imagen válida
 
-        Example:
+        Examples:
             >>> generator._add_picture_from_bytes(document, png_bytes, title_paragraph)
         """
         max_width, max_height = self._compute_max_dimensions(document, title_paragraph)

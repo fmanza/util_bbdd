@@ -30,7 +30,8 @@ La raíz `util_bbdd` exporta los 13 puntos de entrada y sus resultados (`SyncDat
 `BulkCrud`, `ParallelBulkLoader`, `DumpOrchestrator`, `DumpConfig`, `DumpResult`, `MigrationPlanner`, `MigrationPlan`,
 `SchemaComparator`, `SchemaDiff`, `DatabaseDocumentation`, `DatabaseException`); el resto vive en submódulos públicos
 (`util_bbdd.exceptions`, `.audit`, `.metadata`, `.connection`, `.factory`, `.analysis`, `.async_utils`). Desde 1.0.0
-sigue SemVer. Si vienes de 0.x: [Migración a la API 1.0](guides/api_1_0_migration.md).
+sigue SemVer. Si vienes de 0.x: [Migración a la API 1.0](guides/api_1_0_migration.md); si vienes de 2.x: [Migración a
+la API 3.0](guides/api_3_0_migration.md) (opciones de `BulkCrud` y `ParallelBulkLoader` en paquetes).
 
 ### Soporte por motor
 

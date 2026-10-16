@@ -246,7 +246,7 @@ class AsyncSQLAlchemyEngineFactory:
         Raises:
             ValidationError: Si faltan parámetros requeridos
 
-        Example:
+        Examples:
             >>> conn_params = {"database": "/path/to/app.db"}
             >>> AsyncSQLAlchemyEngineFactory._build_sqlite_connection_string(conn_params)
             'sqlite+aiosqlite:////path/to/app.db'

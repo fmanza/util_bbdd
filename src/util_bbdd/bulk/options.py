@@ -5,7 +5,7 @@ cuenta (los workers del loader, ``dump``) copiaba la lista a mano: los workers n
 ``update_via_staging``. Desde 3.0.0 los dos reciben los mismos paquetes inmutables, validados al construirse, y los
 workers se crean con :meth:`BulkOptions.for_worker`. Equivalencias 2.x → 3.0: ``docs/guides/api_3_0_migration.md``.
 
-Example:
+Examples:
     >>> from util_bbdd.bulk.options import AuditOptions, BatchOptions, ParallelOptions
     >>> crud = BulkCrud(  # doctest: +SKIP
     ...     engine,

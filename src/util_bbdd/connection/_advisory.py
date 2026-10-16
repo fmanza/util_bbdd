@@ -56,7 +56,7 @@ class EngineReadinessReport:
         supported: False si el motor no tiene checks (``findings`` vacío).
         error: Por qué no hubo checks dinámicos; solo el tipo de la excepción, nunca su mensaje (puede llevar la URL).
 
-    Example:
+    Examples:
         >>> report = EngineReadinessAdvisor().assess("postgresql", {"pool_size": 2})
         >>> report.dynamic, report.supported
         (False, True)
@@ -77,7 +77,7 @@ class ConnParamReader:
     hallazgos del motor. Ahora un valor inválido devuelve ``None`` (su check se omite) y deja un CRITICAL en
     :attr:`invalid`; el resto de checks sigue. Ausente o ``None``: el valor por defecto.
 
-    Example:
+    Examples:
         >>> reader = ConnParamReader({"pool_size": "abc", "keepalives": "false"}, "postgresql")
         >>> reader.as_int("pool_size", 5), reader.as_bool("keepalives", True), [f.param for f in reader.invalid]
         (None, False, ['pool_size'])

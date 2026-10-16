@@ -353,7 +353,7 @@ class DumpReportError(DumpError):
         result: ``DumpResult`` del volcado, o ``None`` si el error no viene de ``run()``. Tipado como ``Any`` porque
             ``_core`` no puede importar de ``dump`` (capas de ``docs/architecture.md``).
 
-    Example:
+    Examples:
         >>> try:
         ...     result = DumpOrchestrator(config).run()
         ... except DumpReportError as exc:
@@ -422,7 +422,7 @@ class ParallelLoadError(DatabaseOperationError):
     Attributes:
         result: ``ParallelLoadResult`` de la carga. Tipado como ``Any`` porque ``_core`` no puede importar de ``bulk``.
 
-    Example:
+    Examples:
         >>> try:
         ...     crud.bulk_insert_from_df(df, "ventas", generar_sql=False)
         ... except ParallelLoadError as exc:

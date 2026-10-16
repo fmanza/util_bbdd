@@ -71,7 +71,7 @@ class DocumentationResult:
         views: Vistas.
         routines: Procedimientos y funciones.
 
-    Example:
+    Examples:
         >>> result = DatabaseDocumentation(manager, Path("out"), formatos=["html"]).generate()
         >>> result.outputs["html"].name
         'HTML'

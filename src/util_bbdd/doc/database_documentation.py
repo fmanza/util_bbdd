@@ -65,7 +65,7 @@ class DatabaseDocumentation:
             cabeceras inexistentes o mal formadas, plantilla Word que no existe, ``batch_window_seconds`` que no es un
             entero ≥ 0). También es ``ValueError``.
 
-    Example:
+    Examples:
         >>> with SyncDatabaseManager("postgresql", conn_params) as manager:
         ...     result = DatabaseDocumentation(manager, Path("docs_bd"), formatos=["word", "html"]).generate()
         >>> result.outputs["html"]
@@ -132,7 +132,7 @@ class DatabaseDocumentation:
                 causa queda en ``__cause__``).
             DatabaseException: Error leyendo el catálogo (con su propia clase, p. ej. ``DatabaseOperationError``).
 
-        Example:
+        Examples:
             >>> result = DatabaseDocumentation(manager, Path("out"), formatos=["excel"]).generate()
             >>> result.outputs["excel"].suffix
             '.xlsx'

@@ -32,7 +32,7 @@ class SnapshotCache:
     Args:
         max_schemas: Nº máximo de pares ``(fuente, schema)`` en memoria; al superarlo se descarta el menos usado.
 
-    Example:
+    Examples:
         >>> cache = SnapshotCache(max_schemas=4)
         >>> cache.get_or_load(("pg", "ventas", Kind.TABLES, None), lambda: (TableMeta("t"),))
         (TableMeta(name='t', comment=None, collation=None),)

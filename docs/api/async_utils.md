@@ -54,7 +54,13 @@ El helper resuelve la heterogeneidad de los drivers sync/async sin obligar al ll
 | `inspect` (stdlib) | `inspect.isawaitable` para detectar awaitables | Sí | Módulo no funciona |
 | `typing` / `collections.abc` (stdlib) | `Awaitable`, `cast`, `overload` para el tipado | Sí | Solo afecta a la verificación de tipos |
 
-## 5. Uso interno en la librería
+## 5. Ejemplos Relacionados
+
+`maybe_await` es una utilidad de soporte y no tiene un ejemplo propio en `docs/examples/`: el fragmento de abajo
+muestra su uso, y [Queries Concurrentes (Async)](../examples/async_concurrent_queries.md) el consumo async de alto
+nivel que la usa por dentro.
+
+### Uso interno en la librería
 
 `maybe_await` se emplea en las capas asíncronas que consumen drivers cuyo retorno puede ser
 síncrono o awaitable según el motor y la operación:
@@ -72,5 +78,3 @@ async def resolver(valor):
     # Funciona tanto si 'valor' es una corrutina como si es un valor directo.
     return await maybe_await(valor)
 ```
-
-Para ver consumo async de alto nivel, consulta [Queries Concurrentes (Async)](../examples/async_concurrent_queries.md).

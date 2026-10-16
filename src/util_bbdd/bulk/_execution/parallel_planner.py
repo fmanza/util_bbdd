@@ -143,7 +143,7 @@ class ParallelPlan:
 class ParallelPlanner:
     """Decide los hilos de una carga paralela a partir de las opciones pedidas, el motor, la operación y el volumen.
 
-    Example:
+    Examples:
         >>> from util_bbdd.bulk.options import ParallelOptions
         >>> plan = ParallelPlanner.plan(
         ...     PlanInput(dialect="mssql", operation="insert", rows=2_000_000, options=ParallelOptions(mode="auto"))

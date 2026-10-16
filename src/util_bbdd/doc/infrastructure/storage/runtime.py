@@ -28,7 +28,7 @@ _GENERIC_STORAGE_FALLBACK_MESSAGE: str = (
 class StorageInventoryRuntime:
     """Construye el informe de almacenamiento consumido por los generadores.
 
-    Example:
+    Examples:
         >>> runtime = StorageInventoryRuntime(manager, logger, "mariadb", "ventas", print_config={})
         >>> runtime.get_storage_inventory_report()["sections"][0]["title"]
         'Ficheros físicos'

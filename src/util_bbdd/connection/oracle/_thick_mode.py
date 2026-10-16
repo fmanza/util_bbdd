@@ -32,7 +32,7 @@ def init_oracle_thick_mode(client_path: str) -> None:
     Raises:
         ConnectionError: Si ya se llamó a esta función, o si falla la inicialización.
 
-    Example:
+    Examples:
         >>> from util_bbdd.connection.oracle._thick_mode import init_oracle_thick_mode
         >>> init_oracle_thick_mode("C:\\oracle\\instantclient_19_32")
     """

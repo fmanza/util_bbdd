@@ -210,7 +210,7 @@ class SQLAlchemyEngineFactory:
         Raises:
             ValidationError: Si faltan parámetros requeridos
 
-        Example:
+        Examples:
             >>> conn_params = {"database": "/path/to/app.db"}
             >>> SQLAlchemyEngineFactory._build_sqlite_connection_string(conn_params)
             'sqlite:////path/to/app.db'

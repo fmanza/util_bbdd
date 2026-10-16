@@ -29,7 +29,7 @@ def path_lock(path: Path) -> threading.Lock:
     ``C:\\...`` el resto del tiempo, así que dos hilos obtenían locks distintos y uno pisaba la cabecera y las filas del
     otro.
 
-    Example:
+    Examples:
         >>> path_lock(Path("auditoria.csv")) is path_lock(Path("./auditoria.csv"))
         True
     """
