@@ -240,6 +240,8 @@ def _connections() -> dict[str, FakeServerConnection | None]:
     connections |= {name: FakeServerConnection(values) for name, values in SERVER.items()}
     connections["servidor_caido"] = FakeServerConnection(None, fail=True)
     connections["sin_permiso_v_parameter"] = FakeServerConnection(SERVER["tipicos"], v_parameter=False)
+    # 2.2.1 (R-2): MySQL 8.0.30+ con innodb_redo_log_capacity (100 MB, el valor por defecto) además de log_file_size.
+    connections["mysql_8030"] = FakeServerConnection({**SERVER["tipicos"], "innodb_redo_log_capacity": 104_857_600})
     return connections
 
 
@@ -249,8 +251,9 @@ def _cases() -> list[tuple[str, str, str, str]]:
         for engine in ENGINES
         for params in PARAMS
         for server in _connections()
-        # sin_permiso_v_parameter solo cambia algo en Oracle
+        # sin_permiso_v_parameter solo cambia algo en Oracle, y mysql_8030 en MySQL/MariaDB
         if server != "sin_permiso_v_parameter" or engine == "oracle"
+        if server != "mysql_8030" or engine in {"mysql", "mariadb"}
     ]
 
 
@@ -370,3 +373,26 @@ def test_an_internal_error_in_the_dynamic_checks_keeps_the_static_findings(
 
     assert "pool_size" in {f.param for f in findings}
     assert "error interno en los checks dinámicos de 'postgresql'" in caplog.text
+
+
+# 2.2.1 (R-2): el redo log se evalúa con la variable que manda en el servidor.
+def test_mysql_8030_reports_redo_log_capacity_and_not_the_ignored_log_file_size() -> None:
+    levels = _levels("mysql", {}, "mysql_8030")
+
+    assert levels["innodb_redo_log_capacity"] == "INFO"  # 100 MB < 512 MB
+    assert "innodb_log_file_size" not in levels
+
+
+def test_redo_log_capacity_of_at_least_512_mb_is_ok() -> None:
+    connection = FakeServerConnection({**SERVER["tipicos"], "innodb_redo_log_capacity": 2_147_483_648})
+    findings = EngineReadinessAdvisor().check("mysql", {}, connection=connection)
+
+    assert {f.param: f.level for f in findings}["innodb_redo_log_capacity"] == "OK"
+
+
+def test_without_redo_log_capacity_log_file_size_is_still_checked() -> None:
+    # MariaDB y MySQL < 8.0.30 no tienen innodb_redo_log_capacity.
+    levels = _levels("mariadb", {}, "tipicos")
+
+    assert levels["innodb_log_file_size"] == "INFO"
+    assert "innodb_redo_log_capacity" not in levels

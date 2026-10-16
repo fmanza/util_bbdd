@@ -37,13 +37,14 @@ Además del LOG, los hallazgos aparecen en los documentos y los Excel de auditor
 | Parámetro | Tipo | Rango | Recomendación |
 |-----------|------|-------|----------------|
 | `innodb_flush_log_at_trx_commit` | Dinámico | 0, 1, 2 | **1** (único valor ACID; OK). **2** se informa (INFO): más rápido en cargas, pero pierde hasta ~1 s de commits si cae el sistema operativo; solo durante una ventana de carga y volver a 1. **0** se avisa (WARNING): pierde también si cae `mysqld` |
-| `innodb_log_file_size` | Estático* | ≥512 MB | **1–2 GB** (evita rotación frecuente redo log >10GB datasets) |
+| `innodb_redo_log_capacity` (MySQL 8.0.30+) | Dinámico | ≥512 MB | **1–2 GB** (evita checkpoints frecuentes del redo log en datasets >10 GB); si existe, se evalúa esta y no `innodb_log_file_size` |
+| `innodb_log_file_size` (MariaDB, MySQL < 8.0.30) | Estático* | ≥512 MB | **1–2 GB** (evita rotación frecuente redo log >10GB datasets) |
 | `innodb_write_io_threads` | Estático en MySQL | ≥1 | **nCPU/2** en SSD (paralelismo escritura; en `my.cnf`, requiere reinicio) |
 | `innodb_buffer_pool_size` | Dinámico | ≥1 GB | **25–50% RAM** (25% mínimo, 50% óptimo) |
 | `max_allowed_packet` | Dinámico | ≥16 MB | **64 MB** (INSERT multi-fila de ~1000 filas) |
 
-**\*MySQL 8.0.30+: `innodb_log_file_size` está obsoleta; el tamaño del redo log se ajusta en caliente con
-`innodb_redo_log_capacity`. MySQL 5.7 y MariaDB anteriores a 10.9: en `my.cnf`, requiere reinicio.**
+**\*MySQL 8.0.30+ ignora `innodb_log_file_size` (obsoleta): el advisor evalúa allí `innodb_redo_log_capacity`, que se
+ajusta en caliente. MySQL 5.7/8.0 anteriores a 8.0.30 y MariaDB anteriores a 10.9: en `my.cnf`, requiere reinicio.**
 
 **Ejemplo de hallazgos:**
 

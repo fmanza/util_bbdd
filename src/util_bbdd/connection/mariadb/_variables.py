@@ -32,6 +32,8 @@ class MySQLVariableValidator:
             "innodb_buffer_pool_size",
             "innodb_flush_log_at_trx_commit",
             "innodb_log_file_size",
+            # 2.2.1 (R-2): MySQL 8.0.30+; manda sobre innodb_log_file_size, que allí está obsoleta e ignorada.
+            "innodb_redo_log_capacity",
             "innodb_write_io_threads",
         }
     )

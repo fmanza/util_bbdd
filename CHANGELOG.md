@@ -13,6 +13,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   (`SHOW VARIABLES WHERE Variable_name = '…'`; con `LIKE` el `_` del nombre era un comodín) y una fila con forma
   inesperada omite solo esa variable con un WARNING. Antes lanzaba fuera de la función y, desde 2.2.0,
   `EngineReadinessAdvisor` perdía todos los checks dinámicos de MySQL/MariaDB.
+- **connection**: en MySQL 8.0.30+ `EngineReadinessAdvisor` evalúa el redo log con `innodb_redo_log_capacity` (la
+  variable vigente; ≥512 MB OK, por debajo INFO con `SET GLOBAL`, dinámica). Antes informaba `innodb_log_file_size`,
+  que ese servidor ignora (48 MB en un MySQL 8.4 con 100 MB de capacidad real). MariaDB y MySQL < 8.0.30 no cambian.
+  `MySQLVariableValidator.read_variables()` devuelve también `innodb_redo_log_capacity` cuando el servidor la tiene.
 
 ## [2.2.0] - 2026-10-16
 

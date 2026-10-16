@@ -106,7 +106,7 @@ class MySQLReadinessValidator:
 
             checks = (
                 self._check_flush_log_at_trx_commit(current.get("innodb_flush_log_at_trx_commit")),
-                self._check_log_file_size(validator, current.get("innodb_log_file_size")),
+                self._check_redo_log(validator, current),
                 self._check_write_io_threads(current.get("innodb_write_io_threads")),
             )
             findings.extend(check for check in checks if check is not None)
@@ -218,9 +218,31 @@ class MySQLReadinessValidator:
             "(SET GLOBAL innodb_flush_log_at_trx_commit = 1;) o, solo durante una carga, 2",
         )
 
+    @classmethod
+    def _check_redo_log(cls, validator: MySQLVariableValidator, current: dict[str, int]) -> AdvisoryFinding | None:
+        """Tamaño del redo log con la variable que manda en el servidor (2.2.1, R-2).
+
+        MySQL 8.0.30+ tiene ``innodb_redo_log_capacity`` e ignora ``innodb_log_file_size`` (obsoleta): antes se informaba
+        esta última (48 MB en un MySQL 8.4 con 100 MB de capacidad real). MariaDB y MySQL < 8.0.30 no la tienen y siguen
+        con ``innodb_log_file_size``.
+        """
+        capacity = current.get("innodb_redo_log_capacity")
+        if capacity is None:
+            return cls._check_log_file_size(validator, current.get("innodb_log_file_size"))
+        capacity_fmt = validator.format_bytes(capacity)
+        if capacity < 512 * 1_048_576:
+            return AdvisoryFinding(
+                level="INFO",
+                param="innodb_redo_log_capacity",
+                current=capacity_fmt,
+                recommendation=f"Para bulk en datasets >10GB: aumentar a 1–2 GB (actual: {capacity_fmt}); evita "
+                f"checkpoints frecuentes del redo log; dinámica: SET GLOBAL innodb_redo_log_capacity = 2147483648;",
+            )
+        return AdvisoryFinding(level="OK", param="innodb_redo_log_capacity", current=capacity_fmt, recommendation="")
+
     @staticmethod
     def _check_log_file_size(validator: MySQLVariableValidator, value: int | None) -> AdvisoryFinding | None:
-        """Evalúa innodb_log_file_size."""
+        """Evalúa innodb_log_file_size (MariaDB y MySQL < 8.0.30; en 8.0.30+ ver :meth:`_check_redo_log`)."""
         if value is None:
             return None
         log_file_fmt = validator.format_bytes(value)

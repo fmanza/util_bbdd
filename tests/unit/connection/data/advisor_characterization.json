@@ -86,6 +86,68 @@
    "En servidores SSD con ≥4 CPUs: aumentar a nCPU/2 para paralelismo de escritura; en my.cnf (innodb_write_io_threads = <n>): en MySQL no es dinámica y requiere reinicio"
   ]
  ],
+ "mariadb|bajos|mysql_8030": [
+  [
+   "WARNING",
+   "autocommit",
+   "True",
+   "autocommit=True confirma cada INSERT individualmente; usar transacciones para bulk"
+  ],
+  [
+   "WARNING",
+   "pool_size",
+   "1",
+   "Mínimo 5 para cargas concurrentes"
+  ],
+  [
+   "WARNING",
+   "write_timeout",
+   "10s",
+   "Mínimo 30 s; en cargas masivas largas, 60 s o más evita 'Lost connection'"
+  ],
+  [
+   "WARNING",
+   "read_timeout",
+   "10s",
+   "Recomendado ≥30 s"
+  ],
+  [
+   "WARNING",
+   "pool_timeout",
+   "5s",
+   "Recomendado ≥10 s para evitar timeouts en picos de carga"
+  ],
+  [
+   "WARNING",
+   "innodb_buffer_pool_size",
+   "128.0 MB",
+   "Recomendado ≥1.0 GB; SET GLOBAL innodb_buffer_pool_size = 1073741824; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "INFO",
+   "innodb_redo_log_capacity",
+   "100.0 MB",
+   "Para bulk en datasets >10GB: aumentar a 1–2 GB (actual: 100.0 MB); evita checkpoints frecuentes del redo log; dinámica: SET GLOBAL innodb_redo_log_capacity = 2147483648;"
+  ],
+  [
+   "OK",
+   "max_allowed_packet",
+   "64.0 MB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_flush_log_at_trx_commit",
+   "1",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_write_io_threads",
+   "4",
+   ""
+  ]
+ ],
  "mariadb|bajos|optimos": [
   [
    "WARNING",
@@ -330,6 +392,62 @@
    ""
   ]
  ],
+ "mariadb|buenos|mysql_8030": [
+  [
+   "WARNING",
+   "innodb_buffer_pool_size",
+   "128.0 MB",
+   "Recomendado ≥1.0 GB; SET GLOBAL innodb_buffer_pool_size = 1073741824; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "INFO",
+   "innodb_redo_log_capacity",
+   "100.0 MB",
+   "Para bulk en datasets >10GB: aumentar a 1–2 GB (actual: 100.0 MB); evita checkpoints frecuentes del redo log; dinámica: SET GLOBAL innodb_redo_log_capacity = 2147483648;"
+  ],
+  [
+   "OK",
+   "autocommit",
+   "False",
+   ""
+  ],
+  [
+   "OK",
+   "pool_size",
+   "10",
+   ""
+  ],
+  [
+   "OK",
+   "write_timeout",
+   "60s",
+   ""
+  ],
+  [
+   "OK",
+   "read_timeout",
+   "60s",
+   ""
+  ],
+  [
+   "OK",
+   "max_allowed_packet",
+   "64.0 MB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_flush_log_at_trx_commit",
+   "1",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_write_io_threads",
+   "4",
+   ""
+  ]
+ ],
  "mariadb|buenos|optimos": [
   [
    "INFO",
@@ -554,6 +672,68 @@
    "innodb_write_io_threads",
    "1",
    "En servidores SSD con ≥4 CPUs: aumentar a nCPU/2 para paralelismo de escritura; en my.cnf (innodb_write_io_threads = <n>): en MySQL no es dinámica y requiere reinicio"
+  ]
+ ],
+ "mariadb|invalidos|mysql_8030": [
+  [
+   "CRITICAL",
+   "autocommit",
+   "quizá",
+   "autocommit debe ser true/false (booleano o string: 'true', 'false', 'yes', 'no', '1', '0')"
+  ],
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "write_timeout",
+   "y",
+   "write_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "read_timeout",
+   "z",
+   "read_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "WARNING",
+   "innodb_buffer_pool_size",
+   "128.0 MB",
+   "Recomendado ≥1.0 GB; SET GLOBAL innodb_buffer_pool_size = 1073741824; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "INFO",
+   "innodb_redo_log_capacity",
+   "100.0 MB",
+   "Para bulk en datasets >10GB: aumentar a 1–2 GB (actual: 100.0 MB); evita checkpoints frecuentes del redo log; dinámica: SET GLOBAL innodb_redo_log_capacity = 2147483648;"
+  ],
+  [
+   "OK",
+   "max_allowed_packet",
+   "64.0 MB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_flush_log_at_trx_commit",
+   "1",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_write_io_threads",
+   "4",
+   ""
   ]
  ],
  "mariadb|invalidos|optimos": [
@@ -800,6 +980,62 @@
    ""
   ]
  ],
+ "mariadb|texto|mysql_8030": [
+  [
+   "WARNING",
+   "innodb_buffer_pool_size",
+   "128.0 MB",
+   "Recomendado ≥1.0 GB; SET GLOBAL innodb_buffer_pool_size = 1073741824; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "INFO",
+   "innodb_redo_log_capacity",
+   "100.0 MB",
+   "Para bulk en datasets >10GB: aumentar a 1–2 GB (actual: 100.0 MB); evita checkpoints frecuentes del redo log; dinámica: SET GLOBAL innodb_redo_log_capacity = 2147483648;"
+  ],
+  [
+   "OK",
+   "autocommit",
+   "False",
+   ""
+  ],
+  [
+   "OK",
+   "pool_size",
+   "10",
+   ""
+  ],
+  [
+   "OK",
+   "write_timeout",
+   "60s",
+   ""
+  ],
+  [
+   "OK",
+   "read_timeout",
+   "60s",
+   ""
+  ],
+  [
+   "OK",
+   "max_allowed_packet",
+   "64.0 MB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_flush_log_at_trx_commit",
+   "1",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_write_io_threads",
+   "4",
+   ""
+  ]
+ ],
  "mariadb|texto|optimos": [
   [
    "INFO",
@@ -994,6 +1230,38 @@
    "innodb_write_io_threads",
    "1",
    "En servidores SSD con ≥4 CPUs: aumentar a nCPU/2 para paralelismo de escritura; en my.cnf (innodb_write_io_threads = <n>): en MySQL no es dinámica y requiere reinicio"
+  ]
+ ],
+ "mariadb|vacio|mysql_8030": [
+  [
+   "WARNING",
+   "innodb_buffer_pool_size",
+   "128.0 MB",
+   "Recomendado ≥1.0 GB; SET GLOBAL innodb_buffer_pool_size = 1073741824; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "INFO",
+   "innodb_redo_log_capacity",
+   "100.0 MB",
+   "Para bulk en datasets >10GB: aumentar a 1–2 GB (actual: 100.0 MB); evita checkpoints frecuentes del redo log; dinámica: SET GLOBAL innodb_redo_log_capacity = 2147483648;"
+  ],
+  [
+   "OK",
+   "max_allowed_packet",
+   "64.0 MB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_flush_log_at_trx_commit",
+   "1",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_write_io_threads",
+   "4",
+   ""
   ]
  ],
  "mariadb|vacio|optimos": [
@@ -2026,6 +2294,68 @@
    "En servidores SSD con ≥4 CPUs: aumentar a nCPU/2 para paralelismo de escritura; en my.cnf (innodb_write_io_threads = <n>): en MySQL no es dinámica y requiere reinicio"
   ]
  ],
+ "mysql|bajos|mysql_8030": [
+  [
+   "WARNING",
+   "autocommit",
+   "True",
+   "autocommit=True confirma cada INSERT individualmente; usar transacciones para bulk"
+  ],
+  [
+   "WARNING",
+   "pool_size",
+   "1",
+   "Mínimo 5 para cargas concurrentes"
+  ],
+  [
+   "WARNING",
+   "write_timeout",
+   "10s",
+   "Mínimo 30 s; en cargas masivas largas, 60 s o más evita 'Lost connection'"
+  ],
+  [
+   "WARNING",
+   "read_timeout",
+   "10s",
+   "Recomendado ≥30 s"
+  ],
+  [
+   "WARNING",
+   "pool_timeout",
+   "5s",
+   "Recomendado ≥10 s para evitar timeouts en picos de carga"
+  ],
+  [
+   "WARNING",
+   "innodb_buffer_pool_size",
+   "128.0 MB",
+   "Recomendado ≥1.0 GB; SET GLOBAL innodb_buffer_pool_size = 1073741824; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "INFO",
+   "innodb_redo_log_capacity",
+   "100.0 MB",
+   "Para bulk en datasets >10GB: aumentar a 1–2 GB (actual: 100.0 MB); evita checkpoints frecuentes del redo log; dinámica: SET GLOBAL innodb_redo_log_capacity = 2147483648;"
+  ],
+  [
+   "OK",
+   "max_allowed_packet",
+   "64.0 MB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_flush_log_at_trx_commit",
+   "1",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_write_io_threads",
+   "4",
+   ""
+  ]
+ ],
  "mysql|bajos|optimos": [
   [
    "WARNING",
@@ -2270,6 +2600,62 @@
    ""
   ]
  ],
+ "mysql|buenos|mysql_8030": [
+  [
+   "WARNING",
+   "innodb_buffer_pool_size",
+   "128.0 MB",
+   "Recomendado ≥1.0 GB; SET GLOBAL innodb_buffer_pool_size = 1073741824; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "INFO",
+   "innodb_redo_log_capacity",
+   "100.0 MB",
+   "Para bulk en datasets >10GB: aumentar a 1–2 GB (actual: 100.0 MB); evita checkpoints frecuentes del redo log; dinámica: SET GLOBAL innodb_redo_log_capacity = 2147483648;"
+  ],
+  [
+   "OK",
+   "autocommit",
+   "False",
+   ""
+  ],
+  [
+   "OK",
+   "pool_size",
+   "10",
+   ""
+  ],
+  [
+   "OK",
+   "write_timeout",
+   "60s",
+   ""
+  ],
+  [
+   "OK",
+   "read_timeout",
+   "60s",
+   ""
+  ],
+  [
+   "OK",
+   "max_allowed_packet",
+   "64.0 MB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_flush_log_at_trx_commit",
+   "1",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_write_io_threads",
+   "4",
+   ""
+  ]
+ ],
  "mysql|buenos|optimos": [
   [
    "INFO",
@@ -2494,6 +2880,68 @@
    "innodb_write_io_threads",
    "1",
    "En servidores SSD con ≥4 CPUs: aumentar a nCPU/2 para paralelismo de escritura; en my.cnf (innodb_write_io_threads = <n>): en MySQL no es dinámica y requiere reinicio"
+  ]
+ ],
+ "mysql|invalidos|mysql_8030": [
+  [
+   "CRITICAL",
+   "autocommit",
+   "quizá",
+   "autocommit debe ser true/false (booleano o string: 'true', 'false', 'yes', 'no', '1', '0')"
+  ],
+  [
+   "CRITICAL",
+   "pool_size",
+   "abc",
+   "pool_size debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "write_timeout",
+   "y",
+   "write_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "read_timeout",
+   "z",
+   "read_timeout debe ser entero"
+  ],
+  [
+   "CRITICAL",
+   "pool_timeout",
+   "lento",
+   "pool_timeout debe ser entero"
+  ],
+  [
+   "WARNING",
+   "innodb_buffer_pool_size",
+   "128.0 MB",
+   "Recomendado ≥1.0 GB; SET GLOBAL innodb_buffer_pool_size = 1073741824; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "INFO",
+   "innodb_redo_log_capacity",
+   "100.0 MB",
+   "Para bulk en datasets >10GB: aumentar a 1–2 GB (actual: 100.0 MB); evita checkpoints frecuentes del redo log; dinámica: SET GLOBAL innodb_redo_log_capacity = 2147483648;"
+  ],
+  [
+   "OK",
+   "max_allowed_packet",
+   "64.0 MB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_flush_log_at_trx_commit",
+   "1",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_write_io_threads",
+   "4",
+   ""
   ]
  ],
  "mysql|invalidos|optimos": [
@@ -2740,6 +3188,62 @@
    ""
   ]
  ],
+ "mysql|texto|mysql_8030": [
+  [
+   "WARNING",
+   "innodb_buffer_pool_size",
+   "128.0 MB",
+   "Recomendado ≥1.0 GB; SET GLOBAL innodb_buffer_pool_size = 1073741824; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "INFO",
+   "innodb_redo_log_capacity",
+   "100.0 MB",
+   "Para bulk en datasets >10GB: aumentar a 1–2 GB (actual: 100.0 MB); evita checkpoints frecuentes del redo log; dinámica: SET GLOBAL innodb_redo_log_capacity = 2147483648;"
+  ],
+  [
+   "OK",
+   "autocommit",
+   "False",
+   ""
+  ],
+  [
+   "OK",
+   "pool_size",
+   "10",
+   ""
+  ],
+  [
+   "OK",
+   "write_timeout",
+   "60s",
+   ""
+  ],
+  [
+   "OK",
+   "read_timeout",
+   "60s",
+   ""
+  ],
+  [
+   "OK",
+   "max_allowed_packet",
+   "64.0 MB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_flush_log_at_trx_commit",
+   "1",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_write_io_threads",
+   "4",
+   ""
+  ]
+ ],
  "mysql|texto|optimos": [
   [
    "INFO",
@@ -2934,6 +3438,38 @@
    "innodb_write_io_threads",
    "1",
    "En servidores SSD con ≥4 CPUs: aumentar a nCPU/2 para paralelismo de escritura; en my.cnf (innodb_write_io_threads = <n>): en MySQL no es dinámica y requiere reinicio"
+  ]
+ ],
+ "mysql|vacio|mysql_8030": [
+  [
+   "WARNING",
+   "innodb_buffer_pool_size",
+   "128.0 MB",
+   "Recomendado ≥1.0 GB; SET GLOBAL innodb_buffer_pool_size = 1073741824; (requiere SUPER o SYSTEM_VARIABLES_ADMIN)"
+  ],
+  [
+   "INFO",
+   "innodb_redo_log_capacity",
+   "100.0 MB",
+   "Para bulk en datasets >10GB: aumentar a 1–2 GB (actual: 100.0 MB); evita checkpoints frecuentes del redo log; dinámica: SET GLOBAL innodb_redo_log_capacity = 2147483648;"
+  ],
+  [
+   "OK",
+   "max_allowed_packet",
+   "64.0 MB",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_flush_log_at_trx_commit",
+   "1",
+   ""
+  ],
+  [
+   "OK",
+   "innodb_write_io_threads",
+   "4",
+   ""
   ]
  ],
  "mysql|vacio|optimos": [

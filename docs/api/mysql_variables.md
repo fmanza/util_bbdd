@@ -27,7 +27,7 @@ Ambas clases se importan de `util_bbdd.connection.mariadb` (válidas para MariaD
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
 | `MySQLVariableValidator` | `(connection)` | Inicializa con una `Connection` de SQLAlchemy | `MySQLVariableValidator` |
-| `read_variables` | `()` | Lee `max_allowed_packet` e `innodb_buffer_pool_size` | `dict[str, int]` (bytes) |
+| `read_variables` | `()` | Lee `max_allowed_packet`, `innodb_buffer_pool_size`, `innodb_flush_log_at_trx_commit`, `innodb_log_file_size`, `innodb_redo_log_capacity` (MySQL 8.0.30+; desde 2.2.1) e `innodb_write_io_threads`; solo las que existen en el servidor | `dict[str, int]` |
 | `validate` | `(required: dict[str, int])` | Valida que valores actuales ≥ requeridos | `dict[str, bool]` |
 | `log_summary` | `(required=None)` | INFO con los valores actuales y, con `required`, WARNING de los insuficientes | `None` |
 | `format_bytes` | `(size_bytes)` | `"64.0 MB"`, `"1.0 GB"`… | `str` |
