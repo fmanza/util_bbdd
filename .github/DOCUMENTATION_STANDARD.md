@@ -93,11 +93,9 @@ Las páginas que solo contienen directivas autodoc de `mkdocstrings` están excl
 Diagrama Mermaid (flowchart TD, classDiagram, sequenceDiagram o architecture-beta
 según los criterios de docs.instructions.md § Mermaid). Máximo 12 nodos.
 
-## 2. API Reference
-### Autodoc
-Directiva de generación automática (Python: ::: util_bbdd.modulo.Clase).
-Solo exportados en __all__. Nunca implementación interna.
-### Contratos
+## 2. Modelo de Datos / Contratos
+Sin directivas autodoc: van en docs/api/[area]_autodoc.md (sección «Autodoc (mkdocstrings)» de mkdocs.yml).
+### API pública y contratos
 Tabla API pública: | Función/Clase | Firma simplificada | Descripción | Retorna |
 Tabla entrada:     | Parámetro | Tipo | Descripción | Restricciones |
 Contrato de salida: tipos, estructura y casos especiales.

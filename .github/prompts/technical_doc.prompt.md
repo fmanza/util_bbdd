@@ -35,14 +35,11 @@ Si el módulo contiene Web API, servidor web, base de datos o contenedores, aña
 después del diagrama principal un párrafo de infraestructura y un diagrama `architecture-beta`.
 Ver restricciones de sintaxis en docs.instructions.md.
 
-## 2. API Reference
+## 2. Modelo de Datos / Contratos
 
-### Autodoc
-Incluir la directiva de generación automática según el lenguaje del proyecto:
-  Python:     ::: util_bbdd.[modulo].[Clase]
-  Java:       ::: com.ejemplo.[paquete].[Clase]
-  TypeScript: ::: [Modulo].[Clase]
-Solo exportados en __all__, public o export. No implementación interna.
+Sin directivas autodoc en esta página: el autodoc (`::: util_bbdd.[modulo].[Clase]`, solo lo exportado en
+`__all__`) va en la página `docs/api/[area]_autodoc.md` de la sección «Autodoc (mkdocstrings)» de `mkdocs.yml`;
+créala o amplíala si el módulo no tiene.
 
 ### API pública
 Tabla con columnas: | Función/Clase | Firma simplificada | Descripción | Retorna |
@@ -171,7 +168,8 @@ Si el flujo no puede inferirse con seguridad, declara qué información falta en
 ## Output esperado
 
 Markdown con título H1, párrafo introductorio de una frase y las 5 secciones del Arquetipo 2
-numeradas (`## 1.`–`## 5.`), incluyendo un bloque `mermaid` válido en `## 1.`, directiva
-autodoc y tablas de contratos en `## 2.`, y al menos un enlace a ejemplo en `## 5.` o el
+numeradas (`## 1.`–`## 5.`), incluyendo un bloque `mermaid` válido en `## 1.`, tablas de API
+pública y contratos en `## 2.` (la directiva autodoc va en la página `*_autodoc.md`), y al menos
+un enlace a ejemplo en `## 5.` o el
 placeholder de "Pendiente". Secciones vacías con `*No aplica para este módulo.*`.
 Todo el contenido derivado del código real: sin inventar parámetros, retornos ni comportamientos.

@@ -26,13 +26,13 @@ Lee antes de revisar:
 
 ## Alcance de la revisión
 
-1. **README y landing page**: clarity, completitud, ejemplos de inicio rápido
+1. **README y landing page**: claridad, completitud, ejemplos de inicio rápido
 2. **Docstrings y comentarios**: cobertura en módulos públicos, claridad, ejemplos de uso
-3. **Ejemplos**: existence, correctness, reproducibility, coverage por feature
+3. **Ejemplos**: existencia, corrección, reproducibilidad, cobertura por funcionalidad
 4. **Guías técnicas**: arquitectura, onboarding, migraciones, troubleshooting
-5. **Documentación de APIs**: type hints, parameters, return values, exceptions
-6. **Compatibilidad e instalación**: setup instructions, requirements, soportes de motor
-7. **Changelog y releases**: claridad, linkability, impacto comunicado
+5. **Documentación de APIs**: type hints, parámetros, valores de retorno, excepciones
+6. **Compatibilidad e instalación**: instrucciones de instalación, requisitos, soporte por motor
+7. **Changelog y releases**: claridad, enlaces, impacto comunicado
 8. **MkDocs**: `nav`, páginas huérfanas, páginas referenciadas inexistentes, Mermaid, extensiones
 9. **Prompts e instrucciones IA**: calidad, no duplicación, no invención, separación funcional/técnica
 10. **Normativa (condicional)**: leer `.ai/product.md` y `README.md`:
