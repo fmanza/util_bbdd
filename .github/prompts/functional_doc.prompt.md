@@ -35,7 +35,10 @@ información verificable del código, README, `docs/` y configuración del proye
      `### Pendiente de validación QA` solo si hace falta).
   5. `## 5. Glosario y Términos` — igual que §8 del núcleo.
 
-  Al generar o actualizar una página de `docs/functional/` aplica esta estructura, no la del núcleo.
+  Al generar o actualizar una página de `docs/functional/` aplica esta estructura, no la del núcleo. Prevalece
+  también sobre «Restricciones» y «Output esperado» del núcleo, cuyas §N se leen así: §3 → `3. Casos de Uso`,
+  §5 → `2. Reglas de Negocio`, §7 → `4. Criterios de Aceptación`, §8 → `5. Glosario y Términos`. El documento tiene
+  5 secciones y el diagrama del flujo principal es el indicado arriba en el punto 3.
 
 ---
 

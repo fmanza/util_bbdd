@@ -114,7 +114,9 @@ siempre por pares (`.claude/commands/<x>.md` ↔ `.github/prompts/<x>.prompt.md`
 - `.github/AGENTS.md`, `.github/instructions/sync.instructions.md`
 - `.github/DOCUMENTATION_STANDARD.md` (solo si el destino publica documentación)
 - **PROMPTS DE ARQUETIPOS DOCUMENTALES** (si el destino publica documentación):
-  - `.github/prompts/functional_doc.prompt.md` (Arquetipo 1: Documentación Funcional)
+  - `.github/prompts/functional_doc.prompt.md` (Arquetipo 1: Documentación Funcional) — revisar su bloque
+    "Especialización de dominio": la estructura de 5 secciones es propia de util_bbdd; quitarla si el destino
+    usa las 8 del núcleo
   - `.github/prompts/technical_doc.prompt.md` (Arquetipo 2: Documentación Técnica/API)
   - `.github/prompts/guide_doc.prompt.md` (Arquetipo 3: Guías de Usuario)
   - `.github/prompts/example_doc.prompt.md` (Arquetipo 4: Ejemplos de Código)

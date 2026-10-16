@@ -87,9 +87,15 @@ El contrato es `.github/prompts/documentation_review.prompt.md`: criterios por s
 PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION, subsecciones obligatorias de AUDIT_CODE y veredicto
 `PRODUCTION_READY | NEAR_READY | BLOCKED`. No los repitas aquí: si este agente y el prompt discrepan, manda el prompt.
 
-## Verificaciones recomendadas (solo lectura)
+## Verificaciones
+
+Con tus herramientas (lectura y búsqueda):
 
 - Navegación: compara las rutas de `nav:` de `mkdocs.yml` con los `.md` de `docs/` (rotas y huérfanas).
-- Build: `mkdocs build --strict -d <directorio temporal>` (no escribas `site/` en el repo).
-- Autodoc: comprueba que cada directiva `::: ruta` se puede importar.
+- Autodoc: comprueba con búsqueda que el módulo y el símbolo de cada directiva `::: ruta` existen en `src/`.
+
+No puedes ejecutar comandos: si hacen falta, pide al usuario (o a Documentation Generator) que los ejecute y no
+des por verificado lo que no se ha ejecutado:
+
+- Build: `mkdocs build --strict -d <directorio temporal>` (sin escribir `site/` en el repo).
 - Ejemplos: `pytest tests/unit/test_docs_examples.py` ejecuta los ejemplos de SQLite.

@@ -68,7 +68,7 @@ Tabla: | Término | Definición |
 - No menciones nombres de clases internas, variables ni rutas de implementación.
 - Legible por un responsable de proyecto sin conocimientos del lenguaje de implementación.
 
-**Diagramas recomendados**: `sequenceDiagram` (flujo principal), `flowchart TD` (decisiones).
+**Diagramas recomendados**: `flowchart TD` (fases y decisiones) o `sequenceDiagram` (interacción entre actores).
 
 ---
 
