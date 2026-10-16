@@ -177,3 +177,55 @@ def test_disk_variants_use_a_safe_file_name(tmp_path: Path) -> None:
 
     assert [p.name for p in paths] == ["graphviz_ext_evil-ta-ble_page1.svg", "graphviz_ext_evil-ta-ble_page2.svg"]
     assert all(p.parent == (tmp_path / "out").resolve() for p in paths)
+
+
+def _all_resolved(graph: GraphvizRelationshipGraphExt) -> bool:
+    return bool(graph._prefetched) and all(future.done() for future in graph._prefetched.values())
+
+
+def test_unexpected_batch_error_falls_back_to_one_pipe_per_graph(
+    dot_process: _FakeDotProcess, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Antes solo se capturaba OSError: un ValueError (p. ej. UnicodeEncodeError al escribir el .gv) dejaba los Future
+    # sin resolver y la llamada real esperaba para siempre en prefetched.result().
+    def _unencodable(*_: Any, **__: Any) -> int:
+        raise UnicodeEncodeError("latin-1", "ñ", 0, 1, "no representable")
+
+    monkeypatch.setattr(Path, "write_text", _unencodable)
+    graph = _generator(workers=2)
+    pipes: dict[str, int] = {}
+    render = _render_factory(graph, pipes)
+
+    graph.prefetch(render, ["a", "b"])
+
+    assert _all_resolved(graph)
+    assert render("a") == b"svg:digraph a"
+    assert pipes == {"digraph a": 1, "digraph b": 1}
+
+
+def test_prefetch_without_graphviz_resolves_every_future_with_the_import_error(
+    dot_process: _FakeDotProcess, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    graph = _generator(workers=2)
+    render = _render_factory(graph, {})
+    monkeypatch.setattr(module, "graphviz", None)
+
+    graph.prefetch(render, ["a", "b"])
+
+    assert _all_resolved(graph)
+    with pytest.raises(ImportError, match="Graphviz no disponible"):
+        render("a")
+
+
+def test_interrupted_batch_still_resolves_its_futures(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _interrupted(*_: Any, **__: Any) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(module.subprocess, "run", _interrupted)
+    graph = _generator(workers=1)
+    render = _render_factory(graph, {})
+
+    with pytest.raises(KeyboardInterrupt):
+        graph.prefetch(render, ["a"])
+
+    assert _all_resolved(graph)

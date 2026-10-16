@@ -808,11 +808,30 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         """Renderiza un lote con un solo ``dot -K<motor> -T<formato> -O`` y resuelve el ``Future`` de cada grafo.
 
         Los grafos sin salida (error de sintaxis, ``dot`` ausente…) se renderizan uno a uno con ``dot.pipe`` para que su
-        ``Future`` guarde el resultado o la excepción exacta de una llamada sin precarga.
+        ``Future`` guarde el resultado o la excepción exacta de una llamada sin precarga. Ningún ``Future`` del lote queda
+        sin resolver, ni con un error inesperado: la llamada real esperaría para siempre en ``prefetched.result()``.
         """
-        if graphviz is None:
-            raise ImportError(GRAPHVIZ_MISSING_MSG)
+        try:
+            if graphviz is None:
+                self._fail_pending(items, ImportError(GRAPHVIZ_MISSING_MSG))
+                return
+            format_ = items[0][0][0]
+            rendered = self._render_with_dot(items, graphviz.DOT_BINARY)
+            for key, dot in items:
+                future: Future[bytes] = self._prefetched[key]
+                if key in rendered:
+                    future.set_result(rendered[key])
+                    continue
+                try:
+                    future.set_result(dot.pipe(format=format_))
+                except Exception as error:  # noqa: BLE001 - se entrega tal cual a la llamada real
+                    future.set_exception(error)
+        except BaseException as error:
+            self._fail_pending(items, error)
+            raise
 
+    def _render_with_dot(self, items: list[tuple[_PipeKey, Any]], dot_binary: Any) -> dict[_PipeKey, bytes]:
+        """Salida de cada grafo del lote con un solo proceso ``dot``; los que no la tienen no aparecen."""
         format_, engine = items[0][0][0], items[0][0][1]
         rendered: dict[_PipeKey, bytes] = {}
         try:
@@ -822,22 +841,21 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                     name = f"{index}.gv"
                     Path(work_dir, name).write_text(dot.source, encoding=dot.encoding or "utf-8")
                     names.append(name)
-                command: list[str] = [str(graphviz.DOT_BINARY), f"-K{engine}", f"-T{format_}", "-O", *names]
+                command: list[str] = [str(dot_binary), f"-K{engine}", f"-T{format_}", "-O", *names]
                 subprocess.run(command, cwd=work_dir, capture_output=True, check=False)
                 for (key, _), name in zip(items, names, strict=True):
                     output = Path(work_dir, f"{name}.{format_}")
                     if output.is_file() and output.stat().st_size > 0:
                         rendered[key] = output.read_bytes()
-        except OSError as error:
+        except Exception as error:  # noqa: BLE001 - dot ausente, un .gv no representable en su codificación…
             self.logger.debug(f"Lote dot no disponible ({error}); se renderiza grafo a grafo")
-        for key, dot in items:
+        return rendered
+
+    def _fail_pending(self, items: list[tuple[_PipeKey, Any]], error: BaseException) -> None:
+        """Resuelve con ``error`` los ``Future`` del lote que aún no tienen resultado."""
+        for key, _ in items:
             future: Future[bytes] = self._prefetched[key]
-            if key in rendered:
-                future.set_result(rendered[key])
-                continue
-            try:
-                future.set_result(dot.pipe(format=format_))
-            except Exception as error:  # noqa: BLE001 - se entrega tal cual a la llamada real
+            if not future.done():
                 future.set_exception(error)
 
     def _pipe_graph_bytes(self, dot: Any, format: str, table_name: str) -> bytes:
