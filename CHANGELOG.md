@@ -5,6 +5,43 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [2.2.2] - 2026-10-16
+
+Sesión `.ai/sessions/2026-10-16c-sonarlint-cleanup/`. SemVer: PATCH (avisos de SonarLint y Pylance; sin cambios en la
+API pública). Las refactorizaciones de `migrate/views` se compararon con la salida anterior (1086 casos, 0 diferencias).
+
+### Changed
+
+- **connection**: los 14 `except Exception` que envuelven un fallo de conexión en `ConnectionError` (conexiones sync y
+  async de los 7 motores; pymssql y pyodbc en SQL Server) registran el error con `logger.exception`: el log ERROR
+  incluye ahora el traceback del error original. Los `except ImportError` (driver ausente) no cambian.
+- **factory**: el mensaje de «Tipo de BD no soportado para SQLAlchemy async» muestra el tipo normalizado (minúsculas,
+  sin espacios), como ya hacía el campo `db_type` de la excepción.
+- **migrate**: el cast de PostgreSQL al final de un DEFAULT (`'x'::numeric(10,2)`) se reconoce sin validar la forma
+  de la precisión, buscando solo desde el último `::` (`_compat/default_normalizer.py`). Sin backtracking
+  superlineal; igual resultado que antes en 200 000 entradas aleatorias. Con una precisión mal formada
+  (`::numeric(,)`, que PostgreSQL no genera) ahora también se quita el cast.
+- **bulk, comparar, connection, factory, metadata, migrate**: funciones con complejidad cognitiva alta divididas en
+  auxiliares sin cambio de comportamiento: `_fits`/`_column_fits` (OPENJSON), `TableMaintenance.scope` (restauración en
+  `finally`), `MariaDBConnection.connect`, `PoolConnection.__create_pool` (MariaDB), `check_dynamic` de Oracle, los
+  `create_engine` sync y async, `PoolFactory.create_async_pool`, `_parse_columns` de HSQLDB y MariaDB, `_data_type` de
+  Oracle, `_determine_state`, `to_driver`, `_mssql_build_indexes`/`_mssql_column_type`/`_mssql_build_columns`,
+  `_sync_warnings_from_tables`, `oracle_rownum_limit`, `_connect_by_hierarchy` (81 → funciones de ≤ 15),
+  `_apply_names` y `_transpile_view`.
+- Literales repetidos como constantes (`_TC_TABLE_NAME`, `_CON_TABLE_NAME`, `_T_NAME`, `_NO_ACTION`,
+  `_MYSQL_PATH_TEXT`, `_MYSQL_TIMESTAMP_FUNCTIONS`, `_MARIADB_MISSING_MSG`); `[A-Za-z0-9_]` como `\w` con `re.ASCII`
+  (mismos caracteres aceptados) en `connection/config.py`, `migrate/charset.py` y `migrate/views/transpiler.py`.
+
+### Fixed
+
+- **analysis**, **comparar**: tipos que Pylance rechazaba (`graphviz.DOT_BINARY` sobre un módulo opcional;
+  `_DIALECT_FACTORY` como `dict[str, type[DefaultDialect]]`).
+
+### Tests
+
+- `test_pool_size_gives_exactly_one_finding`: `pool_size` da un único hallazgo (WARNING, INFO u OK) en PostgreSQL,
+  SQL Server y Oracle.
+
 ## [2.2.1] - 2026-10-16
 
 Sesión `.ai/sessions/2026-10-16b-fix-mysql-redo-variables/`. SemVer: PATCH (correcciones; `read_variables` devuelve una

@@ -290,6 +290,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-10-15b-audit-code-v1.0.0-v2.1.0 | **audit-code v1.0.0 → HEAD** + `/tech-debt` (Fase 1 implementada: T-01, T-02, T-05, T-12, T-13) | develop | audit_code + tech_debt | CLOSED | `2026-10-15b-audit-code-v1.0.0-v2.1.0/TRACEABILITY.md` |
 | 2026-10-16-refactor-advisor-strategy | **T-06**: validadores de `EngineReadinessAdvisor` como Strategy (F0 caracterización, F1 refactor, F2 casting T-07, F3 excepciones T-08); SQL Server del banco en 51833 | develop | refactor | CLOSED | `2026-10-16-refactor-advisor-strategy/TRACEABILITY.md` |
 | 2026-10-16b-fix-mysql-redo-variables | **v2.2.1**: `read_variables` exacto y tolerante (R-1, R-1b); redo log de MySQL 8.0.30+ (R-2) | develop | fix | CLOSED | `2026-10-16b-fix-mysql-redo-variables/TRACEABILITY.md` |
+| 2026-10-16c-sonarlint-cleanup | **v2.2.2**: avisos de SonarLint y Pylance (complejidad cognitiva, literales, regex, tipos) sin cambios funcionales | develop | refactor | CLOSED | `2026-10-16c-sonarlint-cleanup/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 
