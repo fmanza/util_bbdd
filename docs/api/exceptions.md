@@ -32,6 +32,7 @@ DatabaseException
 │   ├── DriverNotFoundError
 │   └── DriverConfigurationError
 ├── DatabaseOperationError
+│   └── ParallelLoadError           (v3.0.0; .result = ParallelLoadResult)
 ├── DatabaseConfigurationError
 ├── ComparerError
 │   ├── SchemaDiffValidationError
@@ -53,11 +54,16 @@ DatabaseException
 !!! note "Auditoría de bulk (v0.18.0)"
     `AuditError` y sus subclases se importan de `util_bbdd.exceptions` (también `AuditError` de `util_bbdd.bulk`); desde
     1.0.0 ya no de la raíz `util_bbdd`. Como heredan de `DatabaseException`, un `except DatabaseException` alrededor de operaciones bulk
-    captura también los errores de auditoría (solo se lanzan al configurar o leer el CSV y, con `audit_strict=True`, al
+    captura también los errores de auditoría (solo se lanzan al configurar o leer el CSV y, con `AuditOptions(strict=True)`, al
     no poder escribirlo).
 
     Desde v0.29.0 los lanza el módulo común [`util_bbdd.audit`](audit.md); la jerarquía y los imports no
-    cambian. Con `audit_strict=True`, un fallo de un `audit_sink` llega como `OSError` o `AuditError`; cualquier otra excepción del destino se envuelve en `AuditError`.
+    cambian. Con `AuditOptions(strict=True)`, un fallo de un `AuditOptions.sink` llega como `OSError` o `AuditError`; cualquier otra excepción del destino se envuelve en `AuditError`.
+
+!!! note "Carga paralela desde BulkCrud (v3.0.0)"
+    `ParallelLoadError` la lanza `BulkCrud.bulk_*_from_df` con `parallel=ParallelOptions(...)` cuando falla alguna
+    partición. Las demás particiones **quedan confirmadas**: `exc.result` (un `ParallelLoadResult`) dice cuántas filas
+    se cargaron y qué particiones fallaron. `ParallelBulkLoader` no la lanza: devuelve los errores en `partition_errors`.
 
 !!! tip "Capturar errores genéricamente"
     Para capturar cualquier error de `util_bbdd`, usa `except DatabaseException`.

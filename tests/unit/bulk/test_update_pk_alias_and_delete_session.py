@@ -18,6 +18,7 @@ from sqlalchemy import Column, Engine, Integer, MetaData, String, Table, create_
 
 from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk._support.validation import build_update_plan
+from util_bbdd.bulk.options import BatchOptions
 
 pytestmark = pytest.mark.unit
 
@@ -97,7 +98,7 @@ def session_engine(tmp_path: Path) -> Engine:
 
 @pytest.mark.parametrize("commit_every_n_chunks", [None, 1])
 def test_delete_after_insert_in_same_session(session_engine: Engine, commit_every_n_chunks: int | None) -> None:
-    crud = BulkCrud(session_engine, commit_every_n_chunks=commit_every_n_chunks)
+    crud = BulkCrud(session_engine, batch=BatchOptions(commit_every_n_chunks=commit_every_n_chunks))
 
     with crud.bulk_session():
         crud.bulk_insert_from_df(pd.DataFrame({"id": [4], "v": ["d"]}), "items", generar_sql=False)

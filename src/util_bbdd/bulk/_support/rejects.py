@@ -1,4 +1,4 @@
-"""Aislamiento de filas erróneas en las operaciones masivas (``BulkCrud(on_error="isolate")``, S-2 de 2026-10-01).
+"""Aislamiento de filas erróneas en las operaciones masivas (``BulkCrud(rejects=RejectOptions(on_error="isolate"))``, S-2 de 2026-10-01).
 
 Una carga atómica se deshacía entera por una sola fila con un error de datos. Con ``on_error="isolate"`` cada lote se
 envía dentro de un SAVEPOINT; si falla con un error de datos (``IntegrityError`` o ``DataError``), se vuelve al SAVEPOINT
@@ -369,6 +369,11 @@ class RejectsCoordinator:
         self.isolator: Isolator | None = None
         #: Ámbito de ``rejects_scope`` en curso (None fuera de él).
         self._sequence: RejectsSequence | None = None
+
+    @property
+    def scope_active(self) -> bool:
+        """``True`` dentro de un ``rejects_scope`` (la carga paralela de ``BulkCrud`` va entonces en serie)."""
+        return self._sequence is not None
 
     @contextmanager
     def scope(self, *, partition: int | None, row_offset: int) -> Generator[None, None, None]:

@@ -12,22 +12,23 @@ los inserts concurrentes en la misma tabla no colisionen. El motor de inserción
 thread-safe) lo aporta cada ``BulkCrud`` worker vía ``bulk_insert_from_chunks``
 (``disable_constraints=False``) o ``bulk_session`` + ``maintenance_scope``
 (``disable_constraints=True``).
+
+v3.0.0: recibe los mismos paquetes de opciones que ``BulkCrud`` (:mod:`util_bbdd.bulk.options`) y crea cada worker con
+:meth:`BulkOptions.for_worker`; los hilos de cada carga los decide :class:`ParallelPlanner` (``ParallelOptions.mode``).
 """
 
 from __future__ import annotations
 
 import contextlib
 import logging
-import math
 import random
 import time
 import uuid
 
-from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
+from collections.abc import Callable, Generator, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass, field, replace
 from typing import ClassVar, Literal
 
 import pandas as pd
@@ -35,83 +36,32 @@ import pandas as pd
 from sqlalchemy import Engine, Table, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from ..._core.validation import StrPath, validate_optional_path
-from ...audit.contracts import AuditSink
 from ...metadata import facts
 from .._audit.counters import AuditCounters
 from .._audit.errors import AuditError
 from .._audit.events import BulkAuditEvents
 from .._support.dialect import can_disable_pg_triggers, disable_table_integrity_sql, enable_table_integrity_sql
-from .._support.iterables import close_if_closable, closing_iterable
+from .._support.iterables import closing_iterable, skip_rows as skip_leading_rows
 from .._support.pool import pool_capacity
-from .._support.rejects import validate_isolation
-from .._support.retry import is_retriable
 from ..audit import AuditManager
 from ..crud import BulkCrud
-from .batch import validate_chunk_size
+from ..options import (
+    AuditOptions,
+    BatchOptions,
+    BulkOptions,
+    ExecutionOptions,
+    ParallelOptions,
+    RejectOptions,
+    RetryOptions,
+)
+from .parallel_planner import ParallelPlan, ParallelPlanner, PlanInput
+from .range_partitioner import RangePartitioner
 
 # Un lector de partición: invocado en su hilo worker, produce los chunks a insertar, actualizar o borrar.
 PartitionReader = Callable[[], Iterable[pd.DataFrame]]
 
 # Operación de una carga paralela: load() → insert, update() → update, delete() → delete.
 _Operation = Literal["insert", "update", "delete"]
-
-# Reintentos mínimos de update()/delete() ante errores transitorios, aunque max_retries sea 0. Son idempotentes por PK y,
-# con particiones contiguas, InnoDB puede dar deadlock (1213) en la frontera aunque sean disjuntas: medido en el banco con
-# MySQL 8.4, DELETE de 1M filas con 2 hilos (performance-audit de bulk 2026-10-01, R-5).
-_IDEMPOTENT_MIN_RETRIES: int = 2
-
-# Errores de datos, de BD o de auditoría estricta habituales en una carga: se anotan sin traza en el log (el de
-# auditoría ya lo registró BulkCrud como ERROR). El resto también se anotan en partition_errors, pero con traza, porque
-# suelen indicar un fallo del lector o de programación.
-_EXPECTED_ERRORS: tuple[type[Exception], ...] = (SQLAlchemyError, ValueError, pd.errors.DatabaseError, AuditError)
-
-
-def _partition_error(index: int, exc: Exception) -> str:
-    """Texto de ``partition_errors``: como antes para los errores habituales; con el tipo para el resto."""
-    if isinstance(exc, _EXPECTED_ERRORS):
-        return f"partición {index}: {exc}"
-    return f"partición {index}: {type(exc).__name__}: {exc}"
-
-
-def _skip_rows(chunks: Iterable[pd.DataFrame], rows: int) -> Iterator[pd.DataFrame]:
-    """Los chunks de ``chunks`` sin sus primeras ``rows`` filas (reanudación de una partición, B-11).
-
-    Cierra ``chunks`` al terminar, también si quien consume deja de iterar (el lector puede tener una conexión abierta).
-    """
-    try:
-        for chunk in chunks:
-            if rows >= len(chunk):
-                rows -= len(chunk)
-                continue
-            if rows:
-                chunk = chunk.iloc[rows:]
-                rows = 0
-            yield chunk
-    finally:
-        close_if_closable(chunks)
-
-
-def _validate_partition_ranges(ranges: Sequence[tuple[int, int]], n_readers: int) -> None:
-    """Valida que los rangos de partición sean disjuntos y coincidan con el nº de lectores.
-
-    Raises:
-        ValueError: Si len(ranges) != n_readers o algún par de rangos se solapa.
-    """
-    if len(ranges) != n_readers:
-        raise ValueError(
-            f"partition_ranges ({len(ranges)} rangos) debe tener la misma longitud "
-            f"que partition_readers ({n_readers} lectores)."
-        )
-    sorted_r = sorted(ranges, key=lambda r: r[0])
-    for i in range(len(sorted_r) - 1):
-        _, hi1 = sorted_r[i]
-        lo2, _ = sorted_r[i + 1]
-        if hi1 >= lo2:
-            raise ValueError(
-                f"Rangos solapados detectados: {sorted_r[i]} solapa con {sorted_r[i + 1]}. "
-                "Las particiones deben ser disjuntas para evitar colisiones en INSERT."
-            )
 
 
 @dataclass
@@ -176,7 +126,9 @@ class ParallelLoadResult:
     partición fallida no suma a ``total_rows`` lo deshecho, pero los rechazos que ya escribió siguen en el CSV y en
     ``rows_rejected`` (M-1, audit-code 2026-10-01).
 
-    ``audit_run_id``: ``run_id`` de los eventos de ``audit_sink`` de la carga (``None`` sin destino).
+    ``audit_run_id``: ``run_id`` de los eventos de ``audit.sink`` de la carga (``None`` sin destino).
+
+    ``plan``: hilos usados y por qué (:class:`ParallelPlan`, v3.0.0); ``None`` si no había particiones.
     """
 
     total_rows: int = 0
@@ -184,6 +136,7 @@ class ParallelLoadResult:
     elapsed_seconds: float = 0.0
     partition_results: list[PartitionResult] = field(default_factory=list)
     audit_run_id: str | None = None
+    plan: ParallelPlan | None = None
 
     @property
     def audit_failures(self) -> int:
@@ -227,19 +180,18 @@ class ParallelBulkLoader:
     ``BulkCrud`` no es thread-safe: por eso cada partición se carga con su **propia**
     instancia ``BulkCrud`` y su propia conexión (el ``Engine`` sí es thread-safe).
 
-    Ejemplo sin mantenimiento (comportamiento previo)::
+    Ejemplo sin mantenimiento::
 
-        loader = ParallelBulkLoader(engine, chunk_size=10_000, max_workers=4)
+        loader = ParallelBulkLoader(engine, batch=BatchOptions(chunk_size=10_000))
         result = loader.load("dbo.orders", [reader_rango1, reader_rango2, ...])
-        print(result.total_rows, result.partition_errors)
+        print(result.total_rows, result.partition_errors, result.plan.reasons)
 
-    Ejemplo para cargas >1M filas con deshabilitación de constraints::
+    Ejemplo para cargas >1M filas con deshabilitación de constraints y los hilos decididos por las mediciones::
 
         loader = ParallelBulkLoader(
             engine,
-            max_workers=4,
-            disable_constraints=True,
-            commit_every_n_chunks=20,
+            batch=BatchOptions(commit_every_n_chunks=20),
+            parallel=ParallelOptions(mode="auto", max_workers=8, disable_constraints=True),
         )
         result = loader.load("dbo.orders", readers)
         print(
@@ -250,129 +202,95 @@ class ParallelBulkLoader:
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__name__)
 
+    #: Reintentos mínimos de update()/delete() ante errores transitorios, aunque max_retries sea 0. Son idempotentes por
+    #: PK y, con particiones contiguas, InnoDB puede dar deadlock (1213) en la frontera aunque sean disjuntas: medido en el
+    #: banco con MySQL 8.4, DELETE de 1M filas con 2 hilos (performance-audit de bulk 2026-10-01, R-5).
+    IDEMPOTENT_MIN_RETRIES: ClassVar[int] = 2
+
+    #: Errores de datos, de BD o de auditoría estricta habituales en una carga: se anotan sin traza en el log (el de
+    #: auditoría ya lo registró BulkCrud como ERROR). El resto también se anotan en partition_errors, pero con traza,
+    #: porque suelen indicar un fallo del lector o de programación.
+    EXPECTED_ERRORS: ClassVar[tuple[type[Exception], ...]] = (
+        SQLAlchemyError,
+        ValueError,
+        pd.errors.DatabaseError,
+        AuditError,
+    )
+
     def __init__(
         self,
         engine: Engine,
         *,
-        chunk_size: int | None = None,
-        max_workers: int = 4,
-        commit_every_n_chunks: int | None = None,
-        audit_csv_path: StrPath | None = None,
-        enable_fast_executemany: bool = True,
-        max_retries: int = 0,
-        disable_constraints: bool = False,
-        audit_strict: bool = False,
-        strip_strings: bool = True,
-        reflect_foreign_keys: bool = True,
-        retry_backoff: tuple[float, float] = (0.5, 30.0),
-        retry_on: Callable[[BaseException], bool] | None = None,
-        on_error: Literal["raise", "isolate"] = "raise",
-        rejects_csv_path: StrPath | None = None,
-        max_rejects: int | None = None,
-        audit_sink: AuditSink | None = None,
-        audit_run_id: str | None = None,
+        batch: BatchOptions | None = None,
+        audit: AuditOptions | None = None,
+        rejects: RejectOptions | None = None,
+        execution: ExecutionOptions | None = None,
+        parallel: ParallelOptions | None = None,
     ) -> None:
         """
+        v3.0.0: los mismos paquetes de opciones que ``BulkCrud`` (:mod:`util_bbdd.bulk.options`), que se pasan tal cual
+        a la ``BulkCrud`` de cada partición. Hasta v2.x eran 17 parámetros sueltos y los workers no recibían
+        ``insert_resolver``, ``update_via_staging`` ni ``prefetch_blocks``.
+
         Args:
             engine: Engine SQLAlchemy compartido entre workers (thread-safe).
-            chunk_size: Filas por lote dentro de cada worker. ``None`` (default): el lote por motor y operación de
-                ``BulkCrud`` (B-04).
-            max_workers: Número máximo de hilos paralelos.
-            commit_every_n_chunks: Commitea cada N lotes para evitar undo log en
-                MariaDB/MySQL. Ignorado si ``None``. Con ``max_retries > 0``, un reintento **reanuda** la partición
-                desde la última fila confirmada (``BulkCrud.rows_committed``): el lector debe devolver las filas en el
-                mismo orden en cada llamada. Hasta v0.23.x la combinación lanzaba ``ValueError`` (B-11).
-            audit_csv_path: Ruta (``str`` o ``Path``) para auditoría CSV compartida (thread-safe).
-            enable_fast_executemany: Activa ``cursor.fast_executemany`` en MSSQL/pyodbc.
-            max_retries: Reintentos de una partición ante errores transitorios. Por defecto se decide por el código del
-                error (``is_retriable``): desconexiones, deadlocks, lock wait timeouts, serialización y timeouts. Los
-                errores de datos, de integridad, de sintaxis o de permisos no se reintentan. Hasta v0.23.x se decidía
-                por clase (``OperationalError``/``TimeoutError``): con PyMySQL se reintentaban errores permanentes y
-                con Oracle no se reintentaba el deadlock (B-13, performance-audit de bulk 2026-10-01).
-            disable_constraints: Si ``True``, cada worker deshabilita constraints vía
-                ``maintenance_scope`` antes de insertar y las restaura al finalizar.
-                Requiere permisos DDL (propietario de tabla o superusuario).
-                Usar ``disable_indexes=False`` implícito: deshabilitar índices en
-                paralelo causa lock DDL en MSSQL (SCH-M global).
-            audit_strict: Se pasa a la ``BulkCrud`` de cada partición. Con ``False`` (default) un fallo al escribir el
-                CSV de auditoría no hace fallar la partición: se registra como ERROR y se cuenta en
-                ``PartitionResult.audit_failures`` / ``ParallelLoadResult.audit_failures``. Con ``True`` el fallo
-                deshace la partición y queda en ``partition_errors`` sin reintentarse. En modo estricto la auditoría se
-                escribe antes del commit: si es el commit el que falla, esos registros quedan en el CSV sin datos en la
-                BD, se cuentan en ``audit_uncommitted_records`` y la partición **no se reintenta** aunque el error sea
-                retriable, para no duplicarlos.
-            strip_strings: Se pasa a la ``BulkCrud`` de cada partición: con ``False`` las cadenas se envían sin quitar
-                los espacios de los extremos (``dump``, PD-05).
-            reflect_foreign_keys: Se pasa a las ``BulkCrud`` del loader: con ``False`` la reflexión de la tabla destino
-                no lee sus claves foráneas (``dump``, Q9).
-            retry_backoff: ``(base, máximo)`` en segundos de la espera antes de cada reintento: un valor aleatorio entre
-                0 y ``min(máximo, base · 2**(intento − 1))`` (backoff exponencial con *jitter* completo), para que las
-                particiones no reintenten a la vez tras un corte. ``(0, 0)`` reintenta sin esperar (comportamiento
-                hasta v0.23.x). Solo actúa con ``max_retries > 0``. Por defecto ``(0.5, 30.0)`` (B-14).
-            retry_on: Criterio propio de reintento (recibe la excepción). ``None`` usa ``is_retriable``.
-            on_error: Como en ``BulkCrud``: con ``"isolate"`` cada partición aparta las filas con errores de datos a
-                ``rejects_csv_path`` (común a todas, con su número en la columna ``particion`` y la posición dentro de
-                la partición) y aplica el resto. Si un intento que ya escribió rechazos falla después, la partición
-                **no se reintenta** aunque el error sea transitorio (reintentar los duplicaría en el CSV): queda en
-                ``partition_errors``. Ver ``PartitionResult.rows_rejected`` (Fase 3, sesión 2026-10-01t).
-            rejects_csv_path: CSV de rechazos compartido (``str`` o ``Path``; ver ``BulkCrud``). Obligatorio con ``on_error="isolate"``.
-            max_rejects: Filas que **cada partición** puede rechazar (con N particiones, hasta N × ``max_rejects`` en
-                total); la siguiente hace fallar esa partición. ``None``: sin límite.
-            audit_sink: Destino opcional de eventos (:mod:`util_bbdd.audit`), compartido por las ``BulkCrud`` de las
-                particiones (eventos ``operation``). Al terminar cada carga se añaden un evento ``partition`` por
-                partición y un ``run`` de cierre. Un fallo al escribir estos dos últimos se registra como ERROR y no
-                cambia el resultado. ``None`` (default): sin eventos.
-            audit_run_id: ``run_id`` común de todos los eventos (p. ej. el de un volcado). ``None``: uno nuevo por
-                carga (:meth:`load`, :meth:`update` o :meth:`delete`) si hay ``audit_sink``.
+            batch: Lote, cadencia y preparación anticipada de cada worker (:class:`BatchOptions`). Con
+                ``commit_every_n_chunks`` y reintentos, un reintento **reanuda** la partición desde la última fila
+                confirmada (``BulkCrud.rows_committed``): el lector debe devolver las filas en el mismo orden en cada
+                llamada (B-11).
+            audit: Auditoría (:class:`AuditOptions`), común a las particiones: el CSV es thread-safe y ``sink`` recibe
+                los eventos ``operation`` de las ``BulkCrud`` y, al terminar cada carga, uno ``partition`` por partición
+                y un ``run`` de cierre (un fallo al escribir estos dos últimos se registra como ERROR y no cambia el
+                resultado). Con ``strict=False`` un fallo al escribir el CSV no hace fallar la partición (se cuenta en
+                ``audit_failures``); con ``True`` la deshace sin reintentarla. En modo estricto, si falla el commit,
+                los registros ya escritos se cuentan en ``audit_uncommitted_records`` y la partición **no se
+                reintenta**, para no duplicarlos. ``run_id=None``: uno nuevo por carga si hay ``sink``.
+            rejects: Como en ``BulkCrud`` (:class:`RejectOptions`): con ``"isolate"`` cada partición aparta las filas
+                con errores de datos al CSV común (con su número en la columna ``particion`` y la posición dentro de la
+                partición). Si un intento que ya escribió rechazos falla después, la partición **no se reintenta**
+                (los duplicaría). ``max_rejects`` es por partición (con N particiones, hasta N × ``max_rejects``).
+            execution: Vía de ejecución de cada worker (:class:`ExecutionOptions`).
+            parallel: Hilos, modo y reintentos (:class:`ParallelOptions`; por defecto ``mode="manual"`` con 4 hilos,
+                como hasta v2.x). Los hilos de cada carga los decide :class:`ParallelPlanner`: en ``"manual"``, los
+                pedidos recortados por la capacidad del pool, SQLite (un solo escritor; v3.0.0) y el UPDATE de
+                PostgreSQL fila a fila; en ``"auto"``, además, las reglas medidas por motor y operación; ``"off"``, uno.
+                ``disable_constraints`` desactiva las constraints en :meth:`load` (en SQL Server y PostgreSQL una vez,
+                antes de lanzar los hilos; en el resto, cada worker con ``maintenance_scope``; nunca los índices, que en
+                paralelo toman un lock DDL global en SQL Server). Reintentos: ``parallel.retry`` (:class:`RetryOptions`).
 
         Raises:
-            ValueError: Si ``chunk_size`` no es un entero ≥ 1, ``max_workers < 1``, ``max_retries < 0`` o
-                ``retry_backoff`` no son dos números finitos ≥ 0, o ``on_error``, ``rejects_csv_path`` y
-                ``max_rejects`` no son una combinación válida (las mismas reglas que ``BulkCrud``).
-            AuditConfigError: Si no se puede crear el directorio de ``audit_csv_path`` (subclase de ``ValueError``).
+            AuditConfigError: Si no se puede crear el directorio de ``audit.csv_path`` (subclase de ``ValueError``).
         """
-        if chunk_size is not None:
-            chunk_size = validate_chunk_size(chunk_size)  # antes del pool: si no, fallaría cada partición
-        if max_workers < 1:
-            raise ValueError(f"max_workers debe ser un entero ≥ 1, recibido: {max_workers}")
-        if max_retries < 0:
-            raise ValueError(f"max_retries debe ser un entero ≥ 0, recibido: {max_retries}")
-        if len(retry_backoff) != 2 or not all(
-            isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0
-            for value in retry_backoff
-        ):
-            raise ValueError(
-                f"retry_backoff debe ser (base, máximo) con números finitos ≥ 0, recibido: {retry_backoff!r}"
-            )
-        # v1.1.0: las rutas aceptan str además de Path.
-        audit_path: Path | None = validate_optional_path(audit_csv_path, "audit_csv_path")
-        rejects_path: Path | None = validate_optional_path(rejects_csv_path, "rejects_csv_path")
-        validate_isolation(on_error, rejects_path, max_rejects)  # antes del pool, como chunk_size
-        if audit_path is not None:
-            # PL-4 (audit-code de ParallelBulkLoader 2026-09-25): antes del pool, como chunk_size. Si no, cada
-            # partición fallaba por separado y, con disable_constraints, el hoist se hacía para nada.
-            AuditManager(audit_path)
+        options = BulkOptions.of(
+            batch=batch, audit=audit, rejects=rejects, execution=execution, parallel=parallel or ParallelOptions()
+        )
+        if options.audit.csv_path is not None:
+            # PL-4 (audit-code de ParallelBulkLoader 2026-09-25): antes del pool. Si no, cada partición fallaba por
+            # separado y, con disable_constraints, el hoist se hacía para nada.
+            AuditManager(options.audit.csv_path)
         self._engine = engine
-        self._chunk_size = chunk_size
-        self._commit_every_n_chunks = commit_every_n_chunks
-        self._audit_csv_path: Path | None = audit_path
-        self._enable_fast_executemany = enable_fast_executemany
-        self._max_retries = max_retries
-        self._disable_constraints = disable_constraints
-        self._audit_strict = audit_strict
-        self._strip_strings = strip_strings
-        self._reflect_foreign_keys = reflect_foreign_keys
-        self._retry_backoff: tuple[float, float] = (float(retry_backoff[0]), float(retry_backoff[1]))
-        self._retry_on: Callable[[BaseException], bool] = retry_on or is_retriable
-        self._on_error: Literal["raise", "isolate"] = on_error
-        self._rejects_csv_path: Path | None = rejects_path
-        self._max_rejects: int | None = max_rejects
-        self._audit_sink: AuditSink | None = audit_sink
-        self._audit_run_id: str | None = audit_run_id
+        self._options: BulkOptions = options
+        self._parallel: ParallelOptions = options.parallel or ParallelOptions()
         # Inyectables en tests (sin esperas reales ni azar).
         self._sleep: Callable[[float], None] = time.sleep
         self._jitter: Callable[[float, float], float] = random.uniform
-        self._max_workers = self._resolve_max_workers(max_workers)
+        self._max_workers = self._resolve_max_workers(self._parallel.max_workers)
+
+    @property
+    def options(self) -> BulkOptions:
+        """Paquetes de opciones del loader (``parallel`` nunca es ``None``)."""
+        return self._options
+
+    @property
+    def _retry(self) -> RetryOptions:
+        return self._parallel.retry
+
+    @staticmethod
+    def _partition_error(index: int, exc: Exception) -> str:
+        """Texto de ``partition_errors``: como antes para los errores habituales; con el tipo para el resto."""
+        if isinstance(exc, ParallelBulkLoader.EXPECTED_ERRORS):
+            return f"partición {index}: {exc}"
+        return f"partición {index}: {type(exc).__name__}: {exc}"
 
     def _resolve_max_workers(self, requested: int) -> int:
         """Devuelve el número efectivo de workers, acotado a la capacidad del pool para no agotarlo.
@@ -496,25 +414,26 @@ class ParallelBulkLoader:
             return ParallelLoadResult()
 
         if partition_ranges is not None:
-            _validate_partition_ranges(partition_ranges, len(partition_readers))
+            RangePartitioner.validate_disjoint(partition_ranges, len(partition_readers))
 
-        if self._audit_csv_path is None and self._audit_sink is None:
+        audit = self._options.audit
+        if not audit.enabled:
             # M-4: un aviso por carga; las BulkCrud de las particiones se crean sin el suyo.
-            self.logger.info(
-                "Auditoría deshabilitada en la carga paralela de '%s' (audit_csv_path=None).", tabla_destino
-            )
+            self.logger.info("Auditoría deshabilitada en la carga paralela de '%s' (sin audit).", tabla_destino)
         # Un run_id por carga (o el recibido); se pasa a cada partición, sin estado compartido entre cargas.
-        run_id: str | None = None if self._audit_sink is None else (self._audit_run_id or uuid.uuid4().hex)
+        run_id: str | None = None if audit.sink is None else (audit.run_id or uuid.uuid4().hex)
 
-        result = ParallelLoadResult(audit_run_id=run_id)
+        plan = self._plan(operation, tabla_destino, len(partition_readers))
+        result = ParallelLoadResult(audit_run_id=run_id, plan=plan)
         t_start = time.perf_counter()
-        workers = min(self._max_workers, len(partition_readers))
-        if operation == "update" and workers > 1 and not self._staging_update_available():
-            workers = 1
+        workers = plan.workers
+        retries: int = self._retry.max_retries
+        if operation != "insert":
+            retries = max(retries, self.IDEMPOTENT_MIN_RETRIES)
 
         constraint_ctx = (
             self._hoist_constraints_for_workers(tabla_destino)
-            if self._disable_constraints and operation == "insert"
+            if self._parallel.disable_constraints and operation == "insert"
             else contextlib.nullcontext(False)
         )
         with constraint_ctx as skip_maintenance, ThreadPoolExecutor(max_workers=workers) as pool:
@@ -528,9 +447,7 @@ class ParallelBulkLoader:
                     index,
                     skip_maintenance,
                     operation=operation,
-                    max_retries=self._max_retries
-                    if operation == "insert"
-                    else max(self._max_retries, _IDEMPOTENT_MIN_RETRIES),
+                    max_retries=retries,
                     audit_run_id=run_id,
                 )
                 for index, reader in enumerate(partition_readers)
@@ -547,8 +464,9 @@ class ParallelBulkLoader:
         return result
 
     def _write_load_events(self, result: ParallelLoadResult, tabla_destino: str, operation: str) -> None:
-        """Eventos ``partition`` (en orden de partición) y ``run`` de la carga en ``audit_sink``; fallo = ERROR."""
-        if self._audit_sink is None:
+        """Eventos ``partition`` (en orden de partición) y ``run`` de la carga en ``audit.sink``; fallo = ERROR."""
+        sink = self._options.audit.sink
+        if sink is None:
             return
         engine = self._engine.dialect.name
         # Construir dentro del try (hipótesis 5 del audit-code 2026-10-02c): un fallo aquí no debe perder el resultado.
@@ -564,7 +482,7 @@ class ParallelBulkLoader:
                     result, table=tabla_destino, operation=operation, engine=engine, run_id=result.audit_run_id
                 )
             )
-            self._audit_sink.write(events)
+            sink.write(events)
         except Exception as exc:
             self.logger.error(
                 "❌ No se pudo escribir la auditoría de la carga paralela de '%s' en audit_sink: %s",
@@ -573,18 +491,45 @@ class ParallelBulkLoader:
                 exc_info=True,
             )
 
+    def _plan(self, operation: _Operation, tabla_destino: str, partitions: int) -> ParallelPlan:
+        """Hilos de la carga (:class:`ParallelPlanner`); si recorta los pedidos, WARNING en ``"manual"`` e INFO en ``"auto"``.
+
+        El privilegio ``TEMP`` de PostgreSQL solo se consulta si el UPDATE iría con varios hilos.
+        """
+        dialect: str = self._engine.dialect.name
+        requested: int = min(self._max_workers, partitions)
+        # La capacidad del pool ya recortó max_workers en el constructor (_resolve_max_workers, con su WARNING).
+        facts_in = PlanInput(
+            dialect=dialect,
+            operation=operation,
+            options=replace(self._parallel, max_workers=self._max_workers),
+            partitions=partitions,
+            staging_update=self._options.execution.update_via_staging,
+        )
+        plan = ParallelPlanner.plan(facts_in)
+        if plan.parallel and operation == "update" and facts_in.staging_update and not self._staging_update_available():
+            plan = ParallelPlanner.plan(replace(facts_in, staging_update=False))
+        if plan.workers < requested and self._parallel.mode != "off":  # con "off", un hilo es lo pedido
+            level = logging.WARNING if self._parallel.mode == "manual" else logging.INFO
+            self.logger.log(
+                level,
+                "Carga paralela de '%s' con %d hilos en lugar de %d: %s",
+                tabla_destino,
+                plan.workers,
+                requested,
+                "; ".join(plan.reasons),
+            )
+        return plan
+
     def _staging_update_available(self) -> bool:
-        """En PostgreSQL, ``False`` si falta el privilegio ``TEMP`` (el UPDATE paralelo sería fila a fila); WARNING."""
+        """En PostgreSQL, ``False`` si falta el privilegio ``TEMP`` (el UPDATE paralelo sería fila a fila).
+
+        Sin él, :meth:`_plan` deja la carga en un hilo y avisa; concede ``TEMP`` sobre la base de datos para usar varios.
+        """
         if self._engine.dialect.name != "postgresql":
             return True
         with self._engine.connect() as conn:
-            available = facts.can_create_temp_tables(conn)
-        if not available:
-            self.logger.warning(
-                "PostgreSQL sin privilegio TEMP: el UPDATE paralelo se hace con un solo hilo, porque fila a fila en "
-                "paralelo es más lento que en serie. Concede TEMP sobre la base de datos para usar varios hilos."
-            )
-        return available
+            return facts.can_create_temp_tables(conn)
 
     def _load_partition(
         self,
@@ -616,22 +561,7 @@ class ParallelBulkLoader:
         """
         t_start = time.perf_counter()
         try:
-            crud = BulkCrud(
-                self._engine,
-                chunk_size=self._chunk_size,
-                audit_csv_path=self._audit_csv_path,
-                commit_every_n_chunks=self._commit_every_n_chunks,
-                enable_fast_executemany=self._enable_fast_executemany,
-                audit_strict=self._audit_strict,
-                warn_if_audit_disabled=False,  # M-4: load() avisa una vez por carga
-                strip_strings=self._strip_strings,
-                reflect_foreign_keys=self._reflect_foreign_keys,
-                on_error=self._on_error,
-                rejects_csv_path=self._rejects_csv_path,
-                max_rejects=self._max_rejects,
-                audit_sink=self._audit_sink,
-                audit_run_id=audit_run_id,
-            )
+            crud = BulkCrud(self._engine, **self._options.for_worker(run_id=audit_run_id).as_kwargs())
         except Exception as exc:
             self.logger.warning(
                 "No se pudo preparar la partición %d de '%s': %s", index, tabla_destino, exc, exc_info=True
@@ -640,10 +570,10 @@ class ParallelBulkLoader:
                 index=index,
                 rows=0,
                 elapsed_seconds=time.perf_counter() - t_start,
-                error=_partition_error(index, exc),
+                error=self._partition_error(index, exc),
             )
 
-        retries: int = self._max_retries if max_retries is None else max_retries
+        retries: int = self._retry.max_retries if max_retries is None else max_retries
         last_exc: Exception | None = None
         waited: float = 0.0
 
@@ -704,7 +634,7 @@ class ParallelBulkLoader:
             rows=crud.rows_committed,
             retries=retries,
             retry_wait_seconds=waited,
-            error=_partition_error(index, last_exc),
+            error=self._partition_error(index, last_exc),
         )
 
     def _resume_offset(self, crud: BulkCrud, index: int, attempt: int) -> int:
@@ -713,7 +643,9 @@ class ParallelBulkLoader:
         B-11: las filas confirmadas por intentos anteriores (prefijo de la partición) no se vuelven a enviar. Solo con
         cadencia: en modo atómico un fallo deshace la partición entera y se reintenta desde el principio.
         """
-        resume_from: int = crud.rows_committed if attempt and self._commit_every_n_chunks is not None else 0
+        resume_from: int = (
+            crud.rows_committed if attempt and self._options.batch.commit_every_n_chunks is not None else 0
+        )
         if resume_from:
             self.logger.info("Partición %d: se reanuda tras %d filas ya confirmadas", index, resume_from)
         return resume_from
@@ -735,7 +667,7 @@ class ParallelBulkLoader:
         No se reintenta un error permanente (``retry_on``) ni un intento que ya dejó efectos fuera de la transacción
         (rechazos o auditoría estricta escritos), porque reintentarlo los duplicaría.
         """
-        if not self._retry_on(exc):
+        if not self._retry.should_retry(exc):
             return self._permanent_failure(crud, index, t_start, tabla_destino, exc, attempt, waited)
         detail: str | None = None
         if rejected_now > 0:
@@ -774,7 +706,7 @@ class ParallelBulkLoader:
             rows=crud.rows_committed,
             retries=attempt,
             retry_wait_seconds=waited,
-            error=f"{_partition_error(index, exc)} ({detail})",
+            error=f"{self._partition_error(index, exc)} ({detail})",
         )
 
     def _wait_before_retry(self, index: int, attempt: int) -> float:
@@ -783,7 +715,7 @@ class ParallelBulkLoader:
         B-14 (performance-audit de bulk 2026-10-01): antes se reintentaba al instante y, tras un corte o un pico de
         bloqueos, todas las particiones agotaban sus reintentos a la vez en milisegundos.
         """
-        base, cap = self._retry_backoff
+        base, cap = self._retry.backoff
         delay: float = self._jitter(0.0, min(cap, base * 2 ** (attempt - 1)))
         if delay > 0:
             self.logger.info("Partición %d: reintento %d dentro de %.2f s", index, attempt, delay)
@@ -810,7 +742,7 @@ class ParallelBulkLoader:
             index,
             tabla_destino,
             exc,
-            exc_info=not isinstance(exc, _EXPECTED_ERRORS),  # traza solo para errores inesperados
+            exc_info=not isinstance(exc, self.EXPECTED_ERRORS),  # traza solo para errores inesperados
         )
         # BLK-08: crud.rows_committed refleja filas ya comprometidas vía commit_every_n_chunks antes del fallo
         # (0 en modo atómico, donde un fallo revierte toda la sesión).
@@ -821,7 +753,7 @@ class ParallelBulkLoader:
             rows=crud.rows_committed,
             retries=attempt,
             retry_wait_seconds=waited,
-            error=_partition_error(index, exc),
+            error=self._partition_error(index, exc),
         )
 
     def _run_attempt(
@@ -839,19 +771,19 @@ class ParallelBulkLoader:
         """Un intento sobre la partición, sin sus primeras ``skip_rows`` filas; devuelve las filas enviadas."""
 
         def read() -> Iterable[pd.DataFrame]:
-            return _skip_rows(reader(), skip_rows) if skip_rows else reader()
+            return skip_leading_rows(reader(), skip_rows) if skip_rows else reader()
 
         if operation == "update":
-            with _closing_iterable(read()) as chunks:
+            with closing_iterable(read()) as chunks:
                 sent: int = crud.bulk_update_from_chunks(chunks, tabla_destino)
             return sent
         if operation == "delete":
-            with _closing_iterable(read()) as chunks:
+            with closing_iterable(read()) as chunks:
                 sent = crud.bulk_delete_from_chunks(chunks, tabla_destino)
             return sent
-        if self._disable_constraints and not skip_maintenance:
+        if self._parallel.disable_constraints and not skip_maintenance:
             return self._load_with_maintenance(crud, tabla_destino, read, override_identity, exclude_autoincrement_pk)
-        with _closing_iterable(read()) as chunks:
+        with closing_iterable(read()) as chunks:
             rows: int = crud.bulk_insert_from_chunks(
                 chunks,
                 tabla_destino,
@@ -910,7 +842,7 @@ class ParallelBulkLoader:
         with (
             crud.bulk_session(),
             crud.maintenance_scope(tabla_destino, disable_constraints=True, disable_indexes=False),
-            _closing_iterable(reader()) as chunks,
+            closing_iterable(reader()) as chunks,
         ):
             for chunk in chunks:
                 if chunk.empty:
@@ -992,21 +924,18 @@ class ParallelBulkLoader:
     def _resolve_table(self, tabla_destino: str) -> Table:
         """``Table`` reflejada con la misma resolución de nombre que ``BulkCrud`` (mayúsculas y esquema).
 
-        PL-3 (audit-code de ``ParallelBulkLoader`` 2026-09-25): la ``BulkCrud`` recibe ``enable_fast_executemany`` del
-        loader. Con el valor por defecto activaba ``fast_executemany`` en el engine compartido (``mssql+pyodbc``)
-        aunque el loader se hubiera creado con ``False``.
+        PL-3 (audit-code de ``ParallelBulkLoader`` 2026-09-25): la ``BulkCrud`` recibe la ``execution`` del loader
+        (``fast_executemany``). Con el valor por defecto activaba ``fast_executemany`` en el engine compartido
+        (``mssql+pyodbc``) aunque el loader se hubiera creado con ``False``. Sin auditoría ni rechazos: solo refleja.
         """
         crud = BulkCrud(
             self._engine,
-            chunk_size=self._chunk_size,
-            enable_fast_executemany=self._enable_fast_executemany,
-            warn_if_audit_disabled=False,
-            reflect_foreign_keys=self._reflect_foreign_keys,
+            batch=self._options.batch,
+            audit=AuditOptions(warn_if_disabled=False),
+            execution=self._options.execution,
         )
         return crud.reflect_table(tabla_destino)
 
-
-_closing_iterable = closing_iterable  # A2: cierra el generador del lector si falla la escritura
 
 __all__: list[str] = [
     "ParallelBulkLoader",

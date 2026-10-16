@@ -22,8 +22,9 @@ from sqlalchemy import Column, Engine, Integer, MetaData, String, Table, create_
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader
-from util_bbdd.bulk._execution.parallel_loader import _skip_rows
 from util_bbdd.bulk._execution.session import RowLedger
+from util_bbdd.bulk._support.iterables import skip_rows
+from util_bbdd.bulk.options import BatchOptions, ParallelOptions, RetryOptions
 
 pytestmark = pytest.mark.unit
 
@@ -93,7 +94,7 @@ def test_ledger_counts_operation_apart_from_session() -> None:
 
 def test_last_operation_rows_committed_is_the_confirmed_prefix(engine: Engine) -> None:
     _protect(engine, "UPDATE", 8)
-    crud = BulkCrud(engine, chunk_size=2, commit_every_n_chunks=2)
+    crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2, commit_every_n_chunks=2))
     crud.bulk_insert_from_df(_frame(list(range(1, 11))), "items", False)
 
     with pytest.raises(Exception, match="fila protegida"):
@@ -107,7 +108,7 @@ def test_last_operation_rows_committed_is_the_confirmed_prefix(engine: Engine) -
 
 
 def test_last_operation_rows_committed_is_zero_when_atomic(engine: Engine) -> None:
-    crud = BulkCrud(engine, chunk_size=2)
+    crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2))
     crud.bulk_insert_from_df(_frame([5]), "items", False)
     with pytest.raises(IntegrityError):
         crud.bulk_insert_from_df(_frame(list(range(1, 9))), "items", False)
@@ -117,7 +118,7 @@ def test_last_operation_rows_committed_is_zero_when_atomic(engine: Engine) -> No
 
 def test_previous_operation_rows_are_not_attributed(engine: Engine) -> None:
     """R-3: el commit periódico del DELETE confirma también el INSERT pendiente; no cuenta como fila del DELETE."""
-    crud = BulkCrud(engine, chunk_size=2, commit_every_n_chunks=3)
+    crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2, commit_every_n_chunks=3))
     with crud.bulk_session():
         crud.bulk_insert_from_df(_frame([1, 2, 3, 4]), "items", False)  # 2 lotes, sin commit todavía
         crud.bulk_delete_from_df(_frame([1, 2, 3, 4, 5, 6])[["id"]], "items", False)  # 3 lotes → commit
@@ -137,8 +138,8 @@ def test_update_from_chunks_matches_from_df(engine: Engine, tmp_path: Path) -> N
     update = _frame([1, 3, 3, 99, 7, 10], "u")
 
     chunks = _Chunks([update.iloc[:2], update.iloc[2:2], update.iloc[2:5], update.iloc[5:]])
-    total = BulkCrud(engine, chunk_size=2).bulk_update_from_chunks(chunks, "items")
-    BulkCrud(other, chunk_size=2).bulk_update_from_df(update, "items", False)
+    total = BulkCrud(engine, batch=BatchOptions(chunk_size=2)).bulk_update_from_chunks(chunks, "items")
+    BulkCrud(other, batch=BatchOptions(chunk_size=2)).bulk_update_from_df(update, "items", False)
 
     assert total == 6
     assert _rows(engine) == _rows(other)
@@ -149,7 +150,7 @@ def test_delete_from_chunks_deletes_and_closes(engine: Engine) -> None:
     BulkCrud(engine).bulk_insert_from_df(_frame(list(range(1, 11))), "items", False)
     chunks = _Chunks([_frame([1, 2])[["id"]], _frame([])[["id"]], _frame([5, 6, 7])[["id"]]])
 
-    total = BulkCrud(engine, chunk_size=2).bulk_delete_from_chunks(chunks, "items")
+    total = BulkCrud(engine, batch=BatchOptions(chunk_size=2)).bulk_delete_from_chunks(chunks, "items")
 
     assert total == 5
     assert [r[0] for r in _rows(engine)] == [3, 4, 8, 9, 10]
@@ -162,7 +163,7 @@ def test_stream_is_one_transaction_and_closes_on_failure(engine: Engine) -> None
     chunks = _Chunks([_frame([1, 2])[["id"]], _frame([8, 9])[["id"]], _frame([10])[["id"]]])
 
     with pytest.raises(Exception, match="fila protegida") as info:
-        BulkCrud(engine, chunk_size=1).bulk_delete_from_chunks(chunks, "items")
+        BulkCrud(engine, batch=BatchOptions(chunk_size=1)).bulk_delete_from_chunks(chunks, "items")
 
     assert len(_rows(engine)) == 10  # atómico: el chunk 0 también se deshace
     assert chunks.read == 2  # perezoso: el chunk 2 no se llegó a leer
@@ -176,7 +177,7 @@ def test_delete_cadence_continues_across_chunks(engine: Engine) -> None:
     """Con un lote por chunk y commit cada 2 lotes, el contador no puede reiniciarse en cada chunk (nunca confirmaría)."""
     BulkCrud(engine).bulk_insert_from_df(_frame(list(range(1, 11))), "items", False)
     _protect(engine, "DELETE", 5)
-    crud = BulkCrud(engine, chunk_size=1, commit_every_n_chunks=2)
+    crud = BulkCrud(engine, batch=BatchOptions(chunk_size=1, commit_every_n_chunks=2))
 
     with pytest.raises(Exception, match="fila protegida"):
         crud.bulk_delete_from_chunks(iter([_frame([i])[["id"]] for i in range(1, 7)]), "items")
@@ -185,13 +186,13 @@ def test_delete_cadence_continues_across_chunks(engine: Engine) -> None:
     assert [r[0] for r in _rows(engine)] == [5, 6, 7, 8, 9, 10]
 
 
-# ------------------------------------------------------------------------------------------------- _skip_rows
+# -------------------------------------------------------------------------------------------------- skip_rows
 
 
 def test_skip_rows_cuts_across_chunks_and_closes() -> None:
     chunks = _Chunks([_frame([1, 2]), _frame([3, 4, 5]), _frame([6])])
 
-    out = [list(c["id"]) for c in _skip_rows(chunks, 3)]
+    out = [list(c["id"]) for c in skip_rows(chunks, 3)]
 
     assert out == [[4, 5], [6]]
     assert chunks.closed
@@ -211,7 +212,11 @@ def test_retry_resumes_after_committed_rows_without_duplicates(engine: Engine) -
                 raise OperationalError("COPY", {}, Exception("conexión perdida"), connection_invalidated=True)
             yield frame
 
-    loader = ParallelBulkLoader(engine, chunk_size=2, max_workers=1, commit_every_n_chunks=1, max_retries=1)
+    loader = ParallelBulkLoader(
+        engine,
+        batch=BatchOptions(chunk_size=2, commit_every_n_chunks=1),
+        parallel=ParallelOptions(max_workers=1, retry=RetryOptions(max_retries=1)),
+    )
     loader._sleep = MagicMock()  # type: ignore[method-assign]
 
     result = loader.load("items", [reader])
@@ -224,7 +229,7 @@ def test_retry_resumes_after_committed_rows_without_duplicates(engine: Engine) -
 
 def test_parallel_update_and_delete(engine: Engine) -> None:
     BulkCrud(engine).bulk_insert_from_df(_frame(list(range(1, 21))), "items", False)
-    loader = ParallelBulkLoader(engine, chunk_size=3, max_workers=2)
+    loader = ParallelBulkLoader(engine, batch=BatchOptions(chunk_size=3), parallel=ParallelOptions(max_workers=2))
     parts = [_frame(list(range(1, 11)), "u"), _frame(list(range(11, 21)), "u")]
 
     updated = loader.update("items", [lambda p=p: iter([p]) for p in parts], partition_ranges=[(1, 10), (11, 20)])
@@ -238,7 +243,7 @@ def test_parallel_update_and_delete(engine: Engine) -> None:
 
 
 def test_parallel_update_validates_ranges(engine: Engine) -> None:
-    loader = ParallelBulkLoader(engine, max_workers=2)
+    loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=2))
     with pytest.raises(ValueError, match="solapa"):
         loader.update("items", [lambda: iter([]), lambda: iter([])], partition_ranges=[(1, 10), (5, 20)])
 
@@ -248,7 +253,7 @@ def test_postgresql_without_temp_updates_with_one_worker(caplog: pytest.LogCaptu
     engine.dialect.name = "postgresql"
     engine.connect.return_value.__enter__.return_value.execute.return_value.scalar.return_value = False
     engine.pool = None
-    loader = ParallelBulkLoader(engine, max_workers=4)
+    loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=4))
     seen_workers: list[int] = []
     loader._load_partition = MagicMock(  # type: ignore[method-assign]
         side_effect=lambda *a, **k: seen_workers.append(1) or MagicMock(rows=1, error=None)
@@ -286,7 +291,7 @@ def test_parallel_delete_retries_deadlock_even_with_max_retries_zero(engine: Eng
             raise OperationalError("DELETE", {}, pymysql_err.OperationalError(1213, "Deadlock found"))
         yield _frame([1, 2, 3])[["id"]]
 
-    loader = ParallelBulkLoader(engine, max_workers=1)  # max_retries=0
+    loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1))  # max_retries=0
     loader._sleep = MagicMock()  # type: ignore[method-assign]
     result = loader.delete("items", [reader])
 
@@ -302,6 +307,6 @@ def test_load_keeps_max_retries_zero(engine: Engine) -> None:
         raise OperationalError("INSERT", {}, pymysql_err.OperationalError(1213, "Deadlock found"))
         yield  # pragma: no cover
 
-    result = ParallelBulkLoader(engine, max_workers=1).load("items", [reader])
+    result = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1)).load("items", [reader])
     assert len(result.partition_errors) == 1
     assert result.partition_results[0].retries == 0

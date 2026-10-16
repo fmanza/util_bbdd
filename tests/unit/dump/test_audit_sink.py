@@ -193,8 +193,8 @@ def test_carga_por_rangos_recibe_el_destino_y_el_run_id_del_volcado() -> None:
         loader_cls.return_value.load.return_value = ParallelLoadResult()
         orch._load_in_pk_ranges("t", ["id"], {"id": "id"}, "id", "t", 2)
 
-    assert loader_cls.call_args.kwargs["audit_sink"] is sink
-    assert loader_cls.call_args.kwargs["audit_run_id"] == "dump-1"
+    assert loader_cls.call_args.kwargs["audit"].sink is sink
+    assert loader_cls.call_args.kwargs["audit"].run_id == "dump-1"
 
 
 def test_tablas_en_paralelo_comparten_el_run_id(tmp_path: Path) -> None:

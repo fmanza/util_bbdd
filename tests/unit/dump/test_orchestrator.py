@@ -956,7 +956,7 @@ class TestLoadInPkRanges:
             orch._load_in_pk_ranges("t", ["id"], {"id": "id"}, "id", "t", 2)
             orch._load_in_pk_ranges("t", ["id"], {"id": "id"}, "id", "t", 2)  # se acumula entre tablas
 
-        assert loader_cls.call_args.kwargs["audit_strict"] is True
+        assert loader_cls.call_args.kwargs["audit"].strict is True
         counters = orch._audit_counters()
         assert (
             counters.audit_failures,
@@ -992,7 +992,7 @@ class TestLoadInPkRanges:
         assert errors == [] and rejected == 0
         # ParallelBulkLoader construido con el engine destino y max_workers = nº de rangos
         assert loader_cls.call_args.args[0] is orch._cfg.target_engine
-        assert loader_cls.call_args.kwargs["max_workers"] == 3
+        assert loader_cls.call_args.kwargs["parallel"].max_workers == 3
         # load() recibe la tabla destino y un lector por rango (3 rangos para [1,9] con n=3)
         tabla_arg, readers = loader.load.call_args.args
         assert tabla_arg == "t"

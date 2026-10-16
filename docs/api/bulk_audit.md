@@ -95,4 +95,4 @@ Propiedades: `audit_csv_path`, `cache_enabled`, `cache_ttl_seconds` (lectura y e
 
 ## 5. Ejemplos Relacionados
 
-- [Ejemplo: Bulk Insert desde CSV con Auditoría](../examples/bulk_insert_csv.md) — `BulkCrud` con `audit_csv_path` y lectura del CSV resultante
+- [Ejemplo: Bulk Insert desde CSV con Auditoría](../examples/bulk_insert_csv.md) — `BulkCrud` con `AuditOptions(csv_path=...)` y lectura del CSV resultante

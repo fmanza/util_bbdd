@@ -19,6 +19,7 @@ from sqlalchemy.exc import DatabaseError, DBAPIError, IntegrityError, Operationa
 
 from util_bbdd.bulk import ParallelBulkLoader
 from util_bbdd.bulk._support.retry import is_retriable
+from util_bbdd.bulk.options import ParallelOptions, RetryOptions
 
 pytestmark = pytest.mark.unit
 
@@ -158,7 +159,9 @@ def _deadlock() -> DBAPIError:
 
 
 def test_loader_retries_transient_error_with_exponential_backoff(engine: Any) -> None:
-    loader = ParallelBulkLoader(engine, max_workers=1, max_retries=3, retry_backoff=(0.5, 1.5))
+    loader = ParallelBulkLoader(
+        engine, parallel=ParallelOptions(max_workers=1, retry=RetryOptions(max_retries=3, backoff=(0.5, 1.5)))
+    )
     sleeps: list[float] = []
     loader._sleep = sleeps.append  # type: ignore[method-assign]
     loader._jitter = lambda low, high: high  # type: ignore[method-assign]  # tope de la ventana, sin azar
@@ -174,7 +177,7 @@ def test_loader_retries_transient_error_with_exponential_backoff(engine: Any) ->
 
 
 def test_loader_does_not_retry_permanent_pymysql_operational_error(engine: Any) -> None:
-    loader = ParallelBulkLoader(engine, max_workers=1, max_retries=3)
+    loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1, retry=RetryOptions(max_retries=3)))
     loader._sleep = MagicMock()  # type: ignore[method-assign]
     reader = _reader_failing(1, lambda: _wrap(pymysql_err.OperationalError(1045, "Access denied")))
 
@@ -187,7 +190,9 @@ def test_loader_does_not_retry_permanent_pymysql_operational_error(engine: Any) 
 
 
 def test_zero_backoff_retries_immediately(engine: Any) -> None:
-    loader = ParallelBulkLoader(engine, max_workers=1, max_retries=1, retry_backoff=(0, 0))
+    loader = ParallelBulkLoader(
+        engine, parallel=ParallelOptions(max_workers=1, retry=RetryOptions(max_retries=1, backoff=(0, 0)))
+    )
     loader._sleep = MagicMock()  # type: ignore[method-assign]
 
     result = loader.load("items", [_reader_failing(1, _deadlock)])
@@ -198,15 +203,20 @@ def test_zero_backoff_retries_immediately(engine: Any) -> None:
 
 
 def test_custom_retry_on(engine: Any) -> None:
-    loader = ParallelBulkLoader(engine, max_workers=1, max_retries=1, retry_backoff=(0, 0), retry_on=lambda e: True)
+    loader = ParallelBulkLoader(
+        engine,
+        parallel=ParallelOptions(
+            max_workers=1, retry=RetryOptions(max_retries=1, backoff=(0, 0), retry_on=lambda e: True)
+        ),
+    )
     result = loader.load("items", [_reader_failing(1, lambda: KeyError("lector"))])
     assert result.partition_errors == []
 
 
 @pytest.mark.parametrize("backoff", [(-1, 1), (1, float("inf")), (1,), (True, 1), ("1", 2)])
 def test_invalid_backoff_is_rejected(engine: Any, backoff: Any) -> None:
-    with pytest.raises(ValueError, match="retry_backoff"):
-        ParallelBulkLoader(engine, retry_backoff=backoff)
+    with pytest.raises(ValueError, match="backoff debe ser"):
+        ParallelBulkLoader(engine, parallel=ParallelOptions(retry=RetryOptions(backoff=backoff)))
 
 
 # A2 (audit-code 2026-10-01): los errores reales del conector ``mariadb`` llevan ``sqlstate`` y ``errno``; el lock wait

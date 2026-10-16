@@ -18,6 +18,7 @@ import pytest
 from sqlalchemy import Column, Engine, ForeignKey, Integer, MetaData, String, Table, create_engine, event, text
 
 from util_bbdd.bulk import ParallelBulkLoader
+from util_bbdd.bulk.options import AuditOptions, BatchOptions, ParallelOptions, RejectOptions, RetryOptions
 
 pytestmark = pytest.mark.unit
 
@@ -55,10 +56,25 @@ def _reader(*chunks: pd.DataFrame) -> Callable[[], Iterator[pd.DataFrame]]:
     return lambda: iter(chunks)
 
 
-def _loader(engine: Engine, tmp_path: Path, **kwargs: Any) -> ParallelBulkLoader:
-    kwargs.setdefault("max_workers", 1)  # SQLite: un solo escritor
-    kwargs.setdefault("chunk_size", 2)
-    return ParallelBulkLoader(engine, on_error="isolate", rejects_csv_path=tmp_path / "rejects.csv", **kwargs)
+def _loader(
+    engine: Engine,
+    tmp_path: Path,
+    *,
+    chunk_size: int = 2,
+    commit_every_n_chunks: int | None = None,
+    audit_csv_path: Path | None = None,
+    max_rejects: int | None = None,
+    disable_constraints: bool = False,
+    retry: RetryOptions | None = None,
+) -> ParallelBulkLoader:
+    return ParallelBulkLoader(
+        engine,
+        batch=BatchOptions(chunk_size=chunk_size, commit_every_n_chunks=commit_every_n_chunks),
+        audit=AuditOptions(csv_path=audit_csv_path),
+        rejects=RejectOptions(on_error="isolate", csv_path=tmp_path / "rejects.csv", max_rejects=max_rejects),
+        # SQLite: un solo escritor
+        parallel=ParallelOptions(max_workers=1, disable_constraints=disable_constraints, retry=retry or RetryOptions()),
+    )
 
 
 def test_load_rejects_rows_per_partition(tmp_path: Path) -> None:
@@ -85,7 +101,9 @@ def test_load_rejects_rows_per_partition(tmp_path: Path) -> None:
 
 def test_update_and_delete_reject_rows(tmp_path: Path) -> None:
     engine = _engine(tmp_path, foreign_keys=True)
-    ParallelBulkLoader(engine, max_workers=1).load("items", [_reader(_frame(list(range(1, 9))))])
+    ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1)).load(
+        "items", [_reader(_frame(list(range(1, 9))))]
+    )
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO child (id, item_id) VALUES (1, 7)"))
     loader = _loader(engine, tmp_path)
@@ -118,7 +136,7 @@ def test_attempt_with_rejects_is_not_retried(tmp_path: Path) -> None:
     """D-2: el intento ya escribió un rechazo; reintentarlo lo duplicaría en el CSV."""
     engine = _engine(tmp_path)
     reader = _FailingOnce([_frame([1, 2], none_at=(2,)), _frame([3])], first=1)
-    loader = _loader(engine, tmp_path, max_retries=3, retry_on=lambda _exc: True, retry_backoff=(0, 0))
+    loader = _loader(engine, tmp_path, retry=RetryOptions(max_retries=3, retry_on=lambda _exc: True, backoff=(0, 0)))
 
     result = loader.load("items", [reader])
 
@@ -136,7 +154,10 @@ def test_attempt_without_rejects_is_retried_and_positions_skip_committed_rows(tm
     engine = _engine(tmp_path)
     reader = _FailingOnce([_frame([1, 2]), _frame([3, 4], none_at=(4,))], first=1)
     loader = _loader(
-        engine, tmp_path, commit_every_n_chunks=1, max_retries=1, retry_on=lambda _exc: True, retry_backoff=(0, 0)
+        engine,
+        tmp_path,
+        commit_every_n_chunks=1,
+        retry=RetryOptions(max_retries=1, retry_on=lambda _exc: True, backoff=(0, 0)),
     )
 
     result = loader.load("items", [reader])
@@ -164,19 +185,21 @@ def test_max_rejects_applies_per_partition(tmp_path: Path) -> None:
     [
         {"on_error": "skip"},
         {"on_error": "isolate"},
-        {"rejects_csv_path": Path("r.csv")},
-        {"on_error": "isolate", "rejects_csv_path": Path("r.csv"), "max_rejects": -1},
+        {"csv_path": Path("r.csv")},
+        {"on_error": "isolate", "csv_path": Path("r.csv"), "max_rejects": -1},
     ],
 )
 def test_invalid_parameters_fail_before_the_pool(tmp_path: Path, kwargs: dict[str, Any]) -> None:
     with pytest.raises(ValueError):
-        ParallelBulkLoader(_engine(tmp_path), **kwargs)
+        ParallelBulkLoader(_engine(tmp_path), rejects=RejectOptions(**kwargs))
 
 
 def test_raise_is_unchanged(tmp_path: Path) -> None:
     engine = _engine(tmp_path)
 
-    result = ParallelBulkLoader(engine, max_workers=1).load("items", [_reader(_frame([1, 2], none_at=(2,)))])
+    result = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1)).load(
+        "items", [_reader(_frame([1, 2], none_at=(2,)))]
+    )
 
     assert len(result.partition_errors) == 1
     assert result.rows_rejected == 0

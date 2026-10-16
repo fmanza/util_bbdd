@@ -16,6 +16,7 @@ from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from util_bbdd.bulk import BulkCrud
+from util_bbdd.bulk.options import BatchOptions
 
 pytestmark = pytest.mark.unit
 
@@ -42,20 +43,20 @@ PKS = pd.DataFrame({"id": [1, 2, 3, 4, 5]})  # lotes de 2: [1, 2], [3, 4], [5] (
 
 def test_without_commit_cadence_delete_is_atomic(engine: Engine) -> None:
     with pytest.raises(SQLAlchemyError):
-        BulkCrud(engine, chunk_size=2).bulk_delete_from_df(PKS, "t", False)
+        BulkCrud(engine, batch=BatchOptions(chunk_size=2)).bulk_delete_from_df(PKS, "t", False)
 
     assert _ids(engine) == [1, 2, 3, 4, 5]
 
 
 def test_commit_cadence_keeps_committed_batches(engine: Engine) -> None:
     with pytest.raises(SQLAlchemyError):
-        BulkCrud(engine, chunk_size=2, commit_every_n_chunks=1).bulk_delete_from_df(PKS, "t", False)
+        BulkCrud(engine, batch=BatchOptions(chunk_size=2, commit_every_n_chunks=1)).bulk_delete_from_df(PKS, "t", False)
 
     assert _ids(engine) == [5]
 
 
 def test_commit_cadence_inside_bulk_session(engine: Engine) -> None:
-    crud = BulkCrud(engine, chunk_size=2, commit_every_n_chunks=2)
+    crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2, commit_every_n_chunks=2))
 
     with pytest.raises(SQLAlchemyError), crud.bulk_session():
         crud.bulk_delete_from_df(PKS, "t", False)
@@ -64,6 +65,8 @@ def test_commit_cadence_inside_bulk_session(engine: Engine) -> None:
 
 
 def test_commit_cadence_successful_delete(engine: Engine) -> None:
-    BulkCrud(engine, chunk_size=2, commit_every_n_chunks=1).bulk_delete_from_df(PKS.iloc[:4], "t", False)
+    BulkCrud(engine, batch=BatchOptions(chunk_size=2, commit_every_n_chunks=1)).bulk_delete_from_df(
+        PKS.iloc[:4], "t", False
+    )
 
     assert _ids(engine) == [5]

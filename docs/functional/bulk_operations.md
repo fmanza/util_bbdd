@@ -24,7 +24,7 @@ Al crearse, el módulo revisa una vez por engine la configuración del motor y a
 | Columnas sin distinguir mayúsculas | Las columnas del DataFrame se emparejan con las de la tabla sin distinguir mayúsculas y se renombran al nombre real de la tabla | Si la tabla tiene dos columnas que solo difieren en mayúsculas, la coincidencia no es única y la columna del DataFrame no se empareja |
 | Procesamiento por lotes | Los datos se envían en lotes (configurable) para evitar saturar memoria y BD | Lotes muy grandes pueden agotar la memoria del proceso o superar límites del driver |
 | Una transacción por operación | Cada INSERT, UPDATE o DELETE se ejecuta en una sola transacción, aunque se envíe por lotes: si falla un lote, se deshace la operación entera. Con `commit_every_n_chunks` se confirma cada N lotes | Con `commit_every_n_chunks`, un fallo a mitad deja confirmados los lotes anteriores (`rows_committed`); el error indica el lote y las filas donde falló |
-| Aislamiento de filas erróneas (opcional) | Con `on_error="isolate"` y `rejects_csv_path`, las filas que fallan por un error de datos (PK duplicada, FK, valor demasiado largo) se apartan a un CSV de rechazos y el resto se aplica | Sin activarlo, una sola fila con un error de datos deshace la operación entera. El CSV contiene datos de las filas |
+| Aislamiento de filas erróneas (opcional) | Con `RejectOptions(on_error="isolate", csv_path=...)`, las filas que fallan por un error de datos (PK duplicada, FK, valor demasiado largo) se apartan a un CSV de rechazos y el resto se aplica | Sin activarlo, una sola fila con un error de datos deshace la operación entera. El CSV contiene datos de las filas |
 
 ## 3. Casos de Uso
 

@@ -20,6 +20,7 @@ import util_bbdd.bulk.crud as crud_module
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader
 from util_bbdd.bulk._execution.insert_strategies import DefaultInsertStrategy
 from util_bbdd.bulk._support.batch_sizes import DEFAULT_CHUNK_SIZE, resolve_batch_sizes
+from util_bbdd.bulk.options import BatchOptions, ExecutionOptions, ParallelOptions
 
 pytestmark = pytest.mark.unit
 
@@ -58,7 +59,11 @@ def test_bulkcrud_defaults(engine: Engine) -> None:
     crud = BulkCrud(engine)
     assert crud.chunk_size == DEFAULT_CHUNK_SIZE
     assert crud.batch_sizes == {"insert": 5000, "update": 5000, "delete": 5000}
-    assert BulkCrud(engine, chunk_size=123).batch_sizes == {"insert": 123, "update": 123, "delete": 123}
+    assert BulkCrud(engine, batch=BatchOptions(chunk_size=123)).batch_sizes == {
+        "insert": 123,
+        "update": 123,
+        "delete": 123,
+    }
 
 
 def test_each_operation_uses_its_batch_size(engine: Engine, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -71,7 +76,7 @@ def test_each_operation_uses_its_batch_size(engine: Engine, monkeypatch: pytest.
         original(self, connection=connection, stmt=stmt, records=records)
 
     monkeypatch.setattr(DefaultInsertStrategy, "execute", _spy_insert)
-    crud = BulkCrud(engine, update_via_staging=False)
+    crud = BulkCrud(engine, execution=ExecutionOptions(update_via_staging=False))
     df = pd.DataFrame({"id": range(1, 11), "v": ["a"] * 10})
 
     crud.bulk_insert_from_df(df, "items", False)
@@ -91,7 +96,7 @@ def test_each_operation_uses_its_batch_size(engine: Engine, monkeypatch: pytest.
 
 
 def test_parallel_loader_passes_none_to_each_bulkcrud(engine: Engine) -> None:
-    loader = ParallelBulkLoader(engine, max_workers=1)
-    assert loader._chunk_size is None
+    loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1))
+    assert loader.options.batch.chunk_size is None
     result = loader.load("items", [lambda: iter([pd.DataFrame({"id": [1, 2], "v": ["a", "b"]})])])
     assert result.total_rows == 2

@@ -36,6 +36,8 @@ import pandas as pd
 from sqlalchemy import Column, Integer, String, text
 from sqlalchemy.orm import DeclarativeBase
 
+from util_bbdd.bulk.options import BatchOptions
+
 # Configurar logging mínimo
 logging.basicConfig(level=logging.WARNING)
 
@@ -122,9 +124,7 @@ def benchmark_bulk_insert(
 
     # Instanciar BulkCrud con configuración
     bulk = BulkCrud(
-        engine,
-        chunk_size=config.chunk_size,
-        commit_every_n_chunks=config.commit_every_n_chunks,
+        engine, batch=BatchOptions(chunk_size=config.chunk_size, commit_every_n_chunks=config.commit_every_n_chunks)
     )
 
     # Limpiar tabla antes de insertar

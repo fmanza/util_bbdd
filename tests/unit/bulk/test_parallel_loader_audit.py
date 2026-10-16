@@ -19,6 +19,7 @@ from sqlalchemy import Engine, create_engine, text
 
 from util_bbdd.bulk import ParallelBulkLoader
 from util_bbdd.bulk.audit import AuditManager
+from util_bbdd.bulk.options import AuditOptions, BatchOptions, ParallelOptions, RetryOptions
 from util_bbdd.dump import DumpConfig, DumpOrchestrator
 
 pytestmark = pytest.mark.unit
@@ -60,7 +61,12 @@ def engine(tmp_path: Path) -> Iterator[Engine]:
 class TestParallelBulkLoaderAudit:
     def test_without_failures_counters_are_zero(self, engine: Engine, tmp_path: Path) -> None:
         calls: list[int] = []
-        loader = ParallelBulkLoader(engine, chunk_size=10, max_workers=1, audit_csv_path=tmp_path / "audit.csv")
+        loader = ParallelBulkLoader(
+            engine,
+            batch=BatchOptions(chunk_size=10),
+            audit=AuditOptions(csv_path=tmp_path / "audit.csv"),
+            parallel=ParallelOptions(max_workers=1),
+        )
 
         result = loader.load("items", [_reader(0, calls), _reader(100, calls)])
 
@@ -70,7 +76,12 @@ class TestParallelBulkLoaderAudit:
 
     def test_fail_open_counts_lost_records_per_partition_and_in_total(self, engine: Engine, tmp_path: Path) -> None:
         calls: list[int] = []
-        loader = ParallelBulkLoader(engine, chunk_size=10, max_workers=1, audit_csv_path=tmp_path / "audit.csv")
+        loader = ParallelBulkLoader(
+            engine,
+            batch=BatchOptions(chunk_size=10),
+            audit=AuditOptions(csv_path=tmp_path / "audit.csv"),
+            parallel=ParallelOptions(max_workers=1),
+        )
 
         with patch.object(AuditManager, "_registrar_lote", side_effect=OSError("CSV bloqueado")):
             result = loader.load("items", [_reader(0, calls), _reader(100, calls)])
@@ -84,11 +95,9 @@ class TestParallelBulkLoaderAudit:
         calls: list[int] = []
         loader = ParallelBulkLoader(
             engine,
-            chunk_size=10,
-            max_workers=1,
-            max_retries=2,
-            audit_csv_path=tmp_path / "audit.csv",
-            audit_strict=True,
+            batch=BatchOptions(chunk_size=10),
+            audit=AuditOptions(csv_path=tmp_path / "audit.csv", strict=True),
+            parallel=ParallelOptions(max_workers=1, retry=RetryOptions(max_retries=2)),
         )
 
         with patch.object(AuditManager, "_registrar_lote", side_effect=OSError("CSV bloqueado")):

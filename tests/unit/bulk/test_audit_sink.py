@@ -20,6 +20,7 @@ from sqlalchemy import Engine, create_engine, text
 from util_bbdd.audit import AuditEvent, MemoryAuditSink
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader
 from util_bbdd.bulk.audit import AuditManager
+from util_bbdd.bulk.options import AuditOptions, BatchOptions, ParallelOptions, RetryOptions
 
 pytestmark = pytest.mark.unit
 
@@ -52,7 +53,7 @@ class _BrokenSink:
 
 def test_operacion_fuera_de_sesion_emite_un_evento(engine: Engine) -> None:
     sink = MemoryAuditSink()
-    crud = BulkCrud(engine, audit_sink=sink)
+    crud = BulkCrud(engine, audit=AuditOptions(sink=sink))
 
     crud.bulk_insert_from_df(_df(1, 5), "items", generar_sql=False)
 
@@ -66,7 +67,7 @@ def test_operacion_fuera_de_sesion_emite_un_evento(engine: Engine) -> None:
 
 def test_csv_y_destino_registran_lo_mismo(engine: Engine, tmp_path: Path) -> None:
     sink = MemoryAuditSink()
-    crud = BulkCrud(engine, audit_csv_path=tmp_path / "a.csv", audit_sink=sink, audit_run_id="r-1")
+    crud = BulkCrud(engine, audit=AuditOptions(csv_path=tmp_path / "a.csv", sink=sink, run_id="r-1"))
 
     crud.bulk_insert_from_df(_df(1, 5), "items", generar_sql=False)
     crud.bulk_delete_from_df(_df(1, 2)[["id"]], "items", generar_sql=False)
@@ -79,7 +80,7 @@ def test_csv_y_destino_registran_lo_mismo(engine: Engine, tmp_path: Path) -> Non
 
 def test_sesion_confirmada_emite_al_commit_y_rollback_no_emite(engine: Engine) -> None:
     sink = MemoryAuditSink()
-    crud = BulkCrud(engine, audit_sink=sink)
+    crud = BulkCrud(engine, audit=AuditOptions(sink=sink))
 
     with crud.bulk_session():
         crud.bulk_insert_from_df(_df(1, 3), "items", generar_sql=False)
@@ -95,12 +96,14 @@ def test_sesion_confirmada_emite_al_commit_y_rollback_no_emite(engine: Engine) -
 
 def test_destino_sin_csv_no_avisa_de_auditoria_deshabilitada(engine: Engine, caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING, logger="util_bbdd.bulk.audit"):
-        BulkCrud(engine, audit_sink=MemoryAuditSink()).bulk_insert_from_df(_df(1, 2), "items", generar_sql=False)
+        BulkCrud(engine, audit=AuditOptions(sink=MemoryAuditSink())).bulk_insert_from_df(
+            _df(1, 2), "items", generar_sql=False
+        )
     assert not [r for r in caplog.records if "Auditoría deshabilitada" in r.getMessage()]
 
 
 def test_fallo_del_destino_sin_strict_cuenta_y_sigue(engine: Engine) -> None:
-    crud = BulkCrud(engine, audit_sink=_BrokenSink())
+    crud = BulkCrud(engine, audit=AuditOptions(sink=_BrokenSink()))
 
     crud.bulk_insert_from_df(_df(1, 4), "items", generar_sql=False)
 
@@ -109,7 +112,7 @@ def test_fallo_del_destino_sin_strict_cuenta_y_sigue(engine: Engine) -> None:
 
 
 def test_fallo_del_destino_con_strict_deshace_la_sesion(engine: Engine) -> None:
-    crud = BulkCrud(engine, audit_sink=_BrokenSink(), audit_strict=True)
+    crud = BulkCrud(engine, audit=AuditOptions(sink=_BrokenSink(), strict=True))
 
     with pytest.raises(OSError, match="disco lleno"), crud.bulk_session():
         crud.bulk_insert_from_df(_df(1, 4), "items", generar_sql=False)
@@ -131,7 +134,12 @@ def _reader(start: int) -> Callable[[], Iterator[pd.DataFrame]]:
 
 def test_carga_paralela_eventos_y_conciliacion(engine: Engine) -> None:
     sink = MemoryAuditSink()
-    loader = ParallelBulkLoader(engine, chunk_size=10, max_workers=2, audit_sink=sink)
+    loader = ParallelBulkLoader(
+        engine,
+        batch=BatchOptions(chunk_size=10),
+        audit=AuditOptions(sink=sink),
+        parallel=ParallelOptions(max_workers=2),
+    )
 
     result = loader.load("items", [_reader(0), _reader(100), _reader(200)])
 
@@ -149,7 +157,12 @@ def test_carga_paralela_eventos_y_conciliacion(engine: Engine) -> None:
 
 def test_carga_paralela_con_run_id_recibido(engine: Engine) -> None:
     sink = MemoryAuditSink()
-    loader = ParallelBulkLoader(engine, chunk_size=10, max_workers=1, audit_sink=sink, audit_run_id="dump-1")
+    loader = ParallelBulkLoader(
+        engine,
+        batch=BatchOptions(chunk_size=10),
+        audit=AuditOptions(sink=sink, run_id="dump-1"),
+        parallel=ParallelOptions(max_workers=1),
+    )
 
     assert loader.load("items", [_reader(0)]).audit_run_id == "dump-1"
     assert {e.run_id for e in sink.events()} == {"dump-1"}
@@ -158,7 +171,12 @@ def test_carga_paralela_con_run_id_recibido(engine: Engine) -> None:
 def test_carga_paralela_fallo_del_destino_final_no_cambia_el_resultado(
     engine: Engine, caplog: pytest.LogCaptureFixture
 ) -> None:
-    loader = ParallelBulkLoader(engine, chunk_size=10, max_workers=1, audit_sink=_BrokenSink())
+    loader = ParallelBulkLoader(
+        engine,
+        batch=BatchOptions(chunk_size=10),
+        audit=AuditOptions(sink=_BrokenSink()),
+        parallel=ParallelOptions(max_workers=1),
+    )
 
     with caplog.at_level(logging.ERROR):
         result = loader.load("items", [_reader(0)])
@@ -169,7 +187,7 @@ def test_carga_paralela_fallo_del_destino_final_no_cambia_el_resultado(
 
 def test_strict_csv_escrito_y_destino_fallido_cuenta_lo_escrito_sin_commit(engine: Engine, tmp_path: Path) -> None:
     """AUDIT_CODE de F5: el CSV se escribe antes del commit, falla el destino y la sesión se deshace."""
-    crud = BulkCrud(engine, audit_csv_path=tmp_path / "a.csv", audit_sink=_BrokenSink(), audit_strict=True)
+    crud = BulkCrud(engine, audit=AuditOptions(csv_path=tmp_path / "a.csv", sink=_BrokenSink(), strict=True))
 
     with pytest.raises(OSError, match="disco lleno"), crud.bulk_session():
         crud.bulk_insert_from_df(_df(1, 4), "items", generar_sql=False)
@@ -181,8 +199,8 @@ def test_strict_csv_escrito_y_destino_fallido_cuenta_lo_escrito_sin_commit(engin
 
 def test_run_id_sin_destino_es_none(engine: Engine) -> None:
     """Hallazgo 3 del audit-code 2026-10-02c: como ParallelBulkLoader."""
-    assert BulkCrud(engine, audit_run_id="x").audit_run_id is None
-    assert BulkCrud(engine, audit_sink=MemoryAuditSink(), audit_run_id="x").audit_run_id == "x"
+    assert BulkCrud(engine, audit=AuditOptions(run_id="x")).audit_run_id is None
+    assert BulkCrud(engine, audit=AuditOptions(sink=MemoryAuditSink(), run_id="x")).audit_run_id == "x"
 
 
 class _RuntimeErrorSink:
@@ -197,7 +215,7 @@ def test_strict_destino_propio_que_falla_lanza_audit_error(engine: Engine) -> No
     """Hallazgo 1: audit_strict promete AuditError/OSError; la causa original queda en __cause__."""
     from util_bbdd.exceptions import AuditError
 
-    crud = BulkCrud(engine, audit_sink=_RuntimeErrorSink(), audit_strict=True)
+    crud = BulkCrud(engine, audit=AuditOptions(sink=_RuntimeErrorSink(), strict=True))
 
     with pytest.raises(AuditError, match="cola externa caída") as excinfo, crud.bulk_session():
         crud.bulk_insert_from_df(_df(1, 2), "items", generar_sql=False)
@@ -208,7 +226,7 @@ def test_strict_destino_propio_que_falla_lanza_audit_error(engine: Engine) -> No
 
 def test_log_sin_csv_no_menciona_el_csv(engine: Engine, caplog: pytest.LogCaptureFixture) -> None:
     """Hallazgo 4: solo destino, strict, falla el commit tras escribir los eventos."""
-    crud = BulkCrud(engine, audit_sink=MemoryAuditSink(), audit_strict=True)
+    crud = BulkCrud(engine, audit=AuditOptions(sink=MemoryAuditSink(), strict=True))
     persistence = crud._persistence
     persistence.start_session_audit(MagicMock(in_transaction=MagicMock(return_value=True)))
     persistence.register_operation(table_name="items", operation="INSERT", rowcount=3, elapsed=0.1, generated_sql=False)
@@ -246,7 +264,9 @@ def _seed(engine: Engine, n: int = 40) -> None:
 def test_update_y_delete_paralelos_emiten_sus_eventos(engine: Engine, method: str, operation: str) -> None:
     _seed(engine)
     sink = MemoryAuditSink()
-    loader = ParallelBulkLoader(engine, chunk_size=5, max_workers=1, audit_sink=sink)
+    loader = ParallelBulkLoader(
+        engine, batch=BatchOptions(chunk_size=5), audit=AuditOptions(sink=sink), parallel=ParallelOptions(max_workers=1)
+    )
 
     result = getattr(loader, method)("items", [_chunked(1, "u"), _chunked(11, "u")])
 
@@ -281,11 +301,11 @@ def test_reintento_de_update_no_duplica_eventos(engine: Engine) -> None:
 
     loader = ParallelBulkLoader(
         engine,
-        chunk_size=5,
-        max_workers=1,
-        audit_sink=sink,
-        retry_backoff=(0, 0),
-        retry_on=lambda exc: isinstance(exc, RuntimeError),
+        batch=BatchOptions(chunk_size=5),
+        audit=AuditOptions(sink=sink),
+        parallel=ParallelOptions(
+            max_workers=1, retry=RetryOptions(backoff=(0, 0), retry_on=lambda exc: isinstance(exc, RuntimeError))
+        ),
     )
 
     result = loader.update("items", [flaky])

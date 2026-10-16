@@ -78,7 +78,7 @@ def ejecutar_con_retry(manager, sql, max_reintentos=3, delay=1.0):
 
 `DatabaseOperationError` envuelve también errores permanentes (SQL inválido, permisos): para reintentar solo los
 transitorios, decide por el error del driver (`e.__cause__`). Las cargas de `ParallelBulkLoader` ya lo hacen con
-`max_retries` (desconexiones, deadlocks, timeouts).
+`RetryOptions.max_retries` (desconexiones, deadlocks, timeouts).
 
 ## 4. Verificación
 

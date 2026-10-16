@@ -22,7 +22,7 @@ Aspectos críticos:
 --8<-- "examples/database/partition_ranges.py"
 ```
 
-**Pool de conexiones**: el engine destino debe tener capacidad ≥ `max_workers`. Para 4 workers:
+**Pool de conexiones**: el engine destino debe tener capacidad ≥ `ParallelOptions.max_workers`. Para 4 workers:
 
 ```python
 --8<-- "examples/database/pool_setup.py"
@@ -46,16 +46,18 @@ Aspectos críticos:
 
 ```python
 from util_bbdd.bulk import RangePartitioner, ParallelBulkLoader
+from util_bbdd.bulk.options import ParallelOptions
 
 # Divide el DataFrame en 4 slices disjuntos ordenados por 'id'
 partitions = RangePartitioner.partition_dataframe(df, pk_col="id", n_partitions=4)
 readers = [lambda p=part: iter([p]) for part in partitions]
-result = ParallelBulkLoader(engine, max_workers=4).load("orders", readers)
+result = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=4)).load("orders", readers)
 ```
 
 **`RangePartitioner` — rangos para lectores SQL (volúmenes >RAM):**
 
 ```python
+from util_bbdd.bulk.options import ParallelOptions
 # Genera rangos (lo, hi) sin materializar el DataFrame completo
 ranges = RangePartitioner.partition_ranges(1, 13_000_000, n_partitions=8)
 readers = [
@@ -65,27 +67,29 @@ readers = [
     )
     for lo, hi in ranges
 ]
-result = ParallelBulkLoader(dst_engine, max_workers=8).load("orders", readers)
+result = ParallelBulkLoader(dst_engine, parallel=ParallelOptions(max_workers=8)).load("orders", readers)
 ```
 
 **`HashPartitioner` — PK de tipo UUID o string:**
 
 ```python
 from util_bbdd.bulk import HashPartitioner
+from util_bbdd.bulk.options import ParallelOptions
 
 # Acepta cualquier tipo hashable; distribución estadísticamente uniforme
 partitions = HashPartitioner.partition_dataframe(df, pk_col="uuid_col", n_partitions=4)
 readers = [lambda p=part: iter([p]) for part in partitions]
-result = ParallelBulkLoader(engine, max_workers=4).load("orders", readers)
+result = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=4)).load("orders", readers)
 ```
 
 **Constraints desactivadas durante la carga (cargas >1 M filas):**
 
 ```python
+from util_bbdd.bulk.options import ParallelOptions
 # Cada worker desactiva las constraints en su propia sesión (maintenance_scope) y las restaura al terminar.
 # No envolver loader.load() en el maintenance_scope de otra BulkCrud: en MySQL/MariaDB FOREIGN_KEY_CHECKS es
 # de sesión y no alcanzaría a las conexiones de los workers.
-result = ParallelBulkLoader(engine, max_workers=4, disable_constraints=True).load("orders", readers)
+result = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=4, disable_constraints=True)).load("orders", readers)
 ```
 
 ## 4. Ejecución y Pruebas

@@ -47,9 +47,18 @@ from util_bbdd.audit.counters import AuditCounters
 from util_bbdd.audit.events import AuditEvent
 from util_bbdd.audit.readiness import ReadinessBlock
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader, RangePartitioner
+from util_bbdd.bulk._execution.parallel_planner import SINGLE_WRITER_DIALECTS, ParallelPlanner, PlanInput
 from util_bbdd.bulk._support.dialect import MYSQL_FAMILY
 from util_bbdd.bulk._support.iterables import close_if_closable
 from util_bbdd.bulk._support.pool import pool_capacity
+from util_bbdd.bulk.options import (
+    AuditOptions,
+    BatchOptions,
+    BulkOptions,
+    ExecutionOptions,
+    ParallelOptions,
+    RejectOptions,
+)
 
 from .._core.exceptions import AuditError, DumpError, DumpReportError
 from ..connection.performance_advisor import EngineReadinessAdvisor
@@ -564,7 +573,7 @@ class DumpOrchestrator:
         self, src_table: str, dst_table: str, position: int, in_cycle: bool, crud: BulkCrud
     ) -> TableDumpResult:
         common_cols, skipped_cols, col_name_map = self._common_columns(src_table, dst_table)
-        pk_range_col = self._detect_pk_range_col(src_table, common_cols) if self._cfg.parallel_pk_ranges > 1 else None
+        pk_range_col = self._detect_pk_range_col(src_table, common_cols) if self._pk_ranges_requested() else None
         return self._process_table_with_columns(
             src_table, dst_table, position, in_cycle, crud, common_cols, skipped_cols, col_name_map, pk_range_col
         )
@@ -624,7 +633,7 @@ class DumpOrchestrator:
         n_ranges: int = getattr(self, "_effective_pk_ranges", 1)
         if pk_range_col is not None and n_ranges > 1:
             error_msgs, rows_rejected = self._load_in_pk_ranges(
-                src_table, common_cols, col_name_map, pk_range_col, dest_table_logical, n_ranges
+                src_table, common_cols, col_name_map, pk_range_col, dest_table_logical, n_ranges, crud=crud
             )
         else:
             # La BulkCrud se reutiliza entre las tablas del hilo: sus rechazos de esta tabla, por diferencia.
@@ -712,10 +721,14 @@ class DumpOrchestrator:
         pk_col: str,
         dest_table_logical: str,
         n_ranges: int,
+        *,
+        crud: BulkCrud | None = None,
     ) -> tuple[list[str], int]:
         """Particiona la tabla por rangos contiguos de ``pk_col`` y los carga en paralelo.
 
-        Devuelve los errores de los rangos y las filas rechazadas (``on_error="isolate"``).
+        Devuelve los errores de los rangos y las filas rechazadas (``on_error="isolate"``). Con
+        ``parallel_pk_ranges="auto"``, ``n_ranges`` es el tope: el número de rangos lo decide ``ParallelPlanner`` con la
+        cota de filas ``MAX − MIN + 1``; si sale 1, la tabla se carga entera con ``crud`` (o una ``BulkCrud`` nueva).
 
         Responsabilidad de ``dump`` (política): calcular los rangos a partir del origen
         (MIN/MAX + bounds) y construir un *lector* por rango. El mecanismo de inserción
@@ -735,7 +748,15 @@ class DumpOrchestrator:
         if row[0] is None or row[1] is None:
             return [], 0  # tabla vacía
 
-        bounds = DumpOrchestrator._compute_range_bounds(int(row[0]), int(row[1]), n_ranges)
+        lo, hi = int(row[0]), int(row[1])
+        if getattr(self, "_auto_pk_ranges", False):
+            n_ranges = self._plan_pk_ranges(src_table, hi - lo + 1, n_ranges)
+            if n_ranges <= 1:
+                worker = crud if crud is not None else self._make_worker_crud()
+                rejected_before: int = worker.rows_rejected
+                errors = self._load_whole_table(src_table, common_cols, col_name_map, dest_table_logical, worker)
+                return errors, worker.rows_rejected - rejected_before
+        bounds = DumpOrchestrator._compute_range_bounds(lo, hi, n_ranges)
         cols_quoted = ", ".join(quote_identifier(c, cfg.source_engine) for c in common_cols)
         write_batch = self._resolve_write_batch_size()
 
@@ -753,7 +774,15 @@ class DumpOrchestrator:
 
             return _reader
 
-        loader = ParallelBulkLoader(cfg.target_engine, max_workers=n_ranges, **self._bulk_options())
+        options = self._bulk_options()
+        loader = ParallelBulkLoader(
+            cfg.target_engine,
+            batch=options.batch,
+            audit=options.audit,
+            rejects=options.rejects,
+            execution=options.execution,
+            parallel=ParallelOptions(max_workers=n_ranges),
+        )
         readers = [_make_reader(lo, hi, last) for lo, hi, last in bounds]
         result = loader.load(dest_table_logical, readers)
         with self._audit_lock:
@@ -798,20 +827,28 @@ class DumpOrchestrator:
             return None
         return None
 
-    def _resolve_range_count(self, requested: int, table_workers: int) -> int:
-        """Clampa el nº de rangos para que ``table_workers * rangos`` no exceda el pool (1 con destino SQLite)."""
+    def _pk_ranges_requested(self) -> bool:
+        """``True`` si ``parallel_pk_ranges`` pide particionar por rangos de PK (``"auto"`` o un entero > 1)."""
+        ranges = self._cfg.parallel_pk_ranges
+        return ranges == "auto" or ranges > 1
+
+    def _resolve_range_count(self, requested: int | Literal["auto"], table_workers: int) -> int:
+        """Clampa el nº de rangos para que ``table_workers * rangos`` no exceda el pool (1 con destino SQLite).
+
+        Con ``"auto"`` devuelve el tope por tabla (``ParallelOptions().max_workers``, recortado por el pool sin avisar):
+        el número de cada tabla lo decide :meth:`_plan_pk_ranges` cuando se conocen sus filas. Si el motor de destino no
+        gana con rangos en ningún volumen medido, devuelve 1 (sin el ``MIN/MAX`` de cada tabla) y lo dice una vez (INFO).
+        """
+        self._auto_pk_ranges = requested == "auto"
+        if requested == "auto":
+            return self._auto_range_ceiling(table_workers)
         if requested <= 1:
             return 1
         if self._single_writer_target("parallel_pk_ranges", requested):
             return 1
         self._warn_slow_pk_ranges(requested)
-        capacities = [
-            DumpOrchestrator._pool_capacity(self._cfg.source_engine),
-            DumpOrchestrator._pool_capacity(self._cfg.target_engine),
-        ]
-        known = [c for c in capacities if c is not None and c > 0]
-        if known:
-            cap = min(known)
+        cap = self._known_pool_capacity()
+        if cap is not None:
             allowed = max(1, cap // max(table_workers, 1))
             if requested > allowed:
                 self.logger.warning(
@@ -824,6 +861,52 @@ class DumpOrchestrator:
                 )
                 return allowed
         return requested
+
+    def _auto_range_ceiling(self, table_workers: int) -> int:
+        """Tope de rangos por tabla con ``parallel_pk_ranges="auto"``; 1 si el destino no gana con rangos (ver arriba)."""
+        dialect: str = self._cfg.target_engine.dialect.name
+        if dialect in SINGLE_WRITER_DIALECTS:
+            return 1
+        rule = ParallelPlanner.rule("source", dialect, "insert")
+        if rule is None or rule.workers <= 1:
+            reason = "sin medición" if rule is None else rule.evidence
+            self.logger.info("parallel_pk_ranges='auto' con destino %s: sin rangos de PK (%s).", dialect, reason)
+            return 1
+        ceiling = ParallelOptions().max_workers
+        cap = self._known_pool_capacity()
+        return ceiling if cap is None else max(1, min(ceiling, cap // max(table_workers, 1)))
+
+    def _known_pool_capacity(self) -> int | None:
+        """Menor capacidad conocida de los pools de origen y destino (``size + max_overflow``), o ``None``."""
+        capacities = [
+            DumpOrchestrator._pool_capacity(self._cfg.source_engine),
+            DumpOrchestrator._pool_capacity(self._cfg.target_engine),
+        ]
+        known = [c for c in capacities if c is not None and c > 0]
+        return min(known) if known else None
+
+    def _plan_pk_ranges(self, src_table: str, rows: int, ceiling: int) -> int:
+        """Rangos de PK de una tabla con ``parallel_pk_ranges="auto"`` (``ParallelPlanner``, cada hilo lee del origen).
+
+        ``rows`` es una cota (``MAX − MIN + 1``): con huecos en la PK, la tabla tiene menos filas. El motivo va al log.
+        """
+        plan = ParallelPlanner.plan(
+            PlanInput(
+                dialect=self._cfg.target_engine.dialect.name,
+                operation="insert",
+                options=ParallelOptions(mode="auto", max_workers=max(1, ceiling)),
+                rows=rows,
+                workload="source",
+            )
+        )
+        self.logger.info(
+            "%s: %d rango(s) de PK (parallel_pk_ranges='auto', hasta %d filas): %s",
+            src_table,
+            plan.workers,
+            rows,
+            "; ".join(plan.reasons),
+        )
+        return plan.workers
 
     # ------------------------------------------------------------------
     # Fase 4 (paralela): carga por niveles topológicos
@@ -895,7 +978,7 @@ class DumpOrchestrator:
     ) -> tuple[list[str], list[str], dict[str, str], str | None]:
         """Calcula en serie (Inspector no thread-safe) columnas comunes + PK de rango."""
         common_cols, skipped_cols, col_name_map = self._common_columns(src_table, dst_table)
-        pk_col = self._detect_pk_range_col(src_table, common_cols) if self._cfg.parallel_pk_ranges > 1 else None
+        pk_col = self._detect_pk_range_col(src_table, common_cols) if self._pk_ranges_requested() else None
         return common_cols, skipped_cols, col_name_map, pk_col
 
     def _load_one_table(
@@ -947,33 +1030,35 @@ class DumpOrchestrator:
         puede registrar inserts en ``bulk_audit_path`` sin intercalar filas. La instancia
         queda registrada para sumar sus contadores de auditoría al resumen del volcado.
         """
-        crud = BulkCrud(
-            self._cfg.target_engine,
-            warn_if_audit_disabled=False,  # run() avisa una vez por volcado
-            **self._bulk_options(),
-        )
+        # run() avisa una vez por volcado de la auditoría deshabilitada (for_worker quita el aviso de cada BulkCrud).
+        options = self._bulk_options()
+        crud = BulkCrud(self._cfg.target_engine, **options.for_worker(run_id=options.audit.run_id).as_kwargs())
         with self._audit_lock:
             self._audit_cruds.append(crud)
         return crud
 
-    def _bulk_options(self) -> dict[str, Any]:
-        """Opciones comunes de las ``BulkCrud`` y los ``ParallelBulkLoader`` del volcado (R15: antes repetidas en los dos)."""
+    def _bulk_options(self) -> BulkOptions:
+        """Opciones comunes de las ``BulkCrud`` y los ``ParallelBulkLoader`` del volcado (R15: antes repetidas en los dos).
+
+        v3.0.0: único punto de traducción de los campos planos de ``DumpConfig`` a los paquetes de ``bulk``.
+        """
         cfg = self._cfg
-        return {
-            "chunk_size": self._resolve_write_batch_size(),
-            "commit_every_n_chunks": cfg.commit_every_n_chunks,
-            "audit_csv_path": cfg.bulk_audit_path,
-            "audit_strict": cfg.bulk_audit_strict,
-            "strip_strings": False,  # PD-05: copia fiel del origen
-            "reflect_foreign_keys": False,  # Q9: bulk no usa las FK de la tabla destino
-            # Fase 4 (sesión 2026-10-01u): filas que el destino no admite, al CSV de rechazos.
-            "on_error": cfg.on_error,
-            "rejects_csv_path": cfg.rejects_csv_path,
-            "max_rejects": cfg.max_rejects,
+        return BulkOptions(
+            batch=BatchOptions(
+                chunk_size=self._resolve_write_batch_size(), commit_every_n_chunks=cfg.commit_every_n_chunks
+            ),
             # F5 (sesión 2026-10-02c): eventos de auditoría con el run_id del volcado.
-            "audit_sink": cfg.audit_sink,
-            "audit_run_id": getattr(self, "_audit_run_id", None),  # tests que crean la instancia sin __init__
-        }
+            audit=AuditOptions(
+                csv_path=cfg.bulk_audit_path,
+                strict=cfg.bulk_audit_strict,
+                sink=cfg.audit_sink,
+                run_id=getattr(self, "_audit_run_id", None),  # tests que crean la instancia sin __init__
+            ),
+            # Fase 4 (sesión 2026-10-01u): filas que el destino no admite, al CSV de rechazos.
+            rejects=RejectOptions(on_error=cfg.on_error, csv_path=cfg.rejects_csv_path, max_rejects=cfg.max_rejects),
+            # PD-05: copia fiel del origen; Q9: bulk no usa las FK de la tabla destino.
+            execution=ExecutionOptions(strip_strings=False, reflect_foreign_keys=False),
+        )
 
     def _resolve_write_batch_size(self) -> int:
         """Filas por lote de escritura: ``write_batch_size`` si se fijó; si no, 20 000 con destino PostgreSQL (sin
@@ -1086,7 +1171,7 @@ class DumpOrchestrator:
         PD-06 (performance-audit de dump 2026-09-25): con destino SQLite, las particiones o tablas en paralelo chocaban
         con ``database is locked``; la tabla quedaba en ``error`` y a medio cargar (1,5M de 2M filas con 4 rangos).
         """
-        if self._cfg.target_engine.dialect.name != "sqlite":
+        if self._cfg.target_engine.dialect.name not in SINGLE_WRITER_DIALECTS:
             return False
         self.logger.warning(
             "%s=%d no se aplica con destino SQLite (admite un solo escritor a la vez); se carga sin paralelismo.",
@@ -1175,7 +1260,7 @@ class DumpOrchestrator:
         no se pueda precargar se consulta tabla a tabla al pedirlo, con el mismo error que antes.
         """
         cfg = self._cfg
-        src_kinds: list[MetadataKind] = ["columns", "pk"] if cfg.parallel_pk_ranges > 1 else ["columns"]
+        src_kinds: list[MetadataKind] = ["columns", "pk"] if self._pk_ranges_requested() else ["columns"]
         try:
             self._src_meta = prefetch_table_metadata(self._src_insp, cfg.source_schema, src_tables, kinds=src_kinds)
             self._dst_meta = prefetch_table_metadata(self._dst_insp, cfg.target_schema, dst_tables, kinds=["columns"])

@@ -19,6 +19,7 @@ from sqlalchemy import Engine, create_engine, text
 
 from util_bbdd.bulk._audit.errors import AuditError
 from util_bbdd.bulk.crud import BulkCrud
+from util_bbdd.bulk.options import AuditOptions
 
 
 def _make_sqlite_engine() -> Engine:
@@ -36,7 +37,7 @@ def _count_rows(engine: Engine) -> int:
 class TestStrictAuditErrorPropagatesAndIsLogged:
     def test_audit_error_is_caught_logged_and_reraised(self, caplog: pytest.LogCaptureFixture) -> None:
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine, audit_strict=True)
+        crud = BulkCrud(engine, audit=AuditOptions(strict=True))
         crud.audit_manager.registrar_operacion = MagicMock(side_effect=AuditError("boom auditoria"))
 
         df = pd.DataFrame({"id": [1], "name": ["a"]})
@@ -49,7 +50,7 @@ class TestStrictAuditErrorPropagatesAndIsLogged:
 
     def test_os_error_from_audit_is_caught_logged_and_reraised(self, caplog: pytest.LogCaptureFixture) -> None:
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine, audit_strict=True)
+        crud = BulkCrud(engine, audit=AuditOptions(strict=True))
         crud.audit_manager.registrar_operacion = MagicMock(side_effect=OSError("disk full"))
 
         df = pd.DataFrame({"id": [1], "name": ["a"]})
@@ -66,7 +67,7 @@ class TestStrictAuditErrorInAtomicBulkSessionRollsBackTheSession:
 
     def test_audit_failure_rolls_back_every_operation_of_the_session(self, tmp_path: Path) -> None:
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine, audit_csv_path=tmp_path / "audit.csv", audit_strict=True)
+        crud = BulkCrud(engine, audit=AuditOptions(csv_path=tmp_path / "audit.csv", strict=True))
         crud.audit_manager._registrar_lote = MagicMock(side_effect=AuditError("boom al volcar la sesión"))  # type: ignore[method-assign]
 
         with pytest.raises(AuditError):
@@ -100,7 +101,7 @@ class TestFailOpenByDefault:
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine, audit_csv_path=tmp_path / "audit.csv")
+        crud = BulkCrud(engine, audit=AuditOptions(csv_path=tmp_path / "audit.csv"))
         crud.audit_manager._registrar_lote = MagicMock(side_effect=PermissionError("CSV abierto en Excel"))  # type: ignore[method-assign]
 
         with caplog.at_level("ERROR"):
@@ -115,7 +116,7 @@ class TestFailOpenByDefault:
     def test_real_unwritable_csv_does_not_raise(self, tmp_path: Path) -> None:
         engine = _make_sqlite_engine()
         audit_path = tmp_path / "audit.csv"
-        crud = BulkCrud(engine, audit_csv_path=audit_path)
+        crud = BulkCrud(engine, audit=AuditOptions(csv_path=audit_path))
         audit_path.mkdir()  # el destino deja de poder abrirse como fichero
 
         crud.bulk_insert_from_df(pd.DataFrame({"id": [1], "name": ["a"]}), "items", generar_sql=False)

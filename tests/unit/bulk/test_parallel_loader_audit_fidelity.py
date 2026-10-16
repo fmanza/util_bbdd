@@ -29,6 +29,7 @@ from util_bbdd.bulk._audit.errors import AuditFileError
 from util_bbdd.bulk._execution import parallel_loader as pl_mod
 from util_bbdd.bulk._support import persistence as persistence_mod
 from util_bbdd.bulk.audit import AuditConfigError, AuditManager
+from util_bbdd.bulk.options import AuditOptions, BatchOptions, ExecutionOptions, ParallelOptions, RetryOptions
 
 pytestmark = pytest.mark.unit
 
@@ -98,7 +99,10 @@ class TestStrictCommitFailure:
             yield _df(range(20, 40))
 
         loader = ParallelBulkLoader(
-            engine, chunk_size=10, max_workers=1, max_retries=1, audit_csv_path=audit_path, audit_strict=True
+            engine,
+            batch=BatchOptions(chunk_size=10),
+            audit=AuditOptions(csv_path=audit_path, strict=True),
+            parallel=ParallelOptions(max_workers=1, retry=RetryOptions(max_retries=1)),
         )
         with caplog.at_level(logging.ERROR):
             result = loader.load("items", [reader])
@@ -115,7 +119,12 @@ class TestStrictCommitFailure:
 
     def test_fail_open_is_still_retried_and_audited_once(self, engine: Engine, audit_path: Path) -> None:
         _fail_first_commit(engine)
-        loader = ParallelBulkLoader(engine, chunk_size=10, max_workers=1, max_retries=1, audit_csv_path=audit_path)
+        loader = ParallelBulkLoader(
+            engine,
+            batch=BatchOptions(chunk_size=10),
+            audit=AuditOptions(csv_path=audit_path),
+            parallel=ParallelOptions(max_workers=1, retry=RetryOptions(max_retries=1)),
+        )
 
         result = loader.load("items", [_reader(range(0, 20), range(20, 40))])
 
@@ -130,7 +139,7 @@ class TestStrictCommitFailure:
         self, engine: Engine, audit_path: Path
     ) -> None:
         _fail_first_commit(engine)
-        crud = BulkCrud(engine, chunk_size=10, audit_csv_path=audit_path, audit_strict=True)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=10), audit=AuditOptions(csv_path=audit_path, strict=True))
 
         with pytest.raises(OperationalError):
             with crud.bulk_session():
@@ -146,7 +155,10 @@ class TestUnauditedCommittedRows:
 
     def _load(self, engine: Engine, audit_path: Path) -> pl_mod.ParallelLoadResult:
         loader = ParallelBulkLoader(
-            engine, chunk_size=10, max_workers=1, commit_every_n_chunks=3, audit_csv_path=audit_path
+            engine,
+            batch=BatchOptions(chunk_size=10, commit_every_n_chunks=3),
+            audit=AuditOptions(csv_path=audit_path),
+            parallel=ParallelOptions(max_workers=1),
         )
         # Lotes 1-2 (op. 1), 3-4 (op. 2; el 3 se confirma con el commit periódico) y 5 (op. 3, PK duplicada).
         return loader.load("items", [_reader(range(0, 20), range(20, 40), range(0, 10))])
@@ -175,7 +187,9 @@ class TestUnauditedCommittedRows:
     def test_plain_rollback_keeps_the_previous_message_and_no_gap(
         self, engine: Engine, audit_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        crud = BulkCrud(engine, chunk_size=10, commit_every_n_chunks=2, audit_csv_path=audit_path)
+        crud = BulkCrud(
+            engine, batch=BatchOptions(chunk_size=10, commit_every_n_chunks=2), audit=AuditOptions(csv_path=audit_path)
+        )
 
         with caplog.at_level(logging.WARNING), pytest.raises(IntegrityError):
             with crud.bulk_session():
@@ -192,7 +206,12 @@ class TestAuditedRows:
     """PL-6 / M-3: conciliación sin leer el CSV."""
 
     def test_successful_load_audits_every_row(self, engine: Engine, audit_path: Path) -> None:
-        loader = ParallelBulkLoader(engine, chunk_size=10, max_workers=2, audit_csv_path=audit_path)
+        loader = ParallelBulkLoader(
+            engine,
+            batch=BatchOptions(chunk_size=10),
+            audit=AuditOptions(csv_path=audit_path),
+            parallel=ParallelOptions(max_workers=2),
+        )
 
         result = loader.load("items", [_reader(range(0, 20)), _reader(range(100, 130))])
 
@@ -201,7 +220,12 @@ class TestAuditedRows:
         assert sum(_audit_rows(audit_path)) == 50
 
     def test_lost_records_are_not_counted_as_audited(self, engine: Engine, audit_path: Path) -> None:
-        loader = ParallelBulkLoader(engine, chunk_size=10, max_workers=1, audit_csv_path=audit_path)
+        loader = ParallelBulkLoader(
+            engine,
+            batch=BatchOptions(chunk_size=10),
+            audit=AuditOptions(csv_path=audit_path),
+            parallel=ParallelOptions(max_workers=1),
+        )
 
         with patch.object(AuditManager, "_registrar_lote", side_effect=OSError("CSV bloqueado")):
             result = loader.load("items", [_reader(range(0, 10), range(10, 20))])
@@ -211,12 +235,14 @@ class TestAuditedRows:
         assert result.audit_failures == 2
 
     def test_without_audit_nothing_is_counted(self, engine: Engine) -> None:
-        result = ParallelBulkLoader(engine, chunk_size=10, max_workers=1).load("items", [_reader(range(0, 10))])
+        result = ParallelBulkLoader(
+            engine, batch=BatchOptions(chunk_size=10), parallel=ParallelOptions(max_workers=1)
+        ).load("items", [_reader(range(0, 10))])
 
         assert result.audited_rows == 0
 
     def test_operations_outside_a_session_are_counted(self, engine: Engine, audit_path: Path) -> None:
-        crud = BulkCrud(engine, audit_csv_path=audit_path)
+        crud = BulkCrud(engine, audit=AuditOptions(csv_path=audit_path))
 
         crud.bulk_insert_from_df(_df(range(0, 7)), "items", generar_sql=False)
 
@@ -233,7 +259,9 @@ class TestConfirmedBatching:
         self, engine: Engine, audit_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(persistence_mod, "_CONFIRMED_FLUSH_SECONDS", 3600.0)
-        crud = BulkCrud(engine, chunk_size=10, commit_every_n_chunks=2, audit_csv_path=audit_path)
+        crud = BulkCrud(
+            engine, batch=BatchOptions(chunk_size=10, commit_every_n_chunks=2), audit=AuditOptions(csv_path=audit_path)
+        )
 
         with self._spy() as spy:
             crud.bulk_insert_from_chunks((_df(range(i, i + 10)) for i in range(0, 400, 10)), "items")
@@ -246,7 +274,9 @@ class TestConfirmedBatching:
         self, engine: Engine, audit_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(persistence_mod, "_CONFIRMED_FLUSH_SECONDS", 3600.0)
-        crud = BulkCrud(engine, chunk_size=10, commit_every_n_chunks=1, audit_csv_path=audit_path)
+        crud = BulkCrud(
+            engine, batch=BatchOptions(chunk_size=10, commit_every_n_chunks=1), audit=AuditOptions(csv_path=audit_path)
+        )
 
         with self._spy() as spy:
             crud.bulk_insert_from_chunks((_df(range(i, i + 10)) for i in range(0, 1500, 10)), "items")
@@ -258,7 +288,9 @@ class TestConfirmedBatching:
         self, engine: Engine, audit_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(persistence_mod, "_CONFIRMED_FLUSH_SECONDS", 0.0)
-        crud = BulkCrud(engine, chunk_size=10, commit_every_n_chunks=1, audit_csv_path=audit_path)
+        crud = BulkCrud(
+            engine, batch=BatchOptions(chunk_size=10, commit_every_n_chunks=1), audit=AuditOptions(csv_path=audit_path)
+        )
 
         with self._spy() as spy:
             crud.bulk_insert_from_chunks((_df(range(i, i + 10)) for i in range(0, 50, 10)), "items")
@@ -269,7 +301,9 @@ class TestConfirmedBatching:
         self, engine: Engine, audit_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(persistence_mod, "_CONFIRMED_FLUSH_SECONDS", 3600.0)
-        crud = BulkCrud(engine, chunk_size=10, commit_every_n_chunks=1, audit_csv_path=audit_path)
+        crud = BulkCrud(
+            engine, batch=BatchOptions(chunk_size=10, commit_every_n_chunks=1), audit=AuditOptions(csv_path=audit_path)
+        )
         chunks = [_df(range(i, i + 10)) for i in range(0, 50, 10)] + [_df([0])]
 
         with pytest.raises(IntegrityError):
@@ -279,7 +313,11 @@ class TestConfirmedBatching:
         assert _audit_rows(audit_path) == [10] * 5
 
     def test_strict_still_writes_before_each_commit(self, engine: Engine, audit_path: Path) -> None:
-        crud = BulkCrud(engine, chunk_size=10, commit_every_n_chunks=2, audit_csv_path=audit_path, audit_strict=True)
+        crud = BulkCrud(
+            engine,
+            batch=BatchOptions(chunk_size=10, commit_every_n_chunks=2),
+            audit=AuditOptions(csv_path=audit_path, strict=True),
+        )
 
         with self._spy() as spy:
             crud.bulk_insert_from_chunks((_df(range(i, i + 10)) for i in range(0, 40, 10)), "items")
@@ -292,7 +330,7 @@ class TestDisabledAuditWarning:
     """PL-5 / M-4: antes, un WARNING por partición en cada carga."""
 
     def test_loader_warns_once_per_load_at_info(self, engine: Engine, caplog: pytest.LogCaptureFixture) -> None:
-        loader = ParallelBulkLoader(engine, chunk_size=10, max_workers=2)
+        loader = ParallelBulkLoader(engine, batch=BatchOptions(chunk_size=10), parallel=ParallelOptions(max_workers=2))
         readers = [_reader(range(i * 10, i * 10 + 10)) for i in range(8)]
 
         with caplog.at_level(logging.INFO):
@@ -304,7 +342,7 @@ class TestDisabledAuditWarning:
         assert len(infos) == 1
 
     def test_bulk_crud_can_skip_the_warning(self, engine: Engine, caplog: pytest.LogCaptureFixture) -> None:
-        crud = BulkCrud(engine, warn_if_audit_disabled=False)
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False))
 
         with caplog.at_level(logging.WARNING):
             crud.bulk_insert_from_df(_df([1]), "items", generar_sql=False)
@@ -327,7 +365,11 @@ class TestLoaderQuickWins:
         engine = create_engine("mssql+pyodbc://u:p@dsn_inexistente")  # no conecta: reflect_table se sustituye
         fake = Table("t", MetaData(), Column("id", Integer, primary_key=True))
         monkeypatch.setattr(BulkCrud, "reflect_table", lambda _self, _name: fake)
-        loader = ParallelBulkLoader(engine, max_workers=1, enable_fast_executemany=False, disable_constraints=True)
+        loader = ParallelBulkLoader(
+            engine,
+            execution=ExecutionOptions(fast_executemany=False),
+            parallel=ParallelOptions(max_workers=1, disable_constraints=True),
+        )
 
         loader._resolve_table("t")
 
@@ -339,7 +381,7 @@ class TestLoaderQuickWins:
         blocker.write_text("x")
 
         with pytest.raises(AuditConfigError) as excinfo:
-            ParallelBulkLoader(engine, audit_csv_path=blocker / "audit.csv")
+            ParallelBulkLoader(engine, audit=AuditOptions(csv_path=blocker / "audit.csv"))
 
         assert isinstance(excinfo.value, ValueError)  # el Raises del constructor sigue siendo ValueError
 
@@ -347,7 +389,12 @@ class TestLoaderQuickWins:
         self, engine: Engine, audit_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         """PL-7 / QW-3: BulkCrud ya registró el ERROR; el loader no repite la traza."""
-        loader = ParallelBulkLoader(engine, chunk_size=10, max_workers=1, audit_csv_path=audit_path, audit_strict=True)
+        loader = ParallelBulkLoader(
+            engine,
+            batch=BatchOptions(chunk_size=10),
+            audit=AuditOptions(csv_path=audit_path, strict=True),
+            parallel=ParallelOptions(max_workers=1),
+        )
         with (
             patch.object(AuditManager, "_registrar_lote", side_effect=AuditFileError("CSV bloqueado")),
             caplog.at_level(logging.WARNING),
@@ -365,8 +412,8 @@ class TestLoaderQuickWins:
             crud_cls.return_value.rows_committed = 0
             crud_cls.return_value.audit_uncommitted_records = 0
             crud_cls.return_value.rows_rejected = 0  # sin on_error="isolate"
-            result = ParallelBulkLoader(create_engine("sqlite://"), max_workers=1, max_retries=1).load(
-                "t", [lambda: iter([])]
-            )
+            result = ParallelBulkLoader(
+                create_engine("sqlite://"), parallel=ParallelOptions(max_workers=1, retry=RetryOptions(max_retries=1))
+            ).load("t", [lambda: iter([])])
 
         assert result.partition_errors == ["partición 0: TimeoutError: timeout"]

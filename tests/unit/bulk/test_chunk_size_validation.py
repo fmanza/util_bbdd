@@ -18,6 +18,7 @@ from sqlalchemy import Engine, create_engine, text
 
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader
 from util_bbdd.bulk._execution.batch import BatchStatementExecutor, DeleteBatchExecutor, validate_chunk_size
+from util_bbdd.bulk.options import AuditOptions, BatchOptions
 
 pytestmark = pytest.mark.unit
 
@@ -49,7 +50,7 @@ def test_invalid_values_raise_value_error(value: Any) -> None:
 @pytest.mark.parametrize("value", [v for v in INVALID if v is not None])  # None = lote por motor (B-04)
 def test_bulkcrud_rejects_invalid_chunk_size(engine: Engine, value: Any) -> None:
     with pytest.raises(ValueError, match="chunk_size"):
-        BulkCrud(engine, chunk_size=value)
+        BulkCrud(engine, batch=BatchOptions(chunk_size=value))
 
 
 @pytest.mark.parametrize("value", [0, -1])
@@ -59,14 +60,14 @@ def test_executors_and_parallel_loader_reject_invalid_chunk_size(engine: Engine,
     with pytest.raises(ValueError, match="chunk_size"):
         DeleteBatchExecutor(engine=engine, chunk_size=value)
     with pytest.raises(ValueError, match="chunk_size"):
-        ParallelBulkLoader(engine, chunk_size=value)
+        ParallelBulkLoader(engine, batch=BatchOptions(chunk_size=value))
 
 
 def test_negative_chunk_size_no_longer_loses_rows_silently(engine: Engine, tmp_path: Path) -> None:
     audit = tmp_path / "audit.csv"
 
     with pytest.raises(ValueError, match="chunk_size"):
-        BulkCrud(engine, chunk_size=-5, audit_csv_path=audit).bulk_insert_from_df(
+        BulkCrud(engine, batch=BatchOptions(chunk_size=-5), audit=AuditOptions(csv_path=audit)).bulk_insert_from_df(
             pd.DataFrame({"id": [1, 2, 3], "v": list("abc")}), "t", False
         )
 

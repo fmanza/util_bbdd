@@ -101,7 +101,7 @@ class BatchStatementExecutor:
         # o final) de las ejecutadas aún sin commit, para saber cuántas sobreviven si una carga falla a mitad de sesión.
         #: Cadencia de ``commit_every_n_chunks``; el contador de lotes se arrastra entre llamadas dentro de una sesión.
         self.cadence: CommitCadence = CommitCadence(commit_every_n_chunks, ledger=self.session.rows)
-        #: ``BulkCrud(on_error="isolate")`` lo fija durante cada operación: cada lote va en un SAVEPOINT (S-2).
+        #: ``RejectOptions(on_error="isolate")`` lo fija durante cada operación: cada lote va en un SAVEPOINT (S-2).
         self.isolator: Isolator | None = None
         drivername: str = str(engine.url.drivername).lower()
         self._insert_strategy: InsertExecutionStrategyProtocol = (insert_resolver or InsertStrategyResolver()).resolve(
@@ -260,7 +260,7 @@ class DeleteBatchExecutor:
         #: Lotes desde el último commit periódico. Se reinicia en cada llamada salvo entre los chunks de un mismo stream
         #: (``bulk_delete_from_chunks``): si no, con chunks de pocos lotes nunca se llegaría al commit periódico.
         self._cadence: CommitCadence = CommitCadence(commit_every_n_chunks, ledger=self.session.rows)
-        #: Como en ``BatchStatementExecutor``: cada lote en un SAVEPOINT con ``BulkCrud(on_error="isolate")`` (S-2).
+        #: Como en ``BatchStatementExecutor``: cada lote en un SAVEPOINT con ``RejectOptions(on_error="isolate")`` (S-2).
         self.isolator: Isolator | None = None
 
     def execute(

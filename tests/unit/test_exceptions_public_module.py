@@ -32,7 +32,7 @@ PICKLE_FROM_0_43 = (
 
 
 def test_all_exceptions_are_found() -> None:
-    assert len(ALL_EXCEPTIONS) == len(public.__all__) == 38
+    assert len(ALL_EXCEPTIONS) == len(public.__all__) == 39
 
 
 @pytest.mark.parametrize("cls", ALL_EXCEPTIONS, ids=lambda cls: cls.__name__)

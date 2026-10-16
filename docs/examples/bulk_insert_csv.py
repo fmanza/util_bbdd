@@ -11,6 +11,7 @@ from sqlalchemy import text
 
 from util_bbdd import BulkCrud, DatabaseException, SyncDatabaseManager
 from util_bbdd.bulk import AuditManager
+from util_bbdd.bulk.options import AuditOptions
 
 # Crear datos de ejemplo
 df_data = pd.DataFrame(
@@ -47,7 +48,7 @@ with engine.begin() as conn:
 
 # Bulk insert con auditoría: audit_csv_path es la ruta del fichero CSV (el directorio se crea si falta)
 audit_csv = Path("audit_bulk") / "auditoria.csv"
-bcm = BulkCrud(engine=engine, audit_csv_path=audit_csv)
+bcm = BulkCrud(engine=engine, audit=AuditOptions(csv_path=audit_csv))
 try:
     df = pd.read_csv(csv_input)
     bcm.bulk_insert_from_df(df, tabla_destino="usuarios", generar_sql=False)

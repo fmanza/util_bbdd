@@ -22,6 +22,7 @@ from sqlalchemy import Engine, MetaData, create_engine, event, insert, text
 
 from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk._execution.executors import BatchStatementExecutor, DeleteBatchExecutor
+from util_bbdd.bulk.options import AuditOptions, BatchOptions
 
 pytestmark = pytest.mark.unit
 
@@ -51,7 +52,9 @@ def _record(engine: Engine) -> list[str]:
 
 
 def _crud(engine: Engine) -> BulkCrud:
-    return BulkCrud(engine, chunk_size=1, commit_every_n_chunks=2, warn_if_audit_disabled=False)
+    return BulkCrud(
+        engine, batch=BatchOptions(chunk_size=1, commit_every_n_chunks=2), audit=AuditOptions(warn_if_disabled=False)
+    )
 
 
 def _insert(crud: BulkCrud, *ids: int) -> None:
@@ -127,7 +130,7 @@ def test_error_in_maintenance_scope_discards_the_pending_rows(engine: Engine) ->
 
 
 def test_atomic_session_commits_once_at_the_end(engine: Engine) -> None:
-    crud = BulkCrud(engine, chunk_size=1, warn_if_audit_disabled=False)
+    crud = BulkCrud(engine, batch=BatchOptions(chunk_size=1), audit=AuditOptions(warn_if_disabled=False))
     crud.reflect_table("t")
     log = _record(engine)
 

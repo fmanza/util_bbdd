@@ -25,6 +25,7 @@ import pytest
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
 
+from util_bbdd.bulk.options import AuditOptions
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
 from util_bbdd.metadata.source import DbapiCatalogExecutor
 
@@ -173,7 +174,7 @@ def _bulk(db: Path) -> None:
     eng = create_engine(f"sqlite:///{db.as_posix()}")
     try:
         df = pd.DataFrame({"id": [1, 2], "code": ["a", "b"], "name": ["x", "y"], "parent_id": [None, None]})
-        BulkCrud(eng, warn_if_audit_disabled=False).bulk_insert_from_df(df, "t000", generar_sql=False)
+        BulkCrud(eng, audit=AuditOptions(warn_if_disabled=False)).bulk_insert_from_df(df, "t000", generar_sql=False)
     finally:
         eng.dispose()
 

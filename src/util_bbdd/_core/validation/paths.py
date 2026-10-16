@@ -87,10 +87,15 @@ class PathField:
 
 
 class OptionalPathField:
-    """Como :class:`PathField`, pero opcional: ``None`` (el valor por defecto) se guarda tal cual."""
+    """Como :class:`PathField`, pero opcional: ``None`` (el valor por defecto) se guarda tal cual.
 
-    def __init__(self) -> None:
+    ``label`` es el nombre del mensaje de error si no es el del atributo (p. ej. ``"audit.csv_path"`` en los paquetes de
+    opciones de ``bulk``, v3.0.0, donde dos paquetes tienen un campo ``csv_path``).
+    """
+
+    def __init__(self, label: str | None = None) -> None:
         self._name: str = ""
+        self._label: str | None = label
 
     def __set_name__(self, owner: type, name: str) -> None:
         self._name = name
@@ -106,4 +111,4 @@ class OptionalPathField:
         return value
 
     def __set__(self, obj: object, value: StrPath | None) -> None:
-        obj.__dict__[self._name] = validate_optional_path(value, self._name)
+        obj.__dict__[self._name] = validate_optional_path(value, self._label or self._name)

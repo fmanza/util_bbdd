@@ -69,6 +69,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk._execution.parallel_loader import ParallelBulkLoader
 from util_bbdd.bulk._support.validation import normalize_identifier
+from util_bbdd.bulk.options import AuditOptions, BatchOptions, ExecutionOptions, ParallelOptions
 
 pytestmark = [pytest.mark.integration, pytest.mark.cross_db]
 
@@ -192,7 +193,7 @@ def _count(engine: Engine, table: Table) -> int:
 
 def test_insert_and_update_roundtrip(engine: Engine, scratch_table: Table, tmp_path: Path) -> None:
     audit_csv = tmp_path / "audit.csv"
-    crud = BulkCrud(engine, chunk_size=1000, audit_csv_path=audit_csv)
+    crud = BulkCrud(engine, batch=BatchOptions(chunk_size=1000), audit=AuditOptions(csv_path=audit_csv))
     df = _frame(engine, ROWS_OVER_MSSQL_PARAM_LIMIT)
     col_a, col_s, col_f, col_id = (_name(c, engine) for c in ("a", "s", "f", "id"))
 
@@ -322,7 +323,9 @@ def _update_state(engine: Engine, df_update: pd.DataFrame, *, staging: bool, chu
         seed = pd.DataFrame({"id": [1, 2, 3, 4], "a": [0] * 4, "f": [0.0] * 4, "s": ["s"] * 4, "j": [{"x": 0}] * 4})
         seed["d"] = pd.Timestamp("2020-01-01")
         BulkCrud(engine).bulk_insert_from_df(seed, table.name, False)
-        crud = BulkCrud(engine, chunk_size=chunk_size, update_via_staging=staging)
+        crud = BulkCrud(
+            engine, batch=BatchOptions(chunk_size=chunk_size), execution=ExecutionOptions(update_via_staging=staging)
+        )
         crud.bulk_update_from_df(df_update, table.name, False)
         with engine.connect() as conn:
             return [tuple(r) for r in conn.execute(select(table).order_by(table.c.id))]
@@ -361,7 +364,7 @@ def test_update_via_staging_rolls_back_inside_bulk_session(engine: Engine) -> No
     try:
         seed = pd.DataFrame({"id": [1, 2, 3, 4], "a": [0] * 4, "s": ["s"] * 4})
         BulkCrud(engine).bulk_insert_from_df(seed, table.name, False)
-        crud = BulkCrud(engine, chunk_size=2, update_via_staging=True)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2), execution=ExecutionOptions(update_via_staging=True))
         bad = pd.DataFrame({"id": [1, 2, 3, 4], "s": ["A", "B", "C", "D"], "keep": ["x", "y", None, "w"]})
 
         with pytest.raises(SQLAlchemyError), crud.bulk_session():
@@ -403,7 +406,7 @@ def test_binary_column_roundtrip(engine: Engine, update_via_staging: bool) -> No
         col_id, col_b = n("id"), n("b")
         inserted: list[bytes | None] = [b"q", b"\xff\x00", b"a\x08", None, "ñ€".encode()]
         updated: list[bytes | None] = [None, b"u", b"\xfe\x01", "é".encode(), b"z"]
-        crud = BulkCrud(engine, update_via_staging=update_via_staging)
+        crud = BulkCrud(engine, execution=ExecutionOptions(update_via_staging=update_via_staging))
 
         crud.bulk_insert_from_df(pd.DataFrame({col_id: range(1, 6), col_b: inserted}), table.name, False)
         with engine.connect() as conn:
@@ -568,7 +571,7 @@ def test_update_column_named_like_pk_alias(
     table.create(engine)
     col_id, col_pk_id, col_v = n("id"), n("pk_id"), n("v")
     try:
-        crud = BulkCrud(engine, update_via_staging=update_via_staging)
+        crud = BulkCrud(engine, execution=ExecutionOptions(update_via_staging=update_via_staging))
         crud.bulk_insert_from_df(
             pd.DataFrame({col_id: [1, 2], col_pk_id: [100, 200], col_v: ["a", "b"]}), table.name, False
         )
@@ -606,7 +609,7 @@ def test_delete_inside_bulk_session_commits_with_it(
     """P-26: INSERT y DELETE de la misma sesión quedan aplicados al salir de ella."""
     col_id = _name("id", engine)
     BulkCrud(engine).bulk_insert_from_df(_frame(engine, 4), scratch_table.name, False)
-    crud = BulkCrud(engine, commit_every_n_chunks=commit_every_n_chunks)
+    crud = BulkCrud(engine, batch=BatchOptions(commit_every_n_chunks=commit_every_n_chunks))
 
     with crud.bulk_session():
         crud.bulk_insert_from_df(_frame(engine, 6).iloc[4:], scratch_table.name, False)
@@ -644,7 +647,7 @@ def test_commit_every_n_chunks_persists_inserts(
     for eng in _pg_driver_engines(engine):
         with eng.begin() as conn:
             conn.execute(scratch_table.delete())
-        crud = BulkCrud(eng, chunk_size=2, commit_every_n_chunks=commit_every_n_chunks)
+        crud = BulkCrud(eng, batch=BatchOptions(chunk_size=2, commit_every_n_chunks=commit_every_n_chunks))
         df = _frame(eng, 5)
         if in_session:
             with crud.bulk_session():
@@ -663,7 +666,7 @@ def test_commit_every_n_chunks_keeps_committed_chunks_on_failure(engine: Engine,
     for eng in _pg_driver_engines(engine):
         with eng.begin() as conn:
             conn.execute(scratch_table.delete())
-        crud = BulkCrud(eng, chunk_size=2, commit_every_n_chunks=1)
+        crud = BulkCrud(eng, batch=BatchOptions(chunk_size=2, commit_every_n_chunks=1))
         df = _frame(eng, 5)
         df.loc[4, col_id] = 1  # el tercer lote repite la PK 1, ya confirmada
 
@@ -699,7 +702,7 @@ def test_parallel_loader_reports_partition_error(engine: Engine, scratch_table: 
         clash = _frame(eng, 2).assign(**{col_id: [1, 20]})  # la PK 1 ya existe
 
         readers = [lambda frame=frame: [frame] for frame in (ok, clash)]
-        result = ParallelBulkLoader(eng, max_workers=1).load(scratch_table.name, readers)
+        result = ParallelBulkLoader(eng, parallel=ParallelOptions(max_workers=1)).load(scratch_table.name, readers)
 
         assert (result.total_rows, len(result.partition_errors)) == (3, 1), eng.dialect.driver
         assert _count(eng, scratch_table) == 4, eng.dialect.driver
@@ -740,7 +743,7 @@ def test_delete_composite_pk_over_parameter_limit(engine: Engine, composite_tabl
     k1, k2, v = (_name(c, engine) for c in ("k1", "k2", "v"))
     rows = 34_000
     df = pd.DataFrame({k1: np.arange(rows) // 10, k2: np.arange(rows) % 10, v: "x"})
-    crud = BulkCrud(engine, chunk_size=rows)
+    crud = BulkCrud(engine, batch=BatchOptions(chunk_size=rows))
     crud.bulk_insert_from_df(df, composite_table.name, False)
 
     crud.bulk_delete_from_df(df[[k1, k2]], composite_table.name, False)
@@ -863,7 +866,7 @@ def test_oracle_maintenance_scope_really_disables_foreign_keys(engine: Engine) -
     )
     metadata.create_all(engine)
     try:
-        crud = BulkCrud(engine, warn_if_audit_disabled=False)
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False))
         with crud.bulk_session(), crud.maintenance_scope(child.name) as ms:
             assert _fk_disabled_count(engine, child) == 1
         assert ms.optimization_applied
@@ -900,7 +903,7 @@ def test_maintenance_scope_error_keeps_original_exception_and_restores(
         with engine.begin() as conn:
             conn.execute(parent.insert(), [{col_id: 1}])
             conn.execute(child.insert(), [{col_id: 1, col_pid: 1}])
-        crud = BulkCrud(engine, chunk_size=1, commit_every_n_chunks=commit_every_n_chunks)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=1, commit_every_n_chunks=commit_every_n_chunks))
 
         with pytest.raises(IntegrityError), crud.bulk_session(), crud.maintenance_scope(child.name):
             crud.bulk_insert_from_df(pd.DataFrame({col_id: [2], col_pid: [1]}), child.name, False)
@@ -925,7 +928,9 @@ def test_parallel_loader_disable_constraints_with_differently_cased_name(engine:
     df = _frame(engine, 6)
     readers = [lambda part=part: [part] for part in (df.iloc[:3], df.iloc[3:])]
 
-    result = ParallelBulkLoader(engine, max_workers=1, disable_constraints=True).load(other_case, readers)
+    result = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1, disable_constraints=True)).load(
+        other_case, readers
+    )
 
     assert (result.total_rows, result.partition_errors) == (6, [])
     assert _count(engine, scratch_table) == 6
@@ -1056,10 +1061,10 @@ def test_reflect_without_foreign_keys_matches_default_reflection(engine: Engine)
     )
     md.create_all(engine)
     try:
-        default = BulkCrud(engine, warn_if_audit_disabled=False).reflect_table(child.name)
-        without_fk = BulkCrud(engine, warn_if_audit_disabled=False, reflect_foreign_keys=False).reflect_table(
-            child.name
-        )
+        default = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False)).reflect_table(child.name)
+        without_fk = BulkCrud(
+            engine, audit=AuditOptions(warn_if_disabled=False), execution=ExecutionOptions(reflect_foreign_keys=False)
+        ).reflect_table(child.name)
 
         assert _reflection_signature(without_fk) == _reflection_signature(default)
         assert len(default.foreign_keys) == 1

@@ -12,6 +12,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 
 from util_bbdd.bulk import ParallelBulkLoader
+from util_bbdd.bulk.options import BatchOptions, ParallelOptions
 
 # ============================================================================
 # 1. Preparar datos de ejemplo
@@ -118,9 +119,8 @@ start_time = time.time()
 
 loader = ParallelBulkLoader(
     engine=target_engine,
-    chunk_size=5_000,
-    max_workers=4,
-    commit_every_n_chunks=2,  # Commit cada 10K filas
+    batch=BatchOptions(chunk_size=5_000, commit_every_n_chunks=2),  # Commit cada 10K filas
+    parallel=ParallelOptions(max_workers=4),
 )
 
 result = loader.load(
@@ -177,7 +177,7 @@ start_time = time.time()
 
 from util_bbdd.bulk import BulkCrud
 
-bcm = BulkCrud(engine=target_engine, chunk_size=5_000)
+bcm = BulkCrud(engine=target_engine, batch=BatchOptions(chunk_size=5_000))
 bcm.bulk_insert_from_df(df_source, tabla_destino="sales_data", generar_sql=False)
 
 sequential_elapsed = time.time() - start_time

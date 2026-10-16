@@ -12,6 +12,7 @@ from sqlalchemy import Column, Engine, Integer, MetaData, String, Table, create_
 
 from util_bbdd.bulk._execution.batch import BatchStatementExecutor
 from util_bbdd.bulk.crud import BulkCrud
+from util_bbdd.bulk.options import AuditOptions, BatchOptions
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -43,16 +44,16 @@ class TestCommitCadenceValidation:
     def test_zero_raises_value_error(self) -> None:
         engine = create_engine("sqlite:///:memory:")
         with pytest.raises(ValueError, match="commit_every_n_chunks"):
-            BulkCrud(engine, commit_every_n_chunks=0)
+            BulkCrud(engine, batch=BatchOptions(commit_every_n_chunks=0))
 
     def test_negative_raises_value_error(self) -> None:
         engine = create_engine("sqlite:///:memory:")
         with pytest.raises(ValueError, match="commit_every_n_chunks"):
-            BulkCrud(engine, commit_every_n_chunks=-3)
+            BulkCrud(engine, batch=BatchOptions(commit_every_n_chunks=-3))
 
     def test_none_is_accepted(self) -> None:
         engine = create_engine("sqlite:///:memory:")
-        crud = BulkCrud(engine, commit_every_n_chunks=None)
+        crud = BulkCrud(engine, batch=BatchOptions(commit_every_n_chunks=None))
         assert crud._batch_statement_executor.cadence.every is None
 
 
@@ -149,7 +150,7 @@ class TestRowsCommittedTracking:
 
     def test_rows_committed_stays_zero_without_cadence(self) -> None:
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine, chunk_size=2)  # sin commit_every_n_chunks (modo atómico)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2))  # sin commit_every_n_chunks (modo atómico)
         df = pd.DataFrame({"id": [1, 2, 3], "name": ["a", "b", "c"]})
 
         crud.bulk_insert_from_df(df, "items", generar_sql=False)
@@ -158,7 +159,7 @@ class TestRowsCommittedTracking:
 
     def test_rows_committed_accumulates_periodic_and_tail_commits(self) -> None:
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine, chunk_size=1, commit_every_n_chunks=2)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=1, commit_every_n_chunks=2))
         df = pd.DataFrame({"id": [1, 2, 3, 4, 5], "name": ["a", "b", "c", "d", "e"]})
 
         crud.bulk_insert_from_df(df, "items", generar_sql=False)
@@ -170,7 +171,7 @@ class TestRowsCommittedTracking:
         periódico (filas 1-2). La fila 3 (ejecutada pero sin commitear) se pierde
         al hacer rollback implícito; rows_committed debe reflejar 2, no 0 ni 5."""
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine, chunk_size=1, commit_every_n_chunks=2)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=1, commit_every_n_chunks=2))
         original_execute = crud._batch_statement_executor._insert_strategy.execute
         call_count = {"n": 0}
 
@@ -195,7 +196,7 @@ class TestRowsCommittedTracking:
         """La fila 3 del caso anterior se deshizo con la sesión fallida; la siguiente carga que termina bien no debe
         contarla. Antes se quedaba como pendiente y rows_committed daba 4 con 3 filas en la BD."""
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine, chunk_size=1, commit_every_n_chunks=2)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=1, commit_every_n_chunks=2))
         original_execute = crud._batch_statement_executor._insert_strategy.execute
         call_count = {"n": 0}
 
@@ -225,7 +226,11 @@ class TestRowsCommittedTracking:
         engine = _make_sqlite_engine()
         with engine.begin() as conn:
             conn.exec_driver_sql("INSERT INTO items VALUES (100, 'x'), (101, 'x')")
-        crud = BulkCrud(engine, chunk_size=1, commit_every_n_chunks=2, warn_if_audit_disabled=False)
+        crud = BulkCrud(
+            engine,
+            batch=BatchOptions(chunk_size=1, commit_every_n_chunks=2),
+            audit=AuditOptions(warn_if_disabled=False),
+        )
 
         with pytest.raises(RuntimeError, match="después del DELETE"), crud.bulk_session():
             crud.bulk_insert_from_df(pd.DataFrame({"id": [1], "name": ["a"]}), "items", generar_sql=False)
@@ -242,7 +247,11 @@ class TestRowsCommittedTracking:
         engine = _make_sqlite_engine()
         with engine.begin() as conn:
             conn.exec_driver_sql("INSERT INTO items VALUES (100, 'x'), (101, 'x'), (102, 'x')")
-        crud = BulkCrud(engine, chunk_size=1, commit_every_n_chunks=2, audit_csv_path=tmp_path / "audit.csv")
+        crud = BulkCrud(
+            engine,
+            batch=BatchOptions(chunk_size=1, commit_every_n_chunks=2),
+            audit=AuditOptions(csv_path=tmp_path / "audit.csv"),
+        )
         original_execute = crud._delete_batch_executor._execute_batch
         calls = {"n": 0}
 
@@ -266,7 +275,7 @@ class TestRowsCommittedTracking:
 class TestCadenceEndToEnd:
     def test_all_rows_persist_with_cadence(self) -> None:
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine, chunk_size=2, commit_every_n_chunks=2)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2, commit_every_n_chunks=2))
         df = pd.DataFrame({"id": [1, 2, 3, 4, 5], "name": ["a", "b", "c", "d", "e"]})
 
         crud.bulk_insert_from_df(df, "items", generar_sql=False)
@@ -277,7 +286,7 @@ class TestCadenceEndToEnd:
 
     def test_bulk_session_with_cadence_persists_tail(self) -> None:
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine, chunk_size=2, commit_every_n_chunks=2)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2, commit_every_n_chunks=2))
 
         with crud.bulk_session():
             for start in range(0, 5, 2):

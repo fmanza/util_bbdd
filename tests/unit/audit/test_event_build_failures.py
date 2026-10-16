@@ -23,6 +23,7 @@ from util_bbdd._core.exceptions import DumpReportError
 from util_bbdd.audit import MemoryAuditSink
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader
 from util_bbdd.bulk._audit.events import BulkAuditEvents
+from util_bbdd.bulk.options import AuditOptions, BatchOptions, ParallelOptions
 from util_bbdd.dump import DumpConfig, DumpOrchestrator
 from util_bbdd.dump._audit_events import DumpAuditEvents
 from util_bbdd.exceptions import AuditError
@@ -109,7 +110,12 @@ def test_carga_paralela_devuelve_el_resultado(
         yield pd.DataFrame({"id": [1, 2], "name": ["a", "b"]})
 
     with caplog.at_level(logging.ERROR):
-        result = ParallelBulkLoader(items, chunk_size=10, max_workers=1, audit_sink=sink).load("items", [reader])
+        result = ParallelBulkLoader(
+            items,
+            batch=BatchOptions(chunk_size=10),
+            audit=AuditOptions(sink=sink),
+            parallel=ParallelOptions(max_workers=1),
+        ).load("items", [reader])
 
     assert result.total_rows == 2 and not result.partition_errors
     assert [e.kind for e in sink.events()] == ["operation"]  # los eventos por operación no dependen del cierre
@@ -165,7 +171,7 @@ def _count(engine: Engine) -> int:
 
 def test_bulk_no_estricto_cuenta_el_fallo_y_sigue(items: Engine, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(BulkAuditEvents, "operation", staticmethod(_boom))
-    crud = BulkCrud(items, audit_sink=MemoryAuditSink())
+    crud = BulkCrud(items, audit=AuditOptions(sink=MemoryAuditSink()))
 
     crud.bulk_insert_from_df(_df(), "items", generar_sql=False)
 
@@ -175,7 +181,7 @@ def test_bulk_no_estricto_cuenta_el_fallo_y_sigue(items: Engine, monkeypatch: py
 
 def test_bulk_estricto_lanza_audit_error_y_deshace(items: Engine, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(BulkAuditEvents, "operation", staticmethod(_boom))
-    crud = BulkCrud(items, audit_sink=MemoryAuditSink(), audit_strict=True)
+    crud = BulkCrud(items, audit=AuditOptions(sink=MemoryAuditSink(), strict=True))
 
     with pytest.raises(AuditError, match="construcción del evento rota"), crud.bulk_session():
         crud.bulk_insert_from_df(_df(), "items", generar_sql=False)

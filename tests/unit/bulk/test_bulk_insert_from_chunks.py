@@ -11,6 +11,7 @@ from sqlalchemy import Engine, create_engine
 import util_bbdd.bulk.crud as crud_mod
 
 from util_bbdd.bulk.crud import BulkCrud
+from util_bbdd.bulk.options import BatchOptions
 
 
 def _make_sqlite_engine() -> Engine:
@@ -28,7 +29,7 @@ def _count(engine: Engine) -> int:
 class TestBulkInsertFromChunks:
     def test_inserts_all_rows_from_multiple_chunks(self) -> None:
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine, chunk_size=2)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2))
         chunks = [
             pd.DataFrame({"id": [1, 2], "name": ["a", "b"]}),
             pd.DataFrame({"id": [3, 4], "name": ["c", "d"]}),
@@ -59,7 +60,7 @@ class TestBulkInsertFromChunks:
 
     def test_resolves_insert_columns_once_across_chunks(self) -> None:
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine, chunk_size=10)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=10))
         chunks = [pd.DataFrame({"id": [i], "name": [f"n{i}"]}) for i in range(1, 5)]
 
         with patch.object(crud_mod, "get_insert_columns", wraps=crud_mod.get_insert_columns) as spy:
@@ -70,7 +71,7 @@ class TestBulkInsertFromChunks:
 
     def test_respects_commit_cadence(self) -> None:
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine, chunk_size=1, commit_every_n_chunks=2)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=1, commit_every_n_chunks=2))
         chunks = [pd.DataFrame({"id": [i], "name": [f"n{i}"]}) for i in range(1, 6)]
 
         total = crud.bulk_insert_from_chunks(iter(chunks), "items")
@@ -84,7 +85,7 @@ class TestBulkInsertFromChunks:
         engine = create_engine("sqlite:///:memory:")
         with engine.begin() as conn:
             conn.exec_driver_sql("CREATE TABLE items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)")
-        crud = BulkCrud(engine, chunk_size=5)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=5))
         chunks = [pd.DataFrame({"name": ["a", "b"]}), pd.DataFrame({"name": ["c"]})]
 
         total = crud.bulk_insert_from_chunks(iter(chunks), "items", exclude_autoincrement_pk=True)

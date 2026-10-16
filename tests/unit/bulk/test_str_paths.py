@@ -18,6 +18,7 @@ from sqlalchemy import Engine, create_engine, text
 
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader
 from util_bbdd.bulk.audit import AuditConfigError, AuditManager
+from util_bbdd.bulk.options import AuditOptions, BatchOptions, ParallelOptions, RejectOptions
 
 pytestmark = pytest.mark.unit
 
@@ -49,7 +50,7 @@ class TestBulkCrud:
     def test_audit_csv_path_str_writes_the_audit(self, engine: Engine, tmp_path: Path) -> None:
         audit = tmp_path / "sub" / "audit.csv"
 
-        crud = BulkCrud(engine, audit_csv_path=str(audit))
+        crud = BulkCrud(engine, audit=AuditOptions(csv_path=str(audit)))
         crud.bulk_insert_from_df(_frame([1, 2]), "items", generar_sql=False)
 
         assert crud.audit_manager.audit_csv_path == audit
@@ -61,13 +62,15 @@ class TestBulkCrud:
     ) -> None:
         monkeypatch.chdir(tmp_path)
 
-        BulkCrud(engine, audit_csv_path="rel/audit.csv").bulk_insert_from_df(_frame([1]), "items", generar_sql=False)
+        BulkCrud(engine, audit=AuditOptions(csv_path="rel/audit.csv")).bulk_insert_from_df(
+            _frame([1]), "items", generar_sql=False
+        )
 
         assert (tmp_path / "rel" / "audit.csv").is_file()
 
     def test_rejects_csv_path_str(self, engine: Engine, tmp_path: Path) -> None:
         rejects = tmp_path / "rejects.csv"
-        crud = BulkCrud(engine, on_error="isolate", rejects_csv_path=str(rejects))
+        crud = BulkCrud(engine, rejects=RejectOptions(on_error="isolate", csv_path=str(rejects)))
 
         crud.bulk_insert_from_df(_frame([1, 1]), "items", generar_sql=False)
 
@@ -83,14 +86,13 @@ class TestBulkCrud:
 
         assert [p.suffix for p in folder.iterdir()] == [".sql"]
 
-    @pytest.mark.parametrize("parameter", ["audit_csv_path", "rejects_csv_path"])
+    @pytest.mark.parametrize("parameter", ["audit", "rejects"])
     def test_other_types_raise_value_error(self, engine: Engine, parameter: str) -> None:
-        kwargs: dict[str, object] = {parameter: 123}
-        if parameter == "rejects_csv_path":
-            kwargs["on_error"] = "isolate"
-
-        with pytest.raises(ValueError, match=rf"{parameter} debe ser una ruta"):
-            BulkCrud(engine, **kwargs)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match=rf"{parameter}\.csv_path debe ser una ruta"):
+            if parameter == "audit":
+                BulkCrud(engine, audit=AuditOptions(csv_path=123))  # type: ignore[arg-type]
+            else:
+                BulkCrud(engine, rejects=RejectOptions(on_error="isolate", csv_path=123))  # type: ignore[arg-type]
 
 
 class TestParallelBulkLoader:
@@ -98,11 +100,10 @@ class TestParallelBulkLoader:
         audit, rejects = tmp_path / "audit.csv", tmp_path / "rejects.csv"
         loader = ParallelBulkLoader(
             engine,
-            chunk_size=10,
-            max_workers=1,
-            audit_csv_path=str(audit),
-            on_error="isolate",
-            rejects_csv_path=str(rejects),
+            batch=BatchOptions(chunk_size=10),
+            audit=AuditOptions(csv_path=str(audit)),
+            rejects=RejectOptions(on_error="isolate", csv_path=str(rejects)),
+            parallel=ParallelOptions(max_workers=1),
         )
 
         result = loader.load("items", [lambda: iter([_frame([1, 2])]), lambda: iter([_frame([2, 3])])])
@@ -114,8 +115,8 @@ class TestParallelBulkLoader:
             assert conn.execute(text("SELECT COUNT(*) FROM items")).scalar_one() == 3
 
     def test_invalid_audit_path_type_fails_before_loading(self, engine: Engine) -> None:
-        with pytest.raises(ValueError, match="audit_csv_path debe ser una ruta"):
-            ParallelBulkLoader(engine, audit_csv_path=123)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match=r"audit\.csv_path debe ser una ruta"):
+            ParallelBulkLoader(engine, audit=AuditOptions(csv_path=123))  # type: ignore[arg-type]
 
 
 class TestAuditManager:

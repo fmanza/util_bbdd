@@ -13,6 +13,7 @@ import pytest
 from sqlalchemy import create_engine
 
 from util_bbdd.bulk.crud import BulkCrud
+from util_bbdd.bulk.options import AuditOptions
 
 _LOGGER = "util_bbdd.connection.performance_advisor"
 _HEADER = "ENGINE READINESS REPORT"
@@ -26,7 +27,7 @@ def test_many_bulkcrud_same_engine_single_report(tmp_path: Path, caplog: pytest.
     engine = create_engine(f"sqlite:///{tmp_path / 'bulk.sqlite'}")
     with caplog.at_level(logging.INFO, logger=_LOGGER):
         for _ in range(5):
-            BulkCrud(engine, warn_if_audit_disabled=False)
+            BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False))
     assert _reports(caplog) == 1
     engine.dispose()
 
@@ -39,7 +40,7 @@ def test_bulkcrud_in_parallel_threads_single_report(tmp_path: Path, caplog: pyte
 
     def _worker(_: int) -> BulkCrud:
         barrier.wait()
-        return BulkCrud(engine, warn_if_audit_disabled=False)
+        return BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False))
 
     with caplog.at_level(logging.INFO, logger=_LOGGER):
         with ThreadPoolExecutor(max_workers=n_threads) as pool:

@@ -15,6 +15,7 @@ import pytest
 from sqlalchemy import MetaData, Table
 
 from util_bbdd.bulk import ParallelBulkLoader
+from util_bbdd.bulk.options import ParallelOptions
 
 pytestmark = pytest.mark.unit
 
@@ -47,7 +48,7 @@ def _engine(can_disable: bool, events: list[str]) -> MagicMock:
 
 
 def _loader(can_disable: bool, events: list[str], monkeypatch: pytest.MonkeyPatch) -> ParallelBulkLoader:
-    loader = ParallelBulkLoader(_engine(can_disable, events), max_workers=2)
+    loader = ParallelBulkLoader(_engine(can_disable, events), parallel=ParallelOptions(max_workers=2))
     # La tabla se refleja como en BulkCrud (hallazgo 4); aquí basta una Table fija.
     monkeypatch.setattr(loader, "_resolve_table", lambda name: Table("orders", MetaData(), schema="public"))
     return loader
@@ -82,7 +83,7 @@ def test_privilege_check_and_ddl_use_the_reflected_table(monkeypatch: pytest.Mon
     events: list[str] = []
     engine = _engine(True, events)
     engine.dialect = postgresql.dialect()
-    loader = ParallelBulkLoader(engine, max_workers=2)
+    loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=2))
     monkeypatch.setattr(loader, "_resolve_table", lambda name: Table("usuarios", MetaData(), schema="ventas"))
     conn = engine.begin().__enter__()
 

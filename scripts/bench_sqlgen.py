@@ -49,6 +49,7 @@ from util_bbdd.bulk._support.sql_helpers import (
     restore_binary_values,
 )
 from util_bbdd.bulk.normalize import dataframe_to_sql_columns
+from util_bbdd.bulk.options import AuditOptions, BatchOptions
 
 DIALECT_URLS: dict[str, str] = {
     "sqlite": "sqlite://",
@@ -150,7 +151,9 @@ def measure_e2e(rows: int, chunk_size: int, repeat: int) -> list[Measurement]:
         engine = create_engine(f"sqlite:///{tmp}/bench.db")
         try:
             table.create(engine)
-            crud = BulkCrud(engine, chunk_size=chunk_size, warn_if_audit_disabled=False)
+            crud = BulkCrud(
+                engine, batch=BatchOptions(chunk_size=chunk_size), audit=AuditOptions(warn_if_disabled=False)
+            )
             calls = {
                 "insert": lambda out: crud.bulk_insert_from_df(df, table.name, generar_sql=True, path_sql=out),
                 "update": lambda out: crud.bulk_update_from_df(df, table.name, generar_sql=True, path_sql=out),

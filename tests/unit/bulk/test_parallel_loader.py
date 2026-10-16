@@ -17,15 +17,16 @@ from sqlalchemy.exc import SQLAlchemyError
 import util_bbdd.bulk._execution.parallel_loader as pl_mod
 
 from util_bbdd.bulk import ParallelBulkLoader, ParallelLoadResult
+from util_bbdd.bulk.options import BatchOptions, ParallelOptions, RetryOptions
 
 
 class TestParallelBulkLoaderValidation:
     def test_max_workers_below_1_raises(self) -> None:
         with pytest.raises(ValueError, match="max_workers"):
-            ParallelBulkLoader(MagicMock(), max_workers=0)
+            ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(max_workers=0))
 
     def test_no_readers_returns_empty_result(self) -> None:
-        loader = ParallelBulkLoader(MagicMock(), max_workers=4)
+        loader = ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(max_workers=4))
         result = loader.load("t", [])
         assert result == ParallelLoadResult(total_rows=0, partition_errors=[])
 
@@ -36,7 +37,9 @@ class TestParallelBulkLoaderOrchestration:
 
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.return_value = 10
-            loader = ParallelBulkLoader(MagicMock(), chunk_size=5, max_workers=3)
+            loader = ParallelBulkLoader(
+                MagicMock(), batch=BatchOptions(chunk_size=5), parallel=ParallelOptions(max_workers=3)
+            )
             result = loader.load("dbo.t", readers)
 
         assert crud_cls.call_count == 3
@@ -59,7 +62,7 @@ class TestParallelBulkLoaderOrchestration:
             return crud
 
         with patch.object(pl_mod, "BulkCrud", side_effect=_make):
-            loader = ParallelBulkLoader(MagicMock(), max_workers=3)
+            loader = ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(max_workers=3))
             result = loader.load("t", readers)
 
         assert result.total_rows == 14  # 2 particiones OK × 7
@@ -79,7 +82,7 @@ class TestParallelBulkLoaderOrchestration:
         readers = [lambda: iter([])]
         with patch.object(pl_mod, "ThreadPoolExecutor", side_effect=_spy), patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.return_value = 0
-            ParallelBulkLoader(MagicMock(), max_workers=8).load("t", readers)
+            ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(max_workers=8)).load("t", readers)
 
         # max_workers se acota al nº de particiones (1), no 8
         assert captured["mw"] == 1
@@ -102,7 +105,7 @@ class TestParallelLoadResultMetrics:
         readers = [lambda: iter([]) for _ in range(2)]
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.return_value = 5
-            loader = ParallelBulkLoader(MagicMock(), max_workers=2)
+            loader = ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(max_workers=2))
             result = loader.load("t", readers)
 
         assert len(result.partition_results) == 2
@@ -113,13 +116,13 @@ class TestParallelLoadResultMetrics:
         readers = [lambda: iter([])]
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.return_value = 0
-            loader = ParallelBulkLoader(MagicMock(), max_workers=1)
+            loader = ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(max_workers=1))
             result = loader.load("t", readers)
 
         assert result.elapsed_seconds >= 0.0
 
     def test_empty_readers_has_zero_elapsed(self) -> None:
-        result = ParallelBulkLoader(MagicMock(), max_workers=1).load("t", [])
+        result = ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(max_workers=1)).load("t", [])
         assert result.elapsed_seconds == pytest.approx(0.0, abs=1e-9)
         assert result.partition_results == []
 
@@ -127,32 +130,32 @@ class TestParallelLoadResultMetrics:
 class TestParallelBulkLoaderNewParameters:
     def test_max_retries_negative_raises(self) -> None:
         with pytest.raises(ValueError, match="max_retries"):
-            ParallelBulkLoader(MagicMock(), max_retries=-1)
+            ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(retry=RetryOptions(max_retries=-1)))
 
     def test_max_retries_zero_is_valid(self) -> None:
-        loader = ParallelBulkLoader(MagicMock(), max_retries=0)
-        assert loader._max_retries == 0
+        loader = ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(retry=RetryOptions(max_retries=0)))
+        assert loader.options.parallel.retry.max_retries == 0
 
     def test_disable_constraints_default_false(self) -> None:
         loader = ParallelBulkLoader(MagicMock())
-        assert loader._disable_constraints is False
+        assert loader.options.parallel.disable_constraints is False
 
     def test_disable_constraints_true_stored(self) -> None:
-        loader = ParallelBulkLoader(MagicMock(), disable_constraints=True)
-        assert loader._disable_constraints is True
+        loader = ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(disable_constraints=True))
+        assert loader.options.parallel.disable_constraints is True
 
     def test_pool_size_warning_emitted(self, caplog: pytest.LogCaptureFixture) -> None:
         engine = MagicMock()
         engine.pool.size.return_value = 2
         with caplog.at_level(logging.WARNING, logger="util_bbdd.bulk._execution.parallel_loader"):
-            ParallelBulkLoader(engine, max_workers=4)
+            ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=4))
         assert any("capacidad del pool" in m for m in caplog.messages)
 
     def test_pool_size_no_warning_when_sufficient(self, caplog: pytest.LogCaptureFixture) -> None:
         engine = MagicMock()
         engine.pool.size.return_value = 4
         with caplog.at_level(logging.WARNING, logger="util_bbdd.bulk._execution.parallel_loader"):
-            ParallelBulkLoader(engine, max_workers=4)
+            ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=4))
         assert not any("capacidad del pool" in m for m in caplog.messages)
 
 
@@ -171,7 +174,9 @@ class TestParallelBulkLoaderRetry:
             crud_cls.return_value.bulk_insert_from_chunks.side_effect = _side_effect
             crud_cls.return_value.audit_uncommitted_records = 0  # sin audit_strict: se puede reintentar
             crud_cls.return_value.rows_rejected = 0  # sin on_error="isolate"
-            loader = ParallelBulkLoader(MagicMock(), max_workers=1, max_retries=2)
+            loader = ParallelBulkLoader(
+                MagicMock(), parallel=ParallelOptions(max_workers=1, retry=RetryOptions(max_retries=2))
+            )
             result = loader.load("t", readers)
 
         assert result.total_rows == 10
@@ -185,7 +190,9 @@ class TestParallelBulkLoaderRetry:
             crud_cls.return_value.rows_committed = 0  # sin commit_every_n_chunks: nada sobrevive al fallo
             crud_cls.return_value.audit_uncommitted_records = 0
             crud_cls.return_value.rows_rejected = 0  # sin on_error="isolate"
-            loader = ParallelBulkLoader(MagicMock(), max_workers=1, max_retries=2)
+            loader = ParallelBulkLoader(
+                MagicMock(), parallel=ParallelOptions(max_workers=1, retry=RetryOptions(max_retries=2))
+            )
             result = loader.load("t", readers)
 
         assert len(result.partition_errors) == 1
@@ -203,7 +210,9 @@ class TestParallelBulkLoaderRetry:
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.side_effect = _permanent
             crud_cls.return_value.rows_committed = 0
-            loader = ParallelBulkLoader(MagicMock(), max_workers=1, max_retries=3)
+            loader = ParallelBulkLoader(
+                MagicMock(), parallel=ParallelOptions(max_workers=1, retry=RetryOptions(max_retries=3))
+            )
             result = loader.load("t", readers)
 
         assert call_count["n"] == 1  # no retry for permanent errors
@@ -213,7 +222,9 @@ class TestParallelBulkLoaderRetry:
         readers = [lambda: iter([])]
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.return_value = 5
-            loader = ParallelBulkLoader(MagicMock(), max_workers=1, max_retries=3)
+            loader = ParallelBulkLoader(
+                MagicMock(), parallel=ParallelOptions(max_workers=1, retry=RetryOptions(max_retries=3))
+            )
             result = loader.load("t", readers)
 
         assert result.partition_results[0].retries == 0
@@ -230,7 +241,9 @@ class TestParallelBulkLoaderPartialRowsOnFailure:
             crud_mock.bulk_insert_from_chunks.side_effect = SQLAlchemyError("boom mid partition")
             crud_mock.rows_committed = 4000  # ya comprometido vía commit_every_n_chunks antes del fallo
             crud_cls.return_value = crud_mock
-            loader = ParallelBulkLoader(MagicMock(), max_workers=1, commit_every_n_chunks=10)
+            loader = ParallelBulkLoader(
+                MagicMock(), batch=BatchOptions(commit_every_n_chunks=10), parallel=ParallelOptions(max_workers=1)
+            )
             result = loader.load("t", readers)
 
         assert result.partition_results[0].rows == 4000
@@ -248,7 +261,11 @@ class TestParallelBulkLoaderPartialRowsOnFailure:
             crud_cls.return_value = crud_mock
             # commit_every_n_chunks y max_retries>0 son incompatibles (validado en
             # __init__); max_retries=0 es el único modo compatible con cadencia.
-            loader = ParallelBulkLoader(MagicMock(), max_workers=1, commit_every_n_chunks=10, max_retries=0)
+            loader = ParallelBulkLoader(
+                MagicMock(),
+                batch=BatchOptions(commit_every_n_chunks=10),
+                parallel=ParallelOptions(max_workers=1, retry=RetryOptions(max_retries=0)),
+            )
             result = loader.load("t", readers)
 
         assert result.partition_results[0].rows == 250
@@ -263,7 +280,7 @@ class TestParallelBulkLoaderDisableConstraints:
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_mock = MagicMock()
             crud_cls.return_value = crud_mock
-            loader = ParallelBulkLoader(MagicMock(), max_workers=1, disable_constraints=True)
+            loader = ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(max_workers=1, disable_constraints=True))
             result = loader.load("orders", readers)
 
         crud_mock.bulk_session.assert_called_once()
@@ -276,7 +293,7 @@ class TestParallelBulkLoaderDisableConstraints:
         readers = [lambda: iter([])]
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.return_value = 7
-            loader = ParallelBulkLoader(MagicMock(), max_workers=1, disable_constraints=False)
+            loader = ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(max_workers=1, disable_constraints=False))
             result = loader.load("t", readers)
 
         crud_cls.return_value.bulk_session.assert_not_called()
@@ -288,7 +305,7 @@ class TestParallelBulkLoaderDisableConstraints:
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_mock = MagicMock()
             crud_cls.return_value = crud_mock
-            loader = ParallelBulkLoader(MagicMock(), max_workers=1, disable_constraints=True)
+            loader = ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(max_workers=1, disable_constraints=True))
             result = loader.load("t", readers)
 
         # Solo el chunk no vacío llama a bulk_insert_from_df
@@ -302,32 +319,32 @@ class TestParallelBulkLoaderPoolSizeCap:
     def test_max_workers_capped_to_pool_size(self) -> None:
         engine = MagicMock()
         engine.pool.size.return_value = 2
-        loader = ParallelBulkLoader(engine, max_workers=4)
+        loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=4))
         assert loader._max_workers == 2
 
     def test_max_workers_not_capped_when_pool_sufficient(self) -> None:
         engine = MagicMock()
         engine.pool.size.return_value = 4
-        loader = ParallelBulkLoader(engine, max_workers=4)
+        loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=4))
         assert loader._max_workers == 4
 
     def test_cap_emits_warning_with_pool_size_text(self, caplog: pytest.LogCaptureFixture) -> None:
         engine = MagicMock()
         engine.pool.size.return_value = 2
         with caplog.at_level(logging.WARNING, logger="util_bbdd.bulk._execution.parallel_loader"):
-            ParallelBulkLoader(engine, max_workers=4)
+            ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=4))
         assert any("capacidad del pool" in m for m in caplog.messages)
 
     def test_no_cap_when_pool_size_equals_max_workers(self) -> None:
         engine = MagicMock()
         engine.pool.size.return_value = 3
-        loader = ParallelBulkLoader(engine, max_workers=3)
+        loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=3))
         assert loader._max_workers == 3
 
     def test_no_cap_for_null_pool(self) -> None:
         engine = MagicMock()
         engine.pool = None
-        loader = ParallelBulkLoader(engine, max_workers=8)
+        loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=8))
         assert loader._max_workers == 8
 
 
@@ -335,16 +352,28 @@ class TestParallelBulkLoaderCommitRetryGuard:
     """F-04+F-07 (hasta v0.23.x) eran incompatibles; desde B-11 el reintento reanuda tras las filas confirmadas."""
 
     def test_commit_cadence_with_retries_is_valid(self) -> None:
-        loader = ParallelBulkLoader(MagicMock(), commit_every_n_chunks=10, max_retries=1)
-        assert (loader._commit_every_n_chunks, loader._max_retries) == (10, 1)
+        loader = ParallelBulkLoader(
+            MagicMock(),
+            batch=BatchOptions(commit_every_n_chunks=10),
+            parallel=ParallelOptions(retry=RetryOptions(max_retries=1)),
+        )
+        assert (loader.options.batch.commit_every_n_chunks, loader.options.parallel.retry.max_retries) == (10, 1)
 
     def test_commit_cadence_with_retries_zero_is_valid(self) -> None:
-        loader = ParallelBulkLoader(MagicMock(), commit_every_n_chunks=10, max_retries=0)
-        assert loader._commit_every_n_chunks == 10
+        loader = ParallelBulkLoader(
+            MagicMock(),
+            batch=BatchOptions(commit_every_n_chunks=10),
+            parallel=ParallelOptions(retry=RetryOptions(max_retries=0)),
+        )
+        assert loader.options.batch.commit_every_n_chunks == 10
 
     def test_no_commit_cadence_with_retries_is_valid(self) -> None:
-        loader = ParallelBulkLoader(MagicMock(), commit_every_n_chunks=None, max_retries=3)
-        assert loader._max_retries == 3
+        loader = ParallelBulkLoader(
+            MagicMock(),
+            batch=BatchOptions(commit_every_n_chunks=None),
+            parallel=ParallelOptions(retry=RetryOptions(max_retries=3)),
+        )
+        assert loader.options.parallel.retry.max_retries == 3
 
 
 class TestParallelBulkLoaderConstraintHoist:
@@ -360,7 +389,7 @@ class TestParallelBulkLoaderConstraintHoist:
         readers = [lambda: iter([])]
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.return_value = 0
-            loader = ParallelBulkLoader(engine, max_workers=1, disable_constraints=True)
+            loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1, disable_constraints=True))
             loader.load("dbo.orders", readers)
 
         assert any("NOCHECK" in sql.upper() for sql in executed_sqls)
@@ -382,7 +411,7 @@ class TestParallelBulkLoaderConstraintHoist:
         ):
             crud_mock = MagicMock()
             crud_cls.return_value = crud_mock
-            loader = ParallelBulkLoader(engine, max_workers=1, disable_constraints=True)
+            loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1, disable_constraints=True))
             loader.load("dbo.orders", readers)
 
         crud_mock.bulk_insert_from_chunks.assert_called_once()
@@ -402,7 +431,7 @@ class TestParallelBulkLoaderConstraintHoist:
         readers = [lambda: iter([])]
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.return_value = 0
-            loader = ParallelBulkLoader(engine, max_workers=1, disable_constraints=True)
+            loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1, disable_constraints=True))
             loader.load("public.orders", readers)
 
         assert any("DISABLE TRIGGER" in sql.upper() for sql in executed_sqls)
@@ -424,7 +453,7 @@ class TestParallelBulkLoaderConstraintHoist:
         ):
             crud_mock = MagicMock()
             crud_cls.return_value = crud_mock
-            loader = ParallelBulkLoader(engine, max_workers=1, disable_constraints=True)
+            loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1, disable_constraints=True))
             loader.load("public.orders", readers)
 
         crud_mock.bulk_insert_from_chunks.assert_called_once()
@@ -446,7 +475,7 @@ class TestParallelBulkLoaderConstraintHoist:
         ):
             crud_mock = MagicMock()
             crud_cls.return_value = crud_mock
-            loader = ParallelBulkLoader(engine, max_workers=1, disable_constraints=True)
+            loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1, disable_constraints=True))
             loader.load("public.orders", readers)
 
         # Sin hoist (skip_maintenance=False): workers usan _load_with_maintenance
@@ -464,7 +493,7 @@ class TestParallelBulkLoaderConstraintHoist:
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_mock = MagicMock()
             crud_cls.return_value = crud_mock
-            loader = ParallelBulkLoader(engine, max_workers=1, disable_constraints=True)
+            loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1, disable_constraints=True))
             loader.load("orders", readers)
 
         # MySQL dialect → _hoist_constraints_for_workers yield False → per-worker
@@ -477,13 +506,13 @@ class TestParallelBulkLoaderPartitionRanges:
 
     def test_overlapping_ranges_raise_value_error(self) -> None:
         readers = [lambda: iter([]), lambda: iter([])]
-        loader = ParallelBulkLoader(MagicMock(), max_workers=2)
+        loader = ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(max_workers=2))
         with pytest.raises(ValueError, match="solapados"):
             loader.load("t", readers, partition_ranges=[(1, 5), (5, 10)])
 
     def test_mismatched_ranges_count_raises_value_error(self) -> None:
         readers = [lambda: iter([]), lambda: iter([])]
-        loader = ParallelBulkLoader(MagicMock(), max_workers=2)
+        loader = ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(max_workers=2))
         with pytest.raises(ValueError, match="longitud"):
             loader.load("t", readers, partition_ranges=[(1, 5)])
 
@@ -491,7 +520,7 @@ class TestParallelBulkLoaderPartitionRanges:
         readers = [lambda: iter([]), lambda: iter([])]
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.return_value = 0
-            loader = ParallelBulkLoader(MagicMock(), max_workers=2)
+            loader = ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(max_workers=2))
             result = loader.load("t", readers, partition_ranges=[(1, 5), (6, 10)])
         assert result.partition_errors == []
 
@@ -499,14 +528,16 @@ class TestParallelBulkLoaderPartitionRanges:
         readers = [lambda: iter([])]
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.return_value = 0
-            result = ParallelBulkLoader(MagicMock(), max_workers=1).load("t", readers, partition_ranges=None)
+            result = ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(max_workers=1)).load(
+                "t", readers, partition_ranges=None
+            )
         assert result.partition_errors == []
 
     def test_adjacent_ranges_not_considered_overlapping(self) -> None:
         readers = [lambda: iter([]), lambda: iter([])]
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.return_value = 0
-            loader = ParallelBulkLoader(MagicMock(), max_workers=2)
+            loader = ParallelBulkLoader(MagicMock(), parallel=ParallelOptions(max_workers=2))
             result = loader.load("t", readers, partition_ranges=[(1, 4), (5, 8)])
         assert result.partition_errors == []
 
@@ -528,7 +559,7 @@ class TestParallelBulkLoaderEndToEnd:
         def reader_hi():
             return iter([pd.DataFrame({"id": [4, 5], "name": ["d", "e"]})])
 
-        loader = ParallelBulkLoader(engine, chunk_size=10, max_workers=2)
+        loader = ParallelBulkLoader(engine, batch=BatchOptions(chunk_size=10), parallel=ParallelOptions(max_workers=2))
         result = loader.load("items", [reader_lo, reader_hi])
 
         assert result.partition_errors == []

@@ -1,4 +1,4 @@
-"""CSV de filas rechazadas de ``BulkCrud(on_error="isolate")``. **Formato congelado.**
+"""CSV de filas rechazadas de ``BulkCrud(rejects=RejectOptions(on_error="isolate"))``. **Formato congelado.**
 
 Movido desde ``util_bbdd.bulk._support.rejects`` (sesión 2026-10-02c) sin cambios de comportamiento; aquel módulo lo
 re-exporta y conserva el aislamiento por SAVEPOINT (``Isolator``), que es lógica de ejecución, no de auditoría.

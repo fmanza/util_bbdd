@@ -76,6 +76,7 @@ from sqlalchemy.engine import make_url
 from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk._execution.batch import InsertStrategyResolver, MySQLMultiRowInsertStrategy
 from util_bbdd.bulk._support.validation import normalize_identifier
+from util_bbdd.bulk.options import AuditOptions, BatchOptions, ExecutionOptions
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -262,6 +263,7 @@ class Variant:
     # Subcadena exigida en el driver de la URL (p.ej. "pyodbc"); vacía, cualquier driver.
     driver_contains: str = ""
     engine_kwargs: dict[str, Any] = field(default_factory=dict)
+    # Campos de ExecutionOptions de la variante (v3.0.0: insert_resolver, update_via_staging...).
     crud_kwargs: Callable[[], dict[str, Any]] = field(default=dict)
 
     def applies_to(self, dialect_name: str, drivername: str) -> bool:
@@ -428,7 +430,12 @@ def run_cycle(
     """
     table = build_table(engine.dialect.name)
     reset_table(engine, table)
-    crud = BulkCrud(engine, chunk_size=config.chunk_size, audit_csv_path=config.audit_csv, **variant.crud_kwargs())
+    crud = BulkCrud(
+        engine,
+        batch=BatchOptions(chunk_size=config.chunk_size),
+        audit=AuditOptions(csv_path=config.audit_csv),
+        execution=ExecutionOptions(**variant.crud_kwargs()),
+    )
     crud.reflect_table(table.name)  # la reflexión (1 vez por instancia) queda fuera de la medición
     steps = _build_steps(engine, table, crud, make_dataframe(rows, engine.dialect.name))
 

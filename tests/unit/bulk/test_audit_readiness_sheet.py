@@ -15,6 +15,7 @@ from sqlalchemy.engine import Engine
 
 from util_bbdd import BulkCrud
 from util_bbdd.bulk import AuditManager
+from util_bbdd.bulk.options import AuditOptions
 from util_bbdd.connection.performance_advisor import EngineReadinessAdvisor
 
 SHEET = "Condiciones_motor"
@@ -30,7 +31,7 @@ def engine(tmp_path: Path) -> Iterator[Engine]:
 
 
 def _load(engine: Engine, audit_csv: Path) -> BulkCrud:
-    crud = BulkCrud(engine, audit_csv_path=audit_csv)
+    crud = BulkCrud(engine, audit=AuditOptions(csv_path=audit_csv))
     crud.bulk_insert_from_df(pd.DataFrame({"id": [1, 2], "n": ["a", "b"]}), "t", generar_sql=False)
     return crud
 

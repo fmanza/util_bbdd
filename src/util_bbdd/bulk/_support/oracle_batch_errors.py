@@ -1,4 +1,4 @@
-"""``batcherrors`` de oracledb para ``BulkCrud(on_error="isolate")`` en Oracle (S-5, sesión 2026-10-01s).
+"""``batcherrors`` de oracledb para ``BulkCrud(rejects=RejectOptions(on_error="isolate"))`` en Oracle (S-5, sesión 2026-10-01s).
 
 Con ``batcherrors=True``, ``cursor.executemany`` aplica las filas buenas del lote y devuelve las erróneas con su
 posición (``getbatcherrors()``) en lugar de fallar en la primera: un envío por lote, sin bisección. Además aísla

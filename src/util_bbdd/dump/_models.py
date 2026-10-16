@@ -128,6 +128,10 @@ class DumpConfig:
             carga secuencial, que ya solapa lectura y escritura): SQL Server −37 % (recomendado);
             PostgreSQL −9 % y Oracle −2 % (poca ganancia); MySQL y MariaDB casi el doble de tiempo
             (no recomendado; se avisa en el log); SQLite se fuerza a 1 (un solo escritor).
+            ``"auto"`` (v3.0.0): el número de rangos de cada tabla lo decide ``ParallelPlanner`` con el motor de
+            destino y una cota de las filas (``MAX(pk) − MIN(pk) + 1``), con las mediciones de arriba: hoy solo
+            particiona con destino SQL Server y tablas de 3,5M filas o más (4 rangos, o menos si el pool no da para
+            ``max_parallel_tables`` × 4); el resto se carga entera. El motivo de cada tabla queda en el log (INFO).
         write_batch_size: Filas por lote de escritura en el destino (una sentencia ``COPY`` o
             ``executemany`` por lote). ``None`` (default): 20 000 con destino PostgreSQL (``COPY``,
             −31 % a 3,5M filas frente a 5 000) y ``chunk_size`` en el resto de motores (en SQL Server
@@ -135,7 +139,7 @@ class DumpConfig:
             siempre ``chunk_size``, para no cambiar cada cuántas filas se confirma. Un entero fija el
             lote en todos los motores. La lectura sigue siendo por ``chunk_size``; los chunks leídos
             se agrupan hasta completar el lote (+1 lote en memoria).
-        on_error: Como ``BulkCrud(on_error=...)``: con ``"isolate"`` las filas que el destino no admite (PK duplicada,
+        on_error: Como ``RejectOptions(on_error=...)`` de ``BulkCrud``: con ``"isolate"`` las filas que el destino no admite (PK duplicada,
             NOT NULL, valor demasiado largo o fuera de precisión) se apartan a ``rejects_csv_path`` y el resto de la
             tabla se copia; la tabla queda ``success`` con ``TableDumpResult.rows_rejected``. Durante la carga las
             constraints del destino están desactivadas: las FK y los CHECK no fallan aquí (una fila huérfana se copia y
@@ -161,7 +165,8 @@ class DumpConfig:
         ValueError: Si ``chunk_size`` no es un entero ≥ 1, o si ``commit_every_n_chunks`` o ``write_batch_size`` no son
             ``None`` ni un entero ≥ 1, o si ``on_error``, ``rejects_csv_path`` y ``max_rejects`` no son una
             combinación válida (las reglas de ``BulkCrud``), o si ``output_dir``, ``bulk_audit_path`` o
-            ``rejects_csv_path`` no son ``str`` ni ``Path``. Se valida al construir, antes de tocar el destino.
+            ``rejects_csv_path`` no son ``str`` ni ``Path``, o ``parallel_pk_ranges`` no es un entero ni ``"auto"``. Se
+            valida al construir, antes de tocar el destino.
     """
 
     source_engine: Engine
@@ -179,7 +184,7 @@ class DumpConfig:
     commit_every_n_chunks: int | None = None
     manage_indexes: bool = False
     max_parallel_tables: int = 1
-    parallel_pk_ranges: int = 1
+    parallel_pk_ranges: int | Literal["auto"] = 1
     bulk_audit_strict: bool = False
     write_batch_size: int | None = None
     on_error: Literal["raise", "isolate"] = "raise"
@@ -197,6 +202,9 @@ class DumpConfig:
         # DumpResult; bulk_audit_path como str fallaba antes de cargar. Las rutas ya llegan aquí como Path: las
         # normalizan y validan sus descriptores (PathField/OptionalPathField) al asignarse en __init__.
         validate_isolation(self.on_error, self.rejects_csv_path, self.max_rejects)
+        ranges = self.parallel_pk_ranges
+        if ranges != "auto" and (isinstance(ranges, bool) or not isinstance(ranges, int)):
+            raise ValueError(f"parallel_pk_ranges debe ser un entero o 'auto', recibido: {ranges!r}")
 
 
 @dataclass

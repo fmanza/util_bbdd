@@ -22,6 +22,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from util_bbdd.bulk import ParallelBulkLoader
 from util_bbdd.bulk.audit import AuditManager
 from util_bbdd.bulk.crud import BulkCrud
+from util_bbdd.bulk.options import AuditOptions, BatchOptions, ParallelOptions, RetryOptions
 
 pytestmark = pytest.mark.unit
 
@@ -57,7 +58,7 @@ def _audit_rows(audit_path: Path) -> pd.DataFrame:
 
 class TestAtomicSession:
     def test_rows_are_written_only_after_the_commit(self, engine: Engine, audit_path: Path) -> None:
-        crud = BulkCrud(engine, audit_csv_path=audit_path)
+        crud = BulkCrud(engine, audit=AuditOptions(csv_path=audit_path))
 
         with crud.bulk_session():
             crud.bulk_insert_from_df(_df(range(0, 3)), "items", generar_sql=False)
@@ -71,7 +72,7 @@ class TestAtomicSession:
     def test_rollback_discards_pending_rows_with_a_warning(
         self, engine: Engine, audit_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        crud = BulkCrud(engine, audit_csv_path=audit_path)
+        crud = BulkCrud(engine, audit=AuditOptions(csv_path=audit_path))
 
         with caplog.at_level("WARNING"), pytest.raises(IntegrityError):
             with crud.bulk_session():
@@ -83,7 +84,7 @@ class TestAtomicSession:
         assert any("se descartan 1 registros (5 filas)" in r.getMessage() for r in caplog.records)
 
     def test_timestamp_is_the_end_of_each_operation_not_the_commit(self, engine: Engine, audit_path: Path) -> None:
-        crud = BulkCrud(engine, audit_csv_path=audit_path)
+        crud = BulkCrud(engine, audit=AuditOptions(csv_path=audit_path))
         with crud.bulk_session():
             crud.bulk_insert_from_df(_df([1]), "items", generar_sql=False)
             pending = crud._persistence._pending
@@ -96,7 +97,7 @@ class TestAtomicSession:
     def test_generated_sql_is_written_immediately_even_if_the_session_rolls_back(
         self, engine: Engine, audit_path: Path, tmp_path: Path
     ) -> None:
-        crud = BulkCrud(engine, audit_csv_path=audit_path)
+        crud = BulkCrud(engine, audit=AuditOptions(csv_path=audit_path))
 
         with pytest.raises(IntegrityError):
             with crud.bulk_session():
@@ -117,7 +118,7 @@ class TestAtomicSession:
 class TestStreamingInsert:
     def test_failed_chunk_leaves_no_audit_rows(self, engine: Engine, audit_path: Path) -> None:
         # R3 de la auditoría: antes el CSV decía "INSERT 100 filas" con la tabla vacía.
-        crud = BulkCrud(engine, audit_csv_path=audit_path)
+        crud = BulkCrud(engine, audit=AuditOptions(csv_path=audit_path))
 
         with pytest.raises(IntegrityError):
             crud.bulk_insert_from_chunks(iter([_df(range(0, 100)), _df([5])]), "items")
@@ -126,7 +127,7 @@ class TestStreamingInsert:
         assert _audit_rows(audit_path).empty
 
     def test_all_chunks_are_written_with_a_single_csv_write(self, engine: Engine, audit_path: Path) -> None:
-        crud = BulkCrud(engine, chunk_size=10, audit_csv_path=audit_path)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=10), audit=AuditOptions(csv_path=audit_path))
 
         with patch.object(
             AuditManager, "_registrar_lote", autospec=True, side_effect=AuditManager._registrar_lote
@@ -144,7 +145,9 @@ class TestCommitEveryNChunks:
         self, engine: Engine, audit_path: Path
     ) -> None:
         # Cada operación es un lote y se confirma sola: al registrarla ya no queda nada pendiente.
-        crud = BulkCrud(engine, chunk_size=10, commit_every_n_chunks=1, audit_csv_path=audit_path)
+        crud = BulkCrud(
+            engine, batch=BatchOptions(chunk_size=10, commit_every_n_chunks=1), audit=AuditOptions(csv_path=audit_path)
+        )
 
         with pytest.raises(IntegrityError):
             with crud.bulk_session():
@@ -158,7 +161,9 @@ class TestCommitEveryNChunks:
     def test_periodic_commit_flushes_earlier_operations_and_rollback_discards_the_rest(
         self, engine: Engine, audit_path: Path
     ) -> None:
-        crud = BulkCrud(engine, chunk_size=10, commit_every_n_chunks=2, audit_csv_path=audit_path)
+        crud = BulkCrud(
+            engine, batch=BatchOptions(chunk_size=10, commit_every_n_chunks=2), audit=AuditOptions(csv_path=audit_path)
+        )
 
         with pytest.raises(IntegrityError):
             with crud.bulk_session():
@@ -174,7 +179,9 @@ class TestCommitEveryNChunks:
         self, engine: Engine, audit_path: Path
     ) -> None:
         # Sin el gancho de commit periódico la operación 1, ya confirmada, se descartaría con el rollback.
-        crud = BulkCrud(engine, chunk_size=10, commit_every_n_chunks=2, audit_csv_path=audit_path)
+        crud = BulkCrud(
+            engine, batch=BatchOptions(chunk_size=10, commit_every_n_chunks=2), audit=AuditOptions(csv_path=audit_path)
+        )
 
         with pytest.raises(IntegrityError):
             with crud.bulk_session():
@@ -188,7 +195,9 @@ class TestCommitEveryNChunks:
         assert crud.rows_committed == 20
 
     def test_session_end_commit_flushes_the_tail(self, engine: Engine, audit_path: Path) -> None:
-        crud = BulkCrud(engine, chunk_size=10, commit_every_n_chunks=3, audit_csv_path=audit_path)
+        crud = BulkCrud(
+            engine, batch=BatchOptions(chunk_size=10, commit_every_n_chunks=3), audit=AuditOptions(csv_path=audit_path)
+        )
 
         with crud.bulk_session():
             crud.bulk_insert_from_df(_df(range(0, 10)), "items", generar_sql=False)
@@ -208,7 +217,12 @@ class TestParallelLoaderRetries:
                 raise OperationalError("SELECT 1", {}, Exception("conexión perdida"), connection_invalidated=True)
             yield _df(range(10, 20))
 
-        loader = ParallelBulkLoader(engine, chunk_size=10, max_workers=1, max_retries=1, audit_csv_path=audit_path)
+        loader = ParallelBulkLoader(
+            engine,
+            batch=BatchOptions(chunk_size=10),
+            audit=AuditOptions(csv_path=audit_path),
+            parallel=ParallelOptions(max_workers=1, retry=RetryOptions(max_retries=1)),
+        )
         result = loader.load("items", [reader])
 
         assert result.partition_errors == []

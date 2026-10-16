@@ -41,6 +41,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import DatabaseError, DataError, IntegrityError
 
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader
+from util_bbdd.bulk.options import BatchOptions, ExecutionOptions, ParallelOptions, RejectOptions, RetryOptions
 
 from .test_bulk_engines import _engine_params, _name, engine  # noqa: F401  (fixture reutilizada)
 
@@ -95,7 +96,9 @@ def test_mssql_delete_openjson_by_pk_type(
     try:
         BulkCrud(engine).bulk_insert_from_df(pd.DataFrame({"k": keys, "v": range(len(keys))}), table.name, False)
         doomed = pd.DataFrame({"k": keys[::2]})
-        crud = BulkCrud(engine, chunk_size=2, commit_every_n_chunks=1 if mode == "cadence" else None)
+        crud = BulkCrud(
+            engine, batch=BatchOptions(chunk_size=2, commit_every_n_chunks=1 if mode == "cadence" else None)
+        )
         statements.clear()
         if mode == "plain":
             crud.bulk_delete_from_df(doomed, table.name, False)
@@ -141,7 +144,7 @@ def test_mssql_delete_openjson_composite_pk(
         frame = pd.DataFrame(keys, columns=["a", "b"])
         BulkCrud(engine).bulk_insert_from_df(frame, table.name, False)
         statements.clear()
-        BulkCrud(engine, chunk_size=2).bulk_delete_from_df(frame.iloc[::2], table.name, False)
+        BulkCrud(engine, batch=BatchOptions(chunk_size=2)).bulk_delete_from_df(frame.iloc[::2], table.name, False)
 
         with engine.connect() as conn:
             remaining = sorted(tuple(r) for r in conn.execute(select(table.c.a, table.c.b)))
@@ -156,7 +159,7 @@ def test_mssql_delete_rolls_back_with_session(engine: Engine) -> None:  # noqa: 
     table = Table(_table_name(), MetaData(), Column("k", Integer, primary_key=True, autoincrement=False))
     table.create(engine)
     try:
-        crud = BulkCrud(engine, chunk_size=2)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2))
         crud.bulk_insert_from_df(pd.DataFrame({"k": range(10)}), table.name, False)
         with pytest.raises(RuntimeError), crud.bulk_session():
             crud.bulk_delete_from_df(pd.DataFrame({"k": range(10)}), table.name, False)
@@ -198,7 +201,11 @@ def _pg_update_state(db: Engine, statements: list[str], *, staging: bool, cadenc
                 "s": [" x ", "%s", "fin", "no", None],
             }
         )
-        crud = BulkCrud(db, chunk_size=2, update_via_staging=staging, commit_every_n_chunks=cadence)
+        crud = BulkCrud(
+            db,
+            batch=BatchOptions(chunk_size=2, commit_every_n_chunks=cadence),
+            execution=ExecutionOptions(update_via_staging=staging),
+        )
         statements.clear()
         crud.bulk_update_from_df(update, f"public.{table.name}", False)
         used_staging = any("CREATE TEMPORARY TABLE" in s and "WITH NO DATA" in s for s in statements)
@@ -252,7 +259,7 @@ def test_insert_values_roundtrip_with_columns_path(engine: Engine) -> None:  # n
                 n("blob"): [b"q", b"\xff\x00", None, b"", b"z"],
             }
         )
-        BulkCrud(engine, chunk_size=2).bulk_insert_from_df(df, table.name, False)
+        BulkCrud(engine, batch=BatchOptions(chunk_size=2)).bulk_insert_from_df(df, table.name, False)
         with engine.connect() as conn:
             rows = [tuple(r) for r in conn.execute(select(table).order_by(table.c[n("id")]))]
         blobs = [bytes(r[3]) if r[3] is not None else None for r in rows]
@@ -279,7 +286,7 @@ def test_error_note_points_to_failing_batch(engine: Engine) -> None:  # noqa: F8
     table = Table(n(_table_name()), MetaData(), Column(n("id"), Integer, primary_key=True, autoincrement=False))
     table.create(engine)
     try:
-        crud = BulkCrud(engine, chunk_size=3)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=3))
         crud.bulk_insert_from_df(pd.DataFrame({n("id"): [7]}), table.name, False)
         with pytest.raises(IntegrityError) as info:
             crud.bulk_insert_from_df(pd.DataFrame({n("id"): list(range(1, 10))}), table.name, False)
@@ -318,10 +325,10 @@ def test_from_chunks_match_from_df(engine: Engine) -> None:  # noqa: F811
     doomed = pd.DataFrame({n("id"): [2, 4, 6, 8]})
     streamed, direct = _seed_table(engine, 12), _seed_table(engine, 12)
     try:
-        crud = BulkCrud(engine, chunk_size=2, commit_every_n_chunks=1)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2, commit_every_n_chunks=1))
         crud.bulk_update_from_chunks(iter([update.iloc[:2], update.iloc[2:4], update.iloc[4:]]), streamed.name)
         crud.bulk_delete_from_chunks(iter([doomed.iloc[:1], doomed.iloc[1:]]), streamed.name)
-        other = BulkCrud(engine, chunk_size=2)
+        other = BulkCrud(engine, batch=BatchOptions(chunk_size=2))
         other.bulk_update_from_df(update, direct.name, False)
         other.bulk_delete_from_df(doomed, direct.name, False)
         assert _state(engine, streamed) == _state(engine, direct)
@@ -350,7 +357,9 @@ def test_parallel_retry_resumes_without_duplicates(engine: Engine) -> None:  # n
                 yield frame
 
         loader = ParallelBulkLoader(
-            engine, chunk_size=100, max_workers=1, commit_every_n_chunks=2, max_retries=1, retry_backoff=(0, 0)
+            engine,
+            batch=BatchOptions(chunk_size=100, commit_every_n_chunks=2),
+            parallel=ParallelOptions(max_workers=1, retry=RetryOptions(max_retries=1, backoff=(0, 0))),
         )
         result = loader.load(table.name, [reader])
 
@@ -370,7 +379,7 @@ def test_parallel_update_and_delete(engine: Engine) -> None:  # noqa: F811
     n = lambda logical: _name(logical, engine)  # noqa: E731
     table = _seed_table(engine, 400)
     try:
-        loader = ParallelBulkLoader(engine, chunk_size=50, max_workers=2)
+        loader = ParallelBulkLoader(engine, batch=BatchOptions(chunk_size=50), parallel=ParallelOptions(max_workers=2))
         parts = [pd.DataFrame({n("id"): range(lo, lo + 200), n("v"): ["u"] * 200}) for lo in (1, 201)]
         updated = loader.update(
             table.name, [lambda p=p: iter([p]) for p in parts], partition_ranges=[(1, 200), (201, 400)]
@@ -413,7 +422,7 @@ def test_mssql_delete_never_deletes_keys_that_do_not_fit_the_pk(
     table = Table(_table_name(), MetaData(), Column("k", pk_type, primary_key=True, autoincrement=False))
     table.create(engine)
     try:
-        BulkCrud(engine, strip_strings=False).bulk_insert_from_df(
+        BulkCrud(engine, execution=ExecutionOptions(strip_strings=False)).bulk_insert_from_df(
             pd.DataFrame({"k": rows}, dtype=object), table.name, False
         )
         BulkCrud(engine).bulk_delete_from_df(pd.DataFrame({"k": doomed}, dtype=object), table.name, False)
@@ -481,7 +490,7 @@ def test_prefetch_blocks_gives_the_same_result(engine: Engine) -> None:  # noqa:
     for prefetch in (False, True):
         table = _seed_table(engine, 0)
         try:
-            crud = BulkCrud(engine, chunk_size=7, prefetch_blocks=prefetch)
+            crud = BulkCrud(engine, batch=BatchOptions(chunk_size=7, prefetch_blocks=prefetch))
             crud.bulk_insert_from_df(pd.DataFrame({n("id"): range(1, 51), n("v"): ["v"] * 50}), table.name, False)
             crud.bulk_update_from_df(pd.DataFrame({n("id"): range(1, 51, 3), n("v"): ["u"] * 17}), table.name, False)
             crud.bulk_insert_from_chunks(iter([pd.DataFrame({n("id"): range(51, 70), n("v"): ["c"] * 19})]), table.name)
@@ -520,10 +529,8 @@ def test_isolate_insert_rejects_duplicate_keys(engine: Engine, cadence: int | No
     try:
         crud = BulkCrud(
             engine,
-            chunk_size=4,
-            commit_every_n_chunks=cadence,
-            on_error="isolate",
-            rejects_csv_path=tmp_path / "rejects.csv",
+            batch=BatchOptions(chunk_size=4, commit_every_n_chunks=cadence),
+            rejects=RejectOptions(on_error="isolate", csv_path=tmp_path / "rejects.csv"),
         )
         crud.bulk_insert_from_df(pd.DataFrame({n("id"): range(15, 31), n("v"): ["i"] * 16}), table.name, False)
 
@@ -548,7 +555,10 @@ def test_isolate_update_rejects_values_too_long(engine: Engine, staging: bool, t
     table = _isolate_table(engine)
     try:
         crud = BulkCrud(
-            engine, chunk_size=4, update_via_staging=staging, on_error="isolate", rejects_csv_path=tmp_path / "r.csv"
+            engine,
+            batch=BatchOptions(chunk_size=4),
+            rejects=RejectOptions(on_error="isolate", csv_path=tmp_path / "r.csv"),
+            execution=ExecutionOptions(update_via_staging=staging),
         )
         values = ["u" if i not in (3, 11) else "demasiado" for i in range(1, 13)]
         crud.bulk_update_from_df(pd.DataFrame({n("id"): range(1, 13), n("v"): values}), table.name, False)
@@ -570,7 +580,11 @@ def test_isolate_value_too_long_is_not_isolated(engine: Engine, tmp_path: Any) -
     n = lambda logical: _name(logical, engine)  # noqa: E731
     table = _isolate_table(engine)
     try:
-        crud = BulkCrud(engine, chunk_size=4, on_error="isolate", rejects_csv_path=tmp_path / "r.csv")
+        crud = BulkCrud(
+            engine,
+            batch=BatchOptions(chunk_size=4),
+            rejects=RejectOptions(on_error="isolate", csv_path=tmp_path / "r.csv"),
+        )
         with pytest.raises(DatabaseError) as info:
             crud.bulk_update_from_df(pd.DataFrame({n("id"): [1, 2], n("v"): ["u", "demasiado"]}), table.name, False)
         assert not isinstance(info.value, IntegrityError | DataError)
@@ -593,7 +607,11 @@ def test_isolate_delete_rejects_rows_still_referenced(engine: Engine, tmp_path: 
     try:
         with engine.begin() as conn:
             conn.execute(child.insert(), [{n("id"): 1, n("parent_id"): 4}, {n("id"): 2, n("parent_id"): 9}])
-        crud = BulkCrud(engine, chunk_size=4, on_error="isolate", rejects_csv_path=tmp_path / "r.csv")
+        crud = BulkCrud(
+            engine,
+            batch=BatchOptions(chunk_size=4),
+            rejects=RejectOptions(on_error="isolate", csv_path=tmp_path / "r.csv"),
+        )
         with crud.bulk_session():
             crud.bulk_delete_from_df(pd.DataFrame({n("id"): range(1, 11)}), parent.name, False)
 
@@ -618,7 +636,11 @@ def test_isolate_mssql_xact_abort_raises_the_data_error(engine: Engine, tmp_path
     n = lambda logical: _name(logical, engine)  # noqa: E731
     table = _isolate_table(engine)
     try:
-        crud = BulkCrud(engine, chunk_size=4, on_error="isolate", rejects_csv_path=tmp_path / "r.csv")
+        crud = BulkCrud(
+            engine,
+            batch=BatchOptions(chunk_size=4),
+            rejects=RejectOptions(on_error="isolate", csv_path=tmp_path / "r.csv"),
+        )
         with pytest.raises(IntegrityError) as info:
             crud.bulk_insert_from_df(pd.DataFrame({n("id"): range(19, 25), n("v"): ["i"] * 6}), table.name, False)
 
@@ -659,7 +681,11 @@ def test_oracle_batch_errors_isolate_errors_the_bisection_could_not(engine: Engi
         rows[5] = {**rows[5], "s": "demasiado"}  # ORA-12899
         rows[7] = {**rows[7], "n": decimal.Decimal("1234.5")}  # ORA-01438
         rows[10] = {**rows[10], "req": None}  # ORA-01400
-        crud = BulkCrud(engine, chunk_size=6, on_error="isolate", rejects_csv_path=tmp_path / "r.csv")
+        crud = BulkCrud(
+            engine,
+            batch=BatchOptions(chunk_size=6),
+            rejects=RejectOptions(on_error="isolate", csv_path=tmp_path / "r.csv"),
+        )
         with crud.bulk_session():
             crud.bulk_insert_from_df(pd.DataFrame(rows), table.name, False)
 
@@ -684,7 +710,11 @@ def test_oracle_update_with_lob_columns_uses_the_bisection(engine: Engine, tmp_p
     try:
         seed = pd.DataFrame({"id": [1, 2, 3], "s": ["a"] * 3, "n": [1] * 3, "req": ["r"] * 3, "doc": ["d"] * 3})
         BulkCrud(engine).bulk_insert_from_df(seed, table.name, False)
-        crud = BulkCrud(engine, chunk_size=4, on_error="isolate", rejects_csv_path=tmp_path / "r.csv")
+        crud = BulkCrud(
+            engine,
+            batch=BatchOptions(chunk_size=4),
+            rejects=RejectOptions(on_error="isolate", csv_path=tmp_path / "r.csv"),
+        )
         update = pd.DataFrame({"id": [1, 2, 3], "s": ["b", "demasiado", "b"], "doc": ["x" * 9000] * 3})
         with pytest.raises(DatabaseError) as info:
             crud.bulk_update_from_df(update, table.name, False)
@@ -704,7 +734,11 @@ def test_oracle_batch_errors_over_max_rejects(engine: Engine, tmp_path: Any) -> 
     table = _oracle_errors_table(engine)
     try:
         rows = pd.DataFrame({"id": range(6), "s": ["ok", "demasiado", "ok", "demasiado", "ok", "ok"], "req": ["r"] * 6})
-        crud = BulkCrud(engine, chunk_size=10, on_error="isolate", rejects_csv_path=tmp_path / "r.csv", max_rejects=1)
+        crud = BulkCrud(
+            engine,
+            batch=BatchOptions(chunk_size=10),
+            rejects=RejectOptions(on_error="isolate", csv_path=tmp_path / "r.csv", max_rejects=1),
+        )
         with pytest.raises(DatabaseError) as info:
             crud.bulk_insert_from_df(rows, table.name, False)
         assert "ORA-12899" in str(info.value)
@@ -732,7 +766,10 @@ def test_parallel_isolate_load_update_delete(engine: Engine, tmp_path: Any) -> N
     child.create(engine)
     try:
         loader = ParallelBulkLoader(
-            engine, max_workers=4, chunk_size=3, on_error="isolate", rejects_csv_path=tmp_path / "r.csv"
+            engine,
+            batch=BatchOptions(chunk_size=3),
+            rejects=RejectOptions(on_error="isolate", csv_path=tmp_path / "r.csv"),
+            parallel=ParallelOptions(max_workers=4),
         )
         parts = [list(range(start, start + 10)) for start in (15, 25, 35, 45)]  # 15..20 ya existen (partición 0)
         loaded = loader.load(
@@ -788,12 +825,9 @@ def test_parallel_isolate_positions_with_disable_constraints(
         ]
         loader = ParallelBulkLoader(
             engine,
-            max_workers=1,
-            chunk_size=10,
-            disable_constraints=disable_constraints,
-            on_error="isolate",
-            rejects_csv_path=tmp_path / "r.csv",
-            max_rejects=1,
+            batch=BatchOptions(chunk_size=10),
+            rejects=RejectOptions(on_error="isolate", csv_path=tmp_path / "r.csv", max_rejects=1),
+            parallel=ParallelOptions(max_workers=1, disable_constraints=disable_constraints),
         )
         result = loader.load(table.name, [lambda: iter(chunks)])
 

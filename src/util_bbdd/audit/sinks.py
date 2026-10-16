@@ -97,7 +97,7 @@ class JsonLinesAuditSink(_ClosableSink):
 
     Example:
         >>> sink = JsonLinesAuditSink(Path("auditoria.jsonl"))  # doctest: +SKIP
-        >>> crud = BulkCrud(engine, audit_sink=sink)  # doctest: +SKIP
+        >>> crud = BulkCrud(engine, audit=AuditOptions(sink=sink))  # doctest: +SKIP
     """
 
     def __init__(self, path: Path) -> None:

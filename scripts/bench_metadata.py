@@ -59,6 +59,7 @@ import pandas as pd
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import URL, Engine, make_url
 
+from util_bbdd.bulk.options import AuditOptions
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
 from util_bbdd.metadata.source import DbapiCatalogExecutor
 
@@ -528,7 +529,7 @@ def flow_bulk(engine: str, volume: int, limit: int | None) -> dict[str, Any]:
                 "created_at": [pd.Timestamp("2026-01-01").date()] * 10,
             }
         )
-        BulkCrud(eng, warn_if_audit_disabled=False).bulk_insert_from_df(df, "t00001", generar_sql=False)
+        BulkCrud(eng, audit=AuditOptions(warn_if_disabled=False)).bulk_insert_from_df(df, "t00001", generar_sql=False)
         return {}
     finally:
         with eng.begin() as conn:

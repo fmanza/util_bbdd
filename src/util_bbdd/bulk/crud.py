@@ -15,14 +15,15 @@ Compatible con SyncDatabaseManager para integración simplificada.
 from __future__ import annotations
 
 import logging
+import math
 import uuid
 
 from collections.abc import Callable, Generator, Iterable, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager, contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import pandas as pd
 
@@ -45,9 +46,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 
-from .._core.validation import StrPath, validate_optional_path
-from ..audit.contracts import AuditSink
+from .._core.exceptions import ParallelLoadError
+from .._core.validation import StrPath
+from ..audit.counters import AuditCounters
 from ..connection.performance_advisor import EngineReadinessAdvisor
+from ..metadata import facts as catalog_facts
 from ..metadata.catalog_registry import CatalogDialectNotFoundError
 from ..metadata.model import Kind
 from ..metadata.reflection import reflect_table
@@ -56,12 +59,12 @@ from ._execution.batch import (
     STAGING_UPDATE_DIALECTS,
     BatchStatementExecutor,
     DeleteBatchExecutor,
-    InsertStrategyResolver,
     StagingUpdateStrategy,
-    validate_chunk_size,
 )
 from ._execution.executors import batch_failure_note
 from ._execution.maintenance import TableMaintenance
+from ._execution.parallel_planner import ParallelPlan, ParallelPlanner, PlanInput
+from ._execution.range_partitioner import HashPartitioner, RangePartitioner
 from ._execution.session import SessionScope
 from ._models import MaintenanceScopeResult, PKSyncResult
 from ._support import oracle_batch_errors
@@ -72,14 +75,13 @@ from ._support.dialect import (
 from ._support.iterables import closing_iterable
 from ._support.persistence import BulkPersistenceManager
 from ._support.pk_sync import PKSequenceSyncer
+from ._support.pool import pool_capacity
 from ._support.prefetch import prefetch
 from ._support.rejects import (
     REJECTS_FAILURE_NOTE,
     Isolator,
     RejectsCoordinator,
     RejectsWriter,
-    optional_non_negative_int,
-    validate_isolation,
 )
 from ._support.sql_helpers import (
     SqlColumns,
@@ -107,6 +109,10 @@ from ._support.validation import (
 )
 from .audit import AuditError, AuditManager
 from .normalize import dataframe_to_sql_columns, dataframe_to_sql_records
+from .options import AuditOptions, BatchOptions, BulkOptions, ExecutionOptions, ParallelOptions, RejectOptions
+
+if TYPE_CHECKING:
+    from ._execution.parallel_loader import ParallelLoadResult
 
 try:
     from util.timing.medir_tiempo import medir_tiempo
@@ -178,47 +184,26 @@ class BulkCrud:
     def __init__(
         self,
         engine: Engine | None,
-        chunk_size: int | None = None,
-        audit_csv_path: StrPath | None = None,
-        enable_fast_executemany: bool = True,
-        insert_resolver: InsertStrategyResolver | None = None,
-        commit_every_n_chunks: int | None = None,
-        update_via_staging: bool = True,
-        audit_strict: bool = False,
-        warn_if_audit_disabled: bool = True,
-        strip_strings: bool = True,
-        reflect_foreign_keys: bool = True,
-        prefetch_blocks: bool = False,
-        on_error: Literal["raise", "isolate"] = "raise",
-        rejects_csv_path: StrPath | None = None,
-        max_rejects: int | None = None,
-        audit_sink: AuditSink | None = None,
-        audit_run_id: str | None = None,
+        *,
+        batch: BatchOptions | None = None,
+        audit: AuditOptions | None = None,
+        rejects: RejectOptions | None = None,
+        execution: ExecutionOptions | None = None,
+        parallel: ParallelOptions | None = None,
     ):
         """
-        Constructor de la clase bulk_crud.
+        Constructor de ``BulkCrud``.
+
+        v3.0.0: las opciones llegan en paquetes inmutables (:mod:`util_bbdd.bulk.options`), validados al construirse.
+        Hasta v2.x eran 16 parámetros sueltos; equivalencias en ``docs/guides/api_3_0_migration.md``.
 
         Args:
             engine: Engine de SQLAlchemy para las operaciones. Obligatorio.
-            chunk_size: Filas por lote. ``None`` (default) elige el lote por motor y operación: 20 000 en el INSERT y el
-                DELETE de PostgreSQL y en el DELETE de SQL Server, 5000 en el resto (B-04: −10 % a −20 % en esas
-                operaciones; el UPDATE de PostgreSQL empeora con lotes mayores). Con ``commit_every_n_chunks`` el
-                default es 5000 en todas las operaciones, para no cambiar cada cuántas filas se confirma. Un entero se
-                usa en todas las operaciones. Hasta v0.24.x el default era 5000 siempre.
-            audit_csv_path: Ruta (``str`` o ``Path``) del archivo CSV para auditoría. Por defecto es None.
-            enable_fast_executemany: Si True (default) y el engine es mssql+pyodbc,
-                activa fast_executemany en el dialecto del engine, igual que
-                ``create_engine(..., fast_executemany=True)`` (afecta a todo el engine).
-                Medido en SQL Server 2022 + ODBC Driver 18: INSERT ~12× más rápido.
-                Poner a False si el entorno SQL Server no lo soporta
-                (p.ej. NVARCHAR(MAX) en pyodbc < 4.0.28 con algunas configuraciones).
-            insert_resolver: Estrategia INSERT personalizada. None usa la resolución
-                automática (execute_values para postgresql+psycopg2, default para el resto).
-            commit_every_n_chunks: Si se indica (entero ≥ 1), commitea cada N lotes de
-                ``chunk_size`` filas en lugar de en una única transacción al final. **Crítico
-                para MariaDB/MySQL en cargas masivas** (millones de filas) donde el undo log
-                crece linealmente y el buffer pool se satura, causando degradación exponencial
-                de latencia.
+            batch: Tamaño de lote, ``commit_every_n_chunks`` y ``prefetch_blocks`` (:class:`BatchOptions`). ``None``: el
+                lote por motor y operación (B-04), una transacción por operación, sin preparación anticipada.
+
+                ``commit_every_n_chunks`` es **crítico para MariaDB/MySQL en cargas masivas** (millones de filas): sin él
+                el undo log crece linealmente y el buffer pool se satura. Valores orientativos (mide en tu entorno):
 
                 | BD | Buffer Pool | Recomendado | Aprox. Filas/commit |
                 |---|---|---|---|
@@ -229,79 +214,39 @@ class BulkCrud:
 
                 **Ejemplo de tuning** (10M filas en MariaDB con 1 GB buffer pool)::
 
-                    bulk = BulkCrud(engine, chunk_size=5_000, commit_every_n_chunks=20)
-                    bulk.bulk_insert_from_df(df_10m, "tabla_destino")
+                    bulk = BulkCrud(engine, batch=BatchOptions(chunk_size=5_000, commit_every_n_chunks=20))
+                    bulk.bulk_insert_from_df(df_10m, "tabla_destino", generar_sql=False)
                     # Commitea cada 20 × 5_000 = 100 K filas → undo log limitado
 
-                ``None`` (default) = una sola transacción (comportamiento atómico).
-                **Advertencia:** al activar la cadencia la sesión deja de ser atómica:
-                un fallo a mitad deja committeados los lotes anteriores.
-                **Nota:** Los valores recomendados son heurísticos; mide latencia en tu entorno.
-            update_via_staging: MySQL/MariaDB y PostgreSQL. Si True, ``bulk_update_from_df`` carga cada lote en una
-                tabla temporal y aplica un único ``UPDATE`` con join en lugar de un UPDATE por fila. Medido de extremo a
-                extremo con 1M filas: MySQL/MariaDB ~12,5× (~28 s frente a ~330–376 s); PostgreSQL 2,35× (10,6 s frente
-                a 24,9 s). Mismo resultado final. Requiere el privilegio ``CREATE TEMPORARY TABLES``
-                (MySQL/MariaDB) o ``TEMP`` (PostgreSQL): sin él, se registra un WARNING y se usa el UPDATE fila a fila
-                (más lento) en esa y las siguientes llamadas de la instancia. Pasar False para no intentarlo. Por
-                defecto True. Ignorado en otros motores (en SQL Server y Oracle la tabla temporal resultó más lenta).
-            audit_strict: Qué hacer si no se puede escribir el CSV de auditoría (fichero abierto en Excel, disco lleno,
-                permisos). Con False (default) la operación sigue, porque sus datos ya están en la BD: se registra un
-                ERROR con los registros perdidos y se suman a :attr:`audit_failures`. Con True se propaga el error
-                (``AuditError``/``OSError``); dentro de :meth:`bulk_session` la auditoría se escribe entonces antes
-                del commit y el fallo deshace la sesión.
-            warn_if_audit_disabled: Si True (default), sin ``audit_csv_path`` la instancia avisa una vez con un WARNING
-                de que la auditoría está deshabilitada. Quien crea muchas instancias (``ParallelBulkLoader``, ``dump``)
-                pasa False y avisa una sola vez por su cuenta.
-            strip_strings: Si True (default), quita los espacios de los extremos de las cadenas antes de enviarlas,
-                como :func:`normalize_sql_literal`. Con False se envían intactas; ``dump`` lo usa para copiar el
-                origen sin alterarlo (PD-05).
-            reflect_foreign_keys: Si True (default), la ``Table`` de :meth:`reflect_table` incluye las claves foráneas
-                de la tabla. Las operaciones de ``BulkCrud`` no las usan: con False no se leen y la reflexión es más
-                barata (SQL Server: ≈ 32 → 16 ms por tabla). ``dump`` lo usa (Q9).
-            prefetch_blocks: Si True, prepara el lote siguiente de INSERT y UPDATE (conversión a registros o columnas) en
-                un hilo, con una cola de 2, mientras se envía el actual. Mismo resultado. Medido con 1M filas (3
-                repeticiones): SQL Server INSERT −10,6 % y UPDATE −6,2 %; MySQL y MariaDB −2 % a −6 %; Oracle, PostgreSQL
-                y SQLite sin cambio medible. Por defecto False. No aplica a ``generar_sql`` ni al DELETE (S-4, 2026-10-01).
-            on_error: ``"raise"`` (default): un error en un lote hace fallar la operación, como siempre. ``"isolate"``:
-                cada lote se envía en un SAVEPOINT; si falla con un error de datos (``IntegrityError`` o ``DataError``:
-                PK duplicada, FK, valor demasiado largo...), se reenvía por mitades hasta aislar las filas que fallan,
-                que se omiten y se escriben en ``rejects_csv_path``; el resto se aplica. Otros errores se propagan como
-                siempre. Coste (INSERT de 1M filas): sin filas malas 1,00–1,02×; cada fila mala reenvía unas 2 veces su
-                lote (10 filas malas: 1,13–1,23×; PostgreSQL 1,65×, lotes de 20 000). Solo INSERT, UPDATE y DELETE ejecutados (no
-                ``generar_sql``). Ver :attr:`rows_rejected` (S-2, 2026-10-01).
-            rejects_csv_path: CSV de filas rechazadas (``str`` o ``Path``; UTF-8, tabuladores; se crea con cabecera o se
-                añade): ``timestamp``, ``tabla``, ``operacion``, ``fila`` (posición base 0 en la entrada; en
-                ``*_from_chunks``, en la secuencia),
-                ``error`` (primera línea del error del driver) y ``valores`` (JSON). Contiene datos de las filas.
-                Obligatorio con ``on_error="isolate"``.
-            max_rejects: Con ``on_error="isolate"``, filas que una operación (o todas las de un :meth:`rejects_scope`)
-                puede rechazar; la siguiente hace fallar la
-                operación con su error, como sin aislamiento. ``None`` (default): sin límite. Útil cuando casi todas las
-                filas podrían fallar (p. ej. recargar datos ya cargados), porque entonces se acaba enviando fila a fila.
-            audit_sink: Destino opcional de eventos de auditoría (:mod:`util_bbdd.audit`, p. ej.
-                ``JsonLinesAuditSink``): cada operación se escribe también como evento ``operation`` en el mismo momento
-                que en el CSV (al confirmarse la transacción) y con la misma política de fallo (``audit_strict``). Se
-                puede usar sin ``audit_csv_path``. ``None`` (default): sin eventos, como siempre.
-            audit_run_id: ``run_id`` de los eventos (para relacionarlos con los de otra ejecución, p. ej. un volcado).
-                ``None``: uno nuevo por instancia si hay ``audit_sink``. Ver :attr:`audit_run_id`.
+                Con la cadencia la sesión deja de ser atómica: un fallo a mitad deja confirmados los lotes anteriores.
+            audit: CSV de auditoría, política de fallo (``strict``), destino de eventos (``sink``) y ``run_id``
+                (:class:`AuditOptions`). ``None``: sin auditoría (con un WARNING una vez).
+            rejects: ``on_error="isolate"`` aparta las filas con errores de datos (PK duplicada, FK, valor demasiado
+                largo...) a un CSV y aplica el resto (:class:`RejectOptions`). Coste (INSERT de 1M filas): sin filas
+                malas 1,00–1,02×; 10 filas malas 1,13–1,23× (PostgreSQL 1,65×). Solo operaciones ejecutadas (no
+                ``generar_sql``). Ver :attr:`rows_rejected` (S-2). ``None``: un error de datos hace fallar la operación.
+            execution: ``fast_executemany`` (SQL Server + pyodbc), ``insert_resolver``, ``update_via_staging``
+                (MySQL/MariaDB ~12,5×, PostgreSQL 2,35×), ``strip_strings`` y ``reflect_foreign_keys``
+                (:class:`ExecutionOptions`). ``None``: los valores por defecto.
+            parallel: Ejecución paralela de ``bulk_*_from_df`` (:class:`ParallelOptions`): el DataFrame se reparte en
+                particiones disjuntas que carga ``ParallelBulkLoader``, cada una en su hilo y su transacción. ``None``
+                (default): en serie y atómica, como siempre. Con ``mode="auto"`` decide los hilos
+                :class:`~util_bbdd.bulk.ParallelPlanner` (en serie donde el paralelismo no gana o no se ha medido). Ver
+                :meth:`bulk_insert_from_df` y :attr:`last_parallel_result`.
 
         Raises:
-            ValueError: Si engine es None.
-            ValueError: Si ``commit_every_n_chunks`` no es None ni un entero ≥ 1.
-            ValueError: Si ``chunk_size`` no es un entero ≥ 1.
-            ValueError: Si ``on_error`` no es ``"raise"`` ni ``"isolate"``; si ``on_error="isolate"`` no lleva
-                ``rejects_csv_path`` o ``rejects_csv_path``/``max_rejects`` se indican sin él; si ``max_rejects`` no es
-                None ni un entero ≥ 0.
+            ValueError: Si engine es None. Los paquetes validan sus valores al construirse (``ValueError``).
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
-        # v1.1.0: las rutas aceptan str además de Path (antes, audit_csv_path=str fallaba con AuditConfigError).
-        audit_path: Path | None = validate_optional_path(audit_csv_path, "audit_csv_path")
-        rejects_path: Path | None = validate_optional_path(rejects_csv_path, "rejects_csv_path")
+        options = BulkOptions.of(batch=batch, audit=audit, rejects=rejects, execution=execution, parallel=parallel)
+        #: Paquetes recibidos (v3.0.0); los workers de una carga paralela se crean con ``options.for_worker``.
+        self._options: BulkOptions = options
         # A5 (v1.1.0): escritor, presupuesto, ámbito y aislador de on_error="isolate" en RejectsCoordinator.
         # Las lambdas resuelven reflect_table y __batch_errors en cada llamada, como cuando vivían aquí.
+        rejects_path: Path | None = options.rejects.csv_path
         self._rejects: RejectsCoordinator = RejectsCoordinator(
-            writer=self.__rejects_writer(on_error, rejects_path, max_rejects),
-            max_rejects=optional_non_negative_int(max_rejects, "max_rejects"),
+            writer=None if rejects_path is None else RejectsWriter(rejects_path),
+            max_rejects=options.rejects.max_rejects,
             reflect_table=lambda tabla_destino: self.reflect_table(tabla_destino),
             batch_errors=lambda: self.__batch_errors(),
             attach=self.__attach_isolator,
@@ -311,27 +256,40 @@ class BulkCrud:
         self.engine: Engine = validate_engine(engine)
         self._table_cache: dict[str, Table] = {}
 
-        if commit_every_n_chunks is not None and commit_every_n_chunks < 1:
-            raise ValueError(f"commit_every_n_chunks debe ser None o un entero ≥ 1, recibido: {commit_every_n_chunks}")
-
-        # Auditoría de bulk 2026-09-24: con un valor negativo no se escribía nada y la auditoría registraba las filas.
-        explicit_chunk_size: int | None = None if chunk_size is None else validate_chunk_size(chunk_size)
+        commit_every_n_chunks: int | None = options.batch.commit_every_n_chunks
+        explicit_chunk_size: int | None = options.batch.chunk_size
         #: Lote base: el ``chunk_size`` explícito o 5000. Lo usa la generación de SQL (``generar_sql=True``).
         self.chunk_size: int = DEFAULT_CHUNK_SIZE if explicit_chunk_size is None else explicit_chunk_size
         # B-04: filas por lote de cada operación (por motor si no se fijó chunk_size).
         self._batch_sizes: dict[BulkOperation, int] = resolve_batch_sizes(
             self.engine.dialect.name, explicit_chunk_size, commit_every_n_chunks
         )
-        # Con audit_sink la auditoría no está deshabilitada aunque no haya CSV: no se avisa.
+        audit_options: AuditOptions = options.audit
+        # Con audit.sink la auditoría no está deshabilitada aunque no haya CSV: no se avisa.
         self.audit_manager: AuditManager = AuditManager(
-            audit_path, warn_if_disabled=warn_if_audit_disabled and audit_sink is None, engine=self.engine
+            audit_options.csv_path,
+            warn_if_disabled=audit_options.warn_if_disabled and audit_options.sink is None,
+            engine=self.engine,
         )
         # Sin destino no hay eventos ni run_id, como en ParallelBulkLoader (audit-code 2026-10-02c, 3).
-        self._audit_run_id: str | None = None if audit_sink is None else (audit_run_id or uuid.uuid4().hex)
-        self._update_via_staging: bool = update_via_staging and self.engine.dialect.name in STAGING_UPDATE_DIALECTS
-        self._strip_strings: bool = strip_strings
-        self._reflect_foreign_keys: bool = reflect_foreign_keys
-        self._prefetch_blocks: bool = prefetch_blocks
+        self._audit_run_id: str | None = (
+            None if audit_options.sink is None else (audit_options.run_id or uuid.uuid4().hex)
+        )
+        execution_options: ExecutionOptions = options.execution
+        # Estado de la instancia, no del paquete: se apaga si falta el privilegio (ver __execute_update_blocks).
+        self._update_via_staging: bool = (
+            execution_options.update_via_staging and self.engine.dialect.name in STAGING_UPDATE_DIALECTS
+        )
+        self._strip_strings: bool = execution_options.strip_strings
+        self._reflect_foreign_keys: bool = execution_options.reflect_foreign_keys
+        self._prefetch_blocks: bool = options.batch.prefetch_blocks
+        #: Resultado de la última carga paralela de un ``bulk_*_from_df`` (None si no hubo).
+        self._last_parallel_result: ParallelLoadResult | None = None
+        #: Contadores de auditoría y rechazos de las cargas paralelas (los de sus workers), sumados a los propios.
+        self._parallel_audit: AuditCounters = AuditCounters()
+        self._parallel_rows_rejected: int = 0
+        #: Privilegio TEMP de PostgreSQL para el plan del UPDATE paralelo (None: sin comprobar).
+        self._temp_tables_allowed: bool | None = None
 
         # Inicializar db_info
         self.db_info: str = self.engine.dialect.name.upper()
@@ -347,8 +305,8 @@ class BulkCrud:
             logger=self.logger,
             audit_manager=self.audit_manager,
             db_info=self.db_info,
-            audit_strict=audit_strict,
-            audit_sink=audit_sink,
+            audit_strict=audit_options.strict,
+            audit_sink=audit_options.sink,
             audit_run_id=self._audit_run_id,
             engine_name=self.engine.dialect.name,
         )
@@ -358,8 +316,8 @@ class BulkCrud:
             engine=self.engine,
             # INSERT y UPDATE le llegan ya en bloques de su tamaño; el ejecutor no debe trocearlos más.
             chunk_size=max(self._batch_sizes["insert"], self._batch_sizes["update"]),
-            enable_fast_executemany=enable_fast_executemany,
-            insert_resolver=insert_resolver,
+            enable_fast_executemany=execution_options.fast_executemany,
+            insert_resolver=execution_options.insert_resolver,
             commit_every_n_chunks=commit_every_n_chunks,
             session=self._session,
         )
@@ -385,12 +343,6 @@ class BulkCrud:
                 prepare=self.__prepare_delete_operation,
             ),
         }
-
-    @staticmethod
-    def __rejects_writer(on_error: str, path: Path | None, max_rejects: int | None) -> RejectsWriter | None:
-        """Valida ``on_error``, ``rejects_csv_path`` y ``max_rejects`` y devuelve el escritor de rechazos (S-2)."""
-        validate_isolation(on_error, path, max_rejects)
-        return None if path is None else RejectsWriter(path)
 
     def __detectar_sqlserver_driver(self) -> None:
         """Detecta el driver específico de SQL Server (pymssql o pyodbc) y actualiza db_info."""
@@ -469,7 +421,21 @@ class BulkCrud:
                      GENERATED ALWAYS AS IDENTITY en PostgreSQL.
 
         La operación se registra en auditoría si fue configurada.
+
+        Con ``parallel`` (:class:`ParallelOptions`) y ``generar_sql=False``, fuera de una :meth:`bulk_session`, si el plan
+        (:meth:`parallel_plan`) da más de un hilo el DataFrame se reparte en particiones consecutivas que inserta
+        ``ParallelBulkLoader``, una transacción por partición: **deja de ser atómica**. Si alguna partición falla, lanza
+        ``ParallelLoadError`` (las demás quedan confirmadas); el resultado queda en :attr:`last_parallel_result`.
         """
+        if self.__run_in_parallel(
+            df,
+            tabla_destino,
+            "insert",
+            generar_sql,
+            override_identity=override_identity,
+            exclude_autoincrement_pk=exclude_autoincrement_pk,
+        ):
+            return
         self.__run_bulk_pipeline(
             df=df,
             tabla_destino=tabla_destino,
@@ -502,8 +468,11 @@ class BulkCrud:
             ValueError: Si no hay claves primarias o columnas actualizables.
             ValueError: Si generar_sql=True y path_sql no es proporcionado o no es válido.
 
-        La operación se registra en auditoría si fue configurada.
+        La operación se registra en auditoría si fue configurada. Con ``parallel``, como :meth:`bulk_insert_from_df`; las
+        particiones son disjuntas por PK (o por ``ParallelOptions.partition_column``).
         """
+        if self.__run_in_parallel(df, tabla_destino, "update", generar_sql):
+            return
         self.__run_bulk_pipeline(
             df=df,
             tabla_destino=tabla_destino,
@@ -534,8 +503,10 @@ class BulkCrud:
             ValueError: Si no hay columnas de clave primaria disponibles.
             ValueError: Si generar_sql=True y path_sql no es proporcionado o no es válido.
 
-        La operación se registra en auditoría si fue configurada.
+        La operación se registra en auditoría si fue configurada. Con ``parallel``, como :meth:`bulk_update_from_df`.
         """
+        if self.__run_in_parallel(df, tabla_destino, "delete", generar_sql):
+            return
         self.__run_bulk_pipeline(
             df=df,
             tabla_destino=tabla_destino,
@@ -831,6 +802,178 @@ class BulkCrud:
                 "Usa override_identity=True para insertar valores manuales."
             )
         return insert_cols, bool(override_identity and always_identity_cols)
+
+    def parallel_plan(self, operation: Literal["insert", "update", "delete"], rows: int) -> ParallelPlan:
+        """Plan de ejecución de un ``bulk_*_from_df`` de ``rows`` filas con las ``ParallelOptions`` de la instancia.
+
+        Lo decide :class:`~util_bbdd.bulk.ParallelPlanner` con el motor, la operación, ``rows`` y la capacidad del pool;
+        ``plan.reasons`` explica la decisión. Sin ``parallel`` en el constructor, en serie. En el UPDATE de PostgreSQL
+        comprueba (una vez por instancia, solo si el plan es paralelo) el privilegio ``TEMP``.
+
+        Example:
+            >>> crud = BulkCrud(engine, parallel=ParallelOptions(mode="auto"))  # doctest: +SKIP
+            >>> crud.parallel_plan("insert", 2_000_000).reasons  # doctest: +SKIP
+            ('INSERT en mssql: INSERT 50K-1M: 2,4-2,8× con 4 hilos',)
+        """
+        options = self._options.parallel
+        if options is None:
+            return ParallelPlan(1, ("sin ParallelOptions: en serie",))
+        dialect: str = self.engine.dialect.name
+        plan_input = PlanInput(
+            dialect=dialect,
+            operation=operation,
+            options=options,
+            rows=rows,
+            pool_capacity=pool_capacity(self.engine),
+            staging_update=self._update_via_staging,
+        )
+        plan = ParallelPlanner.plan(plan_input)
+        if plan.parallel and operation == "update" and dialect == "postgresql" and self._update_via_staging:
+            if not self.__temp_tables_allowed():
+                plan = ParallelPlanner.plan(replace(plan_input, staging_update=False))
+        return plan
+
+    def __temp_tables_allowed(self) -> bool:
+        """``True`` si la sesión puede crear tablas temporales (PostgreSQL, privilegio ``TEMP``); cacheado."""
+        if self._temp_tables_allowed is None:
+            with self.engine.connect() as conn:
+                self._temp_tables_allowed = catalog_facts.can_create_temp_tables(conn)
+        return self._temp_tables_allowed
+
+    def __run_in_parallel(
+        self,
+        df: pd.DataFrame,
+        tabla_destino: str,
+        operation: Literal["insert", "update", "delete"],
+        generar_sql: bool,
+        *,
+        override_identity: bool = False,
+        exclude_autoincrement_pk: bool = False,
+    ) -> bool:
+        """Hace la operación con ``ParallelBulkLoader`` si hay ``parallel`` y el plan da más de un hilo.
+
+        Devuelve ``False`` (sigue en serie) con ``generar_sql``, dentro de una :meth:`bulk_session` (los hilos usan otras
+        conexiones: la carga no sería atómica con la sesión), de un ``*_from_chunks`` o de un :meth:`rejects_scope` (las
+        particiones tienen su propio presupuesto y sus posiciones; no continuarían la secuencia del ámbito), si el plan es
+        en serie, o si en UPDATE/DELETE no se encuentran en el DataFrame las columnas de la PK (la vía en serie da su
+        error habitual).
+
+        Raises:
+            ParallelLoadError: Si alguna partición falló (las demás quedan confirmadas).
+        """
+        if self._options.parallel is None or generar_sql or df.empty:
+            return False
+        if self._session.active or self._stream is not None or self._rejects.scope_active:
+            self.logger.debug(
+                f"bulk {operation.upper()} en serie: dentro de bulk_session(), de un *_from_chunks o de rejects_scope()."
+            )
+            return False
+        plan = self.parallel_plan(operation, len(df))
+        if not plan.parallel:
+            self.logger.debug(f"bulk {operation.upper()} de {len(df)} filas en serie: {'; '.join(plan.reasons)}")
+            return False
+        partitions = self.__partitions(df, tabla_destino, operation, plan.workers)
+        if partitions is None:
+            return False
+        self.logger.info(
+            f"▶️  bulk {operation.upper()} de {len(df)} filas → {tabla_destino} en {len(partitions)} particiones "
+            f"paralelas ({self.db_info}): {'; '.join(plan.reasons) or 'ParallelOptions'}."
+        )
+        self.__load_partitions(
+            partitions,
+            tabla_destino,
+            operation,
+            plan.workers,
+            override_identity=override_identity,
+            exclude_autoincrement_pk=exclude_autoincrement_pk,
+        )
+        return True
+
+    def __partitions(
+        self, df: pd.DataFrame, tabla_destino: str, operation: Literal["insert", "update", "delete"], n: int
+    ) -> list[pd.DataFrame] | None:
+        """``df`` en ``n`` particiones disjuntas; ``None`` si en UPDATE/DELETE no hay columnas por las que repartirlo.
+
+        INSERT: tramos consecutivos (cualquier reparto es disjunto). UPDATE y DELETE: por PK (o ``partition_column``),
+        para que dos hilos no toquen la misma fila: por rangos si es una sola columna entera o datetime sin repetidos
+        (como en las mediciones), por hash si no (PK compuesta, texto, UUID o valores repetidos: los rangos cortan por
+        posición y dos filas con la misma clave podrían quedar en particiones distintas).
+        """
+        if operation == "insert":
+            size: int = math.ceil(len(df) / n)
+            return [df.iloc[start : start + size] for start in range(0, len(df), size)]
+        columns = self.__partition_columns(df, tabla_destino)
+        if columns is None:
+            return None
+        if len(columns) == 1 and RangePartitioner.is_rangeable(df[columns[0]]) and df[columns[0]].is_unique:
+            return RangePartitioner.partition_dataframe(df, columns[0], n)
+        return HashPartitioner.partition_dataframe(df, columns, n)
+
+    def __partition_columns(self, df: pd.DataFrame, tabla_destino: str) -> list[str] | None:
+        """Columnas de ``df`` por las que repartir un UPDATE/DELETE: ``partition_column`` o las de la PK de la tabla."""
+        options = self._options.parallel
+        column: str | None = None if options is None else options.partition_column
+        if column is not None:
+            if column not in df.columns:
+                raise ValueError(f"ParallelOptions.partition_column '{column}' no es una columna del DataFrame.")
+            return [column]
+        by_name: dict[str, str] = {str(name).lower(): str(name) for name in df.columns}
+        pk: list[str | None] = [by_name.get(col.name.lower()) for col in self.reflect_table(tabla_destino).primary_key]
+        if not pk or any(name is None for name in pk):
+            return None
+        return [name for name in pk if name is not None]
+
+    def __load_partitions(
+        self,
+        partitions: list[pd.DataFrame],
+        tabla_destino: str,
+        operation: Literal["insert", "update", "delete"],
+        workers: int,
+        *,
+        override_identity: bool,
+        exclude_autoincrement_pk: bool,
+    ) -> None:
+        """Carga las particiones con ``ParallelBulkLoader`` y suma sus contadores a los de la instancia."""
+        # Diferido: parallel_loader importa BulkCrud.
+        from ._execution.parallel_loader import ParallelBulkLoader
+
+        options = self._options
+        assert options.parallel is not None  # lo comprueba __run_in_parallel
+        loader = ParallelBulkLoader(
+            self.engine,
+            batch=options.batch,
+            # Los eventos de las particiones, con el run_id de la instancia.
+            audit=replace(options.audit, run_id=self._audit_run_id),
+            rejects=options.rejects,
+            execution=options.execution,
+            parallel=replace(options.parallel, mode="manual", max_workers=workers),
+        )
+        readers = [lambda partition=partition: iter((partition,)) for partition in partitions]
+        if operation == "insert":
+            result = loader.load(
+                tabla_destino,
+                readers,
+                override_identity=override_identity,
+                exclude_autoincrement_pk=exclude_autoincrement_pk,
+            )
+        elif operation == "update":
+            result = loader.update(tabla_destino, readers)
+        else:
+            result = loader.delete(tabla_destino, readers)
+        self._last_parallel_result = result
+        self._parallel_audit = self._parallel_audit + AuditCounters.of(result)
+        self._parallel_rows_rejected += result.rows_rejected
+        if result.partition_errors:
+            raise ParallelLoadError(
+                f"bulk {operation.upper()} en paralelo sobre '{tabla_destino}': fallaron {len(result.partition_errors)} "
+                f"de {len(partitions)} particiones; {result.total_rows} filas quedaron confirmadas. "
+                f"{'; '.join(result.partition_errors)}",
+                result=result,
+            )
+        self.logger.info(
+            f"✅ bulk {operation.upper()} en paralelo finalizado: {result.total_rows} filas en "
+            f"{result.elapsed_seconds:.2f} s ({self.db_info})."
+        )
 
     def __run_bulk_pipeline(
         self,
@@ -1241,9 +1384,10 @@ class BulkCrud:
     def audit_failures(self) -> int:
         """Registros de auditoría que no se pudieron escribir en el CSV (solo con ``audit_strict=False``).
 
-        Cada uno queda además en el log como ERROR, con tabla, operación, filas y tiempo.
+        Cada uno queda además en el log como ERROR, con tabla, operación, filas y tiempo. Incluye los de las cargas
+        paralelas de la instancia (como el resto de contadores de auditoría y :attr:`rows_rejected`).
         """
-        return self._persistence.audit_failures
+        return self._persistence.audit_failures + self._parallel_audit.audit_failures
 
     @property
     def audited_rows(self) -> int:
@@ -1253,7 +1397,7 @@ class BulkCrud:
         :attr:`audit_failures`, :attr:`unaudited_committed_rows` y :attr:`audit_uncommitted_records`. Incluye las
         operaciones con ``generar_sql=True``, que no tocan la BD.
         """
-        return self._persistence.audited_rows
+        return self._persistence.audited_rows + self._parallel_audit.audited_rows
 
     @property
     def audit_uncommitted_records(self) -> int:
@@ -1262,7 +1406,7 @@ class BulkCrud:
         En modo estricto la auditoría de :meth:`bulk_session` se escribe antes del commit; si el commit falla, esos
         registros quedan en el CSV sin datos en la BD. Cada caso queda además en el log como ERROR.
         """
-        return self._persistence.audit_uncommitted_records
+        return self._persistence.audit_uncommitted_records + self._parallel_audit.audit_uncommitted_records
 
     @property
     def unaudited_committed_rows(self) -> int:
@@ -1272,7 +1416,7 @@ class BulkCrud:
         BD (y en :attr:`rows_committed`) pero no en el CSV. Cuenta INSERT, UPDATE y DELETE (hasta v0.17.x era
         aproximado en sesiones con DELETE, que no sumaba a :attr:`rows_committed`).
         """
-        return self._persistence.unaudited_committed_rows
+        return self._persistence.unaudited_committed_rows + self._parallel_audit.unaudited_committed_rows
 
     @property
     def batch_sizes(self) -> dict[BulkOperation, int]:
@@ -1306,7 +1450,22 @@ class BulkCrud:
         Si no se puede escribir el CSV (p. ej. abierto en Excel), la operación falla con ``OSError`` (nota «no se pudo
         escribir el CSV de rechazos») y esa fila no cuenta.
         """
-        return self._rejects.rows_rejected
+        return self._rejects.rows_rejected + self._parallel_rows_rejected
+
+    @property
+    def options(self) -> BulkOptions:
+        """Paquetes de opciones de la instancia (v3.0.0), tal como se recibieron (con los valores por defecto)."""
+        return self._options
+
+    @property
+    def last_parallel_result(self) -> ParallelLoadResult | None:
+        """Resultado de la última carga paralela de un ``bulk_*_from_df`` (``ParallelOptions``); ``None`` si no hubo.
+
+        También tras un ``ParallelLoadError`` (es el mismo que ``exc.result``). Las filas de una carga paralela no
+        cuentan en :attr:`rows_committed` ni en :attr:`last_operation_rows_committed` (son de la cadencia de commits de
+        la instancia): están en ``total_rows`` y en ``partition_results``.
+        """
+        return self._last_parallel_result
 
     @property
     def rows_committed(self) -> int:
@@ -1342,7 +1501,7 @@ class BulkCrud:
 
         Nota: ``BulkCrud`` no es thread-safe. No compartir instancias entre hilos.
 
-        Nota: si se construyó ``BulkCrud(commit_every_n_chunks=N)``, la sesión usa
+        Nota: si se construyó ``BulkCrud(batch=BatchOptions(commit_every_n_chunks=N))``, la sesión usa
         commit-as-you-go (commitea cada N lotes y al salir el resto). En ese modo
         la sesión **no** es atómica aunque ``atomic=True``: un fallo a mitad deja
         committeados los lotes anteriores.

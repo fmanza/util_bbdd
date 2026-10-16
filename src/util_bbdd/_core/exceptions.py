@@ -408,6 +408,32 @@ class AuditValidationError(AuditError):
     """Error en validación de parámetros."""
 
 
+# ============================================================================
+# Carga masiva paralela (bulk/)
+# ============================================================================
+
+
+class ParallelLoadError(DatabaseOperationError):
+    """Alguna partición de una carga paralela de ``BulkCrud`` falló (v3.0.0, ``ParallelOptions``).
+
+    La carga paralela no es atómica: las particiones que terminaron bien **quedan confirmadas**. ``result`` es el
+    ``ParallelLoadResult`` (filas por partición, errores, contadores de auditoría) para decidir qué reintentar.
+
+    Attributes:
+        result: ``ParallelLoadResult`` de la carga. Tipado como ``Any`` porque ``_core`` no puede importar de ``bulk``.
+
+    Example:
+        >>> try:
+        ...     crud.bulk_insert_from_df(df, "ventas", generar_sql=False)
+        ... except ParallelLoadError as exc:
+        ...     fallidas = [pr.index for pr in exc.result.partition_results if pr.error]
+    """
+
+    def __init__(self, message: str, *, result: Any = None) -> None:
+        super().__init__(message)
+        self.result: Any = result
+
+
 # Las clases se definen aquí, pero su ruta pública es util_bbdd.exceptions (API 1.0): es la que muestran trazas, repr y
 # logs, y la que guarda pickle. Los pickles con la ruta antigua (util_bbdd._core.exceptions.X) se siguen cargando.
 _PUBLIC_MODULE = "util_bbdd.exceptions"
@@ -466,4 +492,6 @@ __all__ = [
     "AuditDataError",
     "AuditExportError",
     "AuditValidationError",
+    # Carga masiva paralela
+    "ParallelLoadError",
 ]

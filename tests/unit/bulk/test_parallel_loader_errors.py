@@ -19,6 +19,7 @@ from sqlalchemy import Column, Engine, Integer, MetaData, String, Table, create_
 import util_bbdd.bulk._execution.parallel_loader as pl_mod
 
 from util_bbdd.bulk import ParallelBulkLoader
+from util_bbdd.bulk.options import ParallelOptions
 
 pytestmark = pytest.mark.unit
 
@@ -43,7 +44,9 @@ def test_reader_error_is_recorded_and_other_partitions_load(engine: Engine) -> N
     def _broken_reader() -> list[pd.DataFrame]:
         raise KeyError("columna_inexistente")
 
-    result = ParallelBulkLoader(engine, max_workers=1).load("items", [_ok([1, 2]), _broken_reader, _ok([3])])
+    result = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1)).load(
+        "items", [_ok([1, 2]), _broken_reader, _ok([3])]
+    )
 
     assert result.total_rows == 3
     assert result.partition_errors == ["partición 1: KeyError: 'columna_inexistente'"]
@@ -55,7 +58,9 @@ def test_error_while_iterating_reader_rolls_back_that_partition(engine: Engine) 
         yield pd.DataFrame({"id": [10, 11], "v": "x"})
         raise OSError("se perdió el fichero de origen")
 
-    result = ParallelBulkLoader(engine, max_workers=1).load("items", [_fails_midway, _ok([1])])
+    result = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1)).load(
+        "items", [_fails_midway, _ok([1])]
+    )
 
     assert result.partition_errors == ["partición 0: OSError: se perdió el fichero de origen"]
     assert _ids(engine) == [1]  # la partición fallida no deja filas (modo atómico)
@@ -67,7 +72,7 @@ def test_error_creating_bulkcrud_is_recorded(engine: Engine, monkeypatch: pytest
 
     monkeypatch.setattr(pl_mod, "BulkCrud", _broken_crud)
 
-    result = ParallelBulkLoader(engine, max_workers=2).load("items", [_ok([1]), _ok([2])])
+    result = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=2)).load("items", [_ok([1]), _ok([2])])
 
     assert result.total_rows == 0
     assert sorted(result.partition_errors) == [
@@ -77,7 +82,7 @@ def test_error_creating_bulkcrud_is_recorded(engine: Engine, monkeypatch: pytest
 
 
 def test_database_errors_keep_their_message_format(engine: Engine) -> None:
-    result = ParallelBulkLoader(engine, max_workers=1).load("items", [_ok([1]), _ok([1])])
+    result = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1)).load("items", [_ok([1]), _ok([1])])
 
     assert result.total_rows == 1
     (error,) = result.partition_errors

@@ -36,7 +36,7 @@ def resolve_batch_sizes(
 
     Args:
         dialect_name: Dialecto del engine (``engine.dialect.name``).
-        chunk_size: Valor de ``BulkCrud(chunk_size=...)`` ya validado, o ``None`` para el valor por motor.
+        chunk_size: Valor de ``BatchOptions(chunk_size=...)`` ya validado, o ``None`` para el valor por motor.
         commit_every_n_chunks: Cadencia de commit; con ella los lotes no dependen del motor.
 
     Returns:

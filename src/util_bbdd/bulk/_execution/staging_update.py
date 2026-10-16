@@ -33,7 +33,7 @@ from .insert_strategies import InsertExecutionStrategyProtocol
 _log = logging.getLogger("util_bbdd.bulk._execution.batch")
 
 
-#: Dialectos con UPDATE por tabla temporal (``BulkCrud(update_via_staging=True)``).
+#: Dialectos con UPDATE por tabla temporal (``ExecutionOptions(update_via_staging=True)``).
 STAGING_UPDATE_DIALECTS: frozenset[str] = MYSQL_FAMILY | {"postgresql"}
 
 # Errores de MySQL/MariaDB por falta de privilegio al crear la tabla temporal del UPDATE por staging:
@@ -169,7 +169,7 @@ class StagingUpdateStrategy:
         self.staging_denied = True
         _log.warning(
             "update_via_staging: el servidor deniega %s (%s). Se usa el UPDATE fila a fila, mucho más lento, en '%s'. "
-            "Concede el privilegio %s o pasa BulkCrud(..., update_via_staging=False) para no intentarlo.",
+            "Concede el privilegio %s o pasa BulkCrud(..., execution=ExecutionOptions(update_via_staging=False)) para no intentarlo.",
             privilege,
             detail,
             self._table.name,

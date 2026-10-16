@@ -23,6 +23,7 @@ from sqlalchemy.sql.elements import TextClause
 
 from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk._execution.batch import BatchStatementExecutor, MySQLStagingUpdateStrategy
+from util_bbdd.bulk.options import ExecutionOptions
 
 pytestmark = pytest.mark.unit
 
@@ -127,7 +128,7 @@ def test_executor_uses_the_given_strategy_per_batch() -> None:
 def test_flag_is_ignored_outside_mysql_family(tmp_path: Path) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'db.sqlite'}")
     _table().create(engine)
-    crud = BulkCrud(engine, update_via_staging=True)
+    crud = BulkCrud(engine, execution=ExecutionOptions(update_via_staging=True))
     crud.bulk_insert_from_df(pd.DataFrame({"id": [1, 2], "a": [1, 2], "s": ["x", "y"]}), "t", generar_sql=False)
 
     crud.bulk_update_from_df(pd.DataFrame({"id": [1, 2], "a": [10, 20], "s": ["X", "Y"]}), "t", generar_sql=False)

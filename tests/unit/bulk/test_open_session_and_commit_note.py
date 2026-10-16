@@ -21,6 +21,7 @@ from sqlalchemy.exc import OperationalError
 
 from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk._support.persistence import BulkPersistenceManager
+from util_bbdd.bulk.options import BatchOptions
 
 pytestmark = pytest.mark.unit
 
@@ -87,7 +88,7 @@ def test_failed_periodic_commit_is_not_blamed_on_the_batch(engine: Engine, monke
         original(self, connection)
 
     monkeypatch.setattr(BulkPersistenceManager, "commit", _commit)
-    crud = BulkCrud(engine, chunk_size=2, commit_every_n_chunks=1)
+    crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2, commit_every_n_chunks=1))
 
     with pytest.raises(OperationalError) as info:
         crud.bulk_insert_from_df(_frame(list(range(1, 7))), "items", False)

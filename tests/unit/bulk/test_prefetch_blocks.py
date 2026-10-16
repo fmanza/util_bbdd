@@ -21,6 +21,7 @@ import util_bbdd.bulk.crud as crud_module
 
 from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk._execution.insert_strategies import InsertStrategyResolver, MySQLDriverExecutemanyStrategy
+from util_bbdd.bulk.options import BatchOptions, ExecutionOptions
 
 pytestmark = pytest.mark.unit
 
@@ -46,7 +47,11 @@ def _prefetch_threads() -> int:
 
 def _scenario(engine: Engine, *, prefetch: bool, columns: bool) -> list[tuple[Any, ...]]:
     resolver = InsertStrategyResolver(default_strategy=MySQLDriverExecutemanyStrategy()) if columns else None
-    crud = BulkCrud(engine, chunk_size=3, prefetch_blocks=prefetch, insert_resolver=resolver)
+    crud = BulkCrud(
+        engine,
+        batch=BatchOptions(chunk_size=3, prefetch_blocks=prefetch),
+        execution=ExecutionOptions(insert_resolver=resolver),
+    )
     crud.bulk_insert_from_df(_frame(list(range(1, 11))), "items", False)
     crud.bulk_update_from_df(_frame([2, 4, 6, 8, 10], "u"), "items", False)
     crud.bulk_insert_from_chunks(iter([_frame([11, 12]), _frame([]), _frame(list(range(13, 21)))]), "items")
@@ -73,7 +78,7 @@ def test_blocks_are_prepared_in_the_prefetch_thread(tmp_path: Path, monkeypatch:
         return original(df, **kwargs)
 
     monkeypatch.setattr(crud_module, "dataframe_to_sql_records", _spy)
-    BulkCrud(_engine(tmp_path, "t.db"), chunk_size=2, prefetch_blocks=True).bulk_insert_from_df(
+    BulkCrud(_engine(tmp_path, "t.db"), batch=BatchOptions(chunk_size=2, prefetch_blocks=True)).bulk_insert_from_df(
         _frame(list(range(1, 8))), "items", False
     )
 
@@ -82,7 +87,7 @@ def test_blocks_are_prepared_in_the_prefetch_thread(tmp_path: Path, monkeypatch:
 
 def test_failed_send_keeps_note_and_stops_the_thread(tmp_path: Path) -> None:
     engine = _engine(tmp_path, "fail.db")
-    crud = BulkCrud(engine, chunk_size=3, prefetch_blocks=True)
+    crud = BulkCrud(engine, batch=BatchOptions(chunk_size=3, prefetch_blocks=True))
     crud.bulk_insert_from_df(_frame([7]), "items", False)
 
     with pytest.raises(IntegrityError) as info:
@@ -107,7 +112,7 @@ def test_failed_preparation_reaches_the_caller_with_its_type(tmp_path: Path, mon
     engine = _engine(tmp_path, "prep.db")
 
     with pytest.raises(KeyError, match="columna rara"):
-        BulkCrud(engine, chunk_size=2, prefetch_blocks=True).bulk_insert_from_df(
+        BulkCrud(engine, batch=BatchOptions(chunk_size=2, prefetch_blocks=True)).bulk_insert_from_df(
             _frame(list(range(1, 11))), "items", False
         )
 

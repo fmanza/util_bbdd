@@ -71,8 +71,8 @@ flowchart LR
 
 | Dónde | Parámetro | Resultado |
 |---|---|---|
-| `BulkCrud(...)` | `audit_sink`, `audit_run_id` | Propiedad `BulkCrud.audit_run_id` |
-| `ParallelBulkLoader(...)` | `audit_sink`, `audit_run_id` | `ParallelLoadResult.audit_run_id` |
+| `BulkCrud(...)` | `audit=AuditOptions(sink=..., run_id=...)` | Propiedad `BulkCrud.audit_run_id` |
+| `ParallelBulkLoader(...)` | `audit=AuditOptions(sink=..., run_id=...)` | `ParallelLoadResult.audit_run_id` |
 | `DumpConfig(...)` | `audit_sink` | `DumpResult.audit_run_id` |
 | `MigrationPlan.execute(target, *, audit_sink=None)` | `audit_sink` | — |
 | `MigrationPlan.validate_views(..., audit_sink=None)` | `audit_sink` | — |
@@ -82,9 +82,9 @@ flowchart LR
 
 | Situación | Comportamiento |
 |---|---|
-| Destino que falla en una operación de `bulk` | `audit_strict=False`: ERROR en el log y `+N` en `audit_failures` (un registro que falla en el CSV y en el destino cuenta dos veces); `audit_strict=True`: se propaga y la sesión se deshace. Un `OSError` o `AuditError` del destino llega tal cual; cualquier otra excepción (p. ej. de un destino propio) llega como `AuditError` con la original en `__cause__`, para que `dump` la trate como error de la tabla |
+| Destino que falla en una operación de `bulk` | `audit.strict=False`: ERROR en el log y `+N` en `audit_failures` (un registro que falla en el CSV y en el destino cuenta dos veces); `audit.strict=True`: se propaga y la sesión se deshace. Un `OSError` o `AuditError` del destino llega tal cual; cualquier otra excepción (p. ej. de un destino propio) llega como `AuditError` con la original en `__cause__`, para que `dump` la trate como error de la tabla |
 | Destino que falla en eventos de cierre (`partition`/`run` de carga, `dump`, `migrate`) | ERROR en el log; el resultado y la excepción original no cambian |
-| Fallo al **construir** un evento (no al escribirlo) | Misma política que un fallo del destino: en `bulk`, `audit_failures` o `AuditError` con `audit_strict`; en los eventos de cierre, ERROR en el log. Nunca hace fallar una operación ya hecha ni tapa su excepción original |
+| Fallo al **construir** un evento (no al escribirlo) | Misma política que un fallo del destino: en `bulk`, `audit_failures` o `AuditError` con `audit.strict`; en los eventos de cierre, ERROR en el log. Nunca hace fallar una operación ya hecha ni tapa su excepción original |
 | Fichero JSON Lines cuya primera línea no es un evento | Se aparta como `<nombre>.invalid-<fecha><ext>` con un WARNING |
 | `AuditEvent` con `timestamp` sin zona, `rows` o `elapsed_s` negativos, atributos repetidos | `ValueError` al construirlo |
 
@@ -123,10 +123,11 @@ from pathlib import Path
 from util_bbdd import BulkCrud
 from util_bbdd.audit import JsonLinesAuditSink
 from util_bbdd.dump import DumpConfig, DumpOrchestrator
+from util_bbdd.bulk.options import AuditOptions
 
 sink = JsonLinesAuditSink(Path("logs/auditoria.jsonl"))
 
-crud = BulkCrud(engine, audit_csv_path=Path("logs/auditoria.csv"), audit_sink=sink)
+crud = BulkCrud(engine, audit=AuditOptions(csv_path=Path("logs/auditoria.csv"), sink=sink))
 crud.bulk_insert_from_df(df, "clientes", generar_sql=False)
 
 result = DumpOrchestrator(DumpConfig(src_engine, dst_engine, output_dir=Path("reports"), audit_sink=sink)).run()

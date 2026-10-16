@@ -39,6 +39,7 @@ from ._core.exceptions import (
     MetadataFetchError,
     MetadataIntrospectionError,
     MetadataNormalizationError,
+    ParallelLoadError,
     PoolConnectionError,
     PoolTimeoutError,
     QueryError,
@@ -101,4 +102,6 @@ __all__: list[str] = [
     "AuditDataError",
     "AuditExportError",
     "AuditValidationError",
+    # Carga masiva paralela
+    "ParallelLoadError",
 ]

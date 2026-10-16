@@ -20,8 +20,10 @@ import pytest
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from util_bbdd.bulk._execution.parallel_loader import ParallelBulkLoader, _closing_iterable
+from util_bbdd.bulk._execution.parallel_loader import ParallelBulkLoader
+from util_bbdd.bulk._support.iterables import closing_iterable
 from util_bbdd.bulk.normalize import dataframe_to_sql_records
+from util_bbdd.bulk.options import ParallelOptions
 from util_bbdd.dump import DumpConfig, DumpOrchestrator
 
 pytestmark = pytest.mark.unit
@@ -84,13 +86,13 @@ class TestClosingIterable:
             finally:
                 closed.append(True)
 
-        with pytest.raises(RuntimeError), _closing_iterable(gen()) as chunks:
+        with pytest.raises(RuntimeError), closing_iterable(gen()) as chunks:
             next(iter(chunks))
             raise RuntimeError("fallo al escribir")
         assert closed == [True]
 
     def test_plain_iterables_are_accepted(self) -> None:
-        with _closing_iterable([pd.DataFrame({"id": [1]})]) as chunks:
+        with closing_iterable([pd.DataFrame({"id": [1]})]) as chunks:
             assert len(list(chunks)) == 1
 
 
@@ -110,7 +112,7 @@ def test_parallel_loader_closes_the_reader_when_the_write_fails() -> None:
         raise SQLAlchemyError("fallo al escribir")
 
     loader = ParallelBulkLoader.__new__(ParallelBulkLoader)
-    loader._disable_constraints = False
+    loader._parallel = ParallelOptions()
     crud = MagicMock()
     crud.bulk_insert_from_chunks.side_effect = failing_write
     with pytest.raises(SQLAlchemyError):

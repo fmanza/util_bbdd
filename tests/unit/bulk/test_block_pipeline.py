@@ -20,6 +20,7 @@ from sqlalchemy.exc import IntegrityError
 import util_bbdd.bulk.crud as crud_module
 
 from util_bbdd.bulk import BulkCrud
+from util_bbdd.bulk.options import BatchOptions
 
 pytestmark = pytest.mark.unit
 
@@ -49,7 +50,7 @@ def test_records_are_converted_block_by_block(engine: Engine, monkeypatch: pytes
         sizes.append(len(df))
         return original(df, **kwargs)
 
-    crud = BulkCrud(engine, chunk_size=3)
+    crud = BulkCrud(engine, batch=BatchOptions(chunk_size=3))
     crud.bulk_insert_from_df(_frame(list(range(1, 9))), "items", False)
     monkeypatch.setattr(crud_module, "dataframe_to_sql_records", _spy)
 
@@ -62,7 +63,7 @@ def test_records_are_converted_block_by_block(engine: Engine, monkeypatch: pytes
 
 
 def test_failure_in_a_later_block_rolls_back_everything(engine: Engine) -> None:
-    crud = BulkCrud(engine, chunk_size=2)
+    crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2))
 
     with pytest.raises(IntegrityError):
         crud.bulk_insert_from_df(_frame([1, 2, 3, 4, 1]), "items", False)  # el tercer bloque repite la PK 1
@@ -71,7 +72,7 @@ def test_failure_in_a_later_block_rolls_back_everything(engine: Engine) -> None:
 
 
 def test_commit_every_n_chunks_keeps_committed_blocks(engine: Engine) -> None:
-    crud = BulkCrud(engine, chunk_size=2, commit_every_n_chunks=1)
+    crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2, commit_every_n_chunks=1))
 
     with pytest.raises(IntegrityError):
         crud.bulk_insert_from_df(_frame([1, 2, 3, 4, 1]), "items", False)
@@ -81,7 +82,7 @@ def test_commit_every_n_chunks_keeps_committed_blocks(engine: Engine) -> None:
 
 
 def test_blocks_use_the_bulk_session_transaction(engine: Engine) -> None:
-    crud = BulkCrud(engine, chunk_size=2)
+    crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2))
 
     with pytest.raises(RuntimeError), crud.bulk_session():
         crud.bulk_insert_from_df(_frame([1, 2, 3, 4, 5]), "items", False)
@@ -97,7 +98,7 @@ def test_generated_file_is_identical_for_any_chunk_size(engine: Engine, tmp_path
     contents: list[bytes] = []
     for chunk_size in (2, 5000):
         out = tmp_path / str(chunk_size)
-        crud = BulkCrud(engine, chunk_size=chunk_size)
+        crud = BulkCrud(engine, batch=BatchOptions(chunk_size=chunk_size))
         getattr(crud, f"bulk_{operation}_from_df")(df, "items", True, path_sql=out)
         (sql_file,) = out.glob("*.sql")
         contents.append(sql_file.read_bytes())
@@ -121,6 +122,8 @@ def test_failed_generation_leaves_no_file(engine: Engine, tmp_path: Path, monkey
     out = tmp_path / "sql"
 
     with pytest.raises(ValueError, match="segundo bloque"):
-        BulkCrud(engine, chunk_size=2).bulk_insert_from_df(_frame([1, 2, 3, 4]), "items", True, path_sql=out)
+        BulkCrud(engine, batch=BatchOptions(chunk_size=2)).bulk_insert_from_df(
+            _frame([1, 2, 3, 4]), "items", True, path_sql=out
+        )
 
     assert list(out.glob("*")) == []

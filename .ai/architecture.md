@@ -106,7 +106,10 @@
 │    └── async_mgr.py                # AsyncDatabaseManager
 │
 │    bulk/                           📦 Operaciones masivas
-│    ├── crud.py                     # BulkCrud — INSERT/UPDATE/DELETE, bulk_session, maintenance_scope, sync_pk_sequences
+│    ├── crud.py                     # BulkCrud — INSERT/UPDATE/DELETE, bulk_session, maintenance_scope, sync_pk_sequences;
+│    │                               # con ParallelOptions, bulk_*_from_df delega en ParallelBulkLoader (v3.0.0)
+│    ├── options.py                  # Paquetes de opciones (v3.0.0): Batch/Audit/Reject/Execution/Parallel/RetryOptions,
+│    │                               # BulkOptions.for_worker (opciones de los workers, sin parallel)
 │    ├── audit.py                    # AuditManager (fachada de _audit/)
 │    ├── normalize.py                # Normalización de registros y DataFrames para SQL
 │    ├── _models.py                  # PKSyncResult
@@ -118,8 +121,10 @@
 │    │   ├── staging_update.py       # MySQLStagingUpdateStrategy (UPDATE por tabla temporal)
 │    │   ├── _driver_quirks.py       # decimal de pyodbc/pymssql, fast_executemany, límites de parámetros
 │    │   ├── batch.py                # Fachada de compatibilidad (re-exporta los módulos anteriores)
-│    │   ├── parallel_loader.py      # ParallelBulkLoader — carga paralela por particiones
-│    │   └── range_partitioner.py    # RangePartitioner (PK entera/datetime) + HashPartitioner (str/UUID)
+│    │   ├── parallel_loader.py      # ParallelBulkLoader — carga paralela por particiones (mecanismo)
+│    │   ├── parallel_planner.py     # ParallelPlanner — hilos por motor/operación/volumen (política pura, RULES medidas)
+│    │   └── range_partitioner.py    # RangePartitioner (PK entera/datetime, validate_disjoint) + HashPartitioner
+│    │                               # (str/UUID/PK compuesta)
 │    ├── _support/                   # pk_sync (PKSequenceSyncer), sql_helpers (generar_sql), validation, persistence,
 │    │                               # sql_quoting, dialect (MYSQL_FAMILY), excel (H12), iterables, table_utils
 │    └── _audit/                     # repository (CSV), service, exporters, record, counters, errors

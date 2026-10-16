@@ -259,8 +259,9 @@ from pathlib import Path
 
 from util_bbdd import BulkCrud
 from util_bbdd.bulk import AuditManager
+from util_bbdd.bulk.options import AuditOptions
 
-crud = BulkCrud(engine, audit_csv_path=Path("audit/audit.csv"))  # verifica el engine al crearse
+crud = BulkCrud(engine, audit=AuditOptions(csv_path=Path("audit/audit.csv")))  # verifica el engine al crearse
 crud.bulk_insert_from_df(df, "users")
 crud.audit_manager.exportar_resumen_excel()  # ... + hoja Condiciones_motor, sin nueva conexión
 
@@ -338,12 +339,13 @@ No existe `SET MAXDOP` como sentencia de sesión.
 ```python
 from util_bbdd import BulkCrud, DumpOrchestrator, SyncDatabaseManager
 from util_bbdd.dump import DumpConfig
+from util_bbdd.bulk.options import AuditOptions
 
 manager = SyncDatabaseManager(db_type="mysql", conn_params={...})
 engine = manager.get_sqlalchemy_engine()
 
 # BulkCrud.__init__ llama a report_once(engine): primera instancia verifica, las demás no
-bulk = BulkCrud(engine, audit_csv_path="audit.csv")
+bulk = BulkCrud(engine, audit=AuditOptions(csv_path="audit.csv"))
 for partition in partitions:
     bulk.bulk_insert_from_df(partition, "users")
 

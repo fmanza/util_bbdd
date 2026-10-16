@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import math
 
+from collections.abc import Sequence
+
 import pandas as pd
 
 
@@ -23,7 +25,7 @@ class RangePartitioner:
 
         partitions = RangePartitioner.partition_dataframe(df, pk_col="id", n_partitions=4)
         readers = [lambda df=p: iter([df]) for p in partitions]
-        result = ParallelBulkLoader(engine, max_workers=4).load("orders", readers)
+        result = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=4)).load("orders", readers)
 
     Ejemplo con rangos para lectores SQL (sin materializar todo el DataFrame)::
 
@@ -37,7 +39,7 @@ class RangePartitioner:
             )
             for lo, hi in ranges
         ]
-        result = ParallelBulkLoader(engine, max_workers=8).load("orders", readers)
+        result = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=8)).load("orders", readers)
     """
 
     @staticmethod
@@ -126,6 +128,41 @@ class RangePartitioner:
         return ranges
 
     @staticmethod
+    def validate_disjoint(ranges: Sequence[tuple[int, int]], n_readers: int) -> None:
+        """Valida que los rangos ``(lo, hi)`` (inclusivos) sean disjuntos y que haya uno por lector.
+
+        Lo usa ``ParallelBulkLoader`` con ``partition_ranges`` antes de lanzar los hilos (v3.0.0: antes era una función
+        suelta de ``parallel_loader.py``).
+
+        Raises:
+            ValueError: Si ``len(ranges) != n_readers`` o algún par de rangos se solapa.
+
+        Ejemplo::
+
+            >>> RangePartitioner.validate_disjoint([(1, 4), (5, 8)], 2)
+        """
+        if len(ranges) != n_readers:
+            raise ValueError(
+                f"partition_ranges ({len(ranges)} rangos) debe tener la misma longitud "
+                f"que partition_readers ({n_readers} lectores)."
+            )
+        sorted_r = sorted(ranges, key=lambda r: r[0])
+        for i in range(len(sorted_r) - 1):
+            _, hi1 = sorted_r[i]
+            lo2, _ = sorted_r[i + 1]
+            if hi1 >= lo2:
+                raise ValueError(
+                    f"Rangos solapados detectados: {sorted_r[i]} solapa con {sorted_r[i + 1]}. "
+                    "Las particiones deben ser disjuntas para evitar colisiones en INSERT."
+                )
+
+    @staticmethod
+    def is_rangeable(series: pd.Series) -> bool:
+        """``True`` si ``series`` es entera o datetime64 (el tipo que admite :meth:`partition_dataframe`)."""
+        dtype = series.dtype
+        return bool(pd.api.types.is_integer_dtype(dtype) or pd.api.types.is_datetime64_any_dtype(dtype))
+
+    @staticmethod
     def _validate_column_type(series: pd.Series, pk_col: str) -> None:
         """Lanza ``TypeError`` si ``series`` no es de tipo entero o datetime64."""
         dtype = series.dtype
@@ -155,13 +192,13 @@ class HashPartitioner:
 
         partitions = HashPartitioner.partition_dataframe(df, pk_col="uuid_col", n_partitions=4)
         readers = [lambda df=p: iter([df]) for p in partitions]
-        result = ParallelBulkLoader(engine, max_workers=4).load("orders", readers)
+        result = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=4)).load("orders", readers)
     """
 
     @staticmethod
     def partition_dataframe(
         df: pd.DataFrame,
-        pk_col: str,
+        pk_col: str | Sequence[str],
         n_partitions: int,
     ) -> list[pd.DataFrame]:
         """Divide ``df`` en hasta ``n_partitions`` particiones usando hash de ``pk_col``.
@@ -172,7 +209,8 @@ class HashPartitioner:
 
         Args:
             df: DataFrame a particionar.
-            pk_col: Columna por la que particionar. Acepta cualquier tipo hashable.
+            pk_col: Columna (o columnas, p. ej. una PK compuesta; v3.0.0) por la que particionar. Acepta cualquier tipo
+                hashable. Las filas con los mismos valores en esas columnas van siempre a la misma partición.
             n_partitions: Número máximo de particiones. Debe ser ≥ 1.
 
         Returns:
@@ -180,16 +218,21 @@ class HashPartitioner:
             elementos si algún bucket hash queda vacío.
 
         Raises:
-            ValueError: Si ``pk_col`` no existe en ``df`` o ``n_partitions < 1``.
+            ValueError: Si alguna columna de ``pk_col`` no existe en ``df``, ``pk_col`` está vacía o ``n_partitions < 1``.
         """
         if n_partitions < 1:
             raise ValueError(f"n_partitions debe ser ≥ 1, recibido: {n_partitions}")
-        if pk_col not in df.columns:
-            raise ValueError(f"Columna '{pk_col}' no existe en el DataFrame.")
+        columns: list[str] = [pk_col] if isinstance(pk_col, str) else list(pk_col)
+        if not columns:
+            raise ValueError("pk_col debe tener al menos una columna.")
+        for column in columns:
+            if column not in df.columns:
+                raise ValueError(f"Columna '{column}' no existe en el DataFrame.")
         if df.empty:
             return [df.iloc[:0].copy()]
 
-        hash_vals = pd.util.hash_pandas_object(df[pk_col], index=False)
+        keys = df[columns[0]] if len(columns) == 1 else df[columns]
+        hash_vals = pd.util.hash_pandas_object(keys, index=False)
         assignments = hash_vals % n_partitions
         return [df[assignments == bucket].copy() for bucket in range(n_partitions) if (assignments == bucket).any()]
 

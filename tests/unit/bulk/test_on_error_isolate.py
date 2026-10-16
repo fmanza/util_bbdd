@@ -24,6 +24,7 @@ from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk._execution.insert_strategies import InsertStrategyResolver, MySQLDriverExecutemanyStrategy
 from util_bbdd.bulk._support import oracle_batch_errors
 from util_bbdd.bulk._support.rejects import Isolator, RejectsWriter
+from util_bbdd.bulk.options import AuditOptions, BatchOptions, ExecutionOptions, RejectOptions
 
 pytestmark = pytest.mark.unit
 
@@ -53,7 +54,7 @@ def _rows(engine: Engine) -> list[tuple[Any, ...]]:
 
 
 def _seed(engine: Engine, ids: list[int]) -> None:
-    BulkCrud(engine, warn_if_audit_disabled=False).bulk_insert_from_df(_frame(ids), "items", False)
+    BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False)).bulk_insert_from_df(_frame(ids), "items", False)
 
 
 def _rejects(path: Path) -> list[dict[str, str]]:
@@ -61,14 +62,25 @@ def _rejects(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(handle, delimiter="\t"))
 
 
-def _crud(engine: Engine, tmp_path: Path, **kwargs: Any) -> BulkCrud:
-    kwargs.setdefault("chunk_size", 3)
+def _crud(
+    engine: Engine,
+    tmp_path: Path,
+    *,
+    chunk_size: int = 3,
+    commit_every_n_chunks: int | None = None,
+    prefetch_blocks: bool = False,
+    max_rejects: Any = None,
+    audit_csv_path: Path | None = None,
+    insert_resolver: InsertStrategyResolver | None = None,
+) -> BulkCrud:
     return BulkCrud(
         engine,
-        on_error="isolate",
-        rejects_csv_path=tmp_path / "rejects.csv",
-        warn_if_audit_disabled=False,
-        **kwargs,
+        batch=BatchOptions(
+            chunk_size=chunk_size, commit_every_n_chunks=commit_every_n_chunks, prefetch_blocks=prefetch_blocks
+        ),
+        audit=AuditOptions(csv_path=audit_csv_path, warn_if_disabled=False),
+        rejects=RejectOptions(on_error="isolate", csv_path=tmp_path / "rejects.csv", max_rejects=max_rejects),
+        execution=ExecutionOptions(insert_resolver=insert_resolver),
     )
 
 
@@ -176,7 +188,7 @@ def test_non_data_errors_propagate(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
 def test_raise_is_unchanged(tmp_path: Path) -> None:
     engine = _engine(tmp_path)
-    crud = BulkCrud(engine, chunk_size=3, warn_if_audit_disabled=False)
+    crud = BulkCrud(engine, batch=BatchOptions(chunk_size=3), audit=AuditOptions(warn_if_disabled=False))
 
     with pytest.raises(IntegrityError):
         crud.bulk_insert_from_df(_frame([1, 2, 3, 4], none_at=(4,)), "items", False)
@@ -230,15 +242,15 @@ def test_audit_counts_applied_rows(tmp_path: Path) -> None:
     [
         ({"on_error": "skip"}, "on_error"),
         ({"on_error": "isolate"}, "rejects_csv_path"),
-        ({"rejects_csv_path": Path("r.csv")}, "solo se usan"),
+        ({"csv_path": Path("r.csv")}, "solo se usan"),
         ({"max_rejects": 3}, "solo se usan"),
-        ({"on_error": "isolate", "rejects_csv_path": Path("r.csv"), "max_rejects": -1}, "max_rejects"),
-        ({"on_error": "isolate", "rejects_csv_path": Path("r.csv"), "max_rejects": True}, "max_rejects"),
+        ({"on_error": "isolate", "csv_path": Path("r.csv"), "max_rejects": -1}, "max_rejects"),
+        ({"on_error": "isolate", "csv_path": Path("r.csv"), "max_rejects": True}, "max_rejects"),
     ],
 )
 def test_invalid_parameters(tmp_path: Path, kwargs: dict[str, Any], message: str) -> None:
     with pytest.raises(ValueError, match=message):
-        BulkCrud(_engine(tmp_path), **kwargs)
+        BulkCrud(_engine(tmp_path), rejects=RejectOptions(**kwargs))
 
 
 def test_rejects_writer_neutralizes_formulas(tmp_path: Path) -> None:
@@ -605,7 +617,7 @@ def test_update_uses_batch_errors_only_without_lob_columns(
         Column("v5000", String(5000)),  # B-2: VARCHAR2 > 4000 (MAX_STRING_SIZE=EXTENDED) como LOB
     ).create(engine)
     _seed_lob = pd.DataFrame({"id": [1, 2], "v": ["a", "b"], "doc": ["x", "y"]})
-    BulkCrud(engine, warn_if_audit_disabled=False).bulk_insert_from_df(_seed_lob, "items", False)
+    BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False)).bulk_insert_from_df(_seed_lob, "items", False)
     monkeypatch.setattr(oracle_batch_errors, "supports", lambda _engine: True)
     monkeypatch.setattr(oracle_batch_errors, "install", lambda _engine: None)
     seen: list[bool] = []
@@ -684,7 +696,7 @@ def test_rejects_scope_cannot_be_nested_and_validates_row_offset(tmp_path: Path)
 
 def test_rejects_scope_without_isolate_does_nothing(tmp_path: Path) -> None:
     engine = _engine(tmp_path)
-    crud = BulkCrud(engine, warn_if_audit_disabled=False)
+    crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False))
 
     with crud.rejects_scope(partition=1, row_offset=5):
         crud.bulk_insert_from_df(_frame([1, 2]), "items", False)

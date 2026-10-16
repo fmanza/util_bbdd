@@ -30,6 +30,7 @@ from util_bbdd.bulk._execution.insert_strategies import (
 )
 from util_bbdd.bulk._support.sql_helpers import SqlColumns
 from util_bbdd.bulk.normalize import dataframe_to_sql_columns, dataframe_to_sql_records
+from util_bbdd.bulk.options import BatchOptions, ExecutionOptions
 
 pytestmark = pytest.mark.unit
 
@@ -106,7 +107,9 @@ def engine(tmp_path: Path) -> Engine:
 def _crud(engine: Engine, chunk_size: int = 3) -> BulkCrud:
     # MySQLDriverExecutemanyStrategy envía tuplas con exec_driver_sql y admite paramstyle qmark (SQLite).
     resolver = InsertStrategyResolver(default_strategy=MySQLDriverExecutemanyStrategy())
-    return BulkCrud(engine, chunk_size=chunk_size, insert_resolver=resolver)
+    return BulkCrud(
+        engine, batch=BatchOptions(chunk_size=chunk_size), execution=ExecutionOptions(insert_resolver=resolver)
+    )
 
 
 def _rows(engine: Engine) -> list[tuple[Any, ...]]:
@@ -158,9 +161,9 @@ def test_columns_and_records_paths_store_the_same(tmp_path: Path) -> None:
             Column("v", String(20)),
             Column("blob", LargeBinary),
         ).create(eng)
-        BulkCrud(eng, chunk_size=2, insert_resolver=resolver).bulk_insert_from_df(
-            _frame(list(range(1, 6))), "items", False
-        )
+        BulkCrud(
+            eng, batch=BatchOptions(chunk_size=2), execution=ExecutionOptions(insert_resolver=resolver)
+        ).bulk_insert_from_df(_frame(list(range(1, 6))), "items", False)
         results.append(_rows(eng))
 
     assert results[0] == results[1]

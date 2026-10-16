@@ -439,7 +439,7 @@ DBCC CHECKDB (database_name);  -- Debe pasar sin errores
 **Problema**: Desactivaste triggers de auditoría, datos se cargan sin log.
 
 **Solución**: no desactives los triggers de auditoría en operaciones críticas. En su lugar, registra la carga en una
-tabla propia, o usa la auditoría de `util_bbdd` (`BulkCrud(audit_csv_path=...)` o `audit_sink`, que registran cada
+tabla propia, o usa la auditoría de `util_bbdd` (`BulkCrud(audit=AuditOptions(csv_path=...))` o `AuditOptions(sink=...)`, que registran cada
 operación al confirmarse, ver [Auditoría](../api/audit.md)):
 
 ```sql

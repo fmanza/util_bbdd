@@ -13,7 +13,7 @@ Sobre ese historial ofrece estadísticas (totales, operaciones más lentas, tabl
 
 **Precondiciones:**
 
-- Indicar la ruta del CSV de auditoría (`audit_csv_path`) al crear `BulkCrud` o `ParallelBulkLoader`. Sin ruta, la auditoría está desactivada.
+- Indicar la ruta del CSV de auditoría (`AuditOptions(csv_path=...)`) al crear `BulkCrud` o `ParallelBulkLoader`. Sin ruta, la auditoría está desactivada.
 - Directorio de salida con permisos de escritura. Se crea si no existe.
 
 ## 2. Reglas de Negocio
@@ -75,8 +75,8 @@ sequenceDiagram
 | CSV de auditoría | Fichero de texto separado por tabuladores con una fila por operación bulk: `timestamp`, `tabla`, `motor`, `operacion`, `total_filas`, `tiempo_seg`, `sql` |
 | Operación | Una llamada a `bulk_insert_from_df`, `bulk_update_from_df` o `bulk_delete_from_df`, o un chunk de `bulk_insert_from_chunks` |
 | `sql=Sí` | La operación generó un fichero SQL en lugar de ejecutar en la base de datos |
-| `audit_strict` | Opción de `BulkCrud`: si es `True`, un fallo al escribir el CSV detiene la operación en vez de registrarse y seguir |
-| `audit_failures` | Número de registros de auditoría que no se pudieron escribir en el CSV (con `audit_strict=False`) |
+| `AuditOptions.strict` | Opción de `BulkCrud` y `ParallelBulkLoader`: si es `True`, un fallo al escribir el CSV detiene la operación en vez de registrarse y seguir |
+| `audit_failures` | Número de registros de auditoría que no se pudieron escribir en el CSV (con `audit.strict=False`) |
 | `audited_rows` | Filas que constan en el CSV de auditoría |
 | `unaudited_committed_rows` | Filas confirmadas en la base de datos por commits periódicos que no constan en el CSV porque la carga falló a mitad de una operación |
-| `audit_uncommitted_records` | Registros escritos en el CSV antes de un commit que falló (solo con `audit_strict=True`): el CSV los tiene, la base de datos no |
+| `audit_uncommitted_records` | Registros escritos en el CSV antes de un commit que falló (solo con `audit.strict=True`): el CSV los tiene, la base de datos no |

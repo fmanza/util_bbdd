@@ -57,6 +57,7 @@ from sqlalchemy import (
 from sqlalchemy.schema import CreateSchema, DropSchema
 
 from util_bbdd.bulk import BulkCrud
+from util_bbdd.bulk.options import AuditOptions
 from util_bbdd.dump import DumpConfig, DumpOrchestrator
 
 pytestmark = [pytest.mark.integration, pytest.mark.cross_db]
@@ -302,7 +303,7 @@ def test_staging_update_with_schema_and_no_default_database(key: str) -> None:
         with engine.begin() as conn:
             conn.execute(table.insert(), [{"id": 1, "v": "a"}, {"id": 2, "v": "b"}])
 
-        BulkCrud(no_default_db, warn_if_audit_disabled=False).bulk_update_from_df(
+        BulkCrud(no_default_db, audit=AuditOptions(warn_if_disabled=False)).bulk_update_from_df(
             pd.DataFrame({"id": [1, 2], "v": ["A", "B"]}), f"{schema}.{table.name}", generar_sql=False
         )
 
