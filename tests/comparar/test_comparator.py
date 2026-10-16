@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import re
 
-from typing import Any
-from unittest.mock import MagicMock
+from typing import Any, ClassVar
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -292,20 +292,20 @@ class TestSchemaComparatorWithMocks:
         assert "Tablas:" in diff.summary
         assert "Vistas:" in diff.summary
 
-    def test_label_hides_credentials(self, comparator: SchemaComparator) -> None:
+    def test_label_hides_password_keeps_user(self, comparator: SchemaComparator) -> None:
+        """La etiqueta oculta la contraseña; el usuario se muestra (en Oracle es el schema)."""
         inspector = _make_mock_inspector(bind_url="mariadb+mariadbconnector://user:pass@host:3306/db")
         label = comparator._build_label(inspector, None)
-        assert "user" not in label
+        assert "user:***@" in label
         assert "pass" not in label
-        assert "***" in label
 
-    def test_label_hides_credentials_with_encoded_special_chars(self, comparator: SchemaComparator) -> None:
-        """T5: Credenciales con '%40' (@ codificado) deben redactarse completamente."""
+    def test_label_hides_password_with_encoded_special_chars(self, comparator: SchemaComparator) -> None:
+        """T5: una contraseña con '%40' (@ codificado) se redacta completa."""
         inspector = _make_mock_inspector(bind_url="postgresql+psycopg2://admin:p%40ss%21@host:5432/mydb")
         label = comparator._build_label(inspector, None)
-        assert "admin" not in label
-        assert "p%40ss%21" not in label
-        assert "***" in label
+        assert "admin:***@host" in label
+        assert "p%40ss" not in label
+        assert "ss%21" not in label
 
     def test_anonymous_fk_detected(self, comparator: SchemaComparator) -> None:
         """T1: FKs an\u00f3nimas (name=None) deben detectarse y no descartarse silenciosamente."""
@@ -1316,6 +1316,43 @@ class TestEdgeCasesBuildLabel:
         inspector = _make_mock_inspector(bind_url="sqlite:///:memory:")
         label = SchemaComparator._build_label(inspector, "myschema")
         assert "[myschema]" in label
+
+    _ORACLE_URL: ClassVar[str] = "oracle+oracledb://ESQ_ORIGEN:secret@10.20.0.237:1521/?service_name=DBTESTBIT"
+
+    def test_oracle_without_schema_shows_user_and_default_schema(self) -> None:
+        """Oracle sin ``schema``: la etiqueta identifica el schema (usuario y ``default_schema_name``)."""
+        inspector = _make_mock_inspector(bind_url=self._ORACLE_URL)
+        inspector.default_schema_name = "esq_origen"
+        label = SchemaComparator._build_label(inspector, None)
+        assert label == "oracle+oracledb://ESQ_ORIGEN:***@10.20.0.237:1521/?service_name=DBTESTBIT [esq_origen]"
+        assert "secret" not in label
+
+    def test_oracle_explicit_schema_wins_over_default(self) -> None:
+        inspector = _make_mock_inspector(bind_url=self._ORACLE_URL)
+        inspector.default_schema_name = "esq_origen"
+        label = SchemaComparator._build_label(inspector, "OTRO")
+        assert label.endswith(" [OTRO]")
+        assert "[esq_origen]" not in label
+
+    def test_default_schema_name_not_str_is_ignored(self) -> None:
+        """Un ``default_schema_name`` que no es ``str`` (p. ej. ``MagicMock``) no añade sufijo."""
+        inspector = _make_mock_inspector(bind_url=self._ORACLE_URL)
+        label = SchemaComparator._build_label(inspector, None)
+        assert label.endswith("service_name=DBTESTBIT")
+
+    def test_same_host_different_users_get_different_labels(self) -> None:
+        a = _make_mock_inspector(bind_url="oracle+oracledb://ESQ_A:x@h:1521/?service_name=S")
+        b = _make_mock_inspector(bind_url="oracle+oracledb://ESQ_B:y@h:1521/?service_name=S")
+        assert SchemaComparator._build_label(a, None) != SchemaComparator._build_label(b, None)
+
+    def test_unparseable_url_still_masks_credentials(self) -> None:
+        """Si la URL no se puede parsear, se mantiene el enmascarado completo de credenciales."""
+        inspector = MagicMock()
+        inspector.engine.url = "no-url://user:pass@host"
+        with patch.object(SchemaComparator, "_parse_url_safe", return_value=None):
+            label = SchemaComparator._build_label(inspector, None)
+        assert "pass" not in label
+        assert "://***@host" in label
 
 
 class TestBuildShortLabel:

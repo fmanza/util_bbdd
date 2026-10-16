@@ -802,20 +802,25 @@ class SchemaComparator:
 
     @staticmethod
     def _build_label(inspector: Inspector, schema: str | None) -> str:
-        """Construye una etiqueta legible para el inspector."""
+        """Construye una etiqueta legible para el inspector: URL sin contraseña y ``[schema]`` efectivo.
+
+        El usuario se muestra (en Oracle es el schema); si ``schema`` es ``None`` se usa
+        ``inspector.default_schema_name``. Una URL que no se puede parsear se enmascara entera (``://***@``).
+        """
         url_obj = SchemaComparator._parse_url_safe(inspector)
         if url_obj is not None:
             try:
-                safe_str: str = url_obj.render_as_string(hide_password=True)
+                url: str = url_obj.render_as_string(hide_password=True)
             except (AttributeError, ValueError):
-                safe_str = str(url_obj)
-            url: str = SchemaComparator._mask_url(safe_str)
+                url = str(url_obj)
         else:
             engine: Any | None = getattr(inspector, "engine", None)
             url_raw: Any = getattr(engine, "url", None)
             url = SchemaComparator._mask_url(str(url_raw) if url_raw is not None else "unknown")
-        if schema:
-            return f"{url} [{schema}]"
+        default_schema: Any = getattr(inspector, "default_schema_name", None)
+        effective_schema: str | None = schema or (default_schema if isinstance(default_schema, str) else None)
+        if effective_schema:
+            return f"{url} [{effective_schema}]"
         return url
 
     #: Nombres de FK que genera el motor cuando la FK no se nombra; cambian entre schemas con la misma FK.
