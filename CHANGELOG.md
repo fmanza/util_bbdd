@@ -5,6 +5,61 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [3.0.3] - 2026-10-16
+
+Sesión `.ai/sessions/2026-10-16i-documentation-review/` (revisión de documentación con Documentation Reviewer, niveles
+1 a 3, `/config-review` y ejemplos con servidor ejecutables). SemVer: PATCH (solo documentación, docstrings, anotaciones
+de tipos y tests; sin cambios de API ni de comportamiento).
+
+### Fixed
+
+- **docs**: la instalación fijaba `@v1.1.0` (dos versiones MAJOR atrás) en README, `installation.md`, `index.md`,
+  `troubleshooting.md` y 9 páginas más; ahora `@v3.0.2`, el último tag publicado.
+- **docs**: `mkdocs build --strict` fallaba por 11 enlaces a `../../src` y `../../tests` (fuera de `docs_dir`, 404 en el
+  sitio y en el ZIP offline) en ADR-004 y en la guía de charset de MariaDB.
+- **docs**: restos de la sintaxis 2.x (parámetros sueltos de `BulkCrud`/`ParallelBulkLoader`, que en 3.0 dan
+  `TypeError`) en `benchmarks.md`, `performance_audit_constraints_guide.md`, `troubleshooting.md` y el texto que imprime
+  `benchmark_commit_cadence.py`.
+- **managers**: `validate_db_type_static` (sync y async) documentaba `ValueError`; lanza `InvalidDatabaseType`, que no
+  hereda de `ValueError`.
+- **query**: los ejemplos de `QueryResolver` usaban queries inexistentes (la librería no trae ninguna registrada); ahora
+  registran la query en un JSON y están comprobados.
+
+### Changed
+
+- **docs**: ADR-004 en un solo fichero en español (se retira la copia `.es.md`; escapes `\uXXXX` decodificados).
+- **docs**: documentación funcional con 5 secciones (las 4 que ya tenían las páginas más `## 4. Criterios de
+  Aceptación`): definida en la «Especialización de dominio» de `functional_doc.prompt.md` y en
+  `DOCUMENTATION_STANDARD.md` §3.1; el núcleo compartido de 8 secciones no cambia. Las 21 páginas de
+  `docs/functional/` tienen criterios Dado/Cuando/Entonces derivados de sus tests.
+- **docs**: §2 de las páginas técnicas «Modelo de Datos / Contratos» en el estándar y en `technical_doc.prompt.md`
+  (como en las 28 páginas); el autodoc va en las páginas `*_autodoc.md`.
+- **docs**: los 6 ejemplos con servidor que tenían credenciales de relleno (`migrate_*`, `dump_data_export`,
+  `bulk_insert_csv`) leen la conexión de `UTIL_BBDD_EXAMPLE_*` y, sin ella, explican cómo configurarla.
+- **docs**: README («API pública», enlace a la migración a 3.0), `index.md` y `troubleshooting.md` (fila del
+  `TypeError` de 3.0); `async_utils.md` con su §5 «Ejemplos Relacionados».
+- **todos los módulos**: 60 secciones `Example:` con doctest pasan a `Examples:` (griffe publicaba el código `>>>` como
+  texto). Docstrings con `Args`/`Returns`/`Raises` en la API de consultas de los managers, `close()`,
+  `SchemaSnapshot`, contratos de `metadata`, `SnapshotCache`, executors, `ConnectionParamsManager`, `parallel_plan`,
+  `ParallelBulkLoader.delete` y `disable_all` del volcado. `**kwargs: Any` en las firmas documentadas (el build
+  estricto de griffe lo exige).
+- **config IA**: Documentation Reviewer remite al contrato de `documentation_review.prompt.md` (sin criterios ni
+  formato propios) y no se atribuye ejecuciones; Documentation Generator remite al bloque de dominio;
+  `bootstrap_ai_config.prompt.md` avisa de que la estructura de 5 secciones es propia de util_bbdd.
+
+### Added
+
+- **docs**: páginas autodoc de `migrate`, `doc`, `metadata`, `audit`, `connection` (con `factory`), `query`
+  (con `validators` y `results`) y `analysis`.
+- **tests**: `tests/unit/test_docs_examples.py` ejecuta los 11 ejemplos de SQLite y los 8 con servidor sin conexión;
+  `tests/integration/test_docs_examples_engines.py` ejecuta los 8 con servidor contra el banco (schema propio por caso).
+
+### Tests
+
+- `pytest` sin URLs del banco: 6238 passed, 540 skipped. Con el banco: 6770 passed, 8 skipped (los 7 de HSQLDB
+  necesitan `JAVA_HOME` del JDK 25). mypy sin errores (339 ficheros); `mkdocs build --strict` y
+  `zensical build --strict` sin avisos.
+
 ## [3.0.2] - 2026-10-16
 
 Sesión `.ai/sessions/2026-10-16h-static-analysis-fixes/` (avisos de Pylance y SonarLint corregidos uno a uno). SemVer:

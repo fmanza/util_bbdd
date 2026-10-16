@@ -229,6 +229,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-10-16 | API 3.0 de `bulk` → v3.0.0 (`2026-10-16f-bulk-options-parallel-planner`) | Paquetes de opciones comunes (workers con `BulkOptions.for_worker`); `ParallelPlanner` puro con reglas del banco (≥ 1,5×, umbral 50K en INSERT); fachada paralela en `BulkCrud`; `parallel_pk_ranges="auto"` | CLOSED |
 | 2026-10-16 | Deuda de la carga paralela → v3.0.1 (`2026-10-16g-tech-debt-parallel-followups`) | `dump` usa el `COUNT(*)` del origen en `"auto"`; TEMP cacheado en el loader; banco `scripts/bench_parallel.py` (calentamiento + tandas alternas); Oracle no gana en paralelo | CLOSED |
 | 2026-10-16 | Avisos de Pylance y SonarLint → v3.0.2 (`2026-10-16h-static-analysis-fixes`) | `default_factory=lambda: X()` para dataclasses con descriptor (pyright); S7632 lee comas tras `# noqa:`; S5886/S2068 falsos positivos con `NOSONAR` | CLOSED |
+| 2026-10-16 | Revisión de documentación (niveles 1–3) → v3.0.3 (`2026-10-16i-documentation-review`) | griffe trata `Example:` como aviso (el `>>>` sale como texto; `Examples:` lo publica como código); estructura funcional de 5 secciones en el bloque de dominio, no en el núcleo compartido; los ejemplos con servidor leen `UTIL_BBDD_EXAMPLE_*` y tienen test contra el banco | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 

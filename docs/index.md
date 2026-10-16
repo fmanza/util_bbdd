@@ -2,7 +2,7 @@
 
 Librería Python para **operaciones de base de datos** sobre múltiples motores (sync/async): CRUD en lote, migración DDL, comparación de esquemas y documentación automática.
 
-**Version:** 3.0.2 | **Status:** ✅ Production/Stable | **Python:** 3.12+
+**Version:** 3.0.3 | **Status:** ✅ Production/Stable | **Python:** 3.12+
 
 ---
 
