@@ -226,6 +226,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-10-16 | Avisos de SonarLint y Pylance → v2.2.2 (`2026-10-16c-sonarlint-cleanup`) | ~35 avisos en `analysis`, `bulk`, `comparar`, `connection`, `factory`, `metadata`, `migrate`; `_connect_by_hierarchy` (complejidad 81) y `_transpile_view` divididas con comparación antes/después (1086 casos, 0 diferencias); `logger.exception` en las 14 conexiones | CLOSED |
 | 2026-10-16 | Pendientes de la auditoría de v2.2.2 → v2.2.3 (`2026-10-16d-audit-followups-v2.2.2`) | Precarga de Graphviz sin `Future` sin resolver (podía bloquearse); `_CURRENT_TIMESTAMP`; `_rejected_optional_param` única; tests de `_strip_pg_cast` y de dialectos del planner | CLOSED |
 | 2026-10-16 | Etiqueta Origen/Destino de `comparar` en Oracle → v2.2.4 (`2026-10-16e-hotfix-comparar-oracle-label`) | `_build_label` oculta solo la contraseña (usuario visible) y añade `[default_schema_name]` sin schema explícito | CLOSED |
+| 2026-10-16 | API 3.0 de `bulk` → v3.0.0 (`2026-10-16f-bulk-options-parallel-planner`) | Paquetes de opciones comunes (workers con `BulkOptions.for_worker`); `ParallelPlanner` puro con reglas del banco (≥ 1,5×, umbral 50K en INSERT); fachada paralela en `BulkCrud`; `parallel_pk_ranges="auto"` | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 

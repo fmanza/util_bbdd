@@ -4,7 +4,7 @@ Librería Python para **operaciones de base de datos** en MariaDB, MySQL, Oracle
 async) y HSQLDB (sync): conexiones con pool, carga masiva desde DataFrames, volcado entre motores, migración DDL,
 comparación de esquemas y documentación de la base de datos.
 
-**Version:** 2.2.4 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 3.0.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -14,7 +14,7 @@ comparación de esquemas y documentación de la base de datos.
 |---|---|---|
 | Conexión y consultas | `SyncDatabaseManager`, `AsyncDatabaseManager` | Pool por defecto; consultas libres o registradas en JSON |
 | Metadatos | `manager.get_schema_metadata()` → `SchemaSnapshot` | Una consulta por tipo de objeto y schema, cacheada hasta `clear_cache()` |
-| Carga masiva | `BulkCrud`, `ParallelBulkLoader` | INSERT/UPDATE/DELETE desde `pandas.DataFrame`; vía rápida por motor (COPY en PostgreSQL, multi-fila en MySQL/MariaDB) |
+| Carga masiva | `BulkCrud`, `ParallelBulkLoader` | INSERT/UPDATE/DELETE desde `pandas.DataFrame`; vía rápida por motor (COPY en PostgreSQL, multi-fila en MySQL/MariaDB); carga paralela con los hilos decididos por las mediciones de cada motor (`ParallelOptions(mode="auto")`) |
 | Volcado de datos | `DumpOrchestrator` + `DumpConfig` | Entre schemas o motores, orden por FK, gestión de constraints, informe Excel |
 | Migración DDL | `MigrationPlanner` → `MigrationPlan` | Entre Oracle, MariaDB, MySQL, SQL Server y PostgreSQL: tipos, FKs, secuencias, charset |
 | Comparación de esquemas | `SchemaComparator` → `SchemaDiff` | Informes HTML, Excel, Word, Markdown y SQL (`util_bbdd.comparar`) |
@@ -143,6 +143,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 
 from util_bbdd import BulkCrud
+from util_bbdd.bulk.options import AuditOptions
 
 engine = create_engine("sqlite:///demo_bulk.db")
 with engine.begin() as conn:
@@ -154,7 +155,7 @@ df = pd.DataFrame({
     "email": ["alice@ex.com", "bob@ex.com", "charlie@ex.com"],
 })
 
-crud = BulkCrud(engine=engine, audit_csv_path=Path("audit.csv"))
+crud = BulkCrud(engine=engine, audit=AuditOptions(csv_path=Path("audit.csv")))
 crud.bulk_insert_from_df(df, tabla_destino="users", generar_sql=False)
 ```
 
@@ -342,7 +343,7 @@ pruebas (`scripts/bench_env.example.sh`). Flujo con asistentes de IA (Claude Cod
 [Semantic Versioning](https://semver.org/): desde 1.0.0, la API pública (la raíz y los submódulos públicos listados
 arriba) solo cambia de forma incompatible en una versión MAJOR.
 
-**Current Version: v2.2.4** (las etiquetas Origen/Destino de `comparar` identifican el schema, también en Oracle; API pública estable)
+**Current Version: v3.0.0** (MAJOR: `BulkCrud` y `ParallelBulkLoader` con paquetes de opciones y carga paralela con hilos decididos por `ParallelPlanner`; ver [Migración a la API 3.0](docs/guides/api_3_0_migration.md))
 
 Historial completo: [CHANGELOG.md](CHANGELOG.md) · Hoja de ruta: [docs/roadmap.md](docs/roadmap.md).
 

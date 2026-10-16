@@ -2,7 +2,7 @@
 
 **Generado**: 2026-06-05 (cabecera y «Próximos pasos» actualizados el 2026-10-10 tras v1.0.0)  
 **Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.39.1` (la tabla de abajo no recoge todas las versiones intermedias: el detalle está en el CHANGELOG)  
-**Versión**: `v2.2.4` (2026-10-16, en `develop`; commit y tag pendientes). Anteriores: `v2.2.3` (`edb707a8`), `v2.2.2` (`252fe00f`), `v2.2.1` (`18962584`), `v2.2.0` (`a4afd8af`), `v2.1.0` (`eacd2eb1`), `v2.0.0` (`4e946e4c`), `v1.2.0` (`65b2071f`). Últimos tags: `v0.35.5` a `v0.44.0` (ver CHANGELOG), `v1.0.0`, `v1.1.0`, `v1.1.1`, `v1.2.0`, `v2.0.0`, `v2.1.0`, `v2.2.0`, `v2.2.1`  
+**Versión**: `v3.0.0` (2026-10-16, en `develop`; tag pendiente). Anteriores: `v2.2.4` (`75f24ae7`), `v2.2.3` (`edb707a8`), `v2.2.2` (`252fe00f`), `v2.2.1` (`18962584`), `v2.2.0` (`a4afd8af`), `v2.1.0` (`eacd2eb1`), `v2.0.0` (`4e946e4c`), `v1.2.0` (`65b2071f`). Últimos tags: `v0.35.5` a `v0.44.0` (ver CHANGELOG), `v1.0.0`, `v1.1.0`, `v1.1.1`, `v1.2.0`, `v2.0.0`, `v2.1.0`, `v2.2.0`, `v2.2.1`  
 **Rama activa**: `develop`
 
 ---
@@ -72,6 +72,7 @@
 | `v2.2.1` | Liberado 2026-10-16 — `read_variables` con coincidencia exacta y tolerante a filas inesperadas; redo log de MySQL 8.0.30+ con `innodb_redo_log_capacity` (`.ai/sessions/2026-10-16b-fix-mysql-redo-variables/`) | ✅ |
 | `v2.2.2` | Liberado 2026-10-16 — avisos de SonarLint y Pylance sin cambios funcionales: funciones complejas divididas (`_connect_by_hierarchy`, `_transpile_view`…), errores de conexión con traceback, cast de PostgreSQL sin backtracking (`.ai/sessions/2026-10-16c-sonarlint-cleanup/`) | ✅ |
 | `v2.2.3` | Liberado 2026-10-16 — la precarga de Graphviz ya no deja `Future` sin resolver (bloqueo); `_CURRENT_TIMESTAMP`, `_rejected_optional_param` única y tests de los pendientes de la auditoría de v2.2.2 (`.ai/sessions/2026-10-16d-audit-followups-v2.2.2/`) | ✅ |
+| `v3.0.0` | 2026-10-16 — **MAJOR**: `BulkCrud` y `ParallelBulkLoader` con paquetes de opciones (`BatchOptions`, `AuditOptions`, `RejectOptions`, `ExecutionOptions`, `ParallelOptions`); `ParallelPlanner` (`mode="auto"`, reglas medidas); carga paralela desde `BulkCrud`; `DumpConfig(parallel_pk_ranges="auto")` (`.ai/sessions/2026-10-16f-bulk-options-parallel-planner/`) | ✅ |
 | `v2.2.4` | 2026-10-16 — las etiquetas Origen/Destino de `comparar` identifican el schema también en Oracle (contraseña oculta, usuario visible, `[default_schema_name]` sin schema explícito) (`.ai/sessions/2026-10-16e-hotfix-comparar-oracle-label/`) | ✅ |
 | Zenical | Hecho — `migrate/zenical-pure` fusionada (PR #19, `c6d765a8`); `zensical` 0.0.44 es el generador del CI y lee `mkdocs.yml` (no se usa `zensical.toml`) | ✅ |
 

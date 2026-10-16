@@ -5,6 +5,76 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [3.0.0] - 2026-10-16
+
+Sesión `.ai/sessions/2026-10-16f-bulk-options-parallel-planner/` (`/new-feature` + refactor incompatible pedido
+explícitamente). SemVer: **MAJOR** — cambia la firma de `BulkCrud` y `ParallelBulkLoader` (raíz `util_bbdd`).
+Guía: [Migración a la API 3.0](docs/guides/api_3_0_migration.md).
+
+### Removed (incompatible)
+
+- **bulk**: los 16 parámetros sueltos de `BulkCrud` y los 17 de `ParallelBulkLoader` (`chunk_size`,
+  `commit_every_n_chunks`, `audit_csv_path`, `on_error`, `max_workers`, `max_retries`, `retry_backoff`...). Pasarlos da
+  `TypeError`; no hay capa de compatibilidad. Equivalencias una a una en la guía de migración.
+- **bulk**: atributos privados de `ParallelBulkLoader` (`_chunk_size`, `_max_retries`, `_disable_constraints`,
+  `_commit_every_n_chunks`...): usar `loader.options`.
+- **bulk**: funciones privadas de `_execution/parallel_loader.py` (`_skip_rows`, `_validate_partition_ranges`,
+  `_partition_error`, `_closing_iterable`), reubicadas: `_support/iterables.skip_rows`,
+  `RangePartitioner.validate_disjoint`, `ParallelBulkLoader._partition_error` y `_support/iterables.closing_iterable`.
+
+### Added
+
+- **bulk**: paquetes de opciones inmutables, validados al construirse (`util_bbdd.bulk`): `BatchOptions`,
+  `AuditOptions`, `RejectOptions`, `ExecutionOptions`, `ParallelOptions`, `RetryOptions` y `BulkOptions`.
+  `BulkCrud(engine, *, batch, audit, rejects, execution, parallel)` y `ParallelBulkLoader` con los mismos;
+  `BulkCrud.options` y `ParallelBulkLoader.options`.
+- **bulk**: `ParallelPlanner` (`PlanInput` → `ParallelPlan`): decide los hilos de una carga paralela. En
+  `ParallelOptions(mode="manual")` (por defecto) aplica las reglas de seguridad (capacidad del pool, SQLite con un solo
+  escritor, UPDATE de PostgreSQL sin tabla temporal); en `mode="auto"`, además, las mediciones del banco por motor y
+  operación (`ParallelPlanner.RULES`: paraleliza si la mejor aceleración medida es ≥ 1,5×, con los hilos del mejor
+  tiempo y desde el menor volumen medido). `ParallelLoadResult.plan` dice qué se decidió y por qué.
+- **bulk**: carga paralela desde `BulkCrud`: con `parallel=ParallelOptions(...)`, `bulk_insert_from_df`,
+  `bulk_update_from_df` y `bulk_delete_from_df` (con `generar_sql=False`, fuera de `bulk_session()` y de
+  `rejects_scope()`) reparten el DataFrame en particiones disjuntas (INSERT por tramos; UPDATE/DELETE por PK, por
+  rangos o por hash) y las cargan con `ParallelBulkLoader`. **No es atómica**: si falla alguna partición, las demás
+  quedan confirmadas y se lanza `ParallelLoadError` (`util_bbdd.exceptions`, con `.result`). Nuevos
+  `BulkCrud.parallel_plan()` y `BulkCrud.last_parallel_result`; los contadores de auditoría y `rows_rejected` incluyen
+  los de los workers.
+- **bulk**: `HashPartitioner.partition_dataframe` admite varias columnas (PK compuesta); `RangePartitioner.is_rangeable`.
+- **dump**: `DumpConfig(parallel_pk_ranges="auto")`: los rangos de cada tabla los decide `ParallelPlanner` con la cota
+  `MAX(pk) − MIN(pk) + 1`. Con las mediciones actuales solo particiona con destino SQL Server y tablas desde 3,5M
+  filas; con los demás destinos no consulta `MIN/MAX` y lo dice una vez en el log.
+
+### Changed
+
+- **bulk**: `ParallelBulkLoader` con SQLite usa un solo hilo (WARNING si se pidieron más). Hasta 2.x varios hilos daban
+  `database is locked`.
+- **bulk**: mensajes de error de las rutas: `audit.csv_path …` y `rejects.csv_path …` (antes `audit_csv_path …`,
+  `rejects_csv_path …`); `backoff debe ser …` (antes `retry_backoff …`).
+- **dump**: un único punto traduce los campos planos de `DumpConfig` a los paquetes de `bulk` (`_bulk_options`).
+
+### Fixed
+
+- **bulk**: los workers de `ParallelBulkLoader` no recibían `insert_resolver`, `update_via_staging` ni
+  `prefetch_blocks` (se ignoraban sin aviso). Con `update_via_staging=False` en PostgreSQL, `update()` va ahora en un
+  hilo: fila a fila en paralelo es más lento (1M: 25,7 s con 1 hilo, 56,8 s con 4).
+
+### Performance
+
+- Validación de `mode="auto"` en el banco (1M filas; mediana de 2 tandas): donde paraleliza gana 1,55×–2,82×
+  (SQL Server INSERT 2,58×, UPDATE 2,82×; MySQL 1,77× / 1,86× / 1,95×; MariaDB 1,64× / 1,78× / 1,55×; PostgreSQL
+  UPDATE 1,59×, DELETE 1,63×). INSERT con 50K filas: MySQL 1,82×, MariaDB 1,68×, SQL Server 2,57× → umbral de `"auto"`
+  en 50K. Oracle 23 Free se mantiene en serie (1M: INSERT 1,33×, tiempos inestables entre tandas). Tablas en
+  `docs/guides/benchmarks.md` § «Hilos automáticos».
+
+### Tests
+
+- 101 tests nuevos (`test_options.py`, `test_parallel_planner.py`, `test_crud_parallel.py`, `test_auto_pk_ranges.py`).
+  245 construcciones de `BulkCrud` y 106 de `ParallelBulkLoader` migradas a los paquetes (script `ast`, sin cambiar
+  aserciones de comportamiento).
+- `pytest` sin URLs del banco: 6203 passed, 532 skipped. `tests/integration` contra el banco (PostgreSQL, MySQL,
+  MariaDB, SQL Server, Oracle y HSQLDB): 589 passed, 7 skipped.
+
 ## [2.2.4] - 2026-10-16
 
 Sesión `.ai/sessions/2026-10-16e-hotfix-comparar-oracle-label/` (`/audit-code` + `/hotfix`). SemVer: PATCH.

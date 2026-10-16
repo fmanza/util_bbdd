@@ -96,7 +96,7 @@ Los tres niveles de la arquitectura (Foundation → Servicios → Especializaci�
 <div class="arq-scroll">
 --8<-- "assets/diagrams/arquitectura-capas.svg"
 </div>
-<figcaption>Instantánea de <code>develop</code> en v2.2.4 (2026-10-16) medida con <code>ast</code> sobre 337 ficheros. Capas y niveles según <code>.ai/architecture.md</code>; <code>models.py</code> y <code>async_utils.py</code> son módulos raíz de Foundation: no importan nada de la librería. El <code>__init__.py</code> raíz y <code>exceptions.py</code> (re-exports públicos) no aparecen.</figcaption>
+<figcaption>Instantánea de <code>develop</code> en v3.0.0 (2026-10-16) medida con <code>ast</code> sobre 339 ficheros. Capas y niveles según <code>.ai/architecture.md</code>; <code>models.py</code> y <code>async_utils.py</code> son módulos raíz de Foundation: no importan nada de la librería. El <code>__init__.py</code> raíz y <code>exceptions.py</code> (re-exports públicos) no aparecen.</figcaption>
 </figure>
 
 Capas, de mayor a menor dependencia (tabla generada por el mismo script que la figura):
@@ -158,7 +158,7 @@ Estándares que toda evolución debe preservar. Cada fila se ancla a un mecanism
 |---|---|---|
 | **Seguridad** | Credenciales fuera del código y no expuestas en logs | `conn_params: dict` provisto externamente; `db_type` validado (`InvalidDatabaseType`) antes de conectar; la librería no persiste secretos |
 | **Observabilidad** | Logging estructurado (sin `print`) y métricas de tiempo | `self.logger` en clases con lógica; `util.timing` (`medir_tiempo`) mide las operaciones de `bulk` y el CSV de auditoría registra `tiempo_seg` por operación; eventos opcionales `AuditEvent` (`audit/`); `exc_info=True` en errores inesperados |
-| **Rendimiento** | Pool, batching, paralelismo y caché | `PoolFactory`; `chunk_size` (y lote por motor y operación) en `bulk/`; `ParallelBulkLoader`; caché de metadatos por schema (`SnapshotCache`) |
+| **Rendimiento** | Pool, batching, paralelismo y caché | `PoolFactory`; `chunk_size` (y lote por motor y operación) en `bulk/`; `ParallelBulkLoader` con los hilos decididos por `ParallelPlanner` (v3.0.0: reglas medidas por motor y operación, compartidas con `dump`); caché de metadatos por schema (`SnapshotCache`) |
 | **Compatibilidad** | Matriz de motores, versionado y tipado público | Matriz de soporte en [Inicio](index.md#5-compatibilidad-y-soporte); [CHANGELOG](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md) (SemVer); `py.typed` distribuido |
 | **Robustez / errores** | Errores tipados y sin estados a medias | Jerarquía canónica en `_core/exceptions.py`; cierres explícitos vía context manager / `close()` |
 | **Tipado / calidad** | Análisis estático y pruebas automatizadas | `mypy`, `ruff` y `pytest` (extra `[dev]` en `pyproject.toml`); `py.typed` distribuido |
