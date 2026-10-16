@@ -95,30 +95,9 @@ class SQLAlchemyEngineFactory:
         try:
             from sqlalchemy import create_engine, text
 
-            # Construir connection string según tipo de BD
-            if db_type == "mariadb":
-                conn_str: str = SQLAlchemyEngineFactory._build_mariadb_connection_string(conn_params, database)
-            elif db_type == "mysql":
-                conn_str = SQLAlchemyEngineFactory._build_mysql_connection_string(conn_params, database)
-            elif db_type == "oracle":
-                conn_str = SQLAlchemyEngineFactory._build_oracle_connection_string(conn_params, database)
-            elif db_type == "postgresql":
-                conn_str = SQLAlchemyEngineFactory._build_postgresql_connection_string(conn_params, database)
-            elif db_type == "hsqldb":
-                # Sin dialecto de SQLAlchemy para HSQLDB: antes se construía hsqldb+pyodbc://sa@… (usuario fijo,
-                # jdbc_url ignorada) y fallaba con "Can't load plugin".
-                raise ConnectionError(
-                    "HSQLDB no tiene dialecto de SQLAlchemy: use la conexión nativa del manager (JDBC con jaydebeapi)",
-                    db_type=db_type,
-                )
-            elif db_type == "sqlserver":
-                conn_str = SQLAlchemyEngineFactory._build_sqlserver_connection_string(
-                    conn_params, database, sql_server_driver
-                )
-            elif db_type == "sqlite":
-                conn_str = SQLAlchemyEngineFactory._build_sqlite_connection_string(conn_params)
-            else:
-                raise ConnectionError(f"Tipo de BD no soportado para SQLAlchemy: {db_type}", db_type=db_type)
+            conn_str: str = SQLAlchemyEngineFactory._build_connection_string(
+                db_type, conn_params, database, sql_server_driver
+            )
 
             sanitized_conn_str: str = SQLAlchemyEngineFactory._sanitize_conn_str(conn_str)
             SQLAlchemyEngineFactory.logger.debug(f"📝 Connection string construido: {sanitized_conn_str}")
@@ -154,6 +133,32 @@ class SQLAlchemyEngineFactory:
             raise ConnectionError(
                 f"Error creando Engine de SQLAlchemy: {str(e)}", db_type=db_type, details=str(e)
             ) from e
+
+    @staticmethod
+    def _build_connection_string(
+        db_type: str, conn_params: dict[str, Any], database: str, sql_server_driver: str
+    ) -> str:
+        """URL de SQLAlchemy de ``db_type``; ``ConnectionError`` si el motor no tiene dialecto."""
+        if db_type == "mariadb":
+            return SQLAlchemyEngineFactory._build_mariadb_connection_string(conn_params, database)
+        if db_type == "mysql":
+            return SQLAlchemyEngineFactory._build_mysql_connection_string(conn_params, database)
+        if db_type == "oracle":
+            return SQLAlchemyEngineFactory._build_oracle_connection_string(conn_params, database)
+        if db_type == "postgresql":
+            return SQLAlchemyEngineFactory._build_postgresql_connection_string(conn_params, database)
+        if db_type == "hsqldb":
+            # Sin dialecto de SQLAlchemy para HSQLDB: antes se construía hsqldb+pyodbc://sa@… (usuario fijo,
+            # jdbc_url ignorada) y fallaba con "Can't load plugin".
+            raise ConnectionError(
+                "HSQLDB no tiene dialecto de SQLAlchemy: use la conexión nativa del manager (JDBC con jaydebeapi)",
+                db_type=db_type,
+            )
+        if db_type == "sqlserver":
+            return SQLAlchemyEngineFactory._build_sqlserver_connection_string(conn_params, database, sql_server_driver)
+        if db_type == "sqlite":
+            return SQLAlchemyEngineFactory._build_sqlite_connection_string(conn_params)
+        raise ConnectionError(f"Tipo de BD no soportado para SQLAlchemy: {db_type}", db_type=db_type)
 
     # Helpers compartidos con AsyncSQLAlchemyEngineFactory (``factory/_url.py``).
     _get_test_query = staticmethod(get_test_query)

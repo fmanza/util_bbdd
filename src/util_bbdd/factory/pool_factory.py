@@ -39,6 +39,31 @@ class PoolFactory:
         PoolFactory._async_pool_builders[db_type.lower().strip()] = builder
 
     @staticmethod
+    def _builtin_async_builder(normalized_type: str) -> Callable[..., Any] | None:
+        """Importa y registra el pool async integrado de ``normalized_type``; ``None`` si no hay ninguno.
+
+        Imports diferidos (cada pool arrastra su driver) pero estáticos: los mide ``scripts/gen_arquitectura_capas.py``.
+        """
+        pool_class: Any
+        if normalized_type == "postgresql":
+            from ..connection.postgresql.async_pool_connection_postgresql import AsyncPostgreSQLPool as pool_class
+        elif normalized_type == "sqlite":
+            from ..connection.sqlite.async_pool_connection_sqlite import AsyncSQLitePool as pool_class
+        elif normalized_type == "mariadb":
+            from ..connection.mariadb.async_pool_connection_mariadb import AsyncMariaDBPool as pool_class
+        elif normalized_type == "mysql":
+            from ..connection.mysql.async_pool_connection_mysql import AsyncMySQLPool as pool_class
+        elif normalized_type == "oracle":
+            from ..connection.oracle.async_pool_connection_oracle import AsyncOraclePool as pool_class
+        elif normalized_type == "sqlserver":
+            from ..connection.sqlserver.async_pool_connection_sqlserver import AsyncSQLServerPool as pool_class
+        else:
+            return None
+        builder: Callable[..., Any] = pool_class.create
+        PoolFactory.register_async_pool(normalized_type, builder)
+        return builder
+
+    @staticmethod
     async def create_async_pool(
         db_type: str,
         conn_params: dict[str, Any],
@@ -47,41 +72,8 @@ class PoolFactory:
         """Crea pool async con constructor registrado por motor."""
         normalized_type: str = db_type.lower().strip()
         builder: Callable[..., Any] | None = PoolFactory._async_pool_builders.get(normalized_type)
-        if builder is None and normalized_type == "postgresql":
-            from ..connection.postgresql.async_pool_connection_postgresql import AsyncPostgreSQLPool
-
-            PoolFactory.register_async_pool("postgresql", AsyncPostgreSQLPool.create)
-            builder = PoolFactory._async_pool_builders.get(normalized_type)
-
-        if builder is None and normalized_type == "sqlite":
-            from ..connection.sqlite.async_pool_connection_sqlite import AsyncSQLitePool
-
-            PoolFactory.register_async_pool("sqlite", AsyncSQLitePool.create)
-            builder = PoolFactory._async_pool_builders.get(normalized_type)
-
-        if builder is None and normalized_type == "mariadb":
-            from ..connection.mariadb.async_pool_connection_mariadb import AsyncMariaDBPool
-
-            PoolFactory.register_async_pool("mariadb", AsyncMariaDBPool.create)
-            builder = PoolFactory._async_pool_builders.get(normalized_type)
-
-        if builder is None and normalized_type == "mysql":
-            from ..connection.mysql.async_pool_connection_mysql import AsyncMySQLPool
-
-            PoolFactory.register_async_pool("mysql", AsyncMySQLPool.create)
-            builder = PoolFactory._async_pool_builders.get(normalized_type)
-
-        if builder is None and normalized_type == "oracle":
-            from ..connection.oracle.async_pool_connection_oracle import AsyncOraclePool
-
-            PoolFactory.register_async_pool("oracle", AsyncOraclePool.create)
-            builder = PoolFactory._async_pool_builders.get(normalized_type)
-
-        if builder is None and normalized_type == "sqlserver":
-            from ..connection.sqlserver.async_pool_connection_sqlserver import AsyncSQLServerPool
-
-            PoolFactory.register_async_pool("sqlserver", AsyncSQLServerPool.create)
-            builder = PoolFactory._async_pool_builders.get(normalized_type)
+        if builder is None:
+            builder = PoolFactory._builtin_async_builder(normalized_type)
 
         async_supported = is_async_supported(normalized_type)
         if builder is None and async_supported is False:

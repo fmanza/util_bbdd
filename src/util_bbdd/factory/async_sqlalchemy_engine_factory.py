@@ -84,44 +84,9 @@ class AsyncSQLAlchemyEngineFactory:
             from sqlalchemy.ext.asyncio import create_async_engine
             from sqlalchemy.pool import NullPool
 
-            if normalized_type == "mariadb":
-                conn_str: str = AsyncSQLAlchemyEngineFactory._build_mariadb_connection_string(
-                    conn_params,
-                    database,
-                )
-            elif normalized_type == "mysql":
-                conn_str = AsyncSQLAlchemyEngineFactory._build_mysql_connection_string(
-                    conn_params,
-                    database,
-                )
-            elif normalized_type == "oracle":
-                conn_str = AsyncSQLAlchemyEngineFactory._build_oracle_connection_string(
-                    conn_params,
-                    database,
-                )
-            elif normalized_type == "postgresql":
-                conn_str = AsyncSQLAlchemyEngineFactory._build_postgresql_connection_string(
-                    conn_params,
-                    database,
-                )
-            elif normalized_type == "hsqldb":
-                raise ConnectionError(
-                    "hsqldb async no soportado en SQLAlchemyEngineFactory",
-                    db_type=normalized_type,
-                )
-            elif normalized_type == "sqlserver":
-                conn_str = AsyncSQLAlchemyEngineFactory._build_sqlserver_connection_string(
-                    conn_params,
-                    database,
-                    sql_server_driver,
-                )
-            elif normalized_type == "sqlite":
-                conn_str = AsyncSQLAlchemyEngineFactory._build_sqlite_connection_string(conn_params)
-            else:
-                raise ConnectionError(
-                    f"Tipo de BD no soportado para SQLAlchemy async: {db_type}",
-                    db_type=normalized_type,
-                )
+            conn_str: str = AsyncSQLAlchemyEngineFactory._build_connection_string(
+                normalized_type, conn_params, database, sql_server_driver
+            )
 
             AsyncSQLAlchemyEngineFactory.logger.debug(
                 "📝 Connection string async construido (sanitizado): %s",
@@ -182,6 +147,49 @@ class AsyncSQLAlchemyEngineFactory:
                 db_type=normalized_type,
                 details=str(err),
             ) from err
+
+    @staticmethod
+    def _build_connection_string(
+        normalized_type: str, conn_params: dict[str, Any], database: str | None, sql_server_driver: str
+    ) -> str:
+        """URL async de ``normalized_type``; ``ConnectionError`` si el motor no tiene vía async."""
+        if normalized_type == "mariadb":
+            return AsyncSQLAlchemyEngineFactory._build_mariadb_connection_string(
+                conn_params,
+                database,
+            )
+        if normalized_type == "mysql":
+            return AsyncSQLAlchemyEngineFactory._build_mysql_connection_string(
+                conn_params,
+                database,
+            )
+        if normalized_type == "oracle":
+            return AsyncSQLAlchemyEngineFactory._build_oracle_connection_string(
+                conn_params,
+                database,
+            )
+        if normalized_type == "postgresql":
+            return AsyncSQLAlchemyEngineFactory._build_postgresql_connection_string(
+                conn_params,
+                database,
+            )
+        if normalized_type == "hsqldb":
+            raise ConnectionError(
+                "hsqldb async no soportado en SQLAlchemyEngineFactory",
+                db_type=normalized_type,
+            )
+        if normalized_type == "sqlserver":
+            return AsyncSQLAlchemyEngineFactory._build_sqlserver_connection_string(
+                conn_params,
+                database,
+                sql_server_driver,
+            )
+        if normalized_type == "sqlite":
+            return AsyncSQLAlchemyEngineFactory._build_sqlite_connection_string(conn_params)
+        raise ConnectionError(
+            f"Tipo de BD no soportado para SQLAlchemy async: {normalized_type}",
+            db_type=normalized_type,
+        )
 
     # Helpers compartidos con SQLAlchemyEngineFactory (``factory/_url.py``).
     _get_test_query = staticmethod(get_test_query)
