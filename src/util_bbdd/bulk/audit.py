@@ -238,12 +238,12 @@ class AuditManager:
         )
 
     @staticmethod
-    def _readiness_blocks(engine: Engine | None) -> tuple[ReadinessBlock, ...]:
+    def _readiness_blocks(engine: Engine | None) -> list[ReadinessBlock]:
         """Bloque de condiciones del motor de ``engine``; sin engine, ninguno."""
         if engine is None:
-            return ()
+            return []
         advisor = EngineReadinessAdvisor()
-        return ((f"Engine · {advisor.describe_engine(engine)}", advisor.engine_report(engine)),)
+        return [(f"Engine · {advisor.describe_engine(engine)}", advisor.engine_report(engine))]
 
     def obtener_estadisticas(self) -> dict[str, Any]:
         """Obtener estadísticas generales de auditoría."""

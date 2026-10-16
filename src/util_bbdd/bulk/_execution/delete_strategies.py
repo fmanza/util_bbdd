@@ -337,26 +337,38 @@ def _fits(value: Any, column_type: Any) -> bool:
     """
     kind = type(value)
     if kind is str and isinstance(column_type, String):
-        length: int | None = column_type.length
-        if isinstance(column_type, (Unicode, NVARCHAR, NCHAR)):
-            return length is None or len(value.encode("utf-16-le")) // 2 <= length
-        return value.isascii() and (length is None or len(value) <= length)
+        return _fits_string(value, column_type)
     if kind is int and isinstance(column_type, Integer):
-        for int_type, low, high in _INT_RANGES:
-            if isinstance(column_type, int_type):
-                return bool(low <= value <= high)
-        return False
+        return _fits_integer(value, column_type)
     if kind in (int, decimal.Decimal) and isinstance(column_type, Numeric) and not isinstance(column_type, Float):
-        precision, scale = column_type.precision, column_type.scale
-        if precision is None or scale is None:
-            return False
-        number = decimal.Decimal(value)
-        if not number.is_finite():
-            return False
-        with decimal.localcontext(prec=200):  # DECIMAL(38, s) no cabe en los 28 dígitos del contexto por defecto
-            exact: bool = number.quantize(decimal.Decimal(1).scaleb(-scale)) == number
-            return exact and abs(number) < decimal.Decimal(10) ** (precision - scale)
+        return _fits_numeric(decimal.Decimal(value), column_type)
     return kind is uuid.UUID and isinstance(column_type, Uuid)
+
+
+def _fits_string(value: str, column_type: Any) -> bool:
+    """Rama de ``_fits`` para cadenas: longitud en unidades UTF-16 en los tipos ``N*``; solo ASCII en ``VARCHAR``."""
+    length: int | None = column_type.length
+    if isinstance(column_type, (Unicode, NVARCHAR, NCHAR)):
+        return length is None or len(value.encode("utf-16-le")) // 2 <= length
+    return value.isascii() and (length is None or len(value) <= length)
+
+
+def _fits_integer(value: int, column_type: Any) -> bool:
+    """Rama de ``_fits`` para enteros: rango del tipo entero de SQL Server (``_INT_RANGES``)."""
+    for int_type, low, high in _INT_RANGES:
+        if isinstance(column_type, int_type):
+            return bool(low <= value <= high)
+    return False
+
+
+def _fits_numeric(number: decimal.Decimal, column_type: Any) -> bool:
+    """Rama de ``_fits`` para ``DECIMAL``/``NUMERIC``: sin redondeo a la escala y dentro de la precisión."""
+    precision, scale = column_type.precision, column_type.scale
+    if precision is None or scale is None or not number.is_finite():
+        return False
+    with decimal.localcontext(prec=200):  # DECIMAL(38, s) no cabe en los 28 dígitos del contexto por defecto
+        exact: bool = number.quantize(decimal.Decimal(1).scaleb(-scale)) == number
+        return exact and abs(number) < decimal.Decimal(10) ** (precision - scale)
 
 
 _NONE_TYPE: type = type(None)
@@ -383,39 +395,54 @@ def _column_fits(values: list[Any], column_type: Any) -> bool:
         return all(_fits(value, column_type) for value in present)
     kind = kinds.pop()
     if kind is str and isinstance(column_type, String):
-        length: int | None = column_type.length
-        if isinstance(column_type, (Unicode, NVARCHAR, NCHAR)):
-            if length is None:
-                return True
-            if all(map(str.isascii, present)):
-                return max(map(len, present)) <= length
-            return max(len(value.encode("utf-16-le")) // 2 for value in present) <= length
-        return all(map(str.isascii, present)) and (length is None or max(map(len, present)) <= length)
+        return _strings_fit(present, column_type)
     if kind is int and isinstance(column_type, Integer):
-        for int_type, low, high in _INT_RANGES:
-            if isinstance(column_type, int_type):
-                return bool(low <= min(present) and max(present) <= high)
-        return False
+        return _ints_fit(present, column_type)
     if kind in (int, decimal.Decimal) and isinstance(column_type, Numeric) and not isinstance(column_type, Float):
-        precision, scale = column_type.precision, column_type.scale
-        if precision is None or scale is None:
-            return False
-        if kind is int:
-            return bool(max(map(abs, present)) < 10 ** (precision - scale))
-        if not all(map(decimal.Decimal.is_finite, present)):
-            return False
-        # Comparaciones exactas (sin el redondeo de contexto de abs() ni de **): copy_abs y potencia entera de 10.
-        if max(map(decimal.Decimal.copy_abs, present)) >= decimal.Decimal(10 ** (precision - scale)):
-            return False
-        # Más decimales que la escala: puede caber (1.100 en escala 2) o no (1.105): comprobación exacta solo en esos.
-        if min(map(_EXPONENT, map(decimal.Decimal.as_tuple, present))) >= -scale:  # finitos: exponente entero
-            return True
-        return all(
-            _fits(value, column_type)
-            for value in present
-            if isinstance(exponent := value.as_tuple().exponent, int) and exponent < -scale
-        )
+        return _numbers_fit(present, kind, column_type)
     return kind is uuid.UUID and isinstance(column_type, Uuid)
+
+
+def _strings_fit(present: list[str], column_type: Any) -> bool:
+    """Rama de ``_column_fits`` para cadenas: ``max(map(len))`` salvo en tipos ``N*`` con no-ASCII (unidades UTF-16)."""
+    length: int | None = column_type.length
+    if isinstance(column_type, (Unicode, NVARCHAR, NCHAR)):
+        if length is None:
+            return True
+        if all(map(str.isascii, present)):
+            return max(map(len, present)) <= length
+        return max(len(value.encode("utf-16-le")) // 2 for value in present) <= length
+    return all(map(str.isascii, present)) and (length is None or max(map(len, present)) <= length)
+
+
+def _ints_fit(present: list[int], column_type: Any) -> bool:
+    """Rama de ``_column_fits`` para enteros: ``min``/``max`` dentro del rango de ``_INT_RANGES``."""
+    for int_type, low, high in _INT_RANGES:
+        if isinstance(column_type, int_type):
+            return bool(low <= min(present) and max(present) <= high)
+    return False
+
+
+def _numbers_fit(present: list[Any], kind: type, column_type: Any) -> bool:
+    """Rama de ``_column_fits`` para ``DECIMAL``/``NUMERIC`` con valores ``int`` o ``Decimal`` (un solo tipo)."""
+    precision, scale = column_type.precision, column_type.scale
+    if precision is None or scale is None:
+        return False
+    if kind is int:
+        return bool(max(map(abs, present)) < 10 ** (precision - scale))
+    if not all(map(decimal.Decimal.is_finite, present)):
+        return False
+    # Comparaciones exactas (sin el redondeo de contexto de abs() ni de **): copy_abs y potencia entera de 10.
+    if max(map(decimal.Decimal.copy_abs, present)) >= decimal.Decimal(10 ** (precision - scale)):
+        return False
+    # Más decimales que la escala: puede caber (1.100 en escala 2) o no (1.105): comprobación exacta solo en esos.
+    if min(map(_EXPONENT, map(decimal.Decimal.as_tuple, present))) >= -scale:  # finitos: exponente entero
+        return True
+    return all(
+        _fits(value, column_type)
+        for value in present
+        if isinstance(exponent := value.as_tuple().exponent, int) and exponent < -scale
+    )
 
 
 def _to_json(values: list[Any]) -> list[Any]:

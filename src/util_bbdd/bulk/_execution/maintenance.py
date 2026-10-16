@@ -94,6 +94,9 @@ class TableMaintenance:
                 )
             return []
 
+        # La restauración del camino normal va en el ``finally`` (no tras el ``try``) para que ninguna salida del
+        # generador la salte; ``failed`` la reserva a ese camino, porque tras un error la hace ``_restore_after_error``.
+        failed = False
         try:
             if disable_constraints:
                 pg_disabled, mssql_constraints_disabled, oracle_disabled = self._disable_constraints(
@@ -107,10 +110,13 @@ class TableMaintenance:
             self.logger.info(f"🛠️ Modo mantenimiento activado: {tabla_destino} ({dialect})")
             yield result
         except BaseException:
+            failed = True
             self._restore_after_error(conn, restore, tabla_destino)
             raise
-        result.constraint_results = restore()
-        self.logger.debug(f"🛠️ Modo mantenimiento finalizado: {tabla_destino}")
+        finally:
+            if not failed:
+                result.constraint_results = restore()
+                self.logger.debug(f"🛠️ Modo mantenimiento finalizado: {tabla_destino}")
 
     def _restore_after_error(
         self, conn: Any, restore: Callable[..., list[MaintenanceScopeConstraintResult]], tabla_destino: str

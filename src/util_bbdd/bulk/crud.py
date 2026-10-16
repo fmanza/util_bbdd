@@ -1372,7 +1372,9 @@ class BulkCrud:
                 with self.engine.connect() as conn, self._session.bind(conn, commit_hook=persistence.commit):
                     persistence.start_session_audit(conn)
                     try:
-                        yield
+                        # Lo que sigue al yield es el commit del camino feliz, no limpieza: no debe ir en un finally
+                        # (confirmaría tras un error). La limpieza está en el finally exterior.
+                        yield  # NOSONAR
                         persistence.commit(conn)
                         cadence.confirm()
                     except BaseException:
@@ -1386,7 +1388,7 @@ class BulkCrud:
                 return
             with self.engine.begin() as conn, self._session.bind(conn):
                 persistence.start_session_audit(conn)
-                yield
+                yield  # NOSONAR - igual que arriba: el flush solo procede si el bloque termina bien
                 persistence.flush_audit_before_commit()
             persistence.flush_audit_after_commit()
         finally:
