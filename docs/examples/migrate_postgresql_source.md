@@ -37,12 +37,13 @@ planner = MigrationPlanner(
 # Validación sintáctica
 python -m py_compile docs/examples/migrate_postgresql_source.py
 
-# Ejecución (requiere servidor PostgreSQL accesible; verificado contra el banco del proyecto)
-# Sustituir credenciales antes de ejecutar
+# Ejecución contra un PostgreSQL accesible (sin UTIL_BBDD_EXAMPLE_URL explica cómo configurarla)
+export UTIL_BBDD_EXAMPLE_URL="postgresql+psycopg://reader:secret@postgres-host:5432/mydb"
+export UTIL_BBDD_EXAMPLE_SCHEMA="public"  # opcional; por defecto public
 python docs/examples/migrate_postgresql_source.py
 ```
 
-El script DDL se guarda como `public_schema_mariadb.sql` (o el nombre configurado).
+El script DDL se guarda como `<schema>_schema_mariadb.sql` (`public_schema_mariadb.sql` con el schema por defecto). `tests/integration/test_docs_examples_engines.py` lo ejecuta contra el banco del proyecto.
 
 ## 5. Referencias Relacionadas
 

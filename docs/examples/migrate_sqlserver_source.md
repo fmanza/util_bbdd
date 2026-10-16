@@ -46,12 +46,13 @@ planner = MigrationPlanner(
 # Validación sintáctica
 python -m py_compile docs/examples/migrate_sqlserver_source.py
 
-# Ejecución (requiere servidor SQL Server accesible; driver pymssql instalado; verificado contra el banco)
-# Sustituir credenciales antes de ejecutar
+# Ejecución contra un SQL Server accesible con pymssql (sin UTIL_BBDD_EXAMPLE_URL explica cómo configurarla)
+export UTIL_BBDD_EXAMPLE_URL="mssql+pymssql://reader:secret@sqlserver-host:1433/mydb"
+export UTIL_BBDD_EXAMPLE_SCHEMA="dbo"  # opcional; por defecto dbo
 python docs/examples/migrate_sqlserver_source.py
 ```
 
-El script DDL se guarda como `dbo_schema_postgresql.sql` (o el nombre configurado).
+El script DDL se guarda como `<schema>_schema_postgresql.sql` (`dbo_schema_postgresql.sql` con el schema por defecto). `tests/integration/test_docs_examples_engines.py` lo ejecuta contra el banco del proyecto.
 
 ## 5. Referencias Relacionadas
 

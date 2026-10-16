@@ -45,12 +45,13 @@ planner = MigrationPlanner(
 # Validación sintáctica
 python -m py_compile docs/examples/migrate_oracle_mariadb.py
 
-# Ejecución (requiere servidor Oracle con el schema HR u otro schema accesible; verificado contra el banco)
-# Sustituir credenciales antes de ejecutar
+# Ejecución contra un Oracle accesible (sin UTIL_BBDD_EXAMPLE_URL explica cómo configurarla)
+export UTIL_BBDD_EXAMPLE_URL="oracle+oracledb://reader:secret@oracle-host:1521/?service_name=ORCL"
+export UTIL_BBDD_EXAMPLE_SCHEMA="HR"  # opcional; por defecto HR
 python docs/examples/migrate_oracle_mariadb.py
 ```
 
-El script DDL se guarda con nombre sugerido por `plan.suggested_filename()` (`<schema>_<origen>_to_<destino>.sql`, p. ej. `hr_oracle_to_mariadb.sql`).
+El script DDL se guarda con nombre sugerido por `plan.suggested_filename()` (`<schema>_<origen>_to_<destino>.sql`, p. ej. `hr_oracle_to_mariadb.sql`). `tests/integration/test_docs_examples_engines.py` lo ejecuta contra el banco del proyecto.
 
 ## 5. Referencias Relacionadas
 

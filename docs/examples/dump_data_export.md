@@ -45,7 +45,11 @@ config = DumpConfig(
 # Validación sintáctica
 python -m py_compile docs/examples/dump_data_export.py
 
-# Ejecución (requiere engines de origen y destino accesibles, con las tablas ya creadas en el destino; verificado contra el banco)
+# Ejecución: origen y destino accesibles, con las tablas ya creadas en el destino
+# (sin las dos URL explica cómo configurarlas)
+export UTIL_BBDD_EXAMPLE_SOURCE_URL="postgresql+psycopg://user:password@prod-server:5432/production_db"
+export UTIL_BBDD_EXAMPLE_TARGET_URL="mssql+pymssql://user:password@analytics-server/analytics_db"
+# opcionales: UTIL_BBDD_EXAMPLE_SOURCE_SCHEMA (public) y UTIL_BBDD_EXAMPLE_TARGET_SCHEMA (dbo)
 python docs/examples/dump_data_export.py
 ```
 

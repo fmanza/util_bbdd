@@ -42,12 +42,13 @@ planner = MigrationPlanner(
 # Validación sintáctica
 python -m py_compile docs/examples/migrate_mariadb_source.py
 
-# Ejecución (requiere servidor MariaDB accesible; verificado contra el banco del proyecto)
-# Sustituir credenciales antes de ejecutar
+# Ejecución contra un MariaDB accesible (sin UTIL_BBDD_EXAMPLE_URL explica cómo configurarla)
+export UTIL_BBDD_EXAMPLE_URL="mariadb+pymysql://reader:secret@mariadb-host:3306/ventas"
+export UTIL_BBDD_EXAMPLE_SCHEMA="ventas"  # opcional; por defecto ventas
 python docs/examples/migrate_mariadb_source.py
 ```
 
-El script DDL se guarda como `ventas_schema_postgresql.sql` (o el nombre configurado).
+El script DDL se guarda como `<schema>_schema_postgresql.sql` (`ventas_schema_postgresql.sql` con el schema por defecto). `tests/integration/test_docs_examples_engines.py` lo ejecuta contra el banco del proyecto.
 
 ## 5. Referencias Relacionadas
 

@@ -27,7 +27,9 @@ El ejemplo demuestra tres aspectos clave:
 # Validación sintáctica
 python -m py_compile docs/examples/bulk_insert_csv.py
 
-# Ejecución (requiere PostgreSQL accesible; el ejemplo genera el CSV de entrada; verificado contra el banco)
+# Ejecución contra un PostgreSQL accesible; el ejemplo genera el CSV de entrada
+# (sin UTIL_BBDD_EXAMPLE_URL explica cómo configurarla; ?schema=… elige el schema de la tabla)
+export UTIL_BBDD_EXAMPLE_URL="postgresql+psycopg://postgres:secret@localhost:5432/test_db"
 python docs/examples/bulk_insert_csv.py
 ```
 
