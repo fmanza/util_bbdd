@@ -142,7 +142,7 @@ conn_params = {
 | mariadb < 1.1.0 | ❌ Rechazado | ❌ Rechazado | Ambos ignorados; retry del pool los descarta |
 
 **Nota:** La librería ejecuta retry automático si el driver rechaza estos parámetros. Ver
-[`pool_connection_mariadb.py` §3.1](../../src/util_bbdd/connection/mariadb/pool_connection_mariadb.py#L23)
+`src/util_bbdd/connection/mariadb/pool_connection_mariadb.py` (§3.1)
 para detalles del mecanismo.
 
 ## 6. Diagnóstico de problemas

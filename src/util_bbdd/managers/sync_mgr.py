@@ -289,7 +289,11 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         )
 
     def release_connection(self, connection: Any | None = None) -> None:
-        """Devuelve la conexión al pool o cierra la conexión única (mismo nombre que en ``AsyncDatabaseManager``)."""
+        """Devuelve la conexión al pool o cierra la conexión única (mismo nombre que en ``AsyncDatabaseManager``).
+
+        Args:
+            connection: Conexión obtenida con ``get_connection()``. Con ``None`` no hay nada que liberar.
+        """
         self.session_manager.close_connection(connection=connection)
 
     def close(self, timeout_seconds: float | None = None, force: bool = False) -> None:
@@ -403,8 +407,29 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
 
     # ==================== MÉTODOS ADICIONALES ====================
 
-    def execute_query_many(self, query_name: str, timeout: float | None = None, **kwargs) -> Rows:
-        """Ejecuta una consulta registrada y retorna múltiples filas."""
+    def execute_query_many(self, query_name: str, timeout: float | None = None, **kwargs: Any) -> Rows:
+        """Ejecuta una consulta registrada y retorna múltiples filas.
+
+        Args:
+            query_name: Nombre de la consulta en el registro del motor (``get_available_queries()``).
+            timeout: Timeout en segundos (opcional).
+            **kwargs: Parámetros que se interpolan en la plantilla SQL de la consulta.
+
+        Returns:
+            Lista de filas resultantes.
+
+        Raises:
+            QueryNotFoundError: Si la consulta no existe para el motor.
+            QueryValidationError: Si los parámetros no superan la validación del motor.
+            QueryTimeoutError: Si se supera ``timeout``.
+            DatabaseOperationError: Si falla la ejecución (el error original queda en ``__cause__``).
+
+        Example:
+            La librería no trae consultas registradas: se leen de un JSON ``{motor: {nombre: SQL}}``
+            (ver ``docs/examples/query_execution_example.py``).
+
+            >>> rows = manager.execute_query_many("get_usuarios_activos", desde="2026-01-01")
+        """
         result = self._execute_registered_query(
             query_name=query_name,
             params=kwargs,
@@ -413,8 +438,23 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         )
         return cast(Rows, result)
 
-    def execute_query_one(self, query_name: str, timeout: float | None = None, **kwargs) -> RowOrNone:
-        """Ejecuta una consulta registrada y retorna una única fila o None."""
+    def execute_query_one(self, query_name: str, timeout: float | None = None, **kwargs: Any) -> RowOrNone:
+        """Ejecuta una consulta registrada y retorna una única fila o None.
+
+        Args:
+            query_name: Nombre de la consulta en el registro del motor (``get_available_queries()``).
+            timeout: Timeout en segundos (opcional).
+            **kwargs: Parámetros que se interpolan en la plantilla SQL de la consulta.
+
+        Returns:
+            La primera fila, o ``None`` si la consulta no devuelve filas.
+
+        Raises:
+            QueryNotFoundError: Si la consulta no existe para el motor.
+            QueryValidationError: Si los parámetros no superan la validación del motor.
+            QueryTimeoutError: Si se supera ``timeout``.
+            DatabaseOperationError: Si falla la ejecución (el error original queda en ``__cause__``).
+        """
         result = self._execute_registered_query(
             query_name=query_name,
             params=kwargs,
@@ -530,8 +570,21 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         )
         return cast(RowOrNone, result)
 
-    def resolve_query(self, query_name: str, **params) -> Any:
-        """Resuelve una query registrada y devuelve SQL final + metadatos."""
+    def resolve_query(self, query_name: str, **params: Any) -> Any:
+        """Resuelve una query registrada y devuelve SQL final + metadatos, sin ejecutarla.
+
+        Args:
+            query_name: Nombre de la consulta en el registro del motor.
+            **params: Parámetros que se interpolan en la plantilla SQL.
+
+        Returns:
+            ``ResolvedQuery`` con ``final_sql``, ``validated``, ``warnings`` y ``metadata``.
+
+        Raises:
+            QueryNotFoundError: Si la consulta no existe para el motor.
+            QueryValidationError: Si los parámetros no superan la validación del motor.
+            QueryParameterError: Si falla la interpolación de parámetros.
+        """
         return self._query_catalog.resolver.resolve(query_name, params)
 
     def get_query_info(self) -> dict[str, Any]:

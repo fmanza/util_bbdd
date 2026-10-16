@@ -50,7 +50,7 @@ sigue SemVer. Si vienes de 0.x: [Migración a la API 1.0](guides/api_1_0_migrati
 ## 3. Quick Start
 
 ```bash
-pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v1.1.0"
+pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v3.0.2"
 ```
 
 ```python

@@ -140,7 +140,11 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         pass
 
     async def release_connection(self, connection: Any) -> None:
-        """Libera conexión al pool o no-op en conexión directa."""
+        """Libera conexión al pool o no-op en conexión directa.
+
+        Args:
+            connection: Conexión obtenida con ``get_connection()``.
+        """
         await release_async_connection(pool_connection=self.pool_connection, connection=connection)
 
     async def _ensure_initialized(self) -> None:
@@ -345,9 +349,22 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
     async def execute_query_one(
         self,
         query_name: str,
-        **params,
+        **params: Any,
     ) -> RowOrNone:
-        """Ejecuta query registrada por nombre y retorna una única fila o None."""
+        """Ejecuta query registrada por nombre y retorna una única fila o None.
+
+        Args:
+            query_name: Nombre de la query registrada
+            **params: Parámetros para la query
+
+        Returns:
+            La primera fila, o ``None`` si la consulta no devuelve filas.
+
+        Raises:
+            QueryNotFoundError: Si la query no existe
+            QueryValidationError: Si validación de parámetros falla
+            DatabaseOperationError: Si falla la capa de manager/infraestructura.
+        """
         result = await self._execute_registered_query(
             query_name=query_name,
             params=params,
@@ -355,8 +372,21 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         )
         return cast(RowOrNone, result)
 
-    async def resolve_query(self, query_name: str, **params) -> Any:
-        """Resuelve una query registrada y devuelve su SQL final y metadatos."""
+    async def resolve_query(self, query_name: str, **params: Any) -> Any:
+        """Resuelve una query registrada y devuelve su SQL final y metadatos, sin ejecutarla.
+
+        Args:
+            query_name: Nombre de la consulta en el registro del motor.
+            **params: Parámetros que se interpolan en la plantilla SQL.
+
+        Returns:
+            ``ResolvedQuery`` con ``final_sql``, ``validated``, ``warnings`` y ``metadata``.
+
+        Raises:
+            QueryNotFoundError: Si la consulta no existe para el motor.
+            QueryValidationError: Si los parámetros no superan la validación del motor.
+            DatabaseOperationError: Si falla la interpolación u otro error de la capa de manager.
+        """
         executor: AsyncQueryExecutor = await self._get_query_executor()
         return await self._run_manager_operation_async(
             action=lambda: executor.resolver.bind(self.db_type).resolve(query_name, params),
@@ -387,6 +417,11 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
             self._initialized = False
 
     async def get_query_info(self) -> dict[str, Any]:
+        """Obtiene información sobre las consultas disponibles para el motor.
+
+        Returns:
+            Diccionario con ``db_type``, ``total_queries``, ``query_names`` y ``queries`` (detalle por consulta).
+        """
         executor: AsyncQueryExecutor = await self._get_query_executor()
 
         def _build_query_info() -> dict[str, Any]:
@@ -573,6 +608,11 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         return validate_db_type(db_type)
 
     async def get_available_queries(self) -> list[str]:
+        """Obtiene los nombres de las consultas disponibles para el motor.
+
+        Returns:
+            Lista de nombres de consultas registradas.
+        """
         executor: AsyncQueryExecutor = await self._get_query_executor()
         result = await self._run_manager_operation_async(
             action=lambda: executor.registry.get_available_queries(self.db_type),
