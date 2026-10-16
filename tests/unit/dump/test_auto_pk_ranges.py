@@ -69,20 +69,38 @@ class TestRangeCount:
 
 
 class TestLoadInPkRanges:
-    def _run(self, orch: DumpOrchestrator, lo: int, hi: int) -> tuple[MagicMock, MagicMock]:
+    def _run(
+        self, orch: DumpOrchestrator, lo: int, hi: int, rows_hint: int | None = None
+    ) -> tuple[MagicMock, MagicMock]:
         orch._resolve_range_count("auto", 1)
         orch._cfg.source_engine.connect.return_value.execute.return_value.one.return_value = (lo, hi)
         crud = MagicMock()
         crud.rows_rejected = 0
         with patch("util_bbdd.dump.orchestrator.ParallelBulkLoader") as loader_cls:
             loader_cls.return_value.load.return_value = ParallelLoadResult()
-            orch._load_in_pk_ranges("t", ["id"], {"id": "id"}, "id", "t", 4, crud=crud)
+            orch._load_in_pk_ranges("t", ["id"], {"id": "id"}, "id", "t", 4, crud=crud, rows_hint=rows_hint)
         return loader_cls, crud
 
     def test_large_sql_server_table_is_split(self) -> None:
         loader_cls, crud = self._run(_orch("mssql"), 1, 4_000_000)
         assert loader_cls.call_args.kwargs["parallel"].max_workers == 4
         crud.bulk_insert_from_chunks.assert_not_called()
+
+    def test_row_count_below_the_threshold_wins_over_a_sparse_range(self) -> None:
+        """Deuda D4: PK con huecos (rango de 4M, 1.000 filas): con el COUNT(*) del origen, la tabla va entera."""
+        loader_cls, crud = self._run(_orch("mssql"), 1, 4_000_000, rows_hint=1_000)
+        loader_cls.assert_not_called()
+        crud.bulk_insert_from_chunks.assert_called_once()
+
+    @pytest.mark.parametrize("rows_hint", [None, -1])
+    def test_without_row_count_the_range_is_the_estimate(self, rows_hint: int | None) -> None:
+        loader_cls, _ = self._run(_orch("mssql"), 1, 4_000_000, rows_hint=rows_hint)
+        assert loader_cls.call_args.kwargs["parallel"].max_workers == 4
+
+    def test_row_count_never_raises_the_range_estimate(self) -> None:
+        loader_cls, crud = self._run(_orch("mssql"), 1, 1_000, rows_hint=10_000_000)
+        loader_cls.assert_not_called()
+        crud.bulk_insert_from_chunks.assert_called_once()
 
     def test_small_table_is_loaded_whole(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level("INFO", logger="util_bbdd.dump.orchestrator"):

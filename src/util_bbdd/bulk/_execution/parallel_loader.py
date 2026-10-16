@@ -275,6 +275,9 @@ class ParallelBulkLoader:
         self._sleep: Callable[[float], None] = time.sleep
         self._jitter: Callable[[float, float], float] = random.uniform
         self._max_workers = self._resolve_max_workers(self._parallel.max_workers)
+        #: Privilegio TEMP de PostgreSQL para el plan del UPDATE (None: sin comprobar). Una consulta por instancia; la
+        #: fachada paralela de BulkCrud lo pasa ya comprobado. Los workers lo vuelven a comprobar en su sesión.
+        self._temp_tables_allowed: bool | None = None
 
     @property
     def options(self) -> BulkOptions:
@@ -417,8 +420,9 @@ class ParallelBulkLoader:
             RangePartitioner.validate_disjoint(partition_ranges, len(partition_readers))
 
         audit = self._options.audit
-        if not audit.enabled:
-            # M-4: un aviso por carga; las BulkCrud de las particiones se crean sin el suyo.
+        if not audit.enabled and audit.warn_if_disabled:
+            # M-4: un aviso por carga; las BulkCrud de las particiones se crean sin el suyo. Sin él con
+            # warn_if_disabled=False (la fachada paralela de BulkCrud, que ya avisó al crearse).
             self.logger.info("Auditoría deshabilitada en la carga paralela de '%s' (sin audit).", tabla_destino)
         # Un run_id por carga (o el recibido); se pasa a cada partición, sin estado compartido entre cargas.
         run_id: str | None = None if audit.sink is None else (audit.run_id or uuid.uuid4().hex)
@@ -525,11 +529,14 @@ class ParallelBulkLoader:
         """En PostgreSQL, ``False`` si falta el privilegio ``TEMP`` (el UPDATE paralelo sería fila a fila).
 
         Sin él, :meth:`_plan` deja la carga en un hilo y avisa; concede ``TEMP`` sobre la base de datos para usar varios.
+        Se consulta una vez por instancia (``_temp_tables_allowed``).
         """
         if self._engine.dialect.name != "postgresql":
             return True
-        with self._engine.connect() as conn:
-            return facts.can_create_temp_tables(conn)
+        if self._temp_tables_allowed is None:
+            with self._engine.connect() as conn:
+                self._temp_tables_allowed = facts.can_create_temp_tables(conn)
+        return self._temp_tables_allowed
 
     def _load_partition(
         self,

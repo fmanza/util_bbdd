@@ -45,7 +45,7 @@ flowchart TD
 | `audit_uncommitted_records` | propiedad | Con `audit.strict=True`: registros escritos en el CSV antes de un commit que falló | `int` |
 | `options` | propiedad | Paquetes de opciones de la instancia (v3.0.0) | `BulkOptions` |
 | `parallel_plan` | `(operation, rows)` | Plan de ejecución de un `bulk_*_from_df` con las `ParallelOptions` de la instancia: hilos y motivos (`reasons`). Sin `parallel`, en serie | `ParallelPlan` |
-| `last_parallel_result` | propiedad | Resultado de la última carga paralela de un `bulk_*_from_df` (también tras `ParallelLoadError`); `None` si no hubo. Sus filas no cuentan en `rows_committed` | `ParallelLoadResult \| None` |
+| `last_parallel_result` | propiedad | Resultado de la última carga paralela de un `bulk_*_from_df` (también tras `ParallelLoadError`); `None` si no hubo. Sus filas no cuentan en `rows_committed` ni en `last_operation_rows_committed`, a propósito: esos contadores son el prefijo confirmado desde el que reanudar (`df.iloc[n:]`) y las particiones confirmadas no forman un prefijo; para reanudar, `partition_results` dice qué particiones fallaron | `ParallelLoadResult \| None` |
 
 ### Contrato de entrada
 

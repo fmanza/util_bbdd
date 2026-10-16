@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -203,3 +203,59 @@ def test_loader_with_mode_off_is_serial_without_logging(engine: Engine, caplog: 
     assert result.plan is not None
     assert result.plan.workers == 1
     assert "en lugar de" not in caplog.text
+
+
+class TestParallelFollowups:
+    """Deuda D1/D2 tras v3.0.0 (sesión 2026-10-16g)."""
+
+    def test_loader_checks_temp_once_per_instance(self) -> None:
+        engine = MagicMock()
+        engine.dialect.name = "postgresql"
+        engine.pool.size = "x"
+        loader = pl_mod.ParallelBulkLoader(engine)
+        with patch.object(pl_mod.facts, "can_create_temp_tables", return_value=True) as check:
+            assert loader._staging_update_available() is True
+            assert loader._staging_update_available() is True
+        assert check.call_count == 1
+
+    def test_loader_uses_the_fact_passed_by_the_facade(self) -> None:
+        engine = MagicMock()
+        engine.dialect.name = "postgresql"
+        engine.pool.size = "x"
+        loader = pl_mod.ParallelBulkLoader(engine)
+        loader._temp_tables_allowed = False
+        with patch.object(pl_mod.facts, "can_create_temp_tables") as check:
+            assert loader._staging_update_available() is False
+        check.assert_not_called()
+        engine.connect.assert_not_called()
+
+    @pytest.mark.usefixtures("several_writers")
+    def test_facade_hands_its_temp_fact_to_the_loader(self, engine: Engine) -> None:
+        crud = _crud(engine)
+        crud._temp_tables_allowed = True  # como si parallel_plan lo hubiera comprobado en PostgreSQL
+        seen: list[bool | None] = []
+        original = pl_mod.ParallelBulkLoader._run
+
+        def spy(self: Any, *args: Any, **kwargs: Any) -> Any:
+            seen.append(self._temp_tables_allowed)
+            return original(self, *args, **kwargs)
+
+        with patch.object(pl_mod.ParallelBulkLoader, "_run", spy):
+            crud.bulk_insert_from_df(_items(range(1, 5)), "items", generar_sql=False)
+        assert seen == [True]
+
+    @pytest.mark.usefixtures("several_writers")
+    def test_facade_does_not_repeat_the_audit_disabled_info(
+        self, engine: Engine, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        crud = _crud(engine)
+        with caplog.at_level("INFO", logger=pl_mod.__name__):
+            crud.bulk_insert_from_df(_items(range(1, 5)), "items", generar_sql=False)
+        assert crud.last_parallel_result is not None
+        assert "Auditoría deshabilitada" not in caplog.text
+
+    def test_loader_alone_still_reports_disabled_audit(self, engine: Engine, caplog: pytest.LogCaptureFixture) -> None:
+        loader = pl_mod.ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1))
+        with caplog.at_level("INFO", logger=pl_mod.__name__):
+            loader.load("items", [lambda: iter([_items([1])])])
+        assert "Auditoría deshabilitada" in caplog.text

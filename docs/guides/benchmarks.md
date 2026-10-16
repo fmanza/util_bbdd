@@ -168,9 +168,20 @@ repeticiones; tabla de 10 columnas de `scripts/bench_bulk.py`; SQL Server con py
 | Oracle 23 Free | 1,47 → 1,06 s (1,39×) | 6,24 → 3,29 s (1,89×) | en serie / en serie / en serie |
 
 - Desde 50K filas el INSERT ya gana en MySQL, MariaDB y SQL Server: es el umbral de `"auto"` (antes de esta medición, 200K).
-- Oracle con 1M (1, 2 y 4 hilos): INSERT 13,4 / 10,1 / 10,1 s (1,33×), UPDATE 15,5 / 15,3 / 14,8 s, DELETE 16,3 / 15,5 /
-  20,8 s. El INSERT en serie tardó 27,3 s en otra tanda del mismo día: con Oracle 23 Free (2 hilos de CPU como máximo)
-  las mediciones no son estables, y `"auto"` lo deja en serie.
+- Oracle con el protocolo de `scripts/bench_parallel.py` (calentamiento y 5 tandas alternas; sesión `2026-10-16g`), mediana
+  y p25–p75 en segundos:
+
+    | Filas | Operación | 1 hilo | 2 hilos | 4 hilos |
+    |---|---|---|---|---|
+    | 200K | INSERT | 1,90 (1,83–1,91) | 1,83 (1,78–2,10) · 1,04× | 2,03 (1,94–2,08) · 0,94× |
+    | 200K | UPDATE | 2,93 (2,91–3,02) | 2,83 (2,83–2,96) · 1,03× | 2,81 (2,75–2,92) · 1,04× |
+    | 200K | DELETE | 3,07 (3,01–3,09) | 2,67 (2,51–2,80) · 1,15× | 3,34 (3,23–3,46) · 0,92× |
+    | 1M | INSERT | 10,55 (10,48–13,29) | 10,72 (10,46–11,08) · 0,98× | 10,55 (10,50–11,82) · 1,00× |
+    | 1M | UPDATE | 16,40 (16,19–19,27) | 16,07 (15,91–17,05) · 1,02× | 17,21 (16,45–17,58) · 0,95× |
+    | 1M | DELETE | 18,23 (17,47–19,91) | 16,19 (14,43–17,76) · 1,13× | 18,70 (17,29–21,19) · 0,97× |
+
+  Oracle 23 Free (2 hilos de CPU como máximo) no gana en paralelo: `"auto"` lo deja en serie. Las ganancias de la tabla de
+  arriba (1,39× y 1,89× con 4 hilos) y un INSERT de 1M en serie de 27,3 s salieron de tandas sin calentamiento.
 
 #### Checkpoints, reanudación y reintentos
 
@@ -298,11 +309,27 @@ Variantes A/B disponibles (cada una se aplica solo a los motores indicados):
 |---|---|---|
 | `baseline` | todos | `BulkCrud` por defecto |
 | `mysql-multirow-legacy` | MySQL, MariaDB | `insert_resolver` con la vía multi-fila anterior a P-02 (control) |
-| `mysql-update-executemany-legacy` | MySQL, MariaDB | `BulkCrud(update_via_staging=False)`: UPDATE fila a fila anterior a P-04 (control) |
+| `mysql-update-executemany-legacy` | MySQL, MariaDB | `ExecutionOptions(update_via_staging=False)`: UPDATE fila a fila anterior a P-04 (control) |
 | `p01-mssql-engine-fast-executemany` | SQL Server + pyodbc | `create_engine(..., fast_executemany=True)` |
 
 La reflexión de la tabla queda fuera de la medición. Los nombres de tabla y columnas siguen la convención de
 `BulkCrud` para cada motor: mayúsculas en SQL Server y minúsculas en el resto.
+
+### Banco de la carga paralela (`scripts/bench_parallel.py`)
+
+Mide `BulkCrud` en serie frente a `ParallelOptions(mode="manual", max_workers=N)` (INSERT → UPDATE → DELETE) para validar
+o actualizar las reglas de `ParallelPlanner.RULES`. Mismas URLs que `scripts/bench_bulk.py`; SQL Server con pyodbc +
+ODBC Driver 18 salvo `--mssql-driver url`. Protocolo: una tanda de calentamiento descartada, las configuraciones de hilos
+**alternadas** en cada repetición (1, 2, 4 y luego 4, 2, 1) y, por configuración, mediana y rango intercuartílico. La
+columna «Gana» aplica el criterio del planificador: mediana ≥ 1,5× y sin solape de los rangos intercuartílicos.
+
+```bash
+source scripts/bench_env.example.sh
+python scripts/bench_parallel.py --engines oracle --rows 200000,1000000 --workers 2,4 --repeat 5 --out build/logs/bench_parallel.md
+```
+
+Al cambiar una regla, actualiza su `evidence` en `parallel_planner.py`, la tabla de
+[`ParallelPlanner`](../api/bulk_parallel.md#planificador-parallelplanner-v300) y esta guía.
 
 ### Banco de comparación de esquemas
 

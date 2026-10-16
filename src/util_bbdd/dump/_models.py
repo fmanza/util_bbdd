@@ -129,7 +129,8 @@ class DumpConfig:
             PostgreSQL −9 % y Oracle −2 % (poca ganancia); MySQL y MariaDB casi el doble de tiempo
             (no recomendado; se avisa en el log); SQLite se fuerza a 1 (un solo escritor).
             ``"auto"`` (v3.0.0): el número de rangos de cada tabla lo decide ``ParallelPlanner`` con el motor de
-            destino y una cota de las filas (``MAX(pk) − MIN(pk) + 1``), con las mediciones de arriba: hoy solo
+            destino y las filas del origen (el ``COUNT(*)`` de ``collect_row_counts``; sin él, la cota
+            ``MAX(pk) − MIN(pk) + 1``, que sobrestima si la PK tiene huecos), con las mediciones de arriba: hoy solo
             particiona con destino SQL Server y tablas de 3,5M filas o más (4 rangos, o menos si el pool no da para
             ``max_parallel_tables`` × 4); el resto se carga entera. El motivo de cada tabla queda en el log (INFO).
         write_batch_size: Filas por lote de escritura en el destino (una sentencia ``COPY`` o

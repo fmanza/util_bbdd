@@ -633,7 +633,14 @@ class DumpOrchestrator:
         n_ranges: int = getattr(self, "_effective_pk_ranges", 1)
         if pk_range_col is not None and n_ranges > 1:
             error_msgs, rows_rejected = self._load_in_pk_ranges(
-                src_table, common_cols, col_name_map, pk_range_col, dest_table_logical, n_ranges, crud=crud
+                src_table,
+                common_cols,
+                col_name_map,
+                pk_range_col,
+                dest_table_logical,
+                n_ranges,
+                crud=crud,
+                rows_hint=source_rows,
             )
         else:
             # La BulkCrud se reutiliza entre las tablas del hilo: sus rechazos de esta tabla, por diferencia.
@@ -723,12 +730,15 @@ class DumpOrchestrator:
         n_ranges: int,
         *,
         crud: BulkCrud | None = None,
+        rows_hint: int | None = None,
     ) -> tuple[list[str], int]:
         """Particiona la tabla por rangos contiguos de ``pk_col`` y los carga en paralelo.
 
         Devuelve los errores de los rangos y las filas rechazadas (``on_error="isolate"``). Con
         ``parallel_pk_ranges="auto"``, ``n_ranges`` es el tope: el número de rangos lo decide ``ParallelPlanner`` con la
-        cota de filas ``MAX − MIN + 1``; si sale 1, la tabla se carga entera con ``crud`` (o una ``BulkCrud`` nueva).
+        cota de filas ``MAX − MIN + 1`` (o ``rows_hint``, el ``COUNT(*)`` del origen de ``collect_row_counts``, si es menor:
+        con huecos en la PK la cota sobrestima); si sale 1, la tabla se carga entera con ``crud`` (o una ``BulkCrud``
+        nueva). ``rows_hint`` negativo o ``None``: sin recuento, solo la cota.
 
         Responsabilidad de ``dump`` (política): calcular los rangos a partir del origen
         (MIN/MAX + bounds) y construir un *lector* por rango. El mecanismo de inserción
@@ -750,7 +760,10 @@ class DumpOrchestrator:
 
         lo, hi = int(row[0]), int(row[1])
         if getattr(self, "_auto_pk_ranges", False):
-            n_ranges = self._plan_pk_ranges(src_table, hi - lo + 1, n_ranges)
+            rows: int = hi - lo + 1
+            if rows_hint is not None and rows_hint >= 0:
+                rows = min(rows, rows_hint)
+            n_ranges = self._plan_pk_ranges(src_table, rows, n_ranges)
             if n_ranges <= 1:
                 worker = crud if crud is not None else self._make_worker_crud()
                 rejected_before: int = worker.rows_rejected
@@ -888,7 +901,7 @@ class DumpOrchestrator:
     def _plan_pk_ranges(self, src_table: str, rows: int, ceiling: int) -> int:
         """Rangos de PK de una tabla con ``parallel_pk_ranges="auto"`` (``ParallelPlanner``, cada hilo lee del origen).
 
-        ``rows`` es una cota (``MAX − MIN + 1``): con huecos en la PK, la tabla tiene menos filas. El motivo va al log.
+        ``rows`` son las filas del origen (``COUNT(*)``) o, sin recuento, la cota ``MAX − MIN + 1``. El motivo va al log.
         """
         plan = ParallelPlanner.plan(
             PlanInput(
@@ -900,7 +913,7 @@ class DumpOrchestrator:
             )
         )
         self.logger.info(
-            "%s: %d rango(s) de PK (parallel_pk_ranges='auto', hasta %d filas): %s",
+            "%s: %d rango(s) de PK (parallel_pk_ranges='auto', %d filas): %s",
             src_table,
             plan.workers,
             rows,

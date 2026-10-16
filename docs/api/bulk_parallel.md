@@ -77,7 +77,7 @@ Reglas medidas con los datos ya en memoria (fuente: [benchmarks](../guides/bench
 | MySQL | 4 hilos | 4 hilos (con tabla temporal) | 2 hilos |
 | MariaDB | 4 hilos | 4 hilos (con tabla temporal) | 2 hilos |
 | PostgreSQL | En serie (≤ 1,2×) | 4 hilos (con `TEMP`) | 4 hilos |
-| Oracle | En serie (1,3× a 1M, inestable) | En serie | En serie |
+| Oracle | En serie (≤ 1,04× con 200K y 1M) | En serie (≤ 1,04×) | En serie (≤ 1,15×) |
 | SQLite, HSQLDB | En serie | En serie | En serie |
 
 Cuando cada hilo lee además su rango del origen (`dump`), solo gana SQL Server (4 rangos, −37 % a 3,5M filas); el resto va

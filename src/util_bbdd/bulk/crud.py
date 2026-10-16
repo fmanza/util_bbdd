@@ -942,12 +942,15 @@ class BulkCrud:
         loader = ParallelBulkLoader(
             self.engine,
             batch=options.batch,
-            # Los eventos de las particiones, con el run_id de la instancia.
-            audit=replace(options.audit, run_id=self._audit_run_id),
+            # Los eventos de las particiones, con el run_id de la instancia; sin el INFO de auditoría deshabilitada en cada
+            # carga (la instancia ya avisó al crearse).
+            audit=replace(options.audit, run_id=self._audit_run_id, warn_if_disabled=False),
             rejects=options.rejects,
             execution=options.execution,
             parallel=replace(options.parallel, mode="manual", max_workers=workers),
         )
+        # El privilegio TEMP ya comprobado por parallel_plan: el loader no abre otra conexión para consultarlo.
+        loader._temp_tables_allowed = self._temp_tables_allowed  # noqa: SLF001 — mismo paquete (bulk)
         readers = [lambda partition=partition: iter((partition,)) for partition in partitions]
         if operation == "insert":
             result = loader.load(

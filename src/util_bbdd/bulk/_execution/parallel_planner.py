@@ -59,7 +59,8 @@ def _rules() -> Mapping[tuple[Workload, str, Operation], ParallelRule]:
     serial = 1
     rules: dict[tuple[Workload, str, Operation], ParallelRule] = {
         # Datos ya leídos: 1M filas con 1, 2 y 4 hilos (2026-10-01) y, en INSERT, también 200K con 1 y 4 (v0.26.0) y
-        # 50K/200K con 1 y 4 (v3.0.0, sesión 2026-10-16f: BulkCrud con ParallelOptions, SQL Server con pyodbc).
+        # 50K/200K con 1 y 4 (v3.0.0, sesión 2026-10-16f: BulkCrud con ParallelOptions, SQL Server con pyodbc). Oracle:
+        # scripts/bench_parallel.py, 200K y 1M con 1/2/4 hilos, calentamiento y 5 tandas alternas (sesión 2026-10-16g).
         ("memory", "postgresql", "insert"): ParallelRule(
             serial, 50_000, "INSERT con psycopg 3: ≤ 1,2× con 2-4 hilos (50K-1M)"
         ),
@@ -75,13 +76,13 @@ def _rules() -> Mapping[tuple[Workload, str, Operation], ParallelRule]:
         ("memory", "mssql", "update"): ParallelRule(4, 1_000_000, "UPDATE 1M: 22,8 s → 8,2 s con 4 hilos (2,8×)"),
         ("memory", "mssql", "delete"): ParallelRule(4, 1_000_000, "DELETE 1M: 3,0 s → 1,2 s con 4 hilos (2,5×)"),
         ("memory", "oracle", "insert"): ParallelRule(
-            serial, 50_000, "INSERT 1M: 1,3× con 2-4 hilos, inestable entre ejecuciones (Oracle 23 Free)"
+            serial, 50_000, "INSERT 200K-1M: 0,94-1,04× con 2-4 hilos (5 tandas alternas, Oracle 23 Free)"
         ),
         ("memory", "oracle", "update"): ParallelRule(
-            serial, 1_000_000, "UPDATE 1M: ~1× con 2-4 hilos (Oracle 23 Free)"
+            serial, 1_000_000, "UPDATE 200K-1M: 0,95-1,04× con 2-4 hilos (5 tandas alternas, Oracle 23 Free)"
         ),
         ("memory", "oracle", "delete"): ParallelRule(
-            serial, 1_000_000, "DELETE 1M: ~1× con 2 hilos, más lento con 4 (Oracle 23 Free)"
+            serial, 1_000_000, "DELETE 200K-1M: 1,13-1,15× con 2 hilos, ≤ 1× con 4 (5 tandas alternas, Oracle 23 Free)"
         ),
         # Cada hilo lee su rango del origen (dump, 4 rangos a 3,5M filas frente a la carga que ya solapa lectura y
         # escritura).
