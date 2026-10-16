@@ -103,7 +103,7 @@ class DatabaseQueries:
 
     # ==================== MÉTODOS DE CONSULTA BÁSICOS ====================
 
-    def get_query(self, query_name: str, **kwargs) -> str:
+    def get_query(self, query_name: str, **kwargs: Any) -> str:
         """
         Obtiene una consulta SQL formateada con los parámetros proporcionados
 
@@ -151,7 +151,7 @@ class DatabaseQueries:
 
     # ==================== MÉTODOS AVANZADOS DE VALIDACIÓN ====================
 
-    def validate_query_for_db_type(self, query_name: str, **kwargs) -> tuple[bool, list[str]]:
+    def validate_query_for_db_type(self, query_name: str, **kwargs: Any) -> tuple[bool, list[str]]:
         """
         Valida una consulta específica para el tipo de base de datos actual
 

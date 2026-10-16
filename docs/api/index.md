@@ -18,7 +18,9 @@ Documentación generada automáticamente desde los docstrings del código fuente
 | [Documentación de BD](doc_autodoc.md) | `DatabaseDocumentation`, `DocumentationResult` |
 | [Metadatos](metadata_autodoc.md) | `SchemaSnapshot`, `Kind`, tipos del modelo y contratos de `util_bbdd.metadata` |
 | [Auditoría](audit_autodoc.md) | `AuditEvent`, `AuditSink` y destinos de `util_bbdd.audit` |
-| [Conexiones](connection_autodoc.md) | `build_conn_params`, `ConnectionFactory`, `ConnectionParamsManager` |
+| [Conexiones](connection_autodoc.md) | `build_conn_params`, `ConnectionFactory`, `ConnectionParamsManager`, `PoolFactory`, engines SQLAlchemy |
+| [Sistema de Queries](query_autodoc.md) | `QueryRegistry`, `QueryResolver`, `DatabaseQueries`, validadores y `ResultNormalizer` |
+| [Análisis de Relaciones](analysis_autodoc.md) | `DatabaseRelationshipGraphBase`, `GraphvizRelationshipGraphExt`, `MatplotlibRelationshipGraph`, `GraphDocument` |
 | [Excepciones](exceptions.md) | `util_bbdd.exceptions`: `DatabaseException` y toda la jerarquía |
 
 ---

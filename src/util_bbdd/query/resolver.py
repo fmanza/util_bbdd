@@ -37,14 +37,16 @@ class QueryResolver:
     - Interpolar parámetros en SQL template
     - Retornar ResolvedQuery con SQL final y metadatos
 
-    Ejemplo:
-        resolver = QueryResolver(db_type="mariadb")
-        resolved = resolver.resolve(
-            "obtener_tablas",
-            {"database": "test_db"}
-        )
-        assert "{database}" not in resolved.final_sql
+    Example:
+        La librería no trae queries registradas: se leen de un JSON ``{motor: {nombre: SQL}}``.
+
+        ```python
+        registry = QueryRegistry(Path("queries.json"))  # {"mariadb": {"get_tabla": "SELECT * FROM {tabla}"}}
+        resolver = QueryResolver(registry, db_type="mariadb")
+        resolved = resolver.resolve("get_tabla", {"tabla": "users"})
+        assert resolved.final_sql == "SELECT * FROM users"
         assert resolved.validated
+        ```
     """
 
     def __init__(self, registry: QueryRegistry | None = None, *, db_type: str | None = None) -> None:
@@ -86,14 +88,10 @@ class QueryResolver:
             QueryParameterError: Si interpolación falla
 
         Example:
-            resolved = resolver.resolve(
-                "columnas_tabla",
-                {"database": "mydb", "tabla": "users"}
-            )
-            # ResolvedQuery(
-            #     final_sql="SELECT ... WHERE table_schema = 'mydb' AND table_name = 'users'",
-            #     validated=True
-            # )
+            ```python
+            resolved = resolver.resolve("get_tabla", {"tabla": "users"})
+            # ResolvedQuery(final_sql="SELECT * FROM users", validated=True, ...)
+            ```
         """
         params = params or {}
         start_time: float = time.time()

@@ -297,7 +297,18 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         self.session_manager.close_connection(connection=connection)
 
     def close(self, timeout_seconds: float | None = None, force: bool = False) -> None:
-        """Cierra la conexión a la base de datos y libera recursos del pool."""
+        """Cierra la conexión a la base de datos y libera recursos del pool.
+
+        Intenta cerrar todos los recursos (engine SQLAlchemy, pool, cursor y conexión) aunque alguno falle.
+
+        Args:
+            timeout_seconds: Segundos de espera al cerrar el pool; ``None`` usa ``conn_params["close_timeout"]``
+                (10 por defecto).
+            force: Cierra el pool sin esperar a que se devuelvan las conexiones prestadas.
+
+        Raises:
+            DatabaseOperationError: Si falla el cierre de algún recurso (se informan todos los fallos).
+        """
         effective_timeout: float | None = (
             self._default_close_timeout_seconds if timeout_seconds is None else timeout_seconds
         )
@@ -879,7 +890,7 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             True si es válido
 
         Raises:
-            ValueError: Si el tipo no es válido
+            InvalidDatabaseType: Si el tipo no es válido (es un ``ValidationError``, no un ``ValueError``).
         """
         return validate_db_type(db_type)
 

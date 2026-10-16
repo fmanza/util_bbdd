@@ -85,7 +85,11 @@ class IndexManager:
     # ------------------------------------------------------------------
 
     def disable_all(self, tables: list[str]) -> None:
-        """Deshabilita los índices secundarios no únicos de las tablas indicadas."""
+        """Deshabilita los índices secundarios no únicos de las tablas indicadas.
+
+        Args:
+            tables: Tablas del destino cuyos índices se deshabilitan.
+        """
         dialect = self._dialect
         if dialect in _UNSUPPORTED_DIALECTS:
             self.logger.warning(

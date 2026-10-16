@@ -125,7 +125,7 @@ class QueryParameterValidator(ABC):
             - is_valid: True si la validación pasó
             - warnings_list: Lista de advertencias (puede estar vacía)
 
-        Raises:
-            No debe levantar excepciones. Retornar (False, [error_msg])
+        Note:
+            No debe lanzar excepciones: ante un error devuelve ``(False, [mensaje])``.
         """
         pass

@@ -397,6 +397,11 @@ class ParallelBulkLoader:
         Mismas reglas que :meth:`update`, también los 2 reintentos mínimos ante errores transitorios.
         ``disable_constraints`` no aplica.
 
+        Args:
+            tabla_destino: Nombre lógico de la tabla (``schema.tabla`` o ``tabla``).
+            partition_readers: Lectores de partición con las columnas de la PK de las filas a borrar.
+            partition_ranges: Rangos ``(lo, hi)`` de PK por lector, como en :meth:`load`.
+
         Returns:
             ``ParallelLoadResult``; ``total_rows`` son las filas enviadas.
         """

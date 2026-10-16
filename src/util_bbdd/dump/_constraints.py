@@ -90,6 +90,9 @@ class ConstraintManager:
         en absoluto (p.ej. conexión perdida a mitad de la operación) se relanza como
         `DumpConstraintError` en vez de propagar la excepción cruda de SQLAlchemy.
 
+        Args:
+            tables: Tablas del destino cuyas constraints se desactivan.
+
         Raises:
             DumpConstraintError: Si falla la desactivación de forma no recuperable.
         """

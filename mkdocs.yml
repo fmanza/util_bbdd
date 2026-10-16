@@ -99,6 +99,8 @@ nav:
           - Metadatos: api/metadata_autodoc.md
           - Auditoría: api/audit_autodoc.md
           - Conexiones: api/connection_autodoc.md
+          - Sistema de Queries: api/query_autodoc.md
+          - Análisis de Relaciones: api/analysis_autodoc.md
           - Excepciones: api/exceptions.md
 
   # ── Guías de uso y operación ───────────────────────────────────────────────

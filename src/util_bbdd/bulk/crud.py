@@ -810,6 +810,13 @@ class BulkCrud:
         ``plan.reasons`` explica la decisión. Sin ``parallel`` en el constructor, en serie. En el UPDATE de PostgreSQL
         comprueba (una vez por instancia, solo si el plan es paralelo) el privilegio ``TEMP``.
 
+        Args:
+            operation: ``"insert"``, ``"update"`` o ``"delete"``.
+            rows: Número de filas de la operación.
+
+        Returns:
+            ``ParallelPlan`` con el número de hilos (``workers``) y los motivos (``reasons``).
+
         Examples:
             >>> crud = BulkCrud(engine, parallel=ParallelOptions(mode="auto"))  # doctest: +SKIP
             >>> crud.parallel_plan("insert", 2_000_000).reasons  # doctest: +SKIP
@@ -1559,11 +1566,27 @@ class BulkCrud:
             persistence.end_session_audit(committed_rows=committed_rows)
 
     def get_columna_may_min(self, tabla: Table, nombre_col: str) -> Column | None:
-        """Devuelve una columna de una tabla SQLAlchemy ignorando mayúsculas/minúsculas."""
+        """Devuelve una columna de una tabla SQLAlchemy ignorando mayúsculas/minúsculas.
+
+        Args:
+            tabla: Tabla SQLAlchemy reflejada.
+            nombre_col: Nombre de la columna en cualquier capitalización.
+
+        Returns:
+            La columna, o ``None`` si no existe.
+        """
         return get_column_case_insensitive(tabla, nombre_col)
 
     def obtener_valor_max_columna(self, tabla: Table, nombre_col: str) -> int:
-        """Devuelve MAX(nombre_col)+1; retorna 1 si la columna está vacía o el máximo es negativo."""
+        """Devuelve MAX(nombre_col)+1; retorna 1 si la columna está vacía o el máximo es negativo.
+
+        Args:
+            tabla: Tabla SQLAlchemy reflejada.
+            nombre_col: Columna numérica de la que se lee el máximo.
+
+        Returns:
+            El siguiente valor libre de la columna.
+        """
         return get_max_column_value(self.engine, tabla, nombre_col)
 
     @contextmanager

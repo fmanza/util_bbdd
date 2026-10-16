@@ -395,7 +395,16 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         )
 
     async def close(self, mode: AsyncCloseMode | str = "immediate") -> None:
-        """Cierra pool o conexión directa con política explícita."""
+        """Cierra pool o conexión directa con política explícita.
+
+        Args:
+            mode: ``"immediate"`` termina el pool sin esperar; ``"graceful"`` espera a que se devuelvan las
+                conexiones hasta ``close_timeout`` y, si no llegan, fuerza el cierre.
+
+        Raises:
+            ValueError: Si ``mode`` no es ``"immediate"`` ni ``"graceful"``.
+            DatabaseOperationError: Si falla el cierre del pool o de la conexión (se intentan los dos).
+        """
         close_mode: AsyncCloseMode = normalize_close_mode(mode)
         engine: Any = getattr(self, "_sqlalchemy_engine", None)
         self._sqlalchemy_engine = None
@@ -534,6 +543,14 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
     ) -> SchemaSnapshot:
         """Metadatos de un schema con una consulta por tipo de objeto (ver ``SyncDatabaseManager.get_schema_metadata``).
 
+        Args:
+            schema: Schema, owner o base de datos; por defecto el contexto de metadatos del manager.
+            kinds: Tipos de objeto a leer; pedir después uno no leído lanza ``KindNotLoadedError``.
+            tables: Limita la lectura a estas tablas (hasta 50; con más, se lee el schema completo).
+
+        Returns:
+            ``SchemaSnapshot`` inmutable con modelos neutros.
+
         Examples:
             >>> snapshot = await manager.get_schema_metadata(kinds={Kind.TABLES, Kind.COLUMNS})
         """
@@ -589,12 +606,26 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
 
     @staticmethod
     def get_db_type_info_static(db_type: str) -> dict[str, Any]:
-        """Obtiene información de un tipo de base de datos (método estático)."""
+        """Obtiene información de un tipo de base de datos (método estático).
+
+        Args:
+            db_type: Tipo de base de datos.
+
+        Returns:
+            Información del tipo de base de datos.
+        """
         return get_db_type_info(db_type)
 
     @staticmethod
     def is_db_type_supported(db_type: str) -> bool:
-        """Indica si el tipo de base de datos está soportado (mismo contrato que en ``SyncDatabaseManager``)."""
+        """Indica si el tipo de base de datos está soportado (mismo contrato que en ``SyncDatabaseManager``).
+
+        Args:
+            db_type: Tipo de base de datos a verificar.
+
+        Returns:
+            ``True`` si está soportado.
+        """
         validator: DatabaseTypeValidator = get_database_validator()
         return validator.is_db_type_supported(db_type)
 
@@ -602,8 +633,14 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
     def validate_db_type_static(db_type: str) -> bool:
         """Valida un tipo de base de datos (mismo contrato que en ``SyncDatabaseManager``).
 
+        Args:
+            db_type: Tipo de base de datos a validar.
+
+        Returns:
+            ``True`` si es válido.
+
         Raises:
-            ValueError: Si el tipo no es válido.
+            InvalidDatabaseType: Si el tipo no es válido (es un ``ValidationError``, no un ``ValueError``).
         """
         return validate_db_type(db_type)
 
