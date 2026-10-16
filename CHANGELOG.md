@@ -5,6 +5,32 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [2.2.3] - 2026-10-16
+
+Sesión `.ai/sessions/2026-10-16d-audit-followups-v2.2.2/` (pendientes del `/audit-code` de v2.2.2). SemVer: PATCH.
+
+### Fixed
+
+- **analysis**: la precarga de `GraphvizRelationshipGraphExt` ya no puede dejar una llamada esperando para siempre.
+  `_render_batch` solo capturaba `OSError` en el render por lotes: otro error (p. ej. `UnicodeEncodeError` al escribir
+  un `.gv` con la codificación del grafo) salía sin resolver los `Future` del lote y la siguiente llamada que pedía ese
+  grafo se bloqueaba en `Future.result()`. Ahora el lote captura `Exception` y cae al render grafo a grafo (cada
+  llamada recibe su resultado o la excepción real de `dot.pipe`), y ningún `Future` queda sin resolver, tampoco sin
+  Graphviz ni con `KeyboardInterrupt`.
+
+### Changed
+
+- **migrate**: constante `_CURRENT_TIMESTAMP` en `_compat/default_normalizer.py` y `emitters/mariadb.py` (SonarLint
+  S1192; mismo texto).
+- **connection**: una sola `_rejected_optional_param(err, optional)` para la conexión y el pool nativo de MariaDB.
+
+### Tests
+
+- Precarga de Graphviz: error inesperado en el lote, sin Graphviz e interrumpida (3 tests que antes fallaban).
+- `normalize_default` de PostgreSQL: casts con precisión, arrays, tipos entrecomillados o con schema, `::` dentro de
+  un literal y precisión mal formada.
+- Los motores de `MigrationPlanner` tienen dialecto de sqlglot para transpilar vistas.
+
 ## [2.2.2] - 2026-10-16
 
 Sesión `.ai/sessions/2026-10-16c-sonarlint-cleanup/`. SemVer: PATCH (avisos de SonarLint y Pylance; sin cambios en la
