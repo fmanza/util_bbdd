@@ -74,7 +74,7 @@ class AsyncSQLServerConnection:
             AsyncSQLServerConnection.logger.error("❌ Error: módulo aioodbc no disponible")
             raise ConnectionError("Módulo aioodbc no disponible", db_type="sqlserver", details=str(err)) from err
         except Exception as err:
-            AsyncSQLServerConnection.logger.error(f"❌ Error conectando a SQL Server async: {err}")
+            AsyncSQLServerConnection.logger.exception(f"❌ Error conectando a SQL Server async: {err}")
             raise ConnectionError(
                 f"Error conectando a SQL Server async: {str(err)}",
                 db_type="sqlserver",

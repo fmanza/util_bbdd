@@ -71,5 +71,5 @@ class HSQLDBConnection:
             HSQLDBConnection.logger.error("❌ Error: módulo jaydebeapi no disponible")
             raise ConnectionError("Módulo jaydebeapi no disponible", db_type="hsqldb", details=str(e)) from e
         except Exception as e:
-            HSQLDBConnection.logger.error(f"❌ Error conectando a HSQLDB: {e}")
+            HSQLDBConnection.logger.exception(f"❌ Error conectando a HSQLDB: {e}")
             raise ConnectionError(f"Error conectando a HSQLDB: {str(e)}", db_type="hsqldb", details=str(e)) from e

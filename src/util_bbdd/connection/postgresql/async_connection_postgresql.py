@@ -68,7 +68,7 @@ class AsyncPostgreSQLConnection:
             AsyncPostgreSQLConnection.logger.error("❌ Error: módulo asyncpg no disponible")
             raise ConnectionError("Módulo asyncpg no disponible", db_type="postgresql", details=str(err)) from err
         except Exception as err:
-            AsyncPostgreSQLConnection.logger.error(f"❌ Error conectando a PostgreSQL async: {err}")
+            AsyncPostgreSQLConnection.logger.exception(f"❌ Error conectando a PostgreSQL async: {err}")
             raise ConnectionError(
                 f"Error conectando a PostgreSQL async: {str(err)}",
                 db_type="postgresql",

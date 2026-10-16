@@ -109,5 +109,5 @@ class MySQLConnection:
             MySQLConnection.logger.error("❌ Error: módulo pymysql no disponible")
             raise ConnectionError("Módulo pymysql no disponible", db_type="mysql", details=str(e)) from e
         except Exception as e:
-            MySQLConnection.logger.error(f"❌ Error conectando a MySQL: {e}")
+            MySQLConnection.logger.exception(f"❌ Error conectando a MySQL: {e}")
             raise ConnectionError(f"Error conectando a MySQL: {str(e)}", db_type="mysql", details=str(e)) from e

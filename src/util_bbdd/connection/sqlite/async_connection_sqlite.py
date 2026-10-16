@@ -52,7 +52,7 @@ class AsyncSQLiteConnection:
             AsyncSQLiteConnection.logger.error("❌ Error: módulo aiosqlite no disponible")
             raise ConnectionError("Módulo aiosqlite no disponible", db_type="sqlite", details=str(err)) from err
         except Exception as err:
-            AsyncSQLiteConnection.logger.error(f"❌ Error conectando a SQLite async: {err}")
+            AsyncSQLiteConnection.logger.exception(f"❌ Error conectando a SQLite async: {err}")
             raise ConnectionError(
                 f"Error conectando a SQLite async: {str(err)}",
                 db_type="sqlite",

@@ -396,3 +396,22 @@ def test_without_redo_log_capacity_log_file_size_is_still_checked() -> None:
 
     assert levels["innodb_log_file_size"] == "INFO"
     assert "innodb_redo_log_capacity" not in levels
+
+
+@pytest.mark.parametrize(
+    ("engine", "pool_size", "level"),
+    [
+        ("postgresql", 2, "WARNING"),
+        ("postgresql", 10, "OK"),
+        ("postgresql", 50, "INFO"),
+        ("sqlserver", 2, "WARNING"),
+        ("sqlserver", 10, "OK"),
+        ("oracle", 2, "WARNING"),
+        ("oracle", 10, "OK"),
+    ],
+)
+def test_pool_size_gives_exactly_one_finding(engine: str, pool_size: int, level: str) -> None:
+    # Las ramas WARNING/INFO/OK de pool_size son excluyentes: un pool pequeño no da además OK.
+    findings = EngineReadinessAdvisor().check(engine, {"pool_size": pool_size}, connection=None)
+
+    assert [f.level for f in findings if f.param == "pool_size"] == [level]

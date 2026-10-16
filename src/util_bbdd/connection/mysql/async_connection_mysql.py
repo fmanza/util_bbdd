@@ -50,7 +50,7 @@ class AsyncMySQLConnection:
             AsyncMySQLConnection.logger.error("❌ Error: módulo aiomysql no disponible")
             raise ConnectionError("Módulo aiomysql no disponible", db_type="mysql", details=str(err)) from err
         except Exception as err:
-            AsyncMySQLConnection.logger.error(f"❌ Error conectando a MySQL async: {err}")
+            AsyncMySQLConnection.logger.exception(f"❌ Error conectando a MySQL async: {err}")
             raise ConnectionError(
                 f"Error conectando a MySQL async: {str(err)}",
                 db_type="mysql",

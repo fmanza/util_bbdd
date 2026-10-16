@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -30,40 +30,40 @@ class OracleVariableValidator:
         max_lifetime = reader.as_int("max_lifetime", 3600)
         findings: list[AdvisoryFinding] = reader.invalid
 
-        if pool_size is None:
-            pass
-        elif pool_size < 5:
-            findings.append(
-                AdvisoryFinding(
-                    level="WARNING",
-                    param="pool_size",
-                    current=str(pool_size),
-                    recommendation="Mínimo 5 para cargas concurrentes; recomendado 10–20",
+        if pool_size is not None:
+            if pool_size < 5:
+                findings.append(
+                    AdvisoryFinding(
+                        level="WARNING",
+                        param="pool_size",
+                        current=str(pool_size),
+                        recommendation="Mínimo 5 para cargas concurrentes; recomendado 10–20",
+                    )
                 )
-            )
-        else:
-            findings.append(AdvisoryFinding(level="OK", param="pool_size", current=str(pool_size), recommendation=""))
+            else:
+                findings.append(
+                    AdvisoryFinding(level="OK", param="pool_size", current=str(pool_size), recommendation="")
+                )
 
-        if max_lifetime is None:
-            pass
-        elif max_lifetime < 600:
-            findings.append(
-                AdvisoryFinding(
-                    level="WARNING",
-                    param="max_lifetime",
-                    current=f"{max_lifetime}s",
-                    recommendation="Reconexiones frecuentes impactan rendimiento; recomendado ≥3600 s",
+        if max_lifetime is not None:
+            if max_lifetime < 600:
+                findings.append(
+                    AdvisoryFinding(
+                        level="WARNING",
+                        param="max_lifetime",
+                        current=f"{max_lifetime}s",
+                        recommendation="Reconexiones frecuentes impactan rendimiento; recomendado ≥3600 s",
+                    )
                 )
-            )
-        else:
-            findings.append(
-                AdvisoryFinding(
-                    level="OK",
-                    param="max_lifetime",
-                    current=f"{max_lifetime}s",
-                    recommendation="",
+            else:
+                findings.append(
+                    AdvisoryFinding(
+                        level="OK",
+                        param="max_lifetime",
+                        current=f"{max_lifetime}s",
+                        recommendation="",
+                    )
                 )
-            )
 
         # arraysize y prefetchrows son parámetros de cursor, no de conexión
         findings.append(
@@ -96,45 +96,27 @@ class OracleVariableValidator:
 
         pga = self._read_bytes_param(connection, "pga_aggregate_target")
         if pga is not None and pga > 0:
-            if pga < _WARN_PGA_BYTES:
-                findings.append(
-                    AdvisoryFinding(
-                        level="WARNING",
-                        param="pga_aggregate_target",
-                        current=_fmt_bytes(pga),
-                        recommendation="Recomendado ≥256 MB para sort/hash en carga masiva",
-                    )
+            findings.append(
+                self._threshold_finding(
+                    "pga_aggregate_target",
+                    pga,
+                    _WARN_PGA_BYTES,
+                    _fmt_bytes(pga),
+                    "Recomendado ≥256 MB para sort/hash en carga masiva",
                 )
-            else:
-                findings.append(
-                    AdvisoryFinding(
-                        level="OK",
-                        param="pga_aggregate_target",
-                        current=_fmt_bytes(pga),
-                        recommendation="",
-                    )
-                )
+            )
 
         sga = self._read_bytes_param(connection, "sga_target")
         if sga is not None and sga > 0:
-            if sga < _WARN_SGA_BYTES:
-                findings.append(
-                    AdvisoryFinding(
-                        level="WARNING",
-                        param="sga_target",
-                        current=_fmt_bytes(sga),
-                        recommendation="Recomendado ≥512 MB; buffer cache insuficiente para cargas grandes",
-                    )
+            findings.append(
+                self._threshold_finding(
+                    "sga_target",
+                    sga,
+                    _WARN_SGA_BYTES,
+                    _fmt_bytes(sga),
+                    "Recomendado ≥512 MB; buffer cache insuficiente para cargas grandes",
                 )
-            else:
-                findings.append(
-                    AdvisoryFinding(
-                        level="OK",
-                        param="sga_target",
-                        current=_fmt_bytes(sga),
-                        recommendation="",
-                    )
-                )
+            )
 
         cursor_sharing = self._read_str_param(connection, "cursor_sharing")
         if cursor_sharing is not None and cursor_sharing.upper() == "FORCE":
@@ -160,27 +142,33 @@ class OracleVariableValidator:
 
         undo_retention = self._read_int_param(connection, "undo_retention")
         if undo_retention is not None:
-            if undo_retention < 900:
-                findings.append(
-                    AdvisoryFinding(
-                        level="INFO",
-                        param="undo_retention",
-                        current=f"{undo_retention}s",
-                        recommendation="Valor bajo (<900s); queries largas pueden fallar con 'snapshot too old'; "
-                        "aumentar a ≥3600s para bulk: ALTER SYSTEM SET undo_retention=3600;",
-                    )
+            findings.append(
+                self._threshold_finding(
+                    "undo_retention",
+                    undo_retention,
+                    900,
+                    f"{undo_retention}s",
+                    "Valor bajo (<900s); queries largas pueden fallar con 'snapshot too old'; "
+                    "aumentar a ≥3600s para bulk: ALTER SYSTEM SET undo_retention=3600;",
+                    below_level="INFO",
                 )
-            else:
-                findings.append(
-                    AdvisoryFinding(
-                        level="OK",
-                        param="undo_retention",
-                        current=f"{undo_retention}s",
-                        recommendation="",
-                    )
-                )
+            )
 
         return findings
+
+    @staticmethod
+    def _threshold_finding(
+        param: str,
+        value: int,
+        minimum: int,
+        current: str,
+        recommendation: str,
+        below_level: Literal["WARNING", "INFO"] = "WARNING",
+    ) -> AdvisoryFinding:
+        """``below_level`` con ``recommendation`` si ``value < minimum``; si no, OK sin recomendación."""
+        if value < minimum:
+            return AdvisoryFinding(level=below_level, param=param, current=current, recommendation=recommendation)
+        return AdvisoryFinding(level="OK", param=param, current=current, recommendation="")
 
     def _can_read_v_parameter(self, connection: Any) -> bool:
         try:

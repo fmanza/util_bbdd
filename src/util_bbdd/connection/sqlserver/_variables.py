@@ -29,33 +29,33 @@ class SQLServerVariableValidator:
         driver: str = str(conn_params.get("sql_server_driver", "pymssql")).lower()
         findings: list[AdvisoryFinding] = reader.invalid
 
-        if use_mars is None:
-            pass
-        elif not use_mars:
-            findings.append(
-                AdvisoryFinding(
-                    level="WARNING",
-                    param="use_mars",
-                    current="False",
-                    recommendation="Activar use_mars=True (Multiple Active Result Sets) para múltiples cursores activos",
+        if use_mars is not None:
+            if not use_mars:
+                findings.append(
+                    AdvisoryFinding(
+                        level="WARNING",
+                        param="use_mars",
+                        current="False",
+                        recommendation="Activar use_mars=True (Multiple Active Result Sets) para múltiples cursores activos",
+                    )
                 )
-            )
-        else:
-            findings.append(AdvisoryFinding(level="OK", param="use_mars", current="True", recommendation=""))
+            else:
+                findings.append(AdvisoryFinding(level="OK", param="use_mars", current="True", recommendation=""))
 
-        if pool_size is None:
-            pass
-        elif pool_size < 5:
-            findings.append(
-                AdvisoryFinding(
-                    level="WARNING",
-                    param="pool_size",
-                    current=str(pool_size),
-                    recommendation="Mínimo 5 para cargas concurrentes; recomendado 10–20",
+        if pool_size is not None:
+            if pool_size < 5:
+                findings.append(
+                    AdvisoryFinding(
+                        level="WARNING",
+                        param="pool_size",
+                        current=str(pool_size),
+                        recommendation="Mínimo 5 para cargas concurrentes; recomendado 10–20",
+                    )
                 )
-            )
-        else:
-            findings.append(AdvisoryFinding(level="OK", param="pool_size", current=str(pool_size), recommendation=""))
+            else:
+                findings.append(
+                    AdvisoryFinding(level="OK", param="pool_size", current=str(pool_size), recommendation="")
+                )
 
         if max_overflow is not None and max_overflow < 5:
             findings.append(

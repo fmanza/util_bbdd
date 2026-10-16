@@ -90,6 +90,7 @@ class MySQLReadinessValidator:
 
     def check_dynamic(self, connection: Any, conn_params: dict[str, Any]) -> list[AdvisoryFinding]:
         """Variables del servidor con ``MySQLVariableValidator``; un fallo deja los hallazgos ya obtenidos."""
+        _ = conn_params  # Lo exige el Protocol ReadinessValidator; el chequeo dinámico solo lee el servidor.
         findings: list[AdvisoryFinding] = []
         try:
             validator = MySQLVariableValidator(connection)

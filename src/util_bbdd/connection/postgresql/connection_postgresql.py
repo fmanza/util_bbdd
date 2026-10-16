@@ -51,7 +51,7 @@ class PostgreSQLConnection:
                 "Módulo psycopg (psycopg3) no disponible", db_type="postgresql", details=str(e)
             ) from e
         except Exception as e:
-            PostgreSQLConnection.logger.error(f"❌ Error conectando a PostgreSQL: {e}")
+            PostgreSQLConnection.logger.exception(f"❌ Error conectando a PostgreSQL: {e}")
             raise ConnectionError(
                 f"Error conectando a PostgreSQL: {str(e)}", db_type="postgresql", details=str(e)
             ) from e

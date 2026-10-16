@@ -67,42 +67,42 @@ class PostgreSQLVariableValidator:
         sslmode: str | None = conn_params.get("sslmode")
         findings: list[AdvisoryFinding] = reader.invalid
 
-        if pool_size is None:
-            pass
-        elif pool_size < 5:
-            findings.append(
-                AdvisoryFinding(
-                    level="WARNING",
-                    param="pool_size",
-                    current=str(pool_size),
-                    recommendation="Mínimo 5 para cargas concurrentes; recomendado 10–20",
+        if pool_size is not None:
+            if pool_size < 5:
+                findings.append(
+                    AdvisoryFinding(
+                        level="WARNING",
+                        param="pool_size",
+                        current=str(pool_size),
+                        recommendation="Mínimo 5 para cargas concurrentes; recomendado 10–20",
+                    )
                 )
-            )
-        elif pool_size > 20:
-            findings.append(
-                AdvisoryFinding(
-                    level="INFO",
-                    param="pool_size",
-                    current=str(pool_size),
-                    recommendation=f"Verificar pool_size({pool_size})+max_overflow({max_overflow}) ≤ max_connections del servidor",
+            elif pool_size > 20:
+                findings.append(
+                    AdvisoryFinding(
+                        level="INFO",
+                        param="pool_size",
+                        current=str(pool_size),
+                        recommendation=f"Verificar pool_size({pool_size})+max_overflow({max_overflow}) ≤ max_connections del servidor",
+                    )
                 )
-            )
-        else:
-            findings.append(AdvisoryFinding(level="OK", param="pool_size", current=str(pool_size), recommendation=""))
+            else:
+                findings.append(
+                    AdvisoryFinding(level="OK", param="pool_size", current=str(pool_size), recommendation="")
+                )
 
-        if keepalives is None:
-            pass
-        elif not keepalives:
-            findings.append(
-                AdvisoryFinding(
-                    level="WARNING",
-                    param="keepalives",
-                    current="False",
-                    recommendation="Activar keepalives=True; las conexiones mueren silenciosamente bajo NAT/firewall",
+        if keepalives is not None:
+            if not keepalives:
+                findings.append(
+                    AdvisoryFinding(
+                        level="WARNING",
+                        param="keepalives",
+                        current="False",
+                        recommendation="Activar keepalives=True; las conexiones mueren silenciosamente bajo NAT/firewall",
+                    )
                 )
-            )
-        else:
-            findings.append(AdvisoryFinding(level="OK", param="keepalives", current="True", recommendation=""))
+            else:
+                findings.append(AdvisoryFinding(level="OK", param="keepalives", current="True", recommendation=""))
 
         if sslmode is None or sslmode == "disable":
             findings.append(

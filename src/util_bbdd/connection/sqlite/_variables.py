@@ -55,19 +55,18 @@ class SQLiteVariableValidator:
         else:
             findings.append(AdvisoryFinding(level="OK", param="database", current=database, recommendation=""))
 
-        if timeout is None:
-            pass
-        elif timeout < 5.0:
-            findings.append(
-                AdvisoryFinding(
-                    level="WARNING",
-                    param="timeout",
-                    current=f"{timeout}s",
-                    recommendation="Riesgo de 'database is locked' bajo escritura concurrente; recomendado ≥5 s",
+        if timeout is not None:
+            if timeout < 5.0:
+                findings.append(
+                    AdvisoryFinding(
+                        level="WARNING",
+                        param="timeout",
+                        current=f"{timeout}s",
+                        recommendation="Riesgo de 'database is locked' bajo escritura concurrente; recomendado ≥5 s",
+                    )
                 )
-            )
-        else:
-            findings.append(AdvisoryFinding(level="OK", param="timeout", current=f"{timeout}s", recommendation=""))
+            else:
+                findings.append(AdvisoryFinding(level="OK", param="timeout", current=f"{timeout}s", recommendation=""))
 
         return findings
 

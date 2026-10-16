@@ -79,5 +79,5 @@ class OracleConnection:
             OracleConnection.logger.error("❌ Error: módulo oracledb no disponible")
             raise ConnectionError("Módulo oracledb no disponible", db_type="oracle", details=str(e)) from e
         except Exception as e:
-            OracleConnection.logger.error(f"❌ Error conectando a Oracle: {e}")
+            OracleConnection.logger.exception(f"❌ Error conectando a Oracle: {e}")
             raise ConnectionError(f"Error conectando a Oracle: {str(e)}", db_type="oracle", details=str(e)) from e

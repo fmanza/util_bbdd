@@ -75,7 +75,7 @@ class AsyncOracleConnection:
             AsyncOracleConnection.logger.error("❌ Error: módulo oracledb no disponible")
             raise ConnectionError("Módulo oracledb no disponible", db_type="oracle", details=str(err)) from err
         except Exception as err:
-            AsyncOracleConnection.logger.error(f"❌ Error conectando a Oracle async: {err}")
+            AsyncOracleConnection.logger.exception(f"❌ Error conectando a Oracle async: {err}")
             raise ConnectionError(
                 f"Error conectando a Oracle async: {str(err)}",
                 db_type="oracle",

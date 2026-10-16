@@ -41,16 +41,7 @@ class MariaDBConnection:
         try:
             import mariadb
 
-            sanitized_conn_params: dict[str, Any] = ConnectionParamsManager.sanitize_for_connection(
-                "mariadb",
-                conn_params,
-            )
-            for key in _UNSUPPORTED_BY_CONNECTOR:
-                sanitized_conn_params.pop(key, None)
-            if found_rows:
-                from mariadb.constants import CLIENT
-
-                sanitized_conn_params["client_flag"] = CLIENT.FOUND_ROWS
+            sanitized_conn_params: dict[str, Any] = MariaDBConnection._driver_params(conn_params, found_rows)
 
             MariaDBConnection.logger.debug(
                 f"🔗 Conectando a MariaDB con parámetros: {list(sanitized_conn_params.keys())}"
@@ -66,15 +57,10 @@ class MariaDBConnection:
                     MariaDBConnection.logger.info("✅ Conexión MariaDB establecida")
                     return conn
                 except TypeError as err:
-                    msg = str(err)
-                    if "unexpected keyword argument" not in msg:
+                    rejected = MariaDBConnection._rejected_optional_param(err)
+                    if rejected is None:
                         raise
 
-                    match = re.search(r"unexpected keyword argument '(\w+)'", msg)
-                    if not match or match.group(1) not in _OPTIONAL_CONN_PARAMS:
-                        raise
-
-                    rejected = match.group(1)
                     conn_params_retry = {k: v for k, v in conn_params_retry.items() if k != rejected}
                     mariadb_version: str = str(getattr(mariadb, "__version__", "?"))
                     MariaDBConnection.logger.warning(
@@ -89,5 +75,26 @@ class MariaDBConnection:
             MariaDBConnection.logger.error("❌ Error: módulo mariadb no disponible")
             raise ConnectionError("Módulo mariadb no disponible", db_type="mariadb", details=str(e)) from e
         except Exception as e:
-            MariaDBConnection.logger.error(f"❌ Error conectando a MariaDB: {e}")
+            MariaDBConnection.logger.exception(f"❌ Error conectando a MariaDB: {e}")
             raise ConnectionError(f"Error conectando a MariaDB: {str(e)}", db_type="mariadb", details=str(e)) from e
+
+    @staticmethod
+    def _driver_params(conn_params: dict[str, Any], found_rows: bool) -> dict[str, Any]:
+        """``conn_params`` saneados para ``mariadb.connect``: sin las claves que el conector no admite y con
+        ``CLIENT.FOUND_ROWS`` si se pide."""
+        params: dict[str, Any] = ConnectionParamsManager.sanitize_for_connection("mariadb", conn_params)
+        for key in _UNSUPPORTED_BY_CONNECTOR:
+            params.pop(key, None)
+        if found_rows:
+            from mariadb.constants import CLIENT
+
+            params["client_flag"] = CLIENT.FOUND_ROWS
+        return params
+
+    @staticmethod
+    def _rejected_optional_param(err: TypeError) -> str | None:
+        """Parámetro de ``_OPTIONAL_CONN_PARAMS`` que el driver rechazó en ``err``; ``None`` si el error es otro."""
+        match = re.search(r"unexpected keyword argument '(\w+)'", str(err))
+        if match is None or match.group(1) not in _OPTIONAL_CONN_PARAMS:
+            return None
+        return match.group(1)

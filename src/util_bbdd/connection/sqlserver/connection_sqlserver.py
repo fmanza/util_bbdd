@@ -59,7 +59,7 @@ class SQLServerConnection:
         except ConnectionError:
             raise
         except Exception as e:
-            SQLServerConnection.logger.error(f"❌ Error conectando a SQL Server: {e}")
+            SQLServerConnection.logger.exception(f"❌ Error conectando a SQL Server: {e}")
             raise ConnectionError(
                 f"Error conectando a SQL Server: {str(e)}", db_type="sqlserver", details=str(e)
             ) from e
@@ -118,7 +118,7 @@ class SQLServerConnection:
         except ConnectionError:
             raise
         except Exception as e:
-            SQLServerConnection.logger.error(f"❌ Error conectando a SQL Server (pymssql): {e}")
+            SQLServerConnection.logger.exception(f"❌ Error conectando a SQL Server (pymssql): {e}")
             raise ConnectionError(
                 f"Error conectando a SQL Server: {str(e)}", db_type="sqlserver", details=str(e)
             ) from e
@@ -211,7 +211,7 @@ class SQLServerConnection:
             SQLServerConnection.logger.error("❌ Error: módulo pyodbc no disponible")
             raise ConnectionError("Módulo pyodbc no disponible", db_type="sqlserver", details=str(e)) from e
         except Exception as e:
-            SQLServerConnection.logger.error(f"❌ Error conectando a SQL Server (pyodbc): {e}")
+            SQLServerConnection.logger.exception(f"❌ Error conectando a SQL Server (pyodbc): {e}")
             raise ConnectionError(
                 f"Error conectando a SQL Server: {str(e)}", db_type="sqlserver", details=str(e)
             ) from e

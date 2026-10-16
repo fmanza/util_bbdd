@@ -25,6 +25,7 @@ from ..params import ConnectionParamsManager
 
 # Parámetros que el pool puede rechazar según versión del driver; se eliminan uno a uno si procede.
 _OPTIONAL_POOL_PARAMS: frozenset[str] = frozenset({"init_command"})
+_MARIADB_MISSING_MSG: str = "Módulo 'mariadb' no está instalado. Instale con: pip install mariadb"
 
 
 class PoolConnection(SyncPoolCloseMixin):
@@ -66,7 +67,7 @@ class PoolConnection(SyncPoolCloseMixin):
             ```
         """
         if not HAS_MARIADB:
-            raise ImportError("Módulo 'mariadb' no está instalado. Instale con: pip install mariadb")
+            raise ImportError(_MARIADB_MISSING_MSG)
 
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.pool: Any | None = None
@@ -89,7 +90,7 @@ class PoolConnection(SyncPoolCloseMixin):
             Exception: Si la creación del pool falla.
         """
         if mariadb is None:
-            raise ImportError("Módulo 'mariadb' no está instalado. Instale con: pip install mariadb")
+            raise ImportError(_MARIADB_MISSING_MSG)
 
         try:
             pool_config = ConnectionParamsManager.get_pool_config("mariadb", conn_params)
@@ -108,36 +109,7 @@ class PoolConnection(SyncPoolCloseMixin):
             # mariadb.ConnectionPool no admite charset (comprobado en 1.1.14, la última); lo usa el pool async (aiomysql)
             pool_params: dict[str, str | int] = {k: v for k, v in sanitized_conn_params.items() if k != "charset"}
 
-            # Crear pool; reintentar eliminando kwargs opcionales rechazados por el driver
-            for _ in range(len(_OPTIONAL_POOL_PARAMS) + 1):
-                try:
-                    self.pool = mariadb.ConnectionPool(**pool_params)
-                    break
-                except TypeError as err:
-                    msg = str(err)
-                    if "unexpected keyword argument" not in msg:
-                        raise
-                    match = re.search(r"unexpected keyword argument '(\w+)'", msg)
-                    if not match or match.group(1) not in _OPTIONAL_POOL_PARAMS:
-                        raise
-                    rejected = match.group(1)
-                    mariadb_version: str = str(getattr(mariadb, "__version__", "?"))
-                    # Si driver rechaza init_command, extraerlo y ejecutar manual en get_connection()
-                    if rejected == "init_command":
-                        self._pending_init_command = str(pool_params.pop("init_command", "")) or None
-                        self.logger.warning(
-                            f"⚠️ mariadb.ConnectionPool() rechazó 'init_command'; "
-                            f"ejecutaremos manualmente en get_connection() (mariadb version={mariadb_version})"
-                        )
-                    else:
-                        # Otros parámetros opcionales rechazados por la versión instalada del driver
-                        pool_params = {k: v for k, v in pool_params.items() if k != rejected}
-                        self.logger.warning(
-                            f"⚠️ mariadb.ConnectionPool() rechazó '{rejected}'; "
-                            f"reintentando sin él (mariadb version={mariadb_version})"
-                        )
-            else:
-                raise RuntimeError("No se pudo crear el pool de MariaDB; parámetros opcionales agotados")
+            pool_params = self.__open_pool(pool_params)
 
             # El pool reinicia la sesión al reutilizar una conexión (pool_reset_connection) sin repetir init_command:
             # la sesión volvería al charset del servidor (p. ej. latin1). Se reaplica en cada get_connection().
@@ -150,6 +122,50 @@ class PoolConnection(SyncPoolCloseMixin):
         except Exception as e:
             self.logger.error(f"❌ Error creando pool MariaDB: {e}")
             raise
+
+    def __open_pool(self, pool_params: dict[str, str | int]) -> dict[str, str | int]:
+        """Crea ``self.pool``; reintenta quitando los kwargs opcionales que rechace el driver.
+
+        Returns:
+            Los parámetros con los que se creó el pool (sin los rechazados).
+        """
+        if mariadb is None:
+            raise ImportError(_MARIADB_MISSING_MSG)
+        for _ in range(len(_OPTIONAL_POOL_PARAMS) + 1):
+            try:
+                self.pool = mariadb.ConnectionPool(**pool_params)
+                return pool_params
+            except TypeError as err:
+                rejected = self._rejected_optional_param(err)
+                if rejected is None:
+                    raise
+                pool_params = self.__drop_rejected(pool_params, rejected)
+        raise RuntimeError("No se pudo crear el pool de MariaDB; parámetros opcionales agotados")
+
+    def __drop_rejected(self, pool_params: dict[str, str | int], rejected: str) -> dict[str, str | int]:
+        """``pool_params`` sin ``rejected``; un ``init_command`` rechazado se guarda para ``get_connection()``."""
+        mariadb_version: str = str(getattr(mariadb, "__version__", "?"))
+        if rejected == "init_command":
+            # Si el driver rechaza init_command, se ejecuta a mano en get_connection()
+            self._pending_init_command = str(pool_params.pop("init_command", "")) or None
+            self.logger.warning(
+                f"⚠️ mariadb.ConnectionPool() rechazó 'init_command'; "
+                f"ejecutaremos manualmente en get_connection() (mariadb version={mariadb_version})"
+            )
+            return pool_params
+        # Otros parámetros opcionales rechazados por la versión instalada del driver
+        self.logger.warning(
+            f"⚠️ mariadb.ConnectionPool() rechazó '{rejected}'; reintentando sin él (mariadb version={mariadb_version})"
+        )
+        return {k: v for k, v in pool_params.items() if k != rejected}
+
+    @staticmethod
+    def _rejected_optional_param(err: TypeError) -> str | None:
+        """Parámetro de ``_OPTIONAL_POOL_PARAMS`` que el driver rechazó en ``err``; ``None`` si el error es otro."""
+        match = re.search(r"unexpected keyword argument '(\w+)'", str(err))
+        if match is None or match.group(1) not in _OPTIONAL_POOL_PARAMS:
+            return None
+        return match.group(1)
 
     def get_connection(self) -> Any:
         """Obtiene conexión del pool.

@@ -68,7 +68,7 @@ class AsyncMariaDBConnection:
             AsyncMariaDBConnection.logger.error("❌ Error: módulo aiomysql no disponible")
             raise ConnectionError("Módulo aiomysql no disponible", db_type="mariadb", details=str(err)) from err
         except Exception as err:
-            AsyncMariaDBConnection.logger.error(f"❌ Error conectando a MariaDB async: {err}")
+            AsyncMariaDBConnection.logger.exception(f"❌ Error conectando a MariaDB async: {err}")
             raise ConnectionError(
                 f"Error conectando a MariaDB async: {str(err)}",
                 db_type="mariadb",

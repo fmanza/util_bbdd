@@ -141,7 +141,7 @@ class MariaDBConnectionConfig:
         db_type: str = "mariadb"
         charset = _opt_str(params, "charset") or "utf8mb4"
         # El charset llega al driver y al SET NAMES por defecto: solo nombres de charset (letras, dígitos, _).
-        if not re.fullmatch(r"[A-Za-z0-9_]+", charset):
+        if not re.fullmatch(r"\w+", charset, re.ASCII):  # ASCII: sin él, \w admite letras Unicode
             raise ValueError(f"Parametro invalido para {db_type}: charset '{charset}' no es un nombre de charset")
         # MariaDB Connector/Python (sync) solo admite sesiones utf8mb4 ("Character set 'latin1' is not supported"):
         # el SET NAMES por defecto es siempre utf8mb4. ``charset`` lo usa aiomysql (async).
@@ -200,11 +200,10 @@ class MariaDBConnectionConfig:
         if not (self.ssl or files or self.ssl_verify_cert is not None):
             return {}
         payload: dict[str, Any] = {"ssl": True, **files}
-        verify: bool | None = (
-            self.ssl_verify_cert if self.ssl_verify_cert is not None else (True if self.ssl_ca else None)
-        )
-        if verify is not None:
-            payload["ssl_verify_cert"] = verify
+        if self.ssl_verify_cert is not None:
+            payload["ssl_verify_cert"] = self.ssl_verify_cert
+        elif self.ssl_ca:
+            payload["ssl_verify_cert"] = True
         return payload
 
     def to_driver_kwargs(self) -> dict[str, Any]:
