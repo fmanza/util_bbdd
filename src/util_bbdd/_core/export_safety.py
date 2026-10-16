@@ -22,7 +22,7 @@ Uso:
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -82,7 +82,8 @@ class SafeWorksheet(Worksheet):
         elif isinstance(iterable, Iterable) and not isinstance(iterable, (str, bytes)):
             super().append([safe_value(val) for val in iterable])
         else:
-            super().append(iterable)  # openpyxl lanza su propio TypeError
+            # openpyxl lanza su propio TypeError; cast: el isinstance de arriba estrecha a ``Any | str | bytes`` (pyright).
+            super().append(cast(Any, iterable))
 
     def __setitem__(self, key: str, value: Any) -> None:
         super().__setitem__(key, safe_value(value))

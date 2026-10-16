@@ -847,7 +847,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                     output = Path(work_dir, f"{name}.{format_}")
                     if output.is_file() and output.stat().st_size > 0:
                         rendered[key] = output.read_bytes()
-        except Exception as error:  # noqa: BLE001 - dot ausente, un .gv no representable en su codificación…
+        except Exception as error:  # noqa: BLE001 - dot ausente o un .gv no representable en su codificación…
             self.logger.debug(f"Lote dot no disponible ({error}); se renderiza grafo a grafo")
         return rendered
 

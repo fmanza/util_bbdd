@@ -59,8 +59,8 @@ class HSQLDBConnection:
                 **(sanitized_conn_params.get("connection_properties") or {}),
             }
 
-            # La jdbc_url puede llevar ;password=...: no se registra en claro
-            safe_url: str = re.sub(r"(?i)(password=)[^;]*", r"\1***", str(jdbc_url))
+            # La jdbc_url puede llevar ;password=...: no se registra en claro (S2068 es un falso positivo: la regex la oculta)
+            safe_url: str = re.sub(r"(?i)(password=)[^;]*", r"\1***", str(jdbc_url))  # NOSONAR
             HSQLDBConnection.logger.debug(f"🔗 Conectando a HSQLDB con JDBC: {safe_url}")
             conn = jaydebeapi.connect(jdbc_driver, jdbc_url, driver_args, jdbc_jar)
             HSQLDBConnection.logger.info("✅ Conexión HSQLDB establecida")

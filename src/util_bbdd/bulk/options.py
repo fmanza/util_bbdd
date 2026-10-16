@@ -238,8 +238,10 @@ class BulkOptions:
     """
 
     batch: BatchOptions = field(default_factory=BatchOptions)
-    audit: AuditOptions = field(default_factory=AuditOptions)
-    rejects: RejectOptions = field(default_factory=RejectOptions)
+    # lambda y no la clase: pyright no acepta como Callable[[], T] un dataclass con un campo descriptor (csv_path),
+    # porque toma la instancia del descriptor como default del __init__ y no encaja con el tipo de su __set__.
+    audit: AuditOptions = field(default_factory=lambda: AuditOptions())
+    rejects: RejectOptions = field(default_factory=lambda: RejectOptions())
     execution: ExecutionOptions = field(default_factory=ExecutionOptions)
     parallel: ParallelOptions | None = None
 
@@ -265,7 +267,8 @@ class BulkOptions:
     def for_worker(self, *, run_id: str | None) -> BulkOptions:
         """Opciones de la ``BulkCrud`` de una partición: sin ``parallel`` (un worker no vuelve a paralelizar), sin aviso
         de auditoría deshabilitada (lo da quien reparte, una vez) y con el ``run_id`` común de la carga."""
-        return replace(self, audit=replace(self.audit, warn_if_disabled=False, run_id=run_id), parallel=None)
+        # S5886 es un falso positivo: replace() devuelve el tipo de su argumento (BulkOptions), no DataclassInstance.
+        return replace(self, audit=replace(self.audit, warn_if_disabled=False, run_id=run_id), parallel=None)  # NOSONAR
 
     def as_kwargs(self) -> dict[str, Any]:
         """Los paquetes como argumentos de ``BulkCrud`` o ``ParallelBulkLoader``."""

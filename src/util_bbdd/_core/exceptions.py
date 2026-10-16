@@ -437,9 +437,16 @@ class ParallelLoadError(DatabaseOperationError):
 # Las clases se definen aquí, pero su ruta pública es util_bbdd.exceptions (API 1.0): es la que muestran trazas, repr y
 # logs, y la que guarda pickle. Los pickles con la ruta antigua (util_bbdd._core.exceptions.X) se siguen cargando.
 _PUBLIC_MODULE = "util_bbdd.exceptions"
-for _exception_class in [v for v in globals().values() if isinstance(v, type) and issubclass(v, DatabaseException)]:
-    _exception_class.__module__ = _PUBLIC_MODULE
-del _exception_class
+
+
+def _set_public_module() -> None:
+    """Asigna ``_PUBLIC_MODULE`` como ``__module__`` de las excepciones de este módulo (sin variables de bucle globales)."""
+    for value in globals().values():
+        if isinstance(value, type) and issubclass(value, DatabaseException):
+            value.__module__ = _PUBLIC_MODULE
+
+
+_set_public_module()
 
 
 __all__ = [
