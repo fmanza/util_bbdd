@@ -81,7 +81,21 @@ sequenceDiagram
 - No deduplica registros automáticamente antes de insertar
 - No hace UPSERT (insertar o actualizar en una sola operación): se usan `bulk_insert_from_df` y `bulk_update_from_df` por separado
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests de las operaciones masivas.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Un DataFrame con columnas en otra capitalización que la tabla (`CustomerId` frente a `customerid`) | Se inserta, actualiza o borra | La operación se aplica sobre las columnas reales y el DataFrame del llamante no se renombra |
+| AC-02 | Una fila del DataFrame viola la clave primaria, sin aislamiento de filas | Se inserta | Se lanza el error de integridad y no queda ninguna fila insertada |
+| AC-03 | `RejectOptions(on_error="isolate", csv_path=...)` y varias filas con errores de datos | Se inserta | Se aplican las filas válidas, las erróneas van al CSV con su posición, operación y error, y se cuentan en `rows_rejected` |
+| AC-04 | Aislamiento activado con `max_rejects=N` y más de N filas erróneas | Se inserta | Falla la operación entera sin aplicar nada; el error indica que se superó `max_rejects` |
+| AC-05 | Aislamiento activado y un error que no es de datos (p. ej. columna inexistente) | Se inserta | El error se propaga tal cual y no se escribe CSV de rechazos |
+| AC-06 | `BatchOptions(commit_every_n_chunks=N)` y un fallo a mitad de la carga | Se inserta | Quedan confirmados solo los lotes ya confirmados y `rows_committed` cuenta exactamente esas filas |
+| AC-07 | `commit_every_n_chunks` igual a 0 o negativo | Se crean las opciones | Se rechaza con `ValueError` antes de tocar la base de datos |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

@@ -39,12 +39,12 @@ Si el proyecto **no tiene normativa de referencia** → omitir este tipo por com
 
 Destinada a: jefes de proyecto, responsables de calidad, equipos de negocio.
 
-Estructura por módulo:
-- Objetivo de negocio (sin jerga técnica)
-- Precondiciones
-- Flujo principal con diagrama `sequenceDiagram` Mermaid
+Estructura por módulo (5 secciones; detalle en `functional_doc.prompt.md` § «Especialización de dominio»):
+- Descripción general (sin jerga técnica) con tabla de precondiciones
 - Reglas de negocio críticas (tabla)
-- Límites del módulo
+- Casos de uso: flujo principal con diagrama Mermaid, flujos alternativos y límites
+- Criterios de aceptación (tabla Dado/Cuando/Entonces)
+- Glosario
 
 ### 2. Documentación técnica (`docs/` o `docs/api/`)
 

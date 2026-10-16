@@ -67,7 +67,21 @@ sequenceDiagram
 - No compara esquemas
 - HSQLDB no tiene driver async: `AsyncDatabaseManager("hsqldb", ...)` falla con `NotImplementedError` al inicializarse; usar el gestor síncrono
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests del gestor asíncrono.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | `conn_params` con una clave que el motor no admite, sin un parámetro obligatorio o con un valor no válido | Se crea el gestor | Se rechaza en el constructor con un error de validación que nombra la clave o el parámetro |
+| AC-02 | Parámetros válidos | Se crea el gestor | No se conecta todavía; el gestor queda sin inicializar |
+| AC-03 | Un gestor sin inicializar | Se entra en `async with` | El gestor se inicializa al entrar |
+| AC-04 | Un gestor con pool dentro de `async with` | Se sale del bloque | El pool se cierra en modo inmediato |
+| AC-05 | Una consulta registrada que no existe | Se ejecuta por su nombre | El error de consulta no encontrada llega tal cual al llamante |
+| AC-06 | Falla el cierre del pool y también el de la conexión | Se cierra el gestor | Se intentan los dos cierres y el error de operación recoge ambos fallos |
+| AC-07 | El mismo schema leído con el gestor síncrono | Se leen sus metadatos con el asíncrono | Se obtienen las mismas tablas y claves foráneas |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

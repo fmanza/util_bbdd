@@ -220,6 +220,7 @@ class RoutineMeta:
 
     @property
     def key(self) -> RoutineKey:
+        """Clave de la routine para emparejarla con sus parámetros."""
         return RoutineKey(self.name, self.signature, self.routine_type)
 
 
@@ -261,7 +262,7 @@ class SchemaSnapshot:
         loaded: Tipos de objeto cargados; los demás lanzan :class:`KindNotLoadedError`.
         tables_filter: Si la lectura se limitó a unas tablas, cuáles (``None`` = schema completo).
 
-    Example:
+    Examples:
         >>> snapshot = source.snapshot("ventas", kinds={Kind.TABLES, Kind.COLUMNS})
         >>> [c.name for c in snapshot.columns("clientes")]
         ['id', 'nombre']
@@ -296,6 +297,7 @@ class SchemaSnapshot:
 
     @property
     def loaded(self) -> frozenset[Kind]:
+        """Tipos de objeto cargados en el snapshot."""
         return frozenset(self.data)
 
     def _all(self, kind: Kind) -> tuple[Any, ...]:
@@ -314,46 +316,61 @@ class SchemaSnapshot:
         return grouped[exact] if exact else ()
 
     # ── listados del schema ──────────────────────────────────────────────────
+    # Todos lanzan KindNotLoadedError si su Kind no se cargó.
     def tables(self) -> tuple[TableMeta, ...]:
+        """Tablas del schema (``Kind.TABLES``)."""
         return self._all(Kind.TABLES)
 
     def views(self) -> tuple[ViewMeta, ...]:
+        """Vistas del schema (``Kind.VIEWS``)."""
         return self._all(Kind.VIEWS)
 
     def routines(self) -> tuple[RoutineMeta, ...]:
+        """Funciones y procedures del schema (``Kind.ROUTINES``)."""
         return self._all(Kind.ROUTINES)
 
     def database(self) -> DatabaseMeta | None:
+        """Versión, charset y collation de la base de datos (``Kind.DATABASE``); ``None`` si el motor no la da."""
         items = self._all(Kind.DATABASE)
         return items[0] if items else None
 
     def all_foreign_keys(self) -> tuple[ForeignKeyMeta, ...]:
+        """Claves foráneas de todas las tablas del schema (``Kind.FOREIGN_KEYS``)."""
         return self._all(Kind.FOREIGN_KEYS)
 
     # ── por tabla ────────────────────────────────────────────────────────────
+    # ``table`` admite otra capitalización si no es ambigua; una tabla sin objetos de ese tipo devuelve ``()``/``None``.
     def columns(self, table: str) -> tuple[ColumnMeta, ...]:
+        """Columnas de ``table`` (``Kind.COLUMNS``; posición en ``ColumnMeta.ordinal``)."""
         return self._for_table(Kind.COLUMNS, table)
 
     def primary_key(self, table: str) -> PrimaryKeyMeta | None:
+        """Clave primaria de ``table`` (``Kind.PRIMARY_KEYS``); ``None`` si no tiene."""
         items = self._for_table(Kind.PRIMARY_KEYS, table)
         return items[0] if items else None
 
     def uniques(self, table: str) -> tuple[UniqueMeta, ...]:
+        """Restricciones ``UNIQUE`` de ``table`` (``Kind.UNIQUES``)."""
         return self._for_table(Kind.UNIQUES, table)
 
     def checks(self, table: str) -> tuple[CheckMeta, ...]:
+        """Restricciones ``CHECK`` de ``table`` (``Kind.CHECKS``)."""
         return self._for_table(Kind.CHECKS, table)
 
     def foreign_keys(self, table: str) -> tuple[ForeignKeyMeta, ...]:
+        """Claves foráneas definidas en ``table`` (``Kind.FOREIGN_KEYS``)."""
         return self._for_table(Kind.FOREIGN_KEYS, table)
 
     def indexes(self, table: str) -> tuple[IndexMeta, ...]:
+        """Índices de ``table`` (``Kind.INDEXES``)."""
         return self._for_table(Kind.INDEXES, table)
 
     def identity(self, table: str) -> tuple[IdentityMeta, ...]:
+        """Columnas identidad o con secuencia asociada de ``table`` (``Kind.IDENTITY``)."""
         return self._for_table(Kind.IDENTITY, table)
 
     def routine_parameters(self, routine: RoutineKey) -> tuple[RoutineParameterMeta, ...]:
+        """Parámetros de ``routine`` (``Kind.ROUTINE_PARAMETERS``), emparejados con :meth:`RoutineKey.matches`."""
         self._all(Kind.ROUTINE_PARAMETERS)
         candidates = self._params_by_routine.get((routine.name, routine.signature), [])
         return tuple(p for p in candidates if p.routine.matches(routine))

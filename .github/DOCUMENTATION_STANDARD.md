@@ -34,44 +34,38 @@ solo añade reglas de edición por ruta (Markdown, Mermaid, snippets, `nav`) y r
 
 **Ubicación**: `docs/functional/[módulo].md` · **Prompt**: `.github/prompts/functional_doc.prompt.md`
 
-**Estructura obligatoria** (8 secciones numeradas, en este orden). La fuente es
-`.github/prompts/functional_doc.prompt.md` (núcleo compartido por bootstrap); si difieren, manda el prompt:
+**Estructura obligatoria en util_bbdd** (5 secciones numeradas, en este orden). El núcleo compartido de
+`.github/prompts/functional_doc.prompt.md` define 8 secciones; este proyecto las agrupa en 5 mediante su bloque
+«Especialización de dominio» (decisión 2026-10-16: es la estructura que ya seguían las páginas, más los criterios de
+aceptación). Si este resumen y ese bloque difieren, manda el bloque:
 
 ```
 # [Título del Módulo/Funcionalidad]
 
-## 1. Objetivo y Descripción
-2-3 párrafos sin jerga técnica: qué problema resuelve, qué valor aporta y por qué existe.
+## 1. Descripción General
+Qué problema resuelve, qué valor aporta y por qué existe (sin jerga técnica).
+**Precondiciones:** lista, o tabla | Requisito | Detalle |
 
-## 2. Precondiciones
-Lo que debe existir o estar configurado antes de usar la funcionalidad (un ítem por precondición).
-
-## 3. Flujo Principal
-Diagrama Mermaid sequenceDiagram (máximo 12 nodos) + párrafo que describe el flujo paso a paso.
-
-## 4. Postcondiciones y Efectos
-Estado observable tras la operación: registros creados/modificados, artefacto producido,
-transacciones confirmadas o revertidas, cachés afectadas.
-
-## 5. Reglas de Negocio
+## 2. Reglas de Negocio
 Tabla: | Regla | Descripción | Impacto si se viola |
 
-## 6. Límites, Flujos Alternativos y Casos Especiales
-### Qué NO hace esta funcionalidad
+## 3. Casos de Uso
+### Flujo principal
+Diagrama Mermaid (flowchart TD para fases y decisiones, sequenceDiagram para interacción entre actores; máximo 12 nodos).
 ### Flujos alternativos
-### Casos especiales
+**Límites y exclusiones:** lo que NO hace la funcionalidad.
 
-## 7. Criterios de Aceptación
-Tabla: | ID | Dado | Cuando | Entonces |  (derivados del código cuando sea posible)
+## 4. Criterios de Aceptación
+Tabla: | ID | Dado | Cuando | Entonces |  (derivados del código y de los tests)
 ### Pendiente de validación QA  (solo si algún criterio no puede derivarse del código)
 
-## 8. Glosario de Dominio
+## 5. Glosario y Términos
 Tabla: | Término | Definición |
 ```
 
-> **Migración pendiente**: los 19 documentos de `docs/functional/` siguen la estructura anterior de 4
-> secciones (Descripción General · Reglas de Negocio · Casos de Uso · Glosario). Se migran por área con
-> Documentation Generator al regenerarlos; hasta entonces no se consideran incumplimiento en revisión.
+> **Transición**: las páginas de `docs/functional/` que aún no tienen `## 4. Criterios de Aceptación` (su glosario
+> sigue en `## 4.`) se completan por área, empezando por managers, bulk y dump; hasta entonces no se consideran
+> incumplimiento en revisión.
 
 **Reglas de lenguaje**:
 

@@ -45,6 +45,7 @@ class SqlAlchemyCatalogExecutor:
         self.bind = bind
 
     def fetch_all(self, sql: str, params: Mapping[str, Any]) -> list[tuple[Any, ...]]:
+        """Ejecuta ``sql`` (parámetros ``:nombre``; las listas se expanden) y devuelve todas las filas."""
         expanded, flat = expand_lists(sql, params)
         statement = text(expanded)
         if isinstance(self.bind, Connection):
@@ -248,6 +249,7 @@ class CatalogSource(_SourceBase):
         self.dialect = resolved_dialect
 
     def current_schema(self) -> str:
+        """Schema por defecto: ``default_schema`` o, si no se dio, el de la conexión (se pregunta una vez)."""
         self._resolve_dialect()  # Lazy resolution
         if self._default_schema is None:
             rows = self.executor.fetch_all(self.dialect.current_schema_sql(), {})
@@ -311,6 +313,7 @@ class AsyncCatalogSource(_SourceBase):
         self._version_resolved = False
 
     async def current_schema(self) -> str:
+        """Schema por defecto: ``default_schema`` o, si no se dio, el de la conexión (se pregunta una vez)."""
         await self._resolve_dialect()  # Lazy resolution
         if self._default_schema is None:
             rows = await self.executor.fetch_all(self.dialect.current_schema_sql(), {})
@@ -363,6 +366,7 @@ class AsyncCatalogSource(_SourceBase):
         kinds: Collection[Kind] = ALL_KINDS,
         tables: Collection[str] | None = None,
     ) -> SchemaSnapshot:
+        """Metadatos de ``schema`` para ``kinds``: una consulta por tipo de objeto no cacheado."""
         schema = self.dialect.normalize_name(schema) if schema else await self.current_schema()
         wanted, selected = self._plan(kinds, tables)
         data: dict[Kind, tuple[Any, ...]] = {}

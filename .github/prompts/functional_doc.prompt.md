@@ -17,11 +17,25 @@ información verificable del código, README, `docs/` y configuración del proye
 
 - **Proyecto**: util_bbdd — librería Python multimotor de bases de datos (sync/async)
 - **Rol del modelo**: Senior Product Owner especializado en librerías Python para ingeniería de datos
-- **Actores por defecto en §3**: `Usuario` (desarrollador / aplicación cliente), `util_bbdd`, `Base de Datos`
+- **Actores por defecto en el flujo principal**: `Usuario` (desarrollador / aplicación cliente), `util_bbdd`, `Base de Datos`
 - **Audiencia**: Desarrolladores Python, ingenieros de datos, DBAs
-- **Fuente del glosario §8**: inline en el documento (no existe `.ai/glossary.md` en este proyecto)
-- **Tabla §5 — columnas**: 3 columnas — `Regla | Descripción | Impacto si se viola` (sin columna normativa)
-- **Referencia §7 QA**: equipo QA / tests de integración del proyecto
+- **Fuente del glosario**: inline en el documento (no existe `.ai/glossary.md` en este proyecto)
+- **Tabla de reglas de negocio — columnas**: 3 columnas — `Regla | Descripción | Impacto si se viola` (sin columna normativa)
+- **Referencia QA de los criterios de aceptación**: equipo QA / tests de integración del proyecto
+- **Estructura de este proyecto** (sustituye a las 8 secciones del núcleo; decisión 2026-10-16): 5 secciones
+  numeradas, en este orden. El contenido de las secciones del núcleo se conserva, agrupado:
+  1. `## 1. Descripción General` — objetivo y descripción del núcleo §1, con un bloque `**Precondiciones:**`
+     (lista, o tabla `Requisito | Detalle`) que sustituye a §2.
+  2. `## 2. Reglas de Negocio` — igual que §5 del núcleo.
+  3. `## 3. Casos de Uso` — `### Flujo principal` (diagrama Mermaid: `flowchart TD` para fases y decisiones o
+     `sequenceDiagram` para interacción entre actores; máximo 12 nodos), `### Flujos alternativos` y
+     `**Límites y exclusiones:**` (lo que NO hace). Sustituye a §3, §4 y §6; las postcondiciones relevantes se
+     describen en el flujo o en los criterios de aceptación.
+  4. `## 4. Criterios de Aceptación` — igual que §7 del núcleo (tabla `| ID | Dado | Cuando | Entonces |` y
+     `### Pendiente de validación QA` solo si hace falta).
+  5. `## 5. Glosario y Términos` — igual que §8 del núcleo.
+
+  Al generar o actualizar una página de `docs/functional/` aplica esta estructura, no la del núcleo.
 
 ---
 

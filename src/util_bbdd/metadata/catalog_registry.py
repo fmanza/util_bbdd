@@ -74,6 +74,7 @@ def register_catalog_dialect(dialect: CatalogDialect) -> None:
 
 
 def supported_catalog_engines() -> list[str]:
+    """Motores con dialecto de catálogo (los incluidos y los registrados con :func:`register_catalog_dialect`)."""
     return sorted(set(_BUILTIN) | set(_extra))
 
 

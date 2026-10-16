@@ -13,6 +13,12 @@ Documentación generada automáticamente desde los docstrings del código fuente
 | [Comparador](comparator.md) | `SchemaComparator`, modelos `SchemaDiff` |
 | [Reporters](reporters.md) | `SchemaDiffReporter`, `HtmlDiffReporter`, `SqlDiffReporter`, `MarkdownDiffReporter`, `ExcelDiffReporter`, `WordDiffReporter` |
 | [Bulk Operations](bulk.md) | `BulkCrud`, `ParallelBulkLoader` y auxiliares de `util_bbdd.bulk` |
+| [Dump](dump_autodoc.md) | `DumpOrchestrator`, `DumpConfig`, `DumpResult` y auxiliares de `util_bbdd.dump` |
+| [Migración DDL](migrate_autodoc.md) | `MigrationPlanner`, `MigrationPlan`, `MigrationWarning` |
+| [Documentación de BD](doc_autodoc.md) | `DatabaseDocumentation`, `DocumentationResult` |
+| [Metadatos](metadata_autodoc.md) | `SchemaSnapshot`, `Kind`, tipos del modelo y contratos de `util_bbdd.metadata` |
+| [Auditoría](audit_autodoc.md) | `AuditEvent`, `AuditSink` y destinos de `util_bbdd.audit` |
+| [Conexiones](connection_autodoc.md) | `build_conn_params`, `ConnectionFactory`, `ConnectionParamsManager` |
 | [Excepciones](exceptions.md) | `util_bbdd.exceptions`: `DatabaseException` y toda la jerarquía |
 
 ---

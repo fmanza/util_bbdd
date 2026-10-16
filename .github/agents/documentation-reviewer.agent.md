@@ -81,81 +81,15 @@ Cuando se pida revisar todo el proyecto, sigue estas fases:
 6. **Prioriza**: bloqueantes (impiden uso) vs recomendadas (mejoran experiencia).
 7. **Emite veredicto**: readiness de documentación, prioridades de mejora inmediata.
 
-## Criterios por nivel
+## Criterios y formato de salida
 
-### Nivel 1: Crítico (bloquea onboarding o uso seguro)
-- README no describe propósito o no tiene quick start
-- Módulos públicos sin docstrings
-- APIs sin type hints o sin documentación de parámetros
-- Ejemplos rotos o desactualizados
-- Instalación no documentada o incompleta
+El contrato es `.github/prompts/documentation_review.prompt.md`: criterios por severidad (niveles 1, 2 y 3), fases
+PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION, subsecciones obligatorias de AUDIT_CODE y veredicto
+`PRODUCTION_READY | NEAR_READY | BLOCKED`. No los repitas aquí: si este agente y el prompt discrepan, manda el prompt.
 
-### Nivel 2: Alto (dificulta uso o entendimiento)
-- Ejemplos faltantes para features principales
-- Documentación de arquitectura sin diagrama o unclear
-- `mkdocs.yml` desactualizado o con páginas inexistentes
-- Guías de troubleshooting ausentes
-- Tipos de error no documentados
-- Incompatibilidad entre motors no aclarada
+## Verificaciones recomendadas (solo lectura)
 
-### Nivel 3: Recomendado (mejora experiencia)
-- Ejemplos avanzados no cubiertos
-- Edge cases no ejemplificados
-- Performance tips no documentados
-- Integración con herramientas externas sin guía
-
-## Output contract
-
-Formato esperado definido en `.github/prompts/documentation_review.prompt.md`.
-
-## Formato de salida
-
-## Executive summary
-
-## Scope reviewed
-- Documentation files analyzed
-- Examples inventory
-- Architecture docs checked
-- Examples coverage by module
-
-## Findings by category
-  ### README & Entry Points
-  ### Public API Documentation
-  ### Examples & Tutorials
-  ### Architecture & Design Guides
-  ### MkDocs Navigation & Rendering
-  ### AI Prompts & Documentation Instructions
-  ### Installation & Setup
-  ### Compatibility & Engines
-
-## Critical gaps (nivel 1)
-- Impact: onboarding, safety, or correctness
-- Recomendacion: immediate action required
-
-## High priority improvements (nivel 2)
-- Impact: usability, clarity, or feature discoverability
-- Recomendacion: planned for next release
-
-## Recommended enhancements (nivel 3)
-- Impact: experience improvement
-- Recomendacion: backlog for future releases
-
-## Examples inventory & coverage
-
-### Existing examples
-- Location, completeness, correctness status
-
-### Missing examples
-- Feature or pattern not exemplified
-- Module without simple usage demo
-
-## Documentation consistency
-
-### Language & Tone
-### Cross-references & Linkability
-### Versions & Changelog
-
-## Documentation readiness verdict
-- Overall readiness: PRODUCTION_READY | NEAR_READY | BLOCKED
-- Next steps
-- Priority backlog (ranked by impact)
+- Navegación: compara las rutas de `nav:` de `mkdocs.yml` con los `.md` de `docs/` (rotas y huérfanas).
+- Build: `mkdocs build --strict -d <directorio temporal>` (no escribas `site/` en el repo).
+- Autodoc: comprueba que cada directiva `::: ruta` se puede importar.
+- Ejemplos: `pytest tests/unit/test_docs_examples.py` ejecuta los ejemplos de SQLite.

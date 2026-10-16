@@ -74,7 +74,22 @@ flowchart TD
 - Paralelismo por rangos PK solo para tablas con PK de una única columna entera
 - El informe Excel usa `openpyxl` (dependencia de la librería, incluida en la instalación base)
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests del módulo de volcado.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Una tabla existe en origen pero no en destino | Se ejecuta el volcado | La tabla queda como `missing_target` en el resultado y en el informe; no se crea en destino |
+| AC-02 | Una columna existe en origen pero no en destino | Se vuelca su tabla | La columna se omite de la carga y aparece como omitida en el informe |
+| AC-03 | Origen con nombres en mayúsculas (Oracle) y destino en minúsculas (PostgreSQL) | Se emparejan las columnas | Se emparejan sin distinguir mayúsculas y se insertan con el nombre del destino |
+| AC-04 | Dos tablas se referencian entre sí (ciclo FK) | Se ejecuta el volcado | Se cargan todas las tablas y las del ciclo quedan marcadas como tales en el resultado |
+| AC-05 | La carga de una tabla falla (p. ej. supera `max_rejects`) | Se ejecuta el volcado | Esa tabla queda en `error` con el mensaje del fallo y el resto de tablas se cargan igualmente |
+| AC-06 | `on_error="isolate"` y el destino ya tiene filas con la misma clave, sin `truncate_target` | Se vuelca la tabla | Las filas duplicadas van al CSV de rechazos, se cuentan en el resultado y la tabla termina en `success` |
+| AC-07 | La reactivación de constraints falla al terminar la carga | Termina el volcado | El resultado recoge el error de reactivación y la ejecución queda como fallida en la auditoría |
+| AC-08 | Falla el resumen de auditoría del volcado | Termina el volcado | El informe Excel se genera igualmente, sin el resumen de auditoría |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

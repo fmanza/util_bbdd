@@ -248,7 +248,7 @@ def run_benchmark(row_count: int = 100_000) -> None:
 
     print(
         "Recomendación para MariaDB 1 GB buffer pool:\n"
-        "  bulk = BulkCrud(engine, chunk_size=5_000, commit_every_n_chunks=20)\n"
+        "  bulk = BulkCrud(engine, batch=BatchOptions(chunk_size=5_000, commit_every_n_chunks=20))\n"
         "  bulk.bulk_insert_from_df(df, 'tabla_destino')\n"
     )
 

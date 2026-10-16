@@ -192,6 +192,12 @@ class ConnectionParamsManager:
         conn_params: dict[str, Any],
         driver: str | None = None,
     ) -> Any:
+        """Configuración de conexión tipada de ``db_type`` (``<Motor>ConnectionConfig.from_params``).
+
+        Raises:
+            InvalidDatabaseType: Si ``db_type`` no está soportado.
+            ValueError: Si ``conn_params`` no es válido para el motor.
+        """
         normalized_type: str = db_type.lower().strip()
         if normalized_type == "mariadb":
             return MariaDBConnectionConfig.from_params(conn_params)
@@ -217,6 +223,12 @@ class ConnectionParamsManager:
         db_type: str,
         conn_params: dict[str, Any],
     ) -> Any:
+        """Configuración de pool tipada de ``db_type`` (``<Motor>PoolConfig.from_params``).
+
+        Raises:
+            InvalidDatabaseType: Si ``db_type`` no tiene configuración de pool.
+            ValueError: Si ``conn_params`` no es válido para el motor.
+        """
         normalized_type: str = db_type.lower().strip()
         if normalized_type == "mariadb":
             return MariaDBPoolConfig.from_params(conn_params)

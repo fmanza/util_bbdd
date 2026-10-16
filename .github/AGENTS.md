@@ -67,10 +67,10 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 ### 6. **Documentation Reviewer** (`documentation-reviewer.agent.md`)
 - **Propósito**: Revisar y auditar documentación completa, ejemplos, gaps, coherencia
 - **Entrada**: Alcance (README | ejemplos | APIs | guías | todas)
-- **Salida**: Scope, Findings por categoría, Critical gaps, Priority improvements, Recomendaciones
+- **Salida**: PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION (contrato: `.github/prompts/documentation_review.prompt.md`)
 - **Herramientas**: read, search
 - **Invocable**: Sí (auditoría independiente)
-- **Criterios**: Nivel 1 (crítico), Nivel 2 (alto), Nivel 3 (recomendado)
+- **Criterios**: Nivel 1 (crítico), Nivel 2 (alto), Nivel 3 (recomendado), definidos en el prompt
 - **Prompt Copilot Chat**: `.github/prompts/documentation_review.prompt.md`
 - **Slash command**: No disponible en `.claude/commands/` — invocar mediante lenguaje natural en Claude Code
 
@@ -176,30 +176,10 @@ Input: Necesito una auditoría completa de documentación de util_bbdd incluyend
 ```
 
 ### Output esperado
-```
-## Executive summary
-[Resumen de hallazgos principales]
 
-## Scope reviewed
-- Archivos de documentación analizados (README.md, docs/*, docs/examples/*, .ai/*)
-- Cobertura de ejemplos por módulo
-- Documentación de APIs públicas
-
-## Critical gaps (Nivel 1)
-[Bloqueantes que impiden onboarding o uso seguro]
-
-## High priority improvements (Nivel 2)
-[Dificultades de usabilidad o claridad]
-
-## Recommended enhancements (Nivel 3)
-[Mejoras de experiencia]
-
-## Examples inventory & coverage
-[Ejemplos existentes + Ejemplos faltantes]
-
-## Documentation readiness verdict
-PRODUCTION_READY | NEAR_READY | BLOCKED
-```
+El definido en `.github/prompts/documentation_review.prompt.md` § «Formato de salida completo»: PLAN, AUDIT_PLAN
+(veredicto `GO | GO_CONDICIONAL | NO_GO`), AUDIT_CODE con sus subsecciones (README, funcional, técnica, ejemplos,
+MkDocs, docstrings, prompts IA) y VERSION con hallazgos por nivel y readiness `PRODUCTION_READY | NEAR_READY | BLOCKED`.
 
 ---
 
@@ -268,4 +248,4 @@ Gobernanza entre plataformas: [`SHARED_INSTRUCTIONS.md`](SHARED_INSTRUCTIONS.md)
 
 ---
 
-*Actualizado: 2026-10-15*
+*Actualizado: 2026-10-16*

@@ -109,7 +109,7 @@ El SQL de cada vista se reescribe al dialecto destino con [sqlglot](https://gith
 dependencia **opcional**:
 
 ```bash
-pip install "util_bbdd[migrate] @ git+https://github.com/fmanza/util_bbdd.git@v1.1.0"
+pip install "util_bbdd[migrate] @ git+https://github.com/fmanza/util_bbdd.git@v3.0.2"
 ```
 
 El parámetro `view_strategy` decide cómo se migran las vistas:

@@ -54,6 +54,7 @@ class SnapshotCache:
 
     # ── lectura y escritura ──────────────────────────────────────────────────
     def get(self, key: CacheKey) -> Value | None:
+        """Valor de ``key`` (lo marca como recién usado) o ``None`` si no está; cuenta el acierto."""
         with self._lock:
             group = self._groups.get((key[0], key[1]))
             if group is None or key not in group:
@@ -63,6 +64,7 @@ class SnapshotCache:
             return group[key]
 
     def put(self, key: CacheKey, value: Value) -> None:
+        """Guarda ``value``; si se supera ``max_schemas``, descarta el schema menos usado."""
         with self._lock:
             group_key = (key[0], key[1])
             self._groups.setdefault(group_key, {})[key] = value
@@ -149,11 +151,13 @@ class SnapshotCache:
         return removed
 
     def clear(self) -> None:
+        """Vacía la caché; las cargas en curso no guardan su resultado."""
         with self._lock:
             self._groups.clear()
             self._clears += 1
 
     def stats(self) -> dict[str, int]:
+        """Contadores: ``schemas`` y ``entries`` en memoria, ``hits`` y ``misses`` acumulados."""
         with self._lock:
             return {
                 "schemas": len(self._groups),

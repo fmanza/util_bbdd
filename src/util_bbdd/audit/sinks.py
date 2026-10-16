@@ -56,7 +56,7 @@ class MemoryAuditSink(_ClosableSink):
 
     Pensado para tests y para inspeccionar una ejecución corta sin escribir ficheros.
 
-    Example:
+    Examples:
         >>> sink = MemoryAuditSink()
         >>> sink.write([AuditEvent.now(source="bulk", kind="operation", status="ok", rows=10)])
         >>> [event.rows for event in sink.events()]

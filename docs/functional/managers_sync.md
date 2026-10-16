@@ -19,7 +19,7 @@ flujos de introspección intensivos o en generación de documentación de esquem
   (extras `mariadb` / `mysql`), `psycopg` (v3) y `psycopg-pool` para PostgreSQL (extra `postgresql`), `oracledb` para
   Oracle (incluido en la instalación base), `pymssql` para SQL Server (o `pyodbc` con `sql_server_driver="pyodbc"`),
   `jaydebeapi` y Java para HSQLDB. Instalación con extras:
-  `pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v1.1.0"`
+  `pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v3.0.2"`
 - Tipo de motor declarado explícitamente: `mariadb`, `mysql`, `oracle`, `postgresql`, `sqlserver`, `sqlite` o `hsqldb`
 - Parámetros de conexión obligatorios del motor: `host`, `user`, `password` y `database` (MariaDB, MySQL, PostgreSQL,
   SQL Server); `user` y `password` (Oracle); `user`, `jdbc_url` y `jdbc_jar` (HSQLDB); `database` (SQLite)
@@ -91,7 +91,21 @@ advertencia en el log. Con `use_pool=False` se fuerza la conexión única en cua
 - No coordina transacciones entre varias bases de datos
 - Solo los motores declarados (MariaDB, MySQL, Oracle, PostgreSQL, SQL Server, SQLite y HSQLDB)
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación
+
+Derivados de los tests del gestor y comprobados contra el código.
+
+| ID | Dado | Cuando | Entonces |
+|---|---|---|---|
+| AC-01 | Un tipo de motor que no es ninguno de los siete soportados | Se crea el gestor | Se rechaza con un error de validación (`InvalidDatabaseType`) que lista los tipos soportados; no se intenta conectar |
+| AC-02 | Falta un parámetro obligatorio del motor (p. ej. `database`) | Se crea el gestor | Se rechaza con un error de validación que nombra el parámetro que falta |
+| AC-03 | Se han leído las tablas de un schema | Se vuelven a pedir | Se devuelven las mismas sin volver a consultar la base de datos |
+| AC-04 | Se crea una tabla con una consulta propia después de leer los metadatos | Se piden las tablas sin y con `clear_cache()` | Sin invalidar no aparece; tras `clear_cache()` aparece |
+| AC-05 | Se leyeron solo algunos tipos de objeto (p. ej. columnas) | Se pide un tipo que no se cargó | Error explícito de tipo no cargado, nunca una lista vacía |
+| AC-06 | El cierre de uno de los recursos (pool, cursor o conexión) falla | Se cierra el gestor | Se intenta cerrar el resto, el gestor queda sin recursos y el fallo se informa como error de operación |
+| AC-07 | Se pide el engine SQLAlchemy varias veces | Se cierra el gestor | Se reutilizó un único engine y se libera al cerrar |
+
+## 5. Glosario y Términos
 
 | Término | Definición |
 |---|---|

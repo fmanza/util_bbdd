@@ -1,4 +1,12 @@
-"""Clases de configuracion tipadas para conexiones y pools por motor."""
+"""Clases de configuracion tipadas para conexiones y pools por motor.
+
+Todas siguen el mismo contrato (por eso sus métodos no repiten docstring):
+
+- ``from_params(params)``: valida el ``conn_params`` del usuario y crea la configuración; lanza ``ValueError`` si
+  falta un parámetro obligatorio o alguno tiene un valor no válido. Las de SQL Server reciben además ``driver``
+  (``pyodbc``/``pymssql``; por defecto ``conn_params["sql_server_driver"]`` o ``pymssql``).
+- ``to_driver_kwargs()``: argumentos de conexión con los nombres que espera el driver del motor.
+"""
 
 from __future__ import annotations
 

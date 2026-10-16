@@ -420,6 +420,14 @@ class SyncQueryExecutor:
         params: dict[str, Any],
         timeout: float | None = None,
     ) -> Rows:
+        """Resuelve ``query_name`` para ``db_type`` con ``params``, la ejecuta y devuelve todas las filas.
+
+        Raises:
+            QueryNotFoundError: Si la consulta no existe para el motor.
+            QueryValidationError: Si los parámetros no superan la validación del motor.
+            QueryTimeoutError: Si se supera ``timeout`` (segundos).
+            DatabaseOperationError: Si falla la ejecución (el error original queda en ``__cause__``).
+        """
         result = self._execute_resolved(
             query_name=query_name,
             db_type=db_type,
@@ -436,6 +444,7 @@ class SyncQueryExecutor:
         params: dict[str, Any],
         timeout: float | None = None,
     ) -> RowOrNone:
+        """Como :meth:`execute_query_many`, pero devuelve la primera fila o ``None``."""
         result = self._execute_resolved(
             query_name=query_name,
             db_type=db_type,
@@ -451,6 +460,12 @@ class SyncQueryExecutor:
         params: dict[str, Any] | None = None,
         timeout: float | None = None,
     ) -> Rows:
+        """Ejecuta ``sql`` (parámetros ``:nombre``) y devuelve todas las filas.
+
+        Raises:
+            QueryTimeoutError: Si se supera ``timeout`` (segundos).
+            DatabaseOperationError: Si falla la ejecución (el error original queda en ``__cause__``).
+        """
         result = self._execute_custom(
             sql=sql,
             params=params,
@@ -465,6 +480,7 @@ class SyncQueryExecutor:
         params: dict[str, Any] | None = None,
         timeout: float | None = None,
     ) -> RowOrNone:
+        """Como :meth:`execute_custom_many`, pero devuelve la primera fila o ``None``."""
         result = self._execute_custom(
             sql=sql,
             params=params,

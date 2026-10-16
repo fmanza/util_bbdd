@@ -107,14 +107,18 @@ class VersionedCatalogDialect(CatalogDialect, Protocol):
 class CatalogExecutor(Protocol):
     """Ejecuta SQL de catálogo con parámetros ``:nombre`` y devuelve todas las filas como tuplas."""
 
-    def fetch_all(self, sql: str, params: Mapping[str, Any]) -> list[tuple[Any, ...]]: ...
+    def fetch_all(self, sql: str, params: Mapping[str, Any]) -> list[tuple[Any, ...]]:
+        """Ejecuta ``sql`` con ``params`` y devuelve todas las filas."""
+        ...
 
 
 @runtime_checkable
 class AsyncCatalogExecutor(Protocol):
     """Variante async de :class:`CatalogExecutor`."""
 
-    async def fetch_all(self, sql: str, params: Mapping[str, Any]) -> list[tuple[Any, ...]]: ...
+    async def fetch_all(self, sql: str, params: Mapping[str, Any]) -> list[tuple[Any, ...]]:
+        """Ejecuta ``sql`` con ``params`` y devuelve todas las filas."""
+        ...
 
 
 @runtime_checkable
@@ -127,9 +131,13 @@ class MetadataSource(Protocol):
         *,
         kinds: Collection[Kind] = ALL_KINDS,
         tables: Collection[str] | None = None,
-    ) -> SchemaSnapshot: ...
+    ) -> SchemaSnapshot:
+        """Metadatos de ``schema`` (``None``: el de la conexión) para ``kinds``, opcionalmente solo de ``tables``."""
+        ...
 
-    def invalidate(self, schema: str | None = None, *, kinds: Collection[Kind] | None = None) -> None: ...
+    def invalidate(self, schema: str | None = None, *, kinds: Collection[Kind] | None = None) -> None:
+        """Descarta lo leído de ``schema`` y ``kinds`` (``None``: todo); tras un DDL propio."""
+        ...
 
 
 @runtime_checkable
@@ -142,14 +150,21 @@ class AsyncMetadataSource(Protocol):
         *,
         kinds: Collection[Kind] = ALL_KINDS,
         tables: Collection[str] | None = None,
-    ) -> SchemaSnapshot: ...
+    ) -> SchemaSnapshot:
+        """Como :meth:`MetadataSource.snapshot`."""
+        ...
 
-    def invalidate(self, schema: str | None = None, *, kinds: Collection[Kind] | None = None) -> None: ...
+    def invalidate(self, schema: str | None = None, *, kinds: Collection[Kind] | None = None) -> None:
+        """Como :meth:`MetadataSource.invalidate`."""
+        ...
 
 
 @runtime_checkable
 class SyncMetadataProvider(Protocol):
-    """Contrato de lectura de metadatos en modo síncrono."""
+    """Contrato de lectura de metadatos en modo síncrono.
+
+    Semántica de cada método: la de su homónimo en :class:`~util_bbdd.SyncDatabaseManager`, que lo cumple.
+    """
 
     def get_tables(self) -> list[TableMeta]: ...
     def get_views(self) -> list[ViewMeta]: ...
@@ -164,7 +179,10 @@ class SyncMetadataProvider(Protocol):
 
 @runtime_checkable
 class AsyncMetadataProvider(Protocol):
-    """Contrato de lectura de metadatos en modo asíncrono."""
+    """Contrato de lectura de metadatos en modo asíncrono.
+
+    Semántica de cada método: la de su homónimo en :class:`~util_bbdd.AsyncDatabaseManager`, que lo cumple.
+    """
 
     async def get_tables(self) -> list[TableMeta]: ...
     async def get_views(self) -> list[ViewMeta]: ...
