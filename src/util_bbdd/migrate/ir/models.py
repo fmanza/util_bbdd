@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
@@ -280,18 +280,18 @@ class MigrationPlan:
         También los de ``view.warnings`` (comentarios de vistas, E2 0.22.0).
         Idempotente: no duplica warnings ya presentes.
         """
+        for warning in self._emitted_warnings():
+            if warning not in self.warnings:
+                self.warnings.append(warning)
+
+    def _emitted_warnings(self) -> Iterator[MigrationWarning]:
+        """Warnings de vistas, tablas y columnas, en ese orden (cada tabla seguida de sus columnas)."""
         for view in self.views:
-            for warning in view.warnings:
-                if warning not in self.warnings:
-                    self.warnings.append(warning)
+            yield from view.warnings
         for table in self.tables:
-            for warning in table.warnings:
-                if warning not in self.warnings:
-                    self.warnings.append(warning)
+            yield from table.warnings
             for col in table.columns:
-                for warning in col.warnings:
-                    if warning not in self.warnings:
-                        self.warnings.append(warning)
+                yield from col.warnings
 
     def execute(self, target_connection: Any, *, audit_sink: AuditSink | None = None) -> None:
         """Ejecuta el DDL generado contra el motor destino.

@@ -104,7 +104,7 @@ CHARSET_COLLATION_MAP: dict[str, frozenset[str]] = {
 }
 
 
-_STORAGE_ENGINE_RE: re.Pattern[str] = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+_STORAGE_ENGINE_RE: re.Pattern[str] = re.compile(r"^[A-Za-z]\w*$", re.ASCII)  # ASCII: sin él, \w admite letras Unicode
 
 
 def validate_storage_engine(engine: str) -> str:

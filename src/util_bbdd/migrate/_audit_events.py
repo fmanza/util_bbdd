@@ -103,7 +103,13 @@ class MigrationAuditEvents:
         """Un evento ``view_validation`` por vista: ``ok``, ``failed`` o ``skipped`` (no se pudo validar)."""
         events: list[AuditEvent] = []
         for result in results:
-            status: AuditStatus = "skipped" if result.valid is None else ("ok" if result.valid else "failed")
+            status: AuditStatus
+            if result.valid is None:
+                status = "skipped"
+            elif result.valid:
+                status = "ok"
+            else:
+                status = "failed"
             events.append(
                 AuditEvent.now(
                     source="migrate",

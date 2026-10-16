@@ -22,19 +22,25 @@ from __future__ import annotations
 
 import re
 
+#: MariaDB y MySQL comparten las funciones de fecha y hora de un DEFAULT.
+_MYSQL_TIMESTAMP_FUNCTIONS: frozenset[str] = frozenset(
+    {"CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP()", "NOW()", "LOCALTIMESTAMP", "LOCALTIMESTAMP()"}
+)
 _TIMESTAMP_FUNCTIONS: dict[str, frozenset[str]] = {
     "postgresql": frozenset(
         {"NOW()", "CURRENT_TIMESTAMP", "LOCALTIMESTAMP", "STATEMENT_TIMESTAMP()", "TRANSACTION_TIMESTAMP()"}
     ),
     "sqlserver": frozenset({"GETDATE()", "SYSDATETIME()", "CURRENT_TIMESTAMP", "GETUTCDATE()", "SYSUTCDATETIME()"}),
     "oracle": frozenset({"SYSDATE", "SYSTIMESTAMP", "CURRENT_TIMESTAMP", "LOCALTIMESTAMP"}),
-    "mariadb": frozenset({"CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP()", "NOW()", "LOCALTIMESTAMP", "LOCALTIMESTAMP()"}),
-    "mysql": frozenset({"CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP()", "NOW()", "LOCALTIMESTAMP", "LOCALTIMESTAMP()"}),
+    "mariadb": _MYSQL_TIMESTAMP_FUNCTIONS,
+    "mysql": _MYSQL_TIMESTAMP_FUNCTIONS,
 }
 _DATE_FUNCTIONS: frozenset[str] = frozenset({"CURRENT_DATE", "CURRENT_DATE()", "CURDATE()"})
 _TIMESTAMP_WITH_PRECISION_RE: re.Pattern[str] = re.compile(r"^(?:CURRENT_TIMESTAMP|NOW)\s*\(\s*(\d+)\s*\)$", re.I)
-#: Cast de PostgreSQL al final del valor: ``::character varying``, ``::timestamp without time zone``, ``::text[]``.
-_PG_CAST_RE: re.Pattern[str] = re.compile(r'::\s*[A-Za-z_"][\w\s".]*(\(\s*\d+(\s*,\s*\d+)?\s*\))?(\[\])*\s*$')
+#: Tipo de un cast de PostgreSQL tras el último ``::`` (``character varying``, ``numeric(10,2)``, ``text[]``). La
+#: precisión se reconoce sin validar su forma: viene del catálogo, ya es válida. Sin ``\s*`` final (el valor llega
+#: sin espacios alrededor) para que ninguna parte del patrón se solape con otra: sin backtracking.
+_PG_CAST_TYPE_RE: re.Pattern[str] = re.compile(r'\s*[A-Za-z_"][\w\s".]*(?:\([\d\s,]*\))?(?:\[\])*')
 _PG_NUMERIC_CAST_RE: re.Pattern[str] = re.compile(
     r"::\s*(smallint|integer|bigint|int\d?|numeric|decimal|real|double precision|float\d?)\b", re.I
 )
@@ -69,10 +75,21 @@ def _strip_outer_parens(value: str) -> str:
     return value
 
 
+def _strip_pg_cast(value: str) -> str:
+    """``value`` sin el cast final ``::tipo``; sin cambios si no termina en uno.
+
+    El cast solo puede empezar en el último ``::``: ``:`` no cabe en el tipo (``_PG_CAST_TYPE_RE``).
+    """
+    index = value.rfind("::")
+    if index >= 0 and _PG_CAST_TYPE_RE.fullmatch(value, index + 2):
+        return value[:index]
+    return value
+
+
 def _normalize_postgresql(value: str) -> str:
     numeric_cast: bool = bool(_PG_NUMERIC_CAST_RE.search(value))
     while True:
-        stripped = _PG_CAST_RE.sub("", value).strip()
+        stripped = _strip_pg_cast(value).strip()
         if stripped == value:
             break
         value = stripped

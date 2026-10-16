@@ -7,6 +7,7 @@ Cada función recibe y devuelve un árbol de sqlglot. Las correcciones salen del
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any, cast
 
 from sqlglot import exp, transforms
@@ -50,6 +51,15 @@ def _is_text(node: exp.Expr) -> bool:
     return _type_of(node) in _TEXT_TYPES
 
 
+def _nodes[E: exp.Expr](tree: exp.Expr, *types: type[E]) -> list[E]:
+    """Nodos de ``types`` en ``tree``, copiados a una lista antes de recorrerlos.
+
+    ``find_all`` es un generador que recorre el árbol mientras se lee: las reescrituras que hacen ``replace`` sobre
+    los nodos lo modificarían a mitad del recorrido.
+    """
+    return list(tree.find_all(*types))
+
+
 def _unparen(node: exp.Expr) -> exp.Expr:
     while isinstance(node, exp.Paren):
         node = node.this
@@ -61,7 +71,7 @@ def _unparen(node: exp.Expr) -> exp.Expr:
 
 def mysql_charset_casts(tree: exp.Expr) -> exp.Expr:
     """``CAST(x AS CHAR CHARSET utf8mb4)`` (así guarda MySQL ``CAST(x AS CHAR(n))``) → ``CAST(x AS TEXT)``."""
-    for data_type in list(tree.find_all(exp.DataType)):
+    for data_type in _nodes(tree, exp.DataType):
         if data_type.this == exp.DataType.Type.CHARACTER_SET:
             data_type.replace(exp.DataType.build("TEXT"))
     return tree
@@ -85,7 +95,7 @@ def _to_days_operand(node: exp.Expr) -> exp.Expr | None:
 
 def mysql_to_days_difference(tree: exp.Expr) -> exp.Expr:
     """``TO_DAYS(a) - TO_DAYS(b)`` (así guarda MySQL ``DATEDIFF(a, b)``) → ``DATEDIFF(a, b)`` en días."""
-    for sub in list(tree.find_all(exp.Sub)):
+    for sub in _nodes(tree, exp.Sub):
         left, right = _to_days_operand(sub.this), _to_days_operand(sub.expression)
         if left is not None and right is not None:
             sub.replace(exp.DateDiff(this=left.copy(), expression=right.copy(), unit=exp.var("DAY")))
@@ -97,7 +107,7 @@ def postgres_redundant_text_casts(tree: exp.Expr) -> exp.Expr:
 
     Solo de literales de texto y de columnas ya textuales (tipos anotados): un ``id::text`` sobre un entero se conserva.
     """
-    for cast_node in list(tree.find_all(exp.Cast)):
+    for cast_node in _nodes(tree, exp.Cast):
         if cast_node.to.this not in _TEXT_TYPES or cast_node.to.expressions:
             continue
         inner = _unparen(cast_node.this)
@@ -116,7 +126,7 @@ def typed_date_arithmetic(tree: exp.Expr) -> exp.Expr:
     texto es una suma numérica (V0: ``20240140``). Con los tipos anotados se expresa de forma explícita.
     """
     # De abajo arriba: al reemplazar un nodo, sus ancestros siguen en el árbol y ven el hijo ya reescrito.
-    for node in reversed(list(tree.find_all(exp.Add, exp.Sub))):
+    for node in reversed(_nodes(tree, exp.Add, exp.Sub)):
         left, right = node.this, node.expression
         if _is_temporal(left) and _is_numeric(right):
             cls = exp.DateAdd if isinstance(node, exp.Add) else exp.DateSub
@@ -133,7 +143,7 @@ def interval_arithmetic(tree: exp.Expr) -> exp.Expr:
 
     SQL Server no tiene aritmética con ``INTERVAL`` y Oracle la limita; la función se genera bien en todos los destinos.
     """
-    for node in reversed(list(tree.find_all(exp.Add, exp.Sub))):
+    for node in reversed(_nodes(tree, exp.Add, exp.Sub)):
         interval = node.expression
         if not isinstance(interval, exp.Interval) or interval.args.get("unit") is None:
             continue
@@ -148,7 +158,7 @@ def interval_arithmetic(tree: exp.Expr) -> exp.Expr:
 def tsql_string_plus(tree: exp.Expr) -> exp.Expr:
     """``a + b`` de SQL Server con operandos de texto → concatenación (``||`` / ``CONCAT`` según el destino)."""
     # De abajo arriba: en ``a + ' - ' + b`` el ``+`` interior se convierte antes que el exterior.
-    for node in reversed(list(tree.find_all(exp.Add))):
+    for node in reversed(_nodes(tree, exp.Add)):
         if _is_text(node.this) or _is_text(node.expression) or isinstance(node.this, exp.DPipe):
             node.replace(exp.DPipe(this=node.this.copy(), expression=node.expression.copy(), safe=False))
     return tree
@@ -159,7 +169,7 @@ def tsql_string_plus(tree: exp.Expr) -> exp.Expr:
 
 def oracle_target_types(tree: exp.Expr) -> exp.Expr:
     """Texto sin longitud → ``VARCHAR2(4000)``: sqlglot lo genera como ``CLOB`` (no comparable) o ``VARCHAR2``."""
-    for data_type in list(tree.find_all(exp.DataType)):
+    for data_type in _nodes(tree, exp.DataType):
         if data_type.this in (exp.DataType.Type.TEXT, exp.DataType.Type.CHARACTER_SET) or (
             data_type.this in _TEXT_TYPES and not data_type.expressions
         ):
@@ -196,16 +206,16 @@ def oracle_target_date_functions(tree: exp.Expr) -> exp.Expr:
     ``YEAR/MONTH/DAY(x)`` → ``EXTRACT(... FROM x)``.
     """
     # Envoltorios de conversión que sqlglot añade al parsear fechas (p. ej. DATEDIFF de SQL Server) y Oracle no tiene.
-    for wrapper in list(tree.find_all(exp.TimeStrToTime, exp.TsOrDsToDate, exp.TsOrDsToTimestamp)):
+    for wrapper in _nodes(tree, exp.TimeStrToTime, exp.TsOrDsToDate, exp.TsOrDsToTimestamp):
         if isinstance(wrapper.this, exp.Column):
             wrapper.replace(wrapper.this.copy())
-    for node in list(tree.find_all(exp.DateAdd, exp.DateSub, exp.TsOrDsAdd)):
+    for node in _nodes(tree, exp.DateAdd, exp.DateSub, exp.TsOrDsAdd):
         node.replace(_day_offset(node))
-    for node in list(tree.find_all(exp.DateDiff)):
+    for node in _nodes(tree, exp.DateDiff):
         if _unit_name(node) == "DAY":
             node.replace(exp.Paren(this=exp.Sub(this=node.this.copy(), expression=node.expression.copy())))
     for cls, part in ((exp.Year, "YEAR"), (exp.Month, "MONTH"), (exp.Day, "DAY")):
-        for node in list(tree.find_all(cls)):
+        for node in _nodes(tree, cls):
             node.replace(exp.Extract(this=exp.var(part), expression=node.this.copy()))
     return tree
 
@@ -215,7 +225,7 @@ def oracle_target_date_functions(tree: exp.Expr) -> exp.Expr:
 
 def postgres_target_date_add(tree: exp.Expr) -> exp.Expr:
     """``fecha + INTERVAL`` en PostgreSQL devuelve ``timestamp``: se devuelve a ``DATE`` si el operando era ``DATE``."""
-    for node in list(tree.find_all(exp.DateAdd, exp.DateSub)):
+    for node in _nodes(tree, exp.DateAdd, exp.DateSub):
         if _type_of(node.this) == exp.DataType.Type.DATE:
             node.replace(exp.Cast(this=node.copy(), to=exp.DataType.build("DATE")))
     return tree
@@ -260,38 +270,52 @@ def oracle_rownum_limit(tree: exp.Expr) -> exp.Expr:
     ordena (incluido el top-N clásico ``SELECT * FROM (... ORDER BY x) WHERE ROWNUM <= n``). Cualquier otro uso se deja
     y la salvaguarda emite la vista sin reescribir.
     """
-    for select in list(tree.find_all(exp.Select)):
-        where = select.args.get("where")
-        if where is None or select.args.get("order") or select.args.get("limit"):
+    for select in _nodes(tree, exp.Select):
+        if not _rownum_limit_applies(select):
             continue
-        if select.args.get("connect"):
-            # En una consulta jerárquica ROWNUM numera en el orden en profundidad de Oracle, que la CTE recursiva no
-            # reproduce: se deja y la vista queda sin reescribir (V4).
-            continue
-        conjuncts: list[Any] = list(where.this.flatten()) if isinstance(where.this, exp.And) else [where.this]
-        limit: int | None = None
-        rest: list[Any] = []
-        for condition in conjuncts:
-            bound = _rownum_bound(condition) if limit is None else None
-            if bound is not None:
-                limit = bound
-            else:
-                rest.append(condition)
+        limit, rest = _split_rownum_bound(select.args["where"])
         if limit is None or any(_is_rownum(col) for cond in rest for col in cond.find_all(exp.Column)):
             continue
-        ordered_inner = _ordered_derived_table(select)
-        if ordered_inner is not None:
-            # Top-N clásico: el límite va DENTRO de la subconsulta ordenada. Un ORDER BY en una tabla derivada sin
-            # límite lo ignora MariaDB (otras filas, sin error) y SQL Server lo rechaza. Con más condiciones fuera no
-            # es equivalente: se deja el ROWNUM y la salvaguarda emite la vista sin reescribir.
-            if rest:
-                continue
+        _apply_rownum_limit(select, limit, rest)
+    return tree
+
+
+def _rownum_limit_applies(select: exp.Select) -> bool:
+    """Consulta con ``WHERE`` y sin ``ORDER BY``, ``LIMIT`` ni ``CONNECT BY``: la única donde se traduce ``ROWNUM``."""
+    if select.args.get("where") is None or select.args.get("order") or select.args.get("limit"):
+        return False
+    # En una consulta jerárquica ROWNUM numera en el orden en profundidad de Oracle, que la CTE recursiva no
+    # reproduce: se deja y la vista queda sin reescribir (V4).
+    return not select.args.get("connect")
+
+
+def _split_rownum_bound(where: exp.Where) -> tuple[int | None, list[Any]]:
+    """Primer límite de ``ROWNUM`` de las condiciones del ``WHERE`` (``AND``) y el resto de condiciones."""
+    conjuncts: list[Any] = list(where.this.flatten()) if isinstance(where.this, exp.And) else [where.this]
+    limit: int | None = None
+    rest: list[Any] = []
+    for condition in conjuncts:
+        bound = _rownum_bound(condition) if limit is None else None
+        if bound is not None:
+            limit = bound
+        else:
+            rest.append(condition)
+    return limit, rest
+
+
+def _apply_rownum_limit(select: exp.Select, limit: int, rest: list[Any]) -> None:
+    """Sustituye el ``ROWNUM`` de ``select`` por ``LIMIT limit``; ``rest`` son las demás condiciones del ``WHERE``."""
+    ordered_inner = _ordered_derived_table(select)
+    if ordered_inner is not None:
+        # Top-N clásico: el límite va DENTRO de la subconsulta ordenada. Un ORDER BY en una tabla derivada sin
+        # límite lo ignora MariaDB (otras filas, sin error) y SQL Server lo rechaza. Con más condiciones fuera no
+        # es equivalente: se deja el ROWNUM y la salvaguarda emite la vista sin reescribir.
+        if not rest:
             ordered_inner.set("limit", exp.Limit(expression=exp.Literal.number(limit)))
             select.set("where", None)
-            continue
-        select.set("where", exp.Where(this=exp.and_(*[c.copy() for c in rest])) if rest else None)
-        select.set("limit", exp.Limit(expression=exp.Literal.number(limit)))
-    return tree
+        return
+    select.set("where", exp.Where(this=exp.and_(*[c.copy() for c in rest])) if rest else None)
+    select.set("limit", exp.Limit(expression=exp.Literal.number(limit)))
 
 
 def _ordered_derived_table(select: exp.Select) -> exp.Select | None:
@@ -316,14 +340,14 @@ def _ordered_derived_table(select: exp.Select) -> exp.Select | None:
 
 def tsql_target_ilike(tree: exp.Expr) -> exp.Expr:
     """``a ILIKE b`` (PostgreSQL) → ``LOWER(a) LIKE LOWER(b)``: SQL Server no tiene ``ILIKE``."""
-    for node in reversed(list(tree.find_all(exp.ILike))):
+    for node in reversed(_nodes(tree, exp.ILike)):
         node.replace(exp.Like(this=exp.Lower(this=node.this.copy()), expression=exp.Lower(this=node.expression.copy())))
     return tree
 
 
 def postgres_target_text_aggregate(tree: exp.Expr) -> exp.Expr:
     """``STRING_AGG`` de PostgreSQL exige texto: el valor agregado (``GROUP_CONCAT``, ``LISTAGG``...) se pasa a texto."""
-    for node in list(tree.find_all(exp.GroupConcat)):
+    for node in _nodes(tree, exp.GroupConcat):
         holder: exp.Expr = node.this if isinstance(node.this, exp.Order) else node
         value = holder.this
         if value is not None and not _is_text(value) and not isinstance(value, exp.Cast):
@@ -369,9 +393,11 @@ _CONNECT_BY_RANKED: str = "connect_by_ranked"
 _CONNECT_BY_SIBLING: str = "cb_sibling"
 _CONNECT_BY_ORDER: str = "cb_order"
 _ORDER_RANK_OFFSET: int = 1_000_000_000
+# Tipo de texto de los caminos de la CTE (cb_order, cb_keys) en MySQL/MariaDB: CAST(x AS CHAR(n)).
+_MYSQL_PATH_TEXT: str = "CHAR(10000)"
 # TEXT en PostgreSQL (un VARCHAR(n) recortaría sin error); CHAR(10000) = 1000 niveles (el límite de MySQL) de 10
 # caracteres; más, en MariaDB, da error 1406.
-_ORDER_PATH_TYPE: dict[str, str] = {"postgresql": "TEXT", "mysql": "CHAR(10000)", "mariadb": "CHAR(10000)"}
+_ORDER_PATH_TYPE: dict[str, str] = {"postgresql": "TEXT", "mysql": _MYSQL_PATH_TEXT, "mariadb": _MYSQL_PATH_TEXT}
 
 ConnectByOutcome = str | None
 """``"hierarchy"``, ``"hierarchy_nocycle"`` o ``"generator"`` si se convirtió; otro texto = motivo para no convertir;
@@ -414,7 +440,7 @@ def _level_bound(condition: exp.Expr) -> int | None:
 
 
 def _replace_level(select: exp.Select, qualifier: str | None) -> None:
-    for column in list(select.find_all(exp.Column)):
+    for column in _nodes(select, exp.Column):
         if _is_level(column):
             column.replace(exp.column(_CONNECT_BY_LEVEL, table=qualifier))
 
@@ -583,8 +609,8 @@ class _TextKeyPath(_KeyPath):
 # recortan). SQL Server corta la recursión a los 100 niveles, así que NVARCHAR(MAX) no se queda corto.
 _KEY_PATHS: dict[str, _KeyPath] = {
     "postgresql": _ArrayKeyPath(),
-    "mysql": _TextKeyPath("CHAR", "CHAR(10000)", "cast"),
-    "mariadb": _TextKeyPath("CHAR", "CHAR(10000)", "cast"),
+    "mysql": _TextKeyPath("CHAR", _MYSQL_PATH_TEXT, "cast"),
+    "mariadb": _TextKeyPath("CHAR", _MYSQL_PATH_TEXT, "cast"),
     "sqlserver": _TextKeyPath("NVARCHAR(MAX)", "NVARCHAR(MAX)", "Latin1_General_BIN2"),
 }
 
@@ -643,6 +669,43 @@ def _flag(condition: exp.Expr, when_true: int) -> exp.Expr:
     )
 
 
+@dataclass
+class _Hierarchy:
+    """Jerarquía simple ya validada por :func:`_analyze_hierarchy`: lo que comparten las partes de la CTE."""
+
+    select: exp.Select  # con ``SELECT *`` ya expandido a las columnas del plan
+    source: exp.Table
+    qualifier: str
+    types: dict[str, str]
+    table_columns: dict[str, str]  # nombre en minúsculas → nombre en el plan
+    integer_names: set[str]
+    parent_col: exp.Column
+    child_col: exp.Column
+    max_level: int | None
+    start: Any
+    nocycle: bool
+    key_path: _KeyPath | None
+    siblings: list[Any]
+    used: list[str]
+
+    @property
+    def parent_name(self) -> str:
+        return self.table_columns[self.parent_col.name.lower()]
+
+    @property
+    def child_name(self) -> str:
+        return self.table_columns[self.child_col.name.lower()]
+
+
+@dataclass
+class _CteColumns:
+    """Columnas internas de la CTE (``cb_*``) en el ancla y en la rama recursiva, y los nodos que sustituyen."""
+
+    anchor: list[Any]
+    recursive: list[Any]
+    replacements: dict[str, str] = field(default_factory=dict)  # SQL Oracle del nodo (minúsculas) → columna cb_*
+
+
 def _connect_by_hierarchy(
     select: exp.Select,
     target_engine: str,
@@ -651,6 +714,44 @@ def _connect_by_hierarchy(
     taken: set[str],
 ) -> exp.Expr | str:
     """Jerarquía simple (``START WITH`` + ``CONNECT BY PRIOR a = b``) → CTE recursiva; el ``WHERE`` va fuera."""
+    hierarchy = _analyze_hierarchy(select, target_engine, column_types, integer_columns)
+    if isinstance(hierarchy, str):
+        return hierarchy
+    cte_name = _free_name(CONNECT_BY_CTE, taken)
+    columns = _CteColumns(
+        anchor=[exp.alias_(exp.Literal.number(1), _CONNECT_BY_LEVEL)],
+        recursive=[
+            exp.alias_(
+                exp.column(_CONNECT_BY_LEVEL, table=_CONNECT_BY_PARENT) + exp.Literal.number(1), _CONNECT_BY_LEVEL
+            )
+        ],
+    )
+    if hierarchy.key_path is not None:
+        _add_key_path_columns(hierarchy, hierarchy.key_path, columns)
+    ranked_name = _add_sibling_order_columns(hierarchy, columns, target_engine, taken | {cte_name.lower()})
+    path_type = exp.DataType.build(_CONNECT_BY_PATH_TYPE[target_engine])
+    problem = _add_root_columns(hierarchy, columns) or _add_path_columns(hierarchy, columns, path_type)
+    if problem is not None:
+        return problem
+    anchor, recursive, ranked_cte = _cte_members(hierarchy, columns, cte_name, ranked_name)
+    outer = _outer_query(hierarchy, columns.replacements, cte_name, ranked_name, taken)
+    cte = exp.CTE(
+        this=exp.union(anchor, recursive, distinct=False), alias=exp.TableAlias(this=exp.to_identifier(cte_name))
+    )
+    outer.set("with_", exp.With(expressions=[*([ranked_cte] if ranked_cte is not None else []), cte], recursive=True))
+    return outer
+
+
+# ── Validación: la forma que se traduce de forma fiable ─────────────────────────────
+
+
+def _analyze_hierarchy(
+    select: exp.Select,
+    target_engine: str,
+    column_types: dict[str, dict[str, str]],
+    integer_columns: dict[str, frozenset[str]],
+) -> _Hierarchy | str:
+    """:class:`_Hierarchy` de ``select`` o el motivo por el que no se traduce."""
     connect: Any = select.args["connect"]
     nocycle = bool(connect.args.get("nocycle"))
     key_path = _KEY_PATHS.get(target_engine) if nocycle else None
@@ -658,6 +759,41 @@ def _connect_by_hierarchy(
         return f"NOCYCLE sin camino de claves para {target_engine}"
     order: Any = select.args.get("order")
     siblings: list[Any] = list(order.expressions) if order is not None and order.args.get("siblings") else []
+    shape = _hierarchy_shape(select, connect, nocycle)
+    if isinstance(shape, str):
+        return shape
+    source, (parent_col, child_col, max_level), start = shape
+    qualifier = source.alias_or_name
+    table = _hierarchy_table(select, source, column_types, integer_columns)
+    if isinstance(table, str):
+        return table
+    types, table_columns, integer_names = table
+    select = _expand_star(select, types, qualifier)
+    problem = _key_columns_problem(parent_col, child_col, siblings, table_columns, qualifier)
+    if problem is not None:
+        return problem
+    return _Hierarchy(
+        select=select,
+        source=source,
+        qualifier=qualifier,
+        types=types,
+        table_columns=table_columns,
+        integer_names=integer_names,
+        parent_col=parent_col,
+        child_col=child_col,
+        max_level=max_level,
+        start=start,
+        nocycle=nocycle,
+        key_path=key_path,
+        siblings=siblings,
+        used=_used_columns(select, table_columns, parent_col),
+    )
+
+
+def _hierarchy_shape(
+    select: exp.Select, connect: Any, nocycle: bool
+) -> tuple[exp.Table, tuple[exp.Column, exp.Column, int | None], Any] | str:
+    """(tabla origen, condición ``CONNECT BY`` analizada, ``START WITH``) o el motivo por el que no se traduce."""
     if select.args.get("joins") or select.args.get("laterals"):
         return "joins en la consulta jerárquica"
     source: Any = select.args["from_"].this
@@ -666,10 +802,17 @@ def _connect_by_hierarchy(
     parsed = _connect_condition(connect.args["connect"])
     if parsed is None:
         return "condición CONNECT BY distinta de PRIOR columna = columna [AND LEVEL <= n]"
-    parent_col, child_col, max_level = parsed
     start: Any = connect.args.get("start")
     if start is not None and any(_is_level(c) for c in start.find_all(exp.Column)):
         return "LEVEL en START WITH"
+    problem = _pseudocolumns_problem(select, nocycle)
+    if problem is not None:
+        return problem
+    return source, parsed, start
+
+
+def _pseudocolumns_problem(select: exp.Select, nocycle: bool) -> str | None:
+    """Pseudocolumnas sin traducción, ``CONNECT_BY_ISCYCLE`` sin ``NOCYCLE`` o ``PRIOR`` fuera de ``CONNECT BY``."""
     pseudo = sorted(
         {
             c.name.upper()
@@ -681,10 +824,18 @@ def _connect_by_hierarchy(
         return ", ".join(pseudo)
     if not nocycle and any(not c.table and c.name.upper() == _CONNECT_BY_ISCYCLE for c in select.find_all(exp.Column)):
         return "CONNECT_BY_ISCYCLE sin NOCYCLE (Oracle da ORA-30930)"
-    priors = list(select.find_all(exp.Prior))
-    if len(priors) != 1:
+    if len(_nodes(select, exp.Prior)) != 1:
         return "PRIOR fuera de la condición CONNECT BY"
+    return None
 
+
+def _hierarchy_table(
+    select: exp.Select,
+    source: exp.Table,
+    column_types: dict[str, dict[str, str]],
+    integer_columns: dict[str, frozenset[str]],
+) -> tuple[dict[str, str], dict[str, str], set[str]] | str:
+    """(tipos, columnas por nombre en minúsculas, columnas enteras) de la tabla origen en el plan, o el motivo."""
     table_name = source.name
     qualifier = source.alias_or_name
     types = next((cols for name, cols in column_types.items() if name.lower() == table_name.lower()), None)
@@ -692,34 +843,43 @@ def _connect_by_hierarchy(
         return f"tabla {table_name} fuera del plan"
     table_columns = {name.lower(): name for name in types}
     integers = next((cols for name, cols in integer_columns.items() if name.lower() == table_name.lower()), frozenset())
-    integer_names = {name.lower() for name in integers}
-    for column in select.find_all(exp.Column):
-        if column.table and column.table.lower() != qualifier.lower():
-            return f"columna {column.sql(dialect='oracle')} de otro origen"
+    foreign = next((c for c in select.find_all(exp.Column) if c.table and c.table.lower() != qualifier.lower()), None)
+    if foreign is not None:
+        return f"columna {foreign.sql(dialect='oracle')} de otro origen"
     if any(name.lower().startswith("cb_") for name in table_columns):
         return "columnas cb_* en la tabla (nombres reservados para la CTE)"
-    if any(_is_star(projection) for projection in select.expressions):
-        # H1 (auditoría 0.22.0): la CTE solo lleva las columnas nombradas; sin expandir, SELECT * devolvería esas y
-        # las internas (cb_level, cb_keys) en lugar de las de la tabla. Se expande en el orden del plan (el de Oracle).
-        select = select.copy()
-        expanded: list[exp.Expr] = []
-        for projection in select.expressions:
-            if _is_star(projection):
-                expanded.extend(exp.column(name, table=qualifier) for name in types)
-            else:
-                expanded.append(projection)
-        select.set("expressions", expanded)
+    return types, table_columns, {name.lower() for name in integers}
 
-    # Columnas de la tabla que usa la consulta (los alias de salida, p. ej. en ORDER BY, no están en la tabla).
-    used: list[str] = []
-    for column in select.find_all(exp.Column):
-        name = column.name.lower()
-        if name in table_columns and name not in used and not _is_level(column):
-            used.append(name)
+
+def _expand_star(select: exp.Select, types: dict[str, str], qualifier: str) -> exp.Select:
+    """``select`` con ``*`` (o ``alias.*``) sustituido por las columnas del plan, en su orden (el de Oracle).
+
+    H1 (auditoría 0.22.0): la CTE solo lleva las columnas nombradas; sin expandir, ``SELECT *`` devolvería esas y las
+    internas (``cb_level``, ``cb_keys``) en lugar de las de la tabla.
+    """
+    if not any(_is_star(projection) for projection in select.expressions):
+        return select
+    select = select.copy()
+    expanded: list[exp.Expr] = []
+    for projection in select.expressions:
+        if _is_star(projection):
+            expanded.extend(exp.column(name, table=qualifier) for name in types)
+        else:
+            expanded.append(projection)
+    select.set("expressions", expanded)
+    return select
+
+
+def _key_columns_problem(
+    parent_col: exp.Column,
+    child_col: exp.Column,
+    siblings: list[Any],
+    table_columns: dict[str, str],
+    qualifier: str,
+) -> str | None:
+    """Columnas de ``PRIOR`` o de ``ORDER SIBLINGS BY`` que no son de la tabla origen."""
     if parent_col.name.lower() not in table_columns or child_col.name.lower() not in table_columns:
         return "columnas de PRIOR fuera de la tabla"
-    if parent_col.name.lower() not in used:
-        used.append(parent_col.name.lower())
     for ordered in siblings:
         key_column = ordered.this
         if (
@@ -728,85 +888,106 @@ def _connect_by_hierarchy(
             or (key_column.table and key_column.table.lower() != qualifier.lower())
         ):
             return "ORDER SIBLINGS BY con algo que no es una columna de la tabla"
+    return None
 
-    path_type = exp.DataType.build(_CONNECT_BY_PATH_TYPE[target_engine])
-    cte_name = _free_name(CONNECT_BY_CTE, taken)
-    parent = _CONNECT_BY_PARENT
-    anchor_extra: list[Any] = [exp.alias_(exp.Literal.number(1), _CONNECT_BY_LEVEL)]
-    recursive_extra: list[Any] = [
-        exp.alias_(exp.column(_CONNECT_BY_LEVEL, table=parent) + exp.Literal.number(1), _CONNECT_BY_LEVEL)
-    ]
-    if key_path is not None:
-        prior_key = exp.column(table_columns[parent_col.name.lower()], table=qualifier)
-        anchor_extra.append(exp.alias_(key_path.start(prior_key.copy()), _CONNECT_BY_KEYS))
-        recursive_extra.append(
-            exp.alias_(key_path.extend(exp.column(_CONNECT_BY_KEYS, table=parent), prior_key.copy()), _CONNECT_BY_KEYS)
-        )
-    # F1: ORDER SIBLINGS BY → cb_order (sin él en SQL Server, que no admite ORDER BY en una vista).
-    order_path_type = _ORDER_PATH_TYPE.get(target_engine) if siblings else None
-    ranked_name: str | None = None
-    if order_path_type is not None:
-        ranked_name = _free_name(_CONNECT_BY_RANKED, taken | {cte_name.lower()})
-        # Los nodos ORDER BY vienen del análisis Oracle: sqlglot traduce su orden de NULL (NULLS LAST en ASC).
-        roots_rank = exp.Window(this=exp.RowNumber(), order=exp.Order(expressions=[o.copy() for o in siblings]))
-        anchor_extra.append(exp.alias_(_order_step(roots_rank, order_path_type, None), _CONNECT_BY_ORDER))
-        recursive_extra.append(
-            exp.alias_(
-                _order_step(
-                    exp.column(_CONNECT_BY_SIBLING, table=qualifier),
-                    order_path_type,
-                    exp.column(_CONNECT_BY_ORDER, table=parent),
-                ),
-                _CONNECT_BY_ORDER,
-            )
-        )
-    replacements: dict[str, str] = {}
 
-    for root_node in list(select.find_all(exp.ConnectByRoot)):
+def _used_columns(select: exp.Select, table_columns: dict[str, str], parent_col: exp.Column) -> list[str]:
+    """Columnas de la tabla que usa la consulta, más la de ``PRIOR`` (los alias de salida, p. ej. en ORDER BY, no
+    están en la tabla)."""
+    used: list[str] = []
+    for column in select.find_all(exp.Column):
+        name = column.name.lower()
+        if name in table_columns and name not in used and not _is_level(column):
+            used.append(name)
+    if parent_col.name.lower() not in used:
+        used.append(parent_col.name.lower())
+    return used
+
+
+# ── Construcción de la CTE ───────────────────────────────────────────────────────────
+
+
+def _add_key_path_columns(hierarchy: _Hierarchy, key_path: _KeyPath, columns: _CteColumns) -> None:
+    """NOCYCLE: ``cb_keys`` con la clave de ``PRIOR`` de la fila y sus antepasados."""
+    prior_key = exp.column(hierarchy.parent_name, table=hierarchy.qualifier)
+    columns.anchor.append(exp.alias_(key_path.start(prior_key.copy()), _CONNECT_BY_KEYS))
+    columns.recursive.append(
+        exp.alias_(
+            key_path.extend(exp.column(_CONNECT_BY_KEYS, table=_CONNECT_BY_PARENT), prior_key.copy()), _CONNECT_BY_KEYS
+        )
+    )
+
+
+def _add_sibling_order_columns(
+    hierarchy: _Hierarchy, columns: _CteColumns, target_engine: str, taken: set[str]
+) -> str | None:
+    """F1: ``ORDER SIBLINGS BY`` → ``cb_order``; devuelve el nombre de la CTE que numera los hermanos.
+
+    ``None`` sin ``ORDER SIBLINGS BY`` o en SQL Server, que no admite ``ORDER BY`` en una vista.
+    """
+    order_path_type = _ORDER_PATH_TYPE.get(target_engine) if hierarchy.siblings else None
+    if order_path_type is None:
+        return None
+    ranked_name = _free_name(_CONNECT_BY_RANKED, taken)
+    # Los nodos ORDER BY vienen del análisis Oracle: sqlglot traduce su orden de NULL (NULLS LAST en ASC).
+    roots_rank = exp.Window(this=exp.RowNumber(), order=exp.Order(expressions=[o.copy() for o in hierarchy.siblings]))
+    columns.anchor.append(exp.alias_(_order_step(roots_rank, order_path_type, None), _CONNECT_BY_ORDER))
+    columns.recursive.append(
+        exp.alias_(
+            _order_step(
+                exp.column(_CONNECT_BY_SIBLING, table=hierarchy.qualifier),
+                order_path_type,
+                exp.column(_CONNECT_BY_ORDER, table=_CONNECT_BY_PARENT),
+            ),
+            _CONNECT_BY_ORDER,
+        )
+    )
+    return ranked_name
+
+
+def _add_root_columns(hierarchy: _Hierarchy, columns: _CteColumns) -> str | None:
+    """``CONNECT_BY_ROOT col`` → ``cb_root_n`` (el valor del ancla se arrastra); el motivo si no es una columna."""
+    for root_node in _nodes(hierarchy.select, exp.ConnectByRoot):
         target = root_node.this
-        if not isinstance(target, exp.Column) or target.name.lower() not in table_columns:
+        if not isinstance(target, exp.Column) or target.name.lower() not in hierarchy.table_columns:
             return "CONNECT_BY_ROOT de algo que no es una columna de la tabla"
         key = root_node.sql(dialect="oracle").lower()
-        if key not in replacements:
-            name = f"cb_root_{len([k for k in replacements if k.startswith('connect_by_root')]) + 1}"
-            replacements[key] = name
-            anchor_extra.append(exp.alias_(exp.column(target.name, table=qualifier), name))
-            recursive_extra.append(exp.alias_(exp.column(name, table=parent), name))
+        if key in columns.replacements:
+            continue
+        name = f"cb_root_{len([k for k in columns.replacements if k.startswith('connect_by_root')]) + 1}"
+        columns.replacements[key] = name
+        columns.anchor.append(exp.alias_(exp.column(target.name, table=hierarchy.qualifier), name))
+        columns.recursive.append(exp.alias_(exp.column(name, table=_CONNECT_BY_PARENT), name))
+    return None
 
-    for path_node in list(select.find_all(exp.Anonymous)):
+
+def _add_path_columns(hierarchy: _Hierarchy, columns: _CteColumns, path_type: exp.DataType) -> str | None:
+    """``SYS_CONNECT_BY_PATH(col, 'sep')`` → ``cb_path_n`` (ruta del padre + separador + valor); o el motivo."""
+    qualifier = hierarchy.qualifier
+    for path_node in _nodes(hierarchy.select, exp.Anonymous):
         if not _is_connect_by_path(path_node):
             continue
-        args = path_node.expressions
-        if (
-            len(args) != 2
-            or not isinstance(args[0], exp.Column)
-            or not (isinstance(args[1], exp.Literal) and args[1].is_string)
-        ):
-            return "SYS_CONNECT_BY_PATH con argumentos que no son columna y separador literal"
-        column_name = args[0].name.lower()
-        if column_name not in table_columns:
-            return "SYS_CONNECT_BY_PATH de algo que no es una columna de la tabla"
-        type_name = types[table_columns[column_name]].upper().split("(")[0].strip()
-        if type_name not in _CONNECT_BY_PATH_TEXT_TYPES and column_name not in integer_names:
-            return f"SYS_CONNECT_BY_PATH sobre una columna {type_name} (solo texto variable o enteros)"
+        problem = _path_arguments_problem(hierarchy, path_node.expressions)
+        if problem is not None:
+            return problem
         key = path_node.sql(dialect="oracle").lower()
-        if key in replacements:
+        if key in columns.replacements:
             continue
-        name = f"cb_path_{len([k for k in replacements if k.startswith('sys_connect_by_path')]) + 1}"
-        replacements[key] = name
-        separator = args[1].copy()
+        name = f"cb_path_{len([k for k in columns.replacements if k.startswith('sys_connect_by_path')]) + 1}"
+        columns.replacements[key] = name
+        column, separator = path_node.expressions[0], path_node.expressions[1].copy()
         value = exp.Coalesce(
-            this=exp.Cast(this=exp.column(args[0].name, table=qualifier), to=path_type.copy()),
+            this=exp.Cast(this=exp.column(column.name, table=qualifier), to=path_type.copy()),
             expressions=[exp.Literal.string("")],
         )
-        anchor_extra.append(
+        columns.anchor.append(
             exp.alias_(exp.Cast(this=exp.DPipe(this=separator, expression=value), to=path_type.copy()), name)
         )
-        recursive_extra.append(
+        columns.recursive.append(
             exp.alias_(
                 exp.Cast(
                     this=exp.DPipe(
-                        this=exp.DPipe(this=exp.column(name, table=parent), expression=separator.copy()),
+                        this=exp.DPipe(this=exp.column(name, table=_CONNECT_BY_PARENT), expression=separator.copy()),
                         expression=value.copy(),
                     ),
                     to=path_type.copy(),
@@ -814,17 +995,41 @@ def _connect_by_hierarchy(
                 name,
             )
         )
+    return None
 
-    carried = [exp.column(table_columns[name], table=qualifier) for name in used]
+
+def _path_arguments_problem(hierarchy: _Hierarchy, args: list[Any]) -> str | None:
+    """Argumentos de ``SYS_CONNECT_BY_PATH`` que no son columna de texto variable o entera y separador literal."""
+    if (
+        len(args) != 2
+        or not isinstance(args[0], exp.Column)
+        or not (isinstance(args[1], exp.Literal) and args[1].is_string)
+    ):
+        return "SYS_CONNECT_BY_PATH con argumentos que no son columna y separador literal"
+    column_name = args[0].name.lower()
+    if column_name not in hierarchy.table_columns:
+        return "SYS_CONNECT_BY_PATH de algo que no es una columna de la tabla"
+    type_name = hierarchy.types[hierarchy.table_columns[column_name]].upper().split("(")[0].strip()
+    if type_name not in _CONNECT_BY_PATH_TEXT_TYPES and column_name not in hierarchy.integer_names:
+        return f"SYS_CONNECT_BY_PATH sobre una columna {type_name} (solo texto variable o enteros)"
+    return None
+
+
+def _cte_members(
+    hierarchy: _Hierarchy, columns: _CteColumns, cte_name: str, ranked_name: str | None
+) -> tuple[exp.Select, exp.Select, exp.CTE | None]:
+    """(ancla, rama recursiva, CTE que numera los hermanos o ``None``) de la CTE recursiva."""
+    qualifier = hierarchy.qualifier
+    carried = [exp.column(hierarchy.table_columns[name], table=qualifier) for name in hierarchy.used]
     # Copia completa (conserva schema/catálogo: _apply_names quita el del origen y avisa de los externos).
-    source_table = source.copy()
+    source_table = hierarchy.source.copy()
     source_table.set("alias", exp.TableAlias(this=exp.to_identifier(qualifier)))
-    anchor = exp.select(*[c.copy() for c in carried], *anchor_extra).from_(source_table.copy())
-    if start is not None:
-        anchor = anchor.where(start.copy())
+    anchor = exp.select(*[c.copy() for c in carried], *columns.anchor).from_(source_table.copy())
+    if hierarchy.start is not None:
+        anchor = anchor.where(hierarchy.start.copy())
     join_condition = exp.EQ(
-        this=exp.column(table_columns[child_col.name.lower()], table=qualifier),
-        expression=exp.column(table_columns[parent_col.name.lower()], table=parent),
+        this=exp.column(hierarchy.child_name, table=qualifier),
+        expression=exp.column(hierarchy.parent_name, table=_CONNECT_BY_PARENT),
     )
     ranked_cte: exp.CTE | None = None
     recursive_source: exp.Expr = source_table.copy()
@@ -832,8 +1037,8 @@ def _connect_by_hierarchy(
         # F1: hermanos = filas con el mismo valor en la columna hija (cuelgan del mismo padre).
         sibling_rank = exp.Window(
             this=exp.RowNumber(),
-            partition_by=[exp.column(table_columns[child_col.name.lower()], table=qualifier)],
-            order=exp.Order(expressions=[o.copy() for o in siblings]),
+            partition_by=[exp.column(hierarchy.child_name, table=qualifier)],
+            order=exp.Order(expressions=[o.copy() for o in hierarchy.siblings]),
         )
         ranked_cte = exp.CTE(
             this=exp.select(*[c.copy() for c in carried], exp.alias_(sibling_rank, _CONNECT_BY_SIBLING)).from_(
@@ -845,24 +1050,35 @@ def _connect_by_hierarchy(
             this=exp.to_identifier(ranked_name), alias=exp.TableAlias(this=exp.to_identifier(qualifier))
         )
     recursive = (
-        exp.select(*[c.copy() for c in carried], *recursive_extra)
+        exp.select(*[c.copy() for c in carried], *columns.recursive)
         .from_(recursive_source)
         .join(
-            exp.Table(this=exp.to_identifier(cte_name), alias=exp.TableAlias(this=exp.to_identifier(parent))),
+            exp.Table(
+                this=exp.to_identifier(cte_name), alias=exp.TableAlias(this=exp.to_identifier(_CONNECT_BY_PARENT))
+            ),
             on=join_condition,
         )
     )
-    if max_level is not None:
+    if hierarchy.max_level is not None:
         # En CONNECT BY, LEVEL es el nivel del hijo: nivel del padre + 1 <= n.
-        recursive = recursive.where(exp.column(_CONNECT_BY_LEVEL, table=parent) < exp.Literal.number(max_level))
-    if key_path is not None:
-        in_path = key_path.contains(
-            exp.column(_CONNECT_BY_KEYS, table=parent),
-            exp.column(table_columns[parent_col.name.lower()], table=qualifier),
+        recursive = recursive.where(
+            exp.column(_CONNECT_BY_LEVEL, table=_CONNECT_BY_PARENT) < exp.Literal.number(hierarchy.max_level)
+        )
+    if hierarchy.key_path is not None:
+        in_path = hierarchy.key_path.contains(
+            exp.column(_CONNECT_BY_KEYS, table=_CONNECT_BY_PARENT),
+            exp.column(hierarchy.parent_name, table=qualifier),
         )
         recursive = recursive.where(exp.not_(in_path))
+    return anchor, recursive, ranked_cte
 
-    outer = select.copy()
+
+def _outer_query(
+    hierarchy: _Hierarchy, replacements: dict[str, str], cte_name: str, ranked_name: str | None, taken: set[str]
+) -> exp.Select:
+    """Consulta de la vista sobre la CTE: ``WHERE`` de Oracle fuera, pseudocolumnas y ``LEVEL`` sustituidos."""
+    qualifier = hierarchy.qualifier
+    outer = hierarchy.select.copy()
     outer.set("connect", None)
     outer.set(
         "from_",
@@ -870,37 +1086,13 @@ def _connect_by_hierarchy(
             this=exp.Table(this=exp.to_identifier(cte_name), alias=exp.TableAlias(this=exp.to_identifier(qualifier)))
         ),
     )
-    for replaced in list(outer.find_all(exp.ConnectByRoot, exp.Anonymous)):
+    for replaced in _nodes(outer, exp.ConnectByRoot, exp.Anonymous):
         column_alias = replacements.get(replaced.sql(dialect="oracle").lower())
         if column_alias is not None:
             replaced.replace(exp.column(column_alias, table=qualifier))
-    # CONNECT_BY_ISLEAF: 0 si hay un hijo visitable (con NOCYCLE, fuera del camino); CONNECT_BY_ISCYCLE (F2): 1 si hay
-    # un hijo visitable que ya está en el camino.
-    pseudocolumns: dict[str, tuple[bool | None, int]] = {
-        _CONNECT_BY_ISLEAF: (False if nocycle else None, 0),
-        _CONNECT_BY_ISCYCLE: (True, 1),
-    }
-    for pseudo_column in [c for c in outer.find_all(exp.Column) if not c.table and c.name.upper() in pseudocolumns]:
-        on_path, when_child = pseudocolumns[pseudo_column.name.upper()]
-        flag_value = _flag(
-            _has_child(
-                source,
-                qualifier,
-                table_columns[parent_col.name.lower()],
-                table_columns[child_col.name.lower()],
-                max_level,
-                on_path,
-                taken,
-                key_path,
-            ),
-            when_child,
-        )
-        # Proyección sin alias: conserva el nombre de columna que da Oracle.
-        pseudo_column.replace(
-            exp.alias_(flag_value, pseudo_column.name.lower()) if pseudo_column.parent is outer else flag_value
-        )
+    _replace_hierarchy_flags(hierarchy, outer, taken)
     _replace_level(outer, qualifier)
-    if siblings:
+    if hierarchy.siblings:
         # F1: el orden de Oracle es el de cb_order; en SQL Server (sin ORDER BY en vistas) se quita.
         outer.set(
             "order",
@@ -908,11 +1100,35 @@ def _connect_by_hierarchy(
             if ranked_name is not None
             else None,
         )
-    cte = exp.CTE(
-        this=exp.union(anchor, recursive, distinct=False), alias=exp.TableAlias(this=exp.to_identifier(cte_name))
-    )
-    outer.set("with_", exp.With(expressions=[*([ranked_cte] if ranked_cte is not None else []), cte], recursive=True))
     return outer
+
+
+def _replace_hierarchy_flags(hierarchy: _Hierarchy, outer: exp.Select, taken: set[str]) -> None:
+    """``CONNECT_BY_ISLEAF``: 0 si hay un hijo visitable (con NOCYCLE, fuera del camino); ``CONNECT_BY_ISCYCLE``
+    (F2): 1 si hay un hijo visitable que ya está en el camino."""
+    pseudocolumns: dict[str, tuple[bool | None, int]] = {
+        _CONNECT_BY_ISLEAF: (False if hierarchy.nocycle else None, 0),
+        _CONNECT_BY_ISCYCLE: (True, 1),
+    }
+    for pseudo_column in [c for c in outer.find_all(exp.Column) if not c.table and c.name.upper() in pseudocolumns]:
+        on_path, when_child = pseudocolumns[pseudo_column.name.upper()]
+        flag_value = _flag(
+            _has_child(
+                hierarchy.source,
+                hierarchy.qualifier,
+                hierarchy.parent_name,
+                hierarchy.child_name,
+                hierarchy.max_level,
+                on_path,
+                taken,
+                hierarchy.key_path,
+            ),
+            when_child,
+        )
+        # Proyección sin alias: conserva el nombre de columna que da Oracle.
+        pseudo_column.replace(
+            exp.alias_(flag_value, pseudo_column.name.lower()) if pseudo_column.parent is outer else flag_value
+        )
 
 
 def oracle_connect_by(
