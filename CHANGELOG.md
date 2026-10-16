@@ -5,6 +5,31 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [3.0.2] - 2026-10-16
+
+Sesión `.ai/sessions/2026-10-16h-static-analysis-fixes/` (avisos de Pylance y SonarLint corregidos uno a uno). SemVer:
+PATCH (sin cambios de API ni de comportamiento).
+
+### Changed
+
+- **bulk**: `BulkOptions.audit` y `BulkOptions.rejects` usan `default_factory=lambda: AuditOptions()` (y
+  `RejectOptions()`). Con la clase directamente, pyright/Pylance daban `reportCallIssue`: un dataclass con un campo
+  descriptor (`csv_path: OptionalPathField`) no se acepta como `Callable[[], T]`. `BulkOptions.for_worker` marcado
+  `# NOSONAR` (S5886 es falso positivo: `dataclasses.replace` devuelve el tipo de su argumento).
+- **_core**: `SafeWorksheet.append` (`_core/export_safety.py`) pasa `cast(Any, iterable)` a openpyxl en la rama que le
+  delega el `TypeError` (Pylance `reportArgumentType`). La ruta pública `util_bbdd.exceptions` de las excepciones se
+  fija en `_set_public_module()` (`_core/exceptions.py`) en lugar de un bucle con `del` de la variable (Pylance
+  `reportPossiblyUnboundVariable`).
+- **analysis**: el motivo del `# noqa: BLE001` de `GraphvizRelationshipGraphExt` sin coma (SonarLint S7632 la leía como
+  otro código).
+- **connection**: la regex que enmascara `;password=` en la URL JDBC de HSQLDB marcada `# NOSONAR` (S2068 es falso
+  positivo: no es una credencial).
+
+### Tests
+
+- Sin tests nuevos. `pytest` sin URLs del banco: 6219 passed, 532 skipped (como v3.0.1); mypy sin errores (339
+  ficheros).
+
 ## [3.0.1] - 2026-10-16
 
 Sesión `.ai/sessions/2026-10-16g-tech-debt-parallel-followups/` (`/tech-debt` sobre la deuda D1–D5 del `/audit-code` de v3.0.0). SemVer: PATCH
