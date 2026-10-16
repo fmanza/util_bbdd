@@ -284,6 +284,38 @@ def quote_literal_default(default: str | None, data_type: str, extra: str) -> st
     return "'" + default.replace("'", "''") + "'"
 
 
+def _int_when(value: Any, applies: bool) -> int | None:
+    """``int(value)`` si el dato aplica al tipo y no es nulo; si no, ``None``."""
+    return int(value) if applies and value is not None else None
+
+
+def _column_from_row(r: Sequence[Any]) -> ColumnMeta:
+    """``ColumnMeta`` de una fila de la consulta de columnas (``Kind.COLUMNS``)."""
+    base = str(r[4]).lower()
+    raw_extra = str(r[12] or "")
+    extra = raw_extra.lower()
+    on_update = _ON_UPDATE.search(raw_extra)
+    generated = _text(r[13]) if "generated" in extra else None
+    exact = base in _EXACT
+    return ColumnMeta(
+        table=str(r[0]),
+        name=str(r[1]),
+        ordinal=int(r[2]),
+        data_type=str(_text(r[3])),
+        base_type=base,
+        nullable=str(r[5]).upper() == "YES",
+        length=_int_when(r[6], base in _TEXT or "text" in base),
+        precision=_int_when(r[7], exact),
+        scale=_int_when(r[8], exact),
+        default=None if generated else _default(r[9]),
+        comment=_text(r[10]),
+        collation=_text(r[11]),
+        identity="by default" if "auto_increment" in extra else None,
+        generated=generated,
+        on_update=on_update.group(1) if on_update else None,
+    )
+
+
 class MariaDBCatalog:
     """:class:`~util_bbdd.metadata.contracts.CatalogDialect` de MariaDB (10.2+)."""
 
@@ -324,33 +356,7 @@ class MariaDBCatalog:
 
     @staticmethod
     def _parse_columns(rows: Sequence[Sequence[Any]], schema: str) -> list[ColumnMeta]:
-        out = []
-        for r in rows:
-            base = str(r[4]).lower()
-            raw_extra = str(r[12] or "")
-            extra = raw_extra.lower()
-            on_update = _ON_UPDATE.search(raw_extra)
-            generated = _text(r[13]) if "generated" in extra else None
-            out.append(
-                ColumnMeta(
-                    table=str(r[0]),
-                    name=str(r[1]),
-                    ordinal=int(r[2]),
-                    data_type=str(_text(r[3])),
-                    base_type=base,
-                    nullable=str(r[5]).upper() == "YES",
-                    length=int(r[6]) if r[6] is not None and (base in _TEXT or "text" in base) else None,
-                    precision=int(r[7]) if r[7] is not None and base in _EXACT else None,
-                    scale=int(r[8]) if r[8] is not None and base in _EXACT else None,
-                    default=None if generated else _default(r[9]),
-                    comment=_text(r[10]),
-                    collation=_text(r[11]),
-                    identity="by default" if "auto_increment" in extra else None,
-                    generated=generated,
-                    on_update=on_update.group(1) if on_update else None,
-                )
-            )
-        return out
+        return [_column_from_row(r) for r in rows]
 
     @staticmethod
     def _parse_primary_keys(rows: Sequence[Sequence[Any]], schema: str) -> list[PrimaryKeyMeta]:

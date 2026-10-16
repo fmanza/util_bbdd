@@ -248,6 +248,13 @@ class CharsetStateDetector:
             return None
 
     @staticmethod
+    def _utf8mb4_session_state(info_schema_charset: str | None, can_read_comments: bool) -> CharsetState:
+        """Estado con sesión y BD en utf8mb4: CLEAN si ``information_schema`` no contradice y los comentarios se leen."""
+        if info_schema_charset is not None and info_schema_charset != "utf8mb4":
+            return CharsetState.UTF8MB4_MIXED
+        return CharsetState.UTF8MB4_CLEAN if can_read_comments else CharsetState.UTF8MB4_MIXED
+
+    @staticmethod
     def _determine_state(
         server_charset: str | None,
         database_charset: str | None,
@@ -260,11 +267,7 @@ class CharsetStateDetector:
         # Prioritario: la sesión activa usa utf8mb4 y la BD también → el global del servidor no importa: el charset
         # de los datos lo fija la BD/tabla, y si la lectura nativa falla (SystemError) el ejecutor cae a CONVERT.
         if connection_charset == "utf8mb4" and database_charset == "utf8mb4":
-            if info_schema_charset is not None and info_schema_charset not in ("utf8mb4",):
-                return CharsetState.UTF8MB4_MIXED
-            if can_read_comments:
-                return CharsetState.UTF8MB4_CLEAN
-            return CharsetState.UTF8MB4_MIXED
+            return CharsetStateDetector._utf8mb4_session_state(info_schema_charset, can_read_comments)
 
         # MISMATCH real: la sesión usa latin1 pero la BD es utf8mb4 (sin SET NAMES utf8mb4)
         if database_charset == "utf8mb4" and (connection_charset or "").startswith("latin"):

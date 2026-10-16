@@ -37,6 +37,8 @@ _CLR = frozenset({"PC", "FS", "FT"})
 _SIZED = frozenset({"varchar", "char", "varbinary", "binary", "nvarchar", "nchar"})
 _EXACT = frozenset({"decimal", "numeric"})
 _FRACTIONAL = frozenset({"datetime2", "time", "datetimeoffset"})
+# Columna de filtro por tabla de las consultas sobre sys.tables (alias t).
+_T_NAME = "t.name"
 
 _DESCRIPTION = (
     "LEFT JOIN sys.extended_properties ep ON ep.class = 1 AND ep.major_id = {obj}.object_id "
@@ -62,7 +64,7 @@ _SQL: dict[Kind, tuple[str, str | None]] = {
         "JOIN sys.schemas s ON s.schema_id = t.schema_id "
         + _DESCRIPTION.format(obj="t", minor="0")
         + " WHERE s.name = :schema AND t.is_ms_shipped = 0{filter} ORDER BY t.name",
-        "t.name",
+        _T_NAME,
     ),
     Kind.VIEWS: (
         "SELECT v.name, OBJECT_DEFINITION(v.object_id), CAST(ep.value AS NVARCHAR(4000)) FROM sys.views v "
@@ -85,14 +87,14 @@ _SQL: dict[Kind, tuple[str, str | None]] = {
         + " WHERE s.name = :schema{filter} ORDER BY o.name, c.column_id",
         "o.name",
     ),
-    Kind.PRIMARY_KEYS: (_key_constraints_sql("PK"), "t.name"),
-    Kind.UNIQUES: (_key_constraints_sql("UQ"), "t.name"),
+    Kind.PRIMARY_KEYS: (_key_constraints_sql("PK"), _T_NAME),
+    Kind.UNIQUES: (_key_constraints_sql("UQ"), _T_NAME),
     Kind.CHECKS: (
         "SELECT t.name, ck.name, ck.definition FROM sys.check_constraints ck "
         "JOIN sys.tables t ON t.object_id = ck.parent_object_id "
         "JOIN sys.schemas s ON s.schema_id = t.schema_id "
         "WHERE s.name = :schema{filter} ORDER BY t.name, ck.name",
-        "t.name",
+        _T_NAME,
     ),
     Kind.FOREIGN_KEYS: (
         "SELECT t.name, fk.name, pc.name, rs.name, rt.name, rc.name, fk.delete_referential_action_desc, "
@@ -106,7 +108,7 @@ _SQL: dict[Kind, tuple[str, str | None]] = {
         "JOIN sys.schemas rs ON rs.schema_id = rt.schema_id "
         "JOIN sys.columns rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id "
         "WHERE s.name = :schema{filter} ORDER BY t.name, fk.name, fkc.constraint_column_id",
-        "t.name",
+        _T_NAME,
     ),
     Kind.INDEXES: (
         "SELECT t.name, i.name, i.is_unique, i.is_primary_key, i.type_desc, i.filter_definition, c.name, "
@@ -119,14 +121,14 @@ _SQL: dict[Kind, tuple[str, str | None]] = {
         "JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id "
         "WHERE s.name = :schema AND i.type > 0 AND i.is_hypothetical = 0{filter} "
         "ORDER BY t.name, i.name, ic.key_ordinal",
-        "t.name",
+        _T_NAME,
     ),
     Kind.IDENTITY: (
         "SELECT t.name, c.name FROM sys.identity_columns c "
         "JOIN sys.tables t ON t.object_id = c.object_id "
         "JOIN sys.schemas s ON s.schema_id = t.schema_id "
         "WHERE s.name = :schema{filter} ORDER BY t.name, c.column_id",
-        "t.name",
+        _T_NAME,
     ),
     Kind.ROUTINES: (
         "SELECT o.name, o.type, OBJECT_DEFINITION(o.object_id), TYPE_NAME(r.user_type_id), r.max_length, "

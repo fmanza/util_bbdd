@@ -35,6 +35,8 @@ from ..model import (
 )
 
 _IS = "INFORMATION_SCHEMA"
+# Columna de filtro por tabla de las consultas sobre TABLE_CONSTRAINTS (alias tc).
+_TC_TABLE_NAME = "tc.TABLE_NAME"
 _SIZED = frozenset({"CHARACTER", "CHARACTER VARYING", "BINARY", "BINARY VARYING", "BIT", "BIT VARYING"})
 _EXACT = frozenset({"NUMERIC", "DECIMAL"})
 _IDENTITY = {"ALWAYS": "always", "BY DEFAULT": "by default"}
@@ -72,15 +74,15 @@ _SQL: dict[Kind, tuple[str, str | None]] = {
         "WHERE c.TABLE_SCHEMA = :schema{filter} ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION",
         "c.TABLE_NAME",
     ),
-    Kind.PRIMARY_KEYS: (_key_constraint_sql("PRIMARY KEY"), "tc.TABLE_NAME"),
-    Kind.UNIQUES: (_key_constraint_sql("UNIQUE"), "tc.TABLE_NAME"),
+    Kind.PRIMARY_KEYS: (_key_constraint_sql("PRIMARY KEY"), _TC_TABLE_NAME),
+    Kind.UNIQUES: (_key_constraint_sql("UNIQUE"), _TC_TABLE_NAME),
     Kind.CHECKS: (
         "SELECT tc.TABLE_NAME, tc.CONSTRAINT_NAME, ck.CHECK_CLAUSE "
         f"FROM {_IS}.TABLE_CONSTRAINTS tc JOIN {_IS}.CHECK_CONSTRAINTS ck "
         "ON ck.CONSTRAINT_SCHEMA = tc.CONSTRAINT_SCHEMA AND ck.CONSTRAINT_NAME = tc.CONSTRAINT_NAME "
         "WHERE tc.TABLE_SCHEMA = :schema AND tc.CONSTRAINT_TYPE = 'CHECK'{filter} "
         "ORDER BY tc.TABLE_NAME, tc.CONSTRAINT_NAME",
-        "tc.TABLE_NAME",
+        _TC_TABLE_NAME,
     ),
     Kind.FOREIGN_KEYS: (
         "SELECT k.TABLE_NAME, k.CONSTRAINT_NAME, k.COLUMN_NAME, u.TABLE_SCHEMA, u.TABLE_NAME, u.COLUMN_NAME, "
@@ -142,6 +144,40 @@ def _grouped(rows: Sequence[Sequence[Any]]) -> dict[tuple[str, str], list[Sequen
     return groups
 
 
+def _data_type(base: str, length: int | None, precision: int | None, scale: int | None) -> str:
+    """Tipo completo: ``base(length)`` en los tipos con tamaño, ``base(p,s)`` en los exactos; si no, ``base``."""
+    if base in _SIZED and length is not None:
+        return f"{base}({length})"
+    if base in _EXACT and precision is not None:
+        return f"{base}({precision},{scale or 0})"
+    return base
+
+
+def _column_from_row(r: Sequence[Any]) -> ColumnMeta:
+    """``ColumnMeta`` de una fila de ``_SQL[Kind.COLUMNS]``."""
+    base = str(r[3])
+    length, precision, scale = _int(r[6]), _int(r[7]), _int(r[8])
+    exact = base in _EXACT
+    generated = _text(r[14]) if str(r[13] or "").upper() == "ALWAYS" else None
+    collation = _text(r[10])
+    return ColumnMeta(
+        table=str(r[0]),
+        name=str(r[1]),
+        ordinal=int(r[2]),
+        data_type=_data_type(base, length, precision, scale),
+        base_type=base,
+        nullable=str(r[4]).upper() == "YES",
+        length=length if base in _SIZED else None,
+        precision=precision if exact else None,
+        scale=scale if exact else None,
+        default=None if generated else _text(r[5]),
+        comment=_text(r[9]),
+        collation=None if collation == "SQL_TEXT" else collation,  # SQL_TEXT: la de por defecto
+        identity=_IDENTITY.get(str(r[12] or "").upper()) if str(r[11]).upper() == "YES" else None,
+        generated=generated,
+    )
+
+
 class HSQLDBCatalog:
     """:class:`~util_bbdd.metadata.contracts.CatalogDialect` de HSQLDB 2.x."""
 
@@ -179,37 +215,7 @@ class HSQLDBCatalog:
 
     @staticmethod
     def _parse_columns(rows: Sequence[Sequence[Any]], schema: str) -> list[ColumnMeta]:
-        out = []
-        for r in rows:
-            base = str(r[3])
-            length, precision, scale = _int(r[6]), _int(r[7]), _int(r[8])
-            if base in _SIZED and length is not None:
-                data_type = f"{base}({length})"
-            elif base in _EXACT and precision is not None:
-                data_type = f"{base}({precision},{scale or 0})"
-            else:
-                data_type = base
-            generated = _text(r[14]) if str(r[13] or "").upper() == "ALWAYS" else None
-            collation = _text(r[10])
-            out.append(
-                ColumnMeta(
-                    table=str(r[0]),
-                    name=str(r[1]),
-                    ordinal=int(r[2]),
-                    data_type=data_type,
-                    base_type=base,
-                    nullable=str(r[4]).upper() == "YES",
-                    length=length if base in _SIZED else None,
-                    precision=precision if base in _EXACT else None,
-                    scale=scale if base in _EXACT else None,
-                    default=None if generated else _text(r[5]),
-                    comment=_text(r[9]),
-                    collation=None if collation == "SQL_TEXT" else collation,  # SQL_TEXT: la de por defecto
-                    identity=_IDENTITY.get(str(r[12] or "").upper()) if str(r[11]).upper() == "YES" else None,
-                    generated=generated,
-                )
-            )
-        return out
+        return [_column_from_row(r) for r in rows]
 
     @staticmethod
     def _parse_primary_keys(rows: Sequence[Sequence[Any]], schema: str) -> list[PrimaryKeyMeta]:

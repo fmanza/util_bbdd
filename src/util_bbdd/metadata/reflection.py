@@ -301,6 +301,30 @@ def _mssql_build_pks(
     return result
 
 
+def _mssql_index_options(index_type: int, filter_definition: str | None) -> dict[str, Any]:
+    """``dialect_options`` de un índice según ``sys.indexes.type`` (1/2: rowstore, 5/6: columnstore) y su filtro."""
+    options: dict[str, Any] = {}
+    if index_type in {1, 2}:
+        options["mssql_clustered"] = index_type == 1
+    if index_type in {5, 6}:
+        options["mssql_clustered"] = index_type == 5
+        options["mssql_columnstore"] = True
+    if filter_definition is not None:
+        options["mssql_where"] = filter_definition
+    return options
+
+
+def _mssql_add_index_column(index: dict[str, Any], column: str, is_included: Any) -> None:
+    """Añade ``column`` a ``column_names`` o ``include_columns`` de ``index`` (en columnstore no hay incluidas)."""
+    is_columnstore = index["dialect_options"].get("mssql_columnstore")
+    if is_columnstore and index["dialect_options"].get("mssql_clustered"):
+        return  # un columnstore clustered incluye todas las columnas, pero no se listan en su definición
+    if is_included and not is_columnstore:
+        index["include_columns"].append(column)
+    else:
+        index["column_names"].append(column)
+
+
 def _mssql_build_indexes(
     results: list[Sequence[Any]], _schema: str | None, _owner: str, names: Sequence[str], _dialect: Any
 ) -> dict[str, Any]:
@@ -311,34 +335,19 @@ def _mssql_build_indexes(
     for table, index_id, index_name, is_unique, index_type, filter_definition in index_rows:
         if table not in result:
             continue
-        options: dict[str, Any] = {}
-        if index_type in {1, 2}:
-            options["mssql_clustered"] = index_type == 1
-        if index_type in {5, 6}:
-            options["mssql_clustered"] = index_type == 5
-            options["mssql_columnstore"] = True
-        if filter_definition is not None:
-            options["mssql_where"] = filter_definition
         index: dict[str, Any] = {
             "name": index_name,
             "unique": is_unique == 1,
             "column_names": [],
             "include_columns": [],
-            "dialect_options": options,
+            "dialect_options": _mssql_index_options(index_type, filter_definition),
         }
         by_id[(table, index_id)] = index
         result[table].append(index)
     for table, index_id, column, is_included in column_rows:
         found = by_id.get((table, index_id))
-        if found is None:
-            continue
-        is_columnstore = found["dialect_options"].get("mssql_columnstore")
-        if is_columnstore and found["dialect_options"].get("mssql_clustered"):
-            continue  # un columnstore clustered incluye todas las columnas, pero no se listan en su definición
-        if is_included and not is_columnstore:
-            found["include_columns"].append(column)
-        else:
-            found["column_names"].append(column)
+        if found is not None:
+            _mssql_add_index_column(found, column, is_included)
     for indexes in result.values():
         for index in indexes:
             index["dialect_options"]["mssql_include"] = index["include_columns"]
@@ -378,32 +387,50 @@ def _mssql_columns_sql() -> str:
     return _MSSQL_COLUMNS_SQL
 
 
+def _mssql_length_kwargs(coltype: Any, maxlen: Any, collation: Any) -> dict[str, Any]:
+    """``length`` (y ``collation`` en los de texto) de los tipos binarios y de texto; ``max_length`` -1 es ``MAX``.
+
+    En los tipos ``N*`` ``max_length`` va en bytes: la longitud en caracteres es la mitad.
+    """
+    from sqlalchemy.dialects.mssql import base as mssql
+
+    if coltype in (mssql.MSBinary, mssql.MSVarBinary, sqltypes.LargeBinary):
+        return {"length": maxlen if maxlen != -1 else None}
+    if coltype in (mssql.MSString, mssql.MSChar, mssql.MSText):
+        kwargs: dict[str, Any] = {"length": maxlen if maxlen != -1 else None}
+    elif coltype in (mssql.MSNVarchar, mssql.MSNChar, mssql.MSNText):
+        kwargs = {"length": maxlen // 2 if maxlen != -1 else None}
+    else:
+        return {}
+    if collation:
+        kwargs["collation"] = collation
+    return kwargs
+
+
 def _mssql_column_type(dialect: Any, type_name: str, base_type: str | None, maxlen: Any, prec: Any, scale: Any,
                        collation: Any) -> Any:  # fmt: skip
     """Tipo de SQLAlchemy de una columna con las reglas de ``MSDialect.get_columns`` (SQLAlchemy 2.0)."""
-    from sqlalchemy.dialects.mssql import base as mssql
 
     coltype = dialect.ischema_names.get(type_name)
     if coltype is None and base_type is not None and base_type != type_name:
         coltype = dialect.ischema_names.get(base_type)
     if coltype is None:
         return None  # tipo no reconocido: lo resuelve la reflexión tabla a tabla (con su aviso)
-    kwargs: dict[str, Any] = {}
-    if coltype in (mssql.MSBinary, mssql.MSVarBinary, sqltypes.LargeBinary):
-        kwargs["length"] = maxlen if maxlen != -1 else None
-    elif coltype in (mssql.MSString, mssql.MSChar, mssql.MSText):
-        kwargs["length"] = maxlen if maxlen != -1 else None
-        if collation:
-            kwargs["collation"] = collation
-    elif coltype in (mssql.MSNVarchar, mssql.MSNChar, mssql.MSNText):
-        kwargs["length"] = maxlen // 2 if maxlen != -1 else None
-        if collation:
-            kwargs["collation"] = collation
+    kwargs: dict[str, Any] = _mssql_length_kwargs(coltype, maxlen, collation)
     if issubclass(coltype, sqltypes.Numeric):
         kwargs["precision"] = prec
         if not issubclass(coltype, sqltypes.Float):
             kwargs["scale"] = scale
     return coltype(**kwargs)
+
+
+def _mssql_identity(coltype: Any, seed: Any, increment: Any) -> dict[str, Any]:
+    """``identity`` de una columna IDENTITY: vacío sin semilla o incremento; enteros si el tipo es entero."""
+    if seed is None or increment is None:
+        return {}
+    if isinstance(coltype, sqltypes.Integer):
+        return {"start": int(seed), "increment": int(increment)}
+    return {"start": seed, "increment": increment}
 
 
 def _mssql_build_columns(
@@ -432,12 +459,7 @@ def _mssql_build_columns(
         if definition is not None and is_persisted is not None:
             column["computed"] = {"sqltext": definition, "persisted": is_persisted}
         if is_identity is not None:
-            if seed is None or increment is None:
-                column["identity"] = {}
-            elif isinstance(coltype, sqltypes.Integer):
-                column["identity"] = {"start": int(seed), "increment": int(increment)}
-            else:
-                column["identity"] = {"start": seed, "increment": increment}
+            column["identity"] = _mssql_identity(coltype, seed, increment)
         result[table].append(column)
     # Sin filas (tabla inexistente) o con un tipo desconocido: fuera de la precarga, se consulta tabla a tabla
     return {table: columns for table, columns in result.items() if columns and table not in unknown}

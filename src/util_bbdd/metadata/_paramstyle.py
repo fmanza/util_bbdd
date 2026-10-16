@@ -30,6 +30,7 @@ _TOKEN = re.compile(
     r"|(?P<percent>%)"
 )
 _LIST_TYPES = (list, tuple, set, frozenset)
+_NAMED_STYLES: tuple[ParamStyle, ...] = ("named", "pyformat")
 
 
 def expand_lists(sql: str, params: Mapping[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -53,6 +54,36 @@ def expand_lists(sql: str, params: Mapping[str, Any]) -> tuple[str, dict[str, An
     return _TOKEN.sub(replace, sql), out
 
 
+def _verbatim_token(match: re.Match[str], percent_style: bool) -> str | None:
+    """Texto de un token que no es parámetro (literal, ``::``, ``%``); ``None`` si es un parámetro.
+
+    En los estilos de porcentaje se escapan los ``%`` (también dentro de los literales).
+    """
+    literal = match.group("literal")
+    if literal is not None:
+        return literal.replace("%", "%%") if percent_style else literal
+    if match.group("cast") is not None:
+        return "::"
+    if match.group("percent") is not None:
+        return "%%" if percent_style else "%"
+    return None
+
+
+def _placeholder(name: str, paramstyle: ParamStyle, position: int) -> str:
+    """Marcador del parámetro ``name`` en ``paramstyle``; ``position`` (desde 1) para los estilos numerados."""
+    if paramstyle == "named":
+        return f":{name}"
+    if paramstyle == "pyformat":
+        return f"%({name})s"
+    if paramstyle == "format":
+        return "%s"
+    if paramstyle == "qmark":
+        return "?"
+    if paramstyle == "dollar":
+        return f"${position}"
+    return f":{position}"  # numeric
+
+
 def to_driver(
     sql: str, params: Mapping[str, Any], paramstyle: ParamStyle
 ) -> tuple[str, dict[str, Any] | list[Any] | None]:
@@ -72,30 +103,17 @@ def to_driver(
     positional: list[Any] = []
 
     def replace(match: re.Match[str]) -> str:
-        if match.group("literal") is not None:
-            literal = match.group("literal")
-            return literal.replace("%", "%%") if percent_style else literal
-        if match.group("cast") is not None:
-            return "::"
-        if match.group("percent") is not None:
-            return "%%" if percent_style else "%"
+        verbatim = _verbatim_token(match, percent_style)
+        if verbatim is not None:
+            return verbatim
         name = match.group("param")
         value = flat[name]
-        if paramstyle == "named":
-            return f":{name}"
-        if paramstyle == "pyformat":
-            return f"%({name})s"
-        positional.append(value)
-        if paramstyle == "format":
-            return "%s"
-        if paramstyle == "qmark":
-            return "?"
-        if paramstyle == "dollar":
-            return f"${len(positional)}"
-        return f":{len(positional)}"  # numeric
+        if paramstyle not in _NAMED_STYLES:
+            positional.append(value)
+        return _placeholder(name, paramstyle, len(positional))
 
     translated = _TOKEN.sub(replace, sql)
-    if paramstyle in ("named", "pyformat"):
+    if paramstyle in _NAMED_STYLES:
         used = {m.group("param") for m in _TOKEN.finditer(sql) if m.group("param")}
         return translated, {name: flat[name] for name in used}
     return translated, positional

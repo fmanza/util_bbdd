@@ -32,7 +32,8 @@ from ..model import (
     ViewMeta,
 )
 
-_FK_RULES = {"a": "NO ACTION", "r": "RESTRICT", "c": "CASCADE", "n": "SET NULL", "d": "SET DEFAULT"}
+_NO_ACTION = "NO ACTION"
+_FK_RULES = {"a": _NO_ACTION, "r": "RESTRICT", "c": "CASCADE", "n": "SET NULL", "d": "SET DEFAULT"}
 _PARAM_MODES = {"i": "IN", "o": "OUT", "b": "INOUT", "v": "VARIADIC", "t": "TABLE"}
 _IDENTITY = {"a": "always", "d": "by default"}
 
@@ -298,8 +299,8 @@ class PostgreSQLCatalog:
                 ref_schema=str(r[3]),
                 ref_table=str(r[4]),
                 ref_columns=_names(r[5]),
-                on_delete=_FK_RULES.get(_char(r[6]), "NO ACTION"),
-                on_update=_FK_RULES.get(_char(r[7]), "NO ACTION"),
+                on_delete=_FK_RULES.get(_char(r[6]), _NO_ACTION),
+                on_update=_FK_RULES.get(_char(r[7]), _NO_ACTION),
             )
             for r in rows
         ]

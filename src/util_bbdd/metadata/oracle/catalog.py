@@ -40,6 +40,8 @@ from ..model import (
 )
 
 _NO_ACTION = "NO ACTION"
+# Columna de filtro por tabla de las consultas sobre all_constraints (alias con).
+_CON_TABLE_NAME = "con.table_name"
 _PARAM_MODES = {"IN": "IN", "OUT": "OUT", "IN/OUT": "INOUT"}
 _IDENTITY = {"ALWAYS": "always", "BY DEFAULT": "by default"}
 _NOT_NULL_CHECK = re.compile(r'^\s*"[^"]+"\s+IS\s+NOT\s+NULL\s*$', re.IGNORECASE)
@@ -80,7 +82,7 @@ _SQL: dict[Kind, tuple[str, str | None]] = {
         "AND cc.table_name = con.table_name "
         "WHERE con.owner = :schema AND con.constraint_type = 'P' AND con.table_name NOT LIKE 'BIN$%'{filter} "
         "ORDER BY con.table_name, con.constraint_name, cc.position",
-        "con.table_name",
+        _CON_TABLE_NAME,
     ),
     Kind.UNIQUES: (
         "SELECT con.table_name, con.constraint_name, cc.column_name, cc.position FROM all_constraints con "
@@ -88,13 +90,13 @@ _SQL: dict[Kind, tuple[str, str | None]] = {
         "AND cc.table_name = con.table_name "
         "WHERE con.owner = :schema AND con.constraint_type = 'U' AND con.table_name NOT LIKE 'BIN$%'{filter} "
         "ORDER BY con.table_name, con.constraint_name, cc.position",
-        "con.table_name",
+        _CON_TABLE_NAME,
     ),
     Kind.CHECKS: (
         "SELECT con.table_name, con.constraint_name, con.search_condition, con.generated FROM all_constraints con "
         "WHERE con.owner = :schema AND con.constraint_type = 'C' AND con.table_name NOT LIKE 'BIN$%'{filter} "
         "ORDER BY con.table_name, con.constraint_name",
-        "con.table_name",
+        _CON_TABLE_NAME,
     ),
     Kind.FOREIGN_KEYS: (
         "SELECT con.table_name, con.constraint_name, cc.column_name, rcon.owner, rcon.table_name, rcc.column_name, "
@@ -106,7 +108,7 @@ _SQL: dict[Kind, tuple[str, str | None]] = {
         "AND rcc.position = cc.position "
         "WHERE con.owner = :schema AND con.constraint_type = 'R' AND con.table_name NOT LIKE 'BIN$%'{filter} "
         "ORDER BY con.table_name, con.constraint_name, cc.position",
-        "con.table_name",
+        _CON_TABLE_NAME,
     ),
     Kind.INDEXES: (
         "SELECT i.table_name, i.index_name, i.uniqueness, i.index_type, ic.column_name, ie.column_expression, "
@@ -200,14 +202,21 @@ def _data_type(
         suffix = " CHAR" if char_used == "C" and data_type in ("VARCHAR2", "CHAR") else ""
         return f"{data_type}({char_length}{suffix})"
     if data_type == "NUMBER":
-        if precision is None:
-            return "NUMBER" if scale is None else f"NUMBER(*,{scale})"
-        return f"NUMBER({precision})" if not scale else f"NUMBER({precision},{scale})"
+        return _number_type(precision, scale)
     if data_type == "FLOAT" and precision is not None:
         return f"FLOAT({precision})"
     if data_type in ("RAW", "UROWID") and data_length:
         return f"{data_type}({data_length})"
     return data_type
+
+
+def _number_type(precision: int | None, scale: int | None) -> str:
+    """``NUMBER``, ``NUMBER(*,s)``, ``NUMBER(p)`` o ``NUMBER(p,s)``: escala 0 o nula no se escribe tras la precisión."""
+    if precision is None:
+        return "NUMBER" if scale is None else f"NUMBER(*,{scale})"
+    if not scale:
+        return f"NUMBER({precision})"
+    return f"NUMBER({precision},{scale})"
 
 
 def _grouped(rows: Sequence[Sequence[Any]]) -> dict[tuple[str, str], list[Sequence[Any]]]:
