@@ -1,7 +1,6 @@
 """Pool de conexiones para MariaDB (mariadb.ConnectionPool)."""
 
 import logging
-import re
 
 from typing import Any
 from uuid import uuid4
@@ -22,6 +21,7 @@ from ..close import (
     run_close_operation_sync,
 )
 from ..params import ConnectionParamsManager
+from .connection_mariadb import _rejected_optional_param
 
 # Parámetros que el pool puede rechazar según versión del driver; se eliminan uno a uno si procede.
 _OPTIONAL_POOL_PARAMS: frozenset[str] = frozenset({"init_command"})
@@ -136,7 +136,7 @@ class PoolConnection(SyncPoolCloseMixin):
                 self.pool = mariadb.ConnectionPool(**pool_params)
                 return pool_params
             except TypeError as err:
-                rejected = self._rejected_optional_param(err)
+                rejected = _rejected_optional_param(err, _OPTIONAL_POOL_PARAMS)
                 if rejected is None:
                     raise
                 pool_params = self.__drop_rejected(pool_params, rejected)
@@ -158,14 +158,6 @@ class PoolConnection(SyncPoolCloseMixin):
             f"⚠️ mariadb.ConnectionPool() rechazó '{rejected}'; reintentando sin él (mariadb version={mariadb_version})"
         )
         return {k: v for k, v in pool_params.items() if k != rejected}
-
-    @staticmethod
-    def _rejected_optional_param(err: TypeError) -> str | None:
-        """Parámetro de ``_OPTIONAL_POOL_PARAMS`` que el driver rechazó en ``err``; ``None`` si el error es otro."""
-        match = re.search(r"unexpected keyword argument '(\w+)'", str(err))
-        if match is None or match.group(1) not in _OPTIONAL_POOL_PARAMS:
-            return None
-        return match.group(1)
 
     def get_connection(self) -> Any:
         """Obtiene conexión del pool.

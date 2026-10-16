@@ -16,6 +16,17 @@ _OPTIONAL_CONN_PARAMS: frozenset[str] = frozenset({"init_command"})
 _UNSUPPORTED_BY_CONNECTOR: frozenset[str] = frozenset({"charset"})
 
 
+def _rejected_optional_param(err: TypeError, optional: frozenset[str]) -> str | None:
+    """Parámetro de ``optional`` que el driver rechazó en ``err``; ``None`` si el error es otro.
+
+    La comparten :class:`MariaDBConnection` y el pool nativo (``pool_connection_mariadb``).
+    """
+    match = re.search(r"unexpected keyword argument '(\w+)'", str(err))
+    if match is None or match.group(1) not in optional:
+        return None
+    return match.group(1)
+
+
 class MariaDBConnection:
     """Maneja la conexión raw a MariaDB."""
 
@@ -57,7 +68,7 @@ class MariaDBConnection:
                     MariaDBConnection.logger.info("✅ Conexión MariaDB establecida")
                     return conn
                 except TypeError as err:
-                    rejected = MariaDBConnection._rejected_optional_param(err)
+                    rejected = _rejected_optional_param(err, _OPTIONAL_CONN_PARAMS)
                     if rejected is None:
                         raise
 
@@ -90,11 +101,3 @@ class MariaDBConnection:
 
             params["client_flag"] = CLIENT.FOUND_ROWS
         return params
-
-    @staticmethod
-    def _rejected_optional_param(err: TypeError) -> str | None:
-        """Parámetro de ``_OPTIONAL_CONN_PARAMS`` que el driver rechazó en ``err``; ``None`` si el error es otro."""
-        match = re.search(r"unexpected keyword argument '(\w+)'", str(err))
-        if match is None or match.group(1) not in _OPTIONAL_CONN_PARAMS:
-            return None
-        return match.group(1)
