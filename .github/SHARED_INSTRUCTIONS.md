@@ -93,7 +93,7 @@ src/util_bbdd/
 
 ### API pública recomendada
 
-La raíz exporta solo los 13 puntos de entrada y sus resultados (API 1.0); el resto se importa desde su submódulo
+La raíz exporta solo los 13 puntos de entrada y sus resultados (API 3.x); el resto se importa desde su submódulo
 público (`exceptions`, `audit`, `metadata`, `connection`, `factory`, `async_utils`, `analysis`). Desde 1.0.0 la API
 pública sigue SemVer: un cambio incompatible en la raíz o en esos submódulos exige versión MAJOR. Tabla de rutas:
 `docs/guides/api_1_0_migration.md`.
@@ -392,4 +392,4 @@ especializaciones afectadas (`CLAUDE.md`, `.github/copilot-instructions.md`, `GE
 
 ---
 
-*Actualizado: 2026-10-10*
+*Actualizado: 2026-10-17*

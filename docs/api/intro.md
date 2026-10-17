@@ -3,7 +3,7 @@
 Índice de clases públicas, módulos y convenciones de la API de `util_bbdd`.
 Para documentación técnica detallada de cada módulo, navega por las subsecciones de este apartado.
 
-## Importaciones canónicas (API 1.0)
+## Importaciones canónicas (API 3.x)
 
 La raíz `util_bbdd` exporta los 13 puntos de entrada y sus resultados; el resto se importa desde su submódulo público.
 Ver [Migración a la API 1.0](../guides/api_1_0_migration.md).

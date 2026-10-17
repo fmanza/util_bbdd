@@ -209,7 +209,7 @@ importa nada de la librería, pero es Especialización.
 ## APIs Públicas (importes recomendados)
 
 ```python
-# Raíz (API 1.0, v0.43.0): 13 puntos de entrada y sus resultados; el resto, en su submódulo público
+# Raíz (API 3.x; mismos 13 puntos desde v0.43.0): 13 puntos de entrada y sus resultados; el resto, en su submódulo público
 from util_bbdd import (
     SyncDatabaseManager, AsyncDatabaseManager,
     BulkCrud, ParallelBulkLoader,

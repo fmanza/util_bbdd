@@ -24,7 +24,7 @@ Está dirigida a **desarrolladores, ingenieros de datos y DBAs** que necesitan m
 - ✅ **Documentación de BD** generada automáticamente (Word, Excel, HTML/Jinja2)
 - ✅ **Análisis de relaciones** — grafos de relaciones entre tablas (Graphviz)
 
-### API pública 1.0
+### API pública 3.x (estable con SemVer desde 1.0.0)
 
 La raíz `util_bbdd` exporta los 13 puntos de entrada y sus resultados (`SyncDatabaseManager`, `AsyncDatabaseManager`,
 `BulkCrud`, `ParallelBulkLoader`, `DumpOrchestrator`, `DumpConfig`, `DumpResult`, `MigrationPlanner`, `MigrationPlan`,
