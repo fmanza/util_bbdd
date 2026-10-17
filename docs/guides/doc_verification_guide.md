@@ -5,8 +5,8 @@
 Comprobar, antes de publicar, que la configuración del generador estático y el HTML producido son correctos.
 
 Existen dos opciones complementarias, ambas opt-in, que se activan incluyéndolas en el mensaje al agente
-`Documentation Generator` (`.github/agents/documentation-generator.agent.md`; en Claude Code se invoca en lenguaje
-natural: «Usa Documentation Generator…»):
+`Documentation Generator` (`.github/agents/documentation-generator.agent.md`; en Claude Code se invoca con
+`/doc-generator` o en lenguaje natural: «Usa Documentation Generator…»):
 
 | Opción | Qué comprueba | Cuándo usarla |
 |---|---|---|

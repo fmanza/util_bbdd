@@ -37,6 +37,7 @@ prompt discrepan, manda el prompt.
 | [`/performance-audit-constraints`](./.claude/commands/performance-audit-constraints.md) | Rendimiento de desactivar constraints en carga masiva | `performance_audit_constraints` + `performance_audit_constraints_agent` | 5 fases: PLAN → AUDIT_PLAN → AUDIT_CODE → IMPROVEMENT_PLAN → VERSION | — |
 | [`/metadata-centralization`](./.claude/commands/metadata-centralization.md) | Centralizar la extracción de metadatos + rendimiento de introspección (permite romper API) | `metadata_centralization_audit_and_refactor` | PLAN → AUDIT_PLAN (→ IMPLEMENT por grupos → AUDIT_CODE → VERSION tras aprobación) | `GO \| GO_CONDICIONAL \| NO_GO` |
 | [`/documentation-architecture-audit`](./.claude/commands/documentation-architecture-audit.md) | Auditoría arquitectónica de módulos `doc/` + `analysis/` por motor (consolidación, duplicidades, seguridad, perf) | `doc_architecture_audit` | PLAN → AUDIT_ARCH → AUDIT_CODE → IMPROVE_PLAN → IMPLEMENT → VERIFY | `READY_FOR_RELEASE \| NEEDS_REWORK \| BLOCKED` |
+| [`/doc-generator`](./.claude/commands/doc-generator.md) | Generar o actualizar documentación funcional, técnica y ejemplos en `docs/` + `mkdocs.yml` | agente `documentation-generator` (§ Formato de salida) + `functional_doc`/`technical_doc` | 6 fases del agente Documentation Generator (inventario → funcional → técnica → ejemplos → `mkdocs.yml` → revisión) | — |
 | [`/config-review`](./.claude/commands/config-review.md) | Configuración IA (DRY, huérfanos, bootstrap) | `config_review` | ANÁLISIS → PLAN → AUDIT_PLAN (→ IMPLEMENT → AUDIT_CODE → VERSION tras aprobación) | `GO \| GO_CONDICIONAL \| NO_GO` |
 | [`/version-closure`](./.claude/commands/version-closure.md) | Cierre de versión o sesión | `version_closure` | Commit → Changelog → API → Migraciones → Compatibilidad → Rollback → Checklist → Directrices | — |
 
@@ -133,7 +134,7 @@ discrepancias, `SHARED_INSTRUCTIONS.md` es la fuente de verdad.
 ## Documentación con Claude Code
 
 Punto único de entrada: agente **Documentation Generator** ([`.github/agents/documentation-generator.agent.md`](./.github/agents/documentation-generator.agent.md)),
-invocado por lenguaje natural (no tiene slash command). Arquetipos, secciones fijas y flujo por fases:
+invocado con [`/doc-generator`](./.claude/commands/doc-generator.md) o por lenguaje natural. Arquetipos, secciones fijas y flujo por fases:
 [`.github/DOCUMENTATION_STANDARD.md`](./.github/DOCUMENTATION_STANDARD.md) §3 y §5. Reglas comunes
 (Zensical, Mermaid, no inventar, sin APIs de IA externas, validación de Markdown):
 `SHARED_INSTRUCTIONS.md` § «Documentación obligatoria».
@@ -157,4 +158,4 @@ Sigue `SHARED_INSTRUCTIONS.md` § «Gobernanza de plataformas IA». Específico 
 
 ---
 
-*Actualizado: 2026-10-02*
+*Actualizado: 2026-10-17*

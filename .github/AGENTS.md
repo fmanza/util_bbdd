@@ -17,6 +17,8 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 /performance-audit-dump
 /performance-audit-constraints
 /metadata-centralization
+/documentation-architecture-audit
+/doc-generator
 /config-review
 /version-closure
 ```
@@ -76,12 +78,13 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 
 ### 6b. **Documentation Generator** (`documentation-generator.agent.md`)
 - **Propósito**: GENERAR documentación funcional y técnica con diagramas Mermaid para módulos de util_bbdd
-- **Entrada**: Módulo Python objetivo, tipo (`functional` | `technical` | `both`), directorio destino
+- **Entrada**: Módulo Python objetivo, tipo (`functional` | `technical` | `examples` | `both`), directorio destino
 - **Salida**: Archivos `.md` en `docs/` + entrada sugerida para `mkdocs.yml`
 - **Herramientas**: read, write, search, web (`--verify-tools`), execute (`--verify-build`)
 - **Invocable**: Sí (generación activa, escribe archivos)
 - **Diferencia con Reviewer**: Reviewer audita, Generator crea contenido nuevo
 - **Prompts base**: `.github/prompts/functional_doc.prompt.md` + `.github/prompts/technical_doc.prompt.md`
+- **Slash command**: `/doc-generator` (`.claude/commands/doc-generator.md`); también por lenguaje natural en Claude Code
 - **Sin APIs de IA externas**: el contenido lo genera el agente en sesión (`SHARED_INSTRUCTIONS.md` § «Estándar de generación documental»). El workflow heredado `doc_agents.yml`, que lo hacía con APIs externas, se retiró el 2026-10-10.
 
 ### 7. **Config Reviewer** (`config-reviewer.agent.md`)
@@ -240,12 +243,12 @@ Modificar un agente: editar su archivo `.agent.md` en `.github/agents/`.
 
 ## Nota: Asimetría slash commands ↔ agentes
 
-Los **slash commands** de Claude Code (`.claude/commands/`) cubren 13 flujos (new-feature, hotfix, refactor, audit-code, security-review, tech-debt, maturity-assessment, performance-audit-bulk, performance-audit-dump, performance-audit-constraints, metadata-centralization, config-review, version-closure); cada uno es un envoltorio fino sobre su prompt gemelo.
+Los **slash commands** de Claude Code (`.claude/commands/`) cubren 15 flujos (new-feature, hotfix, refactor, audit-code, security-review, tech-debt, maturity-assessment, performance-audit-bulk, performance-audit-dump, performance-audit-constraints, metadata-centralization, documentation-architecture-audit, doc-generator, config-review, version-closure); cada uno es un envoltorio fino sobre su prompt gemelo, salvo `/doc-generator`, que envuelve al agente Documentation Generator: su contrato es la sección «Formato de salida al usuario» del agente.
 
-Los **agentes** (`.github/agents/`) son 13: 9 que respaldan los slash commands (`plan-architect`, `feature-implementer`, `hotfix-responder`, `code-auditor`, `security-reviewer`, `maturity-assessment`, `performance-auditor`, `config-reviewer`, `version-closer`) más `documentation-reviewer`, `documentation-generator`, `explore` y `workflow-director` (clasificador, primer paso del flujo en Copilot Chat). Los de documentación no tienen slash command pero son invocables por lenguaje natural (Claude Code) o mediante sus prompts correspondientes (Copilot Chat).
+Los **agentes** (`.github/agents/`) son 13: 10 que respaldan los slash commands (`plan-architect`, `feature-implementer`, `hotfix-responder`, `code-auditor`, `security-reviewer`, `maturity-assessment`, `performance-auditor`, `config-reviewer`, `version-closer`, `documentation-generator`) más `documentation-reviewer`, `explore` y `workflow-director` (clasificador, primer paso del flujo en Copilot Chat). `documentation-reviewer` no tiene slash command: se invoca por lenguaje natural (Claude Code) o mediante su prompt (Copilot Chat).
 
 Gobernanza entre plataformas: [`SHARED_INSTRUCTIONS.md`](SHARED_INSTRUCTIONS.md) § «Gobernanza de plataformas IA».
 
 ---
 
-*Actualizado: 2026-10-16*
+*Actualizado: 2026-10-17*

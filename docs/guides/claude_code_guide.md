@@ -51,6 +51,7 @@ Escribe el comando en el chat para activar el flujo estructurado:
 | `/performance-audit-bulk` / `-dump` / `-constraints` | Quieres auditar el rendimiento de `bulk/`, `dump/` o la desactivación de constraints |
 | `/metadata-centralization` | Trabajas en la extracción de metadatos |
 | `/documentation-architecture-audit` | Quieres auditar la arquitectura de `doc/` y `analysis/` |
+| `/doc-generator` | Quieres generar o actualizar documentación en `docs/` y `mkdocs.yml` |
 | `/config-review` | Cambias la configuración IA del repositorio |
 | `/version-closure` | Cierras una versión o bloque de cambios |
 

@@ -8,7 +8,6 @@ Lee y aplica, **en este orden**:
 1. `.github/SHARED_INSTRUCTIONS.md` — Canónico: arquitectura, SOLID, Conventional Commits
 2. `.github/skills/documentation-architecture-audit/SKILL.md` — Definición del skill: fases, motor sequencing, outputs
 3. `.github/prompts/doc_architecture_audit.prompt.md` — Contrato de entrada/salida de cada fase
-4. `.github/agents/documentation-architecture-auditor.agent.md` — Rol y restricciones (si existe)
 
 ## Reglas de ejecución
 

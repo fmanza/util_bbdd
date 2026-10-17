@@ -617,7 +617,7 @@ primer nivel y agrupación en subsecciones: `docs.instructions.md` § «Generado
 
 | Agente | Cuándo | Comando | Scope |
 |--------|--------|---------|-------|
-| `documentation-generator` | Generar docs por primera vez o actualizar módulo completo | Sin slash command: lenguaje natural (Claude Code) · `@Documentation Generator` (Copilot) | `src/` → `docs/` |
+| `documentation-generator` | Generar docs por primera vez o actualizar módulo completo | `/doc-generator` o lenguaje natural (Claude Code) · `@Documentation Generator` (Copilot) | `src/` → `docs/` |
 | `documentation-reviewer` | Auditar docs existentes (calidad, ejemplos, claridad) | Sin slash command: lenguaje natural (Claude Code) · `@Documentation Reviewer` (Copilot) | `docs/` |
 | `config-reviewer` | Sincronizar instrucciones IA entre archivos de configuración | `/config-review` (Claude Code) · `@Config Reviewer` (Copilot) | `SHARED_INSTRUCTIONS.md`, entry points, agentes, prompts |
 | `Plan Architect` | Cambio estructural en `mkdocs.yml` o nuevo módulo importante | `/new-feature` o `/refactor` | `mkdocs.yml` |

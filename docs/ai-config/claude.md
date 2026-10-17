@@ -49,9 +49,10 @@ zensical serve            # preview local (o: python -m mkdocs serve)
 
 ## 4. Slash Commands Disponibles
 
-Hay 14 comandos en `.claude/commands/`: `/new-feature`, `/hotfix`, `/refactor`, `/audit-code`, `/security-review`,
+Hay 15 comandos en `.claude/commands/`: `/new-feature`, `/hotfix`, `/refactor`, `/audit-code`, `/security-review`,
 `/tech-debt`, `/maturity-assessment`, `/performance-audit-bulk`, `/performance-audit-dump`,
-`/performance-audit-constraints`, `/metadata-centralization`, `/documentation-architecture-audit`, `/config-review` y
+`/performance-audit-constraints`, `/metadata-centralization`, `/documentation-architecture-audit`, `/doc-generator`,
+`/config-review` y
 `/version-closure`. Cada uno es un envoltorio fino de su prompt en `.github/prompts/`, que es el contrato de salida
 (fases, secciones y veredicto). La tabla con propósito, fases y veredicto de cada comando está en `CLAUDE.md` (fuente
 única; no se copia aquí para que no diverja).
