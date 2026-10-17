@@ -223,7 +223,9 @@ python -m pytest tests/ --cov=src/util_bbdd --cov-report=html
 python -m pytest tests/unit/bulk/ -v
 ```
 
-Tests de integración (que sí requieren BD reales) están en `tests/integration/`, marcados con `pytest.mark.integration`; sin las URLs del banco se saltan. En CI corren en el workflow `integration.yml` (nocturno y manual), no en el de cada push. Para ejecutarlos en local: `source scripts/bench_env.example.sh` (con `UTIL_BBDD_BENCH_PASSWORD` definida) y `python -m pytest`.
+Tests de integración (que sí requieren BD reales) están en `tests/integration/`, marcados con `pytest.mark.integration`; sin las URLs del banco se saltan. En CI corren en el workflow `integration.yml` (nocturno y manual), no en el de cada push. Para ejecutarlos en local: `source scripts/bench_env.example.sh` (con `UTIL_BBDD_BENCH_PASSWORD` definida) y `python -m pytest`. Los de HSQLDB necesitan además Java: define `JAVA_HOME` (el cliente JDBC lo usa para arrancar la JVM).
+
+Los ejemplos de `docs/examples/` también se ejecutan en los tests (`tests/unit/test_docs_examples.py` y, contra el banco, `tests/integration/test_docs_examples_engines.py`): un cambio de API que rompa un ejemplo hace fallar la suite.
 
 ### Docstrings
 
@@ -321,7 +323,7 @@ Ejecuta estos comandos en orden. Si todos producen el output esperado, el entorn
 | Verificación | Comando | Output esperado |
 |---|---|---|
 | Python versión correcta | `python --version` | `Python 3.12.x` (o 3.13 / 3.14) |
-| Paquete instalado | `python -c "from importlib.metadata import version; print(version('util_bbdd'))"` | La versión de `pyproject.toml` (p. ej. `1.1.0`) |
+| Paquete instalado | `python -c "from importlib.metadata import version; print(version('util_bbdd'))"` | La versión de `pyproject.toml` (p. ej. `3.0.3`) |
 | Manager sync funciona | `python -c "from util_bbdd import SyncDatabaseManager; m = SyncDatabaseManager(db_type='sqlite', conn_params={'database': ':memory:'}); print(m.get_tables()); m.close()"` | `[]` |
 | ruff sin errores | `python -m ruff check src tests` | Sin output (sin errores) |
 | mypy sin errores | `python -m mypy src tests/unit/test_protocol_conformance.py` | `Success: no issues found in N source files` |
@@ -356,6 +358,7 @@ Output esperado: `No issues found`.
 - [Programación asíncrona](async_guide.md) — patrones y drivers async
 - [Conexión y Drivers por Motor](connection_guide.md) — conexión por motor y troubleshooting
 - [Excepciones](exceptions.md) — jerarquía de excepciones canónica
+- [Migración a la API 3.0](api_3_0_migration.md) — de 2.x a 3.0 (opciones de `BulkCrud` y `ParallelBulkLoader` en paquetes)
 - [Migración a la API 1.0](api_1_0_migration.md) — de 0.x a 1.0 (imports desde la raíz y submódulos públicos)
 - [Guía de Migración v0.6.3](migration_guide.md) — histórica, para código anterior a v0.6.3
 - [Ejemplos](../examples/example_connect_introspect.md) — casos de uso por funcionalidad (punto de entrada recomendado para explorar la API)
@@ -377,4 +380,4 @@ Estos ficheros son la fuente canónica para asistentes de código (no están pub
 
 ---
 
-*Guía revisada para util_bbdd v1.1.0 · Verificada: 2026-10-11 · Arquetipo 7 — Onboarding Desarrolladores*
+*Guía revisada para util_bbdd v3.0.3 · Verificada: 2026-10-17 · Arquetipo 7 — Onboarding Desarrolladores*

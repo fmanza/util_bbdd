@@ -208,12 +208,20 @@ class DatabaseQueries:
         }
 
     def get_query_dependencies(self, query_name: str) -> dict[str, list[str]]:
-        """Obtiene las dependencias de una consulta (tablas, vistas, etc.)"""
+        """Obtiene las dependencias de una consulta (tablas, vistas, etc.)
+
+        Args:
+            query_name: Nombre de la consulta; si no existe se analiza una plantilla vacía (sin error).
+        """
         query_template: str = self.get_all_queries().get(query_name, "")
         return get_query_dependencies(query_template)
 
     def get_query_documentation(self, query_name: str) -> dict[str, Any]:
-        """Obtiene documentación completa de una consulta"""
+        """Obtiene documentación completa de una consulta
+
+        Args:
+            query_name: Nombre de la consulta; si no existe se documenta una plantilla vacía (sin error).
+        """
         query_template: str = self.get_all_queries().get(query_name, "")
         return build_query_documentation(
             db_type=self.db_type,
@@ -222,7 +230,14 @@ class DatabaseQueries:
         )
 
     def export_documentation(self, output_file: Path) -> None:
-        """Exporta documentación completa de todas las consultas a un archivo"""
+        """Exporta documentación completa de todas las consultas a un archivo
+
+        Args:
+            output_file: Fichero JSON de salida (se sobrescribe).
+
+        Raises:
+            OSError: Si no se puede escribir el fichero.
+        """
         documentation_queries: dict[str, dict[str, Any]] = {}
         documentation: dict[str, Any] = {
             "db_type": self.db_type,

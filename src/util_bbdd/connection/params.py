@@ -54,6 +54,9 @@ class ConnectionParamsManager:
     def allowed_keys(db_type: str) -> frozenset[str]:
         """Claves aceptadas en ``conn_params`` para ``db_type``: campos de su config de conexión y de pool + extras.
 
+        Args:
+            db_type: Tipo de motor.
+
         Raises:
             InvalidDatabaseType: Si el motor no tiene configuración.
         """
@@ -153,7 +156,20 @@ class ConnectionParamsManager:
         conn_params: dict[str, Any],
         driver: str | None = None,
     ) -> dict[str, Any]:
-        """Filtra parámetros aptos para crear conexión raw por motor."""
+        """Filtra parámetros aptos para crear conexión raw por motor.
+
+        Args:
+            db_type: Tipo de motor.
+            conn_params: Parámetros del usuario; los que el driver no usa se descartan (con log en DEBUG).
+            driver: Driver de SQL Server (``pymssql`` o ``pyodbc``); en el resto de motores no se usa.
+
+        Returns:
+            Argumentos para el ``connect`` del driver.
+
+        Raises:
+            InvalidDatabaseType: Si ``db_type`` no está soportado.
+            ValueError: Si ``conn_params`` no es válido para el motor.
+        """
         normalized_type: str = db_type.lower().strip()
         config = ConnectionParamsManager.get_connection_config(normalized_type, conn_params, driver=driver)
         if normalized_type == "sqlserver":
@@ -174,7 +190,19 @@ class ConnectionParamsManager:
         db_type: str,
         conn_params: dict[str, Any],
     ) -> dict[str, Any]:
-        """Filtra parámetros aptos para inicialización de pool por motor."""
+        """Filtra parámetros aptos para inicialización de pool por motor.
+
+        Args:
+            db_type: Tipo de motor.
+            conn_params: Parámetros del usuario; los que el pool no usa se descartan (con log en DEBUG).
+
+        Returns:
+            Argumentos para crear el pool del driver.
+
+        Raises:
+            InvalidDatabaseType: Si ``db_type`` no tiene configuración de pool.
+            ValueError: Si ``conn_params`` no es válido para el motor.
+        """
         normalized_type: str = db_type.lower().strip()
         config = ConnectionParamsManager.get_pool_config(normalized_type, conn_params)
         sanitized = config.to_driver_kwargs()
@@ -193,6 +221,11 @@ class ConnectionParamsManager:
         driver: str | None = None,
     ) -> Any:
         """Configuración de conexión tipada de ``db_type`` (``<Motor>ConnectionConfig.from_params``).
+
+        Args:
+            db_type: Tipo de motor.
+            conn_params: Parámetros de conexión del usuario.
+            driver: Driver de SQL Server (``pymssql`` o ``pyodbc``); en el resto de motores no se usa.
 
         Raises:
             InvalidDatabaseType: Si ``db_type`` no está soportado.
@@ -224,6 +257,10 @@ class ConnectionParamsManager:
         conn_params: dict[str, Any],
     ) -> Any:
         """Configuración de pool tipada de ``db_type`` (``<Motor>PoolConfig.from_params``).
+
+        Args:
+            db_type: Tipo de motor.
+            conn_params: Parámetros de conexión y de pool del usuario.
 
         Raises:
             InvalidDatabaseType: Si ``db_type`` no tiene configuración de pool.

@@ -201,7 +201,14 @@ class AuditManager:
         AuditRecordValidator.validate(tabla, motor, operacion, rowcount, elapsed)
 
     def leer_auditoria(self, usar_cache: bool = True) -> pd.DataFrame:
-        """Leer el registro de auditoría desde CSV."""
+        """Leer el registro de auditoría desde CSV.
+
+        Args:
+            usar_cache: Devuelve una copia de la lectura en caché si sigue siendo válida.
+
+        Returns:
+            Una fila por registro de auditoría.
+        """
         return self._repository.leer_auditoria(usar_cache=usar_cache)
 
     def limpiar_cache(self) -> None:
@@ -258,23 +265,56 @@ class AuditManager:
         return self._service.obtener_operaciones_por_tabla()
 
     def obtener_operaciones_lentas(self, umbral_segundos: float = 5.0) -> pd.DataFrame:
-        """Filtrar operaciones que tardaron más de un umbral."""
+        """Filtrar operaciones que tardaron más de un umbral.
+
+        Args:
+            umbral_segundos: Tiempo mínimo, excluido (``tiempo_seg > umbral_segundos``).
+
+        Returns:
+            Las operaciones lentas, de la más lenta a la más rápida.
+        """
         return self._service.obtener_operaciones_lentas(umbral_segundos)
 
     def filtrar_por_operacion(self, operacion: str) -> pd.DataFrame:
-        """Filtrar registros de auditoría por tipo de operación."""
+        """Filtrar registros de auditoría por tipo de operación.
+
+        Args:
+            operacion: ``INSERT``, ``UPDATE`` o ``DELETE`` (en mayúsculas).
+
+        Raises:
+            AuditValidationError: Si ``operacion`` no es una de las tres.
+        """
         return self._service.filtrar_por_operacion(operacion)
 
     def filtrar_por_tabla(self, tabla: str) -> pd.DataFrame:
-        """Filtrar registros de auditoría por tabla."""
+        """Filtrar registros de auditoría por tabla.
+
+        Args:
+            tabla: Nombre de la tabla tal como figura en el CSV (comparación exacta).
+        """
         return self._service.filtrar_por_tabla(tabla)
 
     def filtrar_por_motor(self, motor: str) -> pd.DataFrame:
-        """Filtrar registros de auditoría por motor de BD."""
+        """Filtrar registros de auditoría por motor de BD.
+
+        Args:
+            motor: Motor tal como figura en el CSV (comparación exacta).
+        """
         return self._service.filtrar_por_motor(motor)
 
     def filtrar_por_rango_tiempo(self, inicio: datetime, fin: datetime) -> pd.DataFrame:
-        """Filtrar registros de auditoría por rango de fechas."""
+        """Filtrar registros de auditoría por rango de fechas.
+
+        Args:
+            inicio: Inicio del rango, incluido.
+            fin: Fin del rango, incluido.
+
+        Returns:
+            Los registros del rango, ordenados por ``timestamp``.
+
+        Raises:
+            AuditValidationError: Si ``inicio`` es posterior a ``fin``.
+        """
         return self._service.filtrar_por_rango_tiempo(inicio, fin)
 
     def filtrar_multiple(
@@ -284,7 +324,17 @@ class AuditManager:
         motor: str | None = None,
         umbral_tiempo: float | None = None,
     ) -> pd.DataFrame:
-        """Filtrar registros de auditoría con múltiples criterios simultáneamente."""
+        """Filtrar registros de auditoría con múltiples criterios simultáneamente (se cumplen todos).
+
+        Args:
+            operacion: ``INSERT``, ``UPDATE`` o ``DELETE``; ``None`` no filtra.
+            tabla: Nombre exacto de la tabla; vacío o ``None`` no filtra.
+            motor: Motor exacto; vacío o ``None`` no filtra.
+            umbral_tiempo: Tiempo mínimo, incluido (``tiempo_seg >= umbral_tiempo``); ``None`` no filtra.
+
+        Raises:
+            AuditValidationError: Si ``operacion`` no es ``None`` ni una de las tres.
+        """
         return self._service.filtrar_multiple(
             operacion=operacion,
             tabla=tabla,
@@ -293,11 +343,25 @@ class AuditManager:
         )
 
     def exportar_resumen_json(self, output_path: StrPath | None = None) -> Path:
-        """Exportar resumen de auditoría a archivo JSON (``output_path``: ``str`` o ``Path``)."""
+        """Exportar resumen de auditoría a archivo JSON.
+
+        Args:
+            output_path: Ruta del fichero (``str`` o ``Path``); por defecto ``auditoria.json`` junto al CSV.
+
+        Returns:
+            Ruta del fichero escrito.
+        """
         return self._exporters.exportar_resumen_json(output_path=validate_optional_path(output_path, "output_path"))
 
     def exportar_resumen_html(self, output_path: StrPath | None = None) -> Path:
-        """Exportar resumen de auditoría a archivo HTML interactivo (``output_path``: ``str`` o ``Path``)."""
+        """Exportar resumen de auditoría a archivo HTML interactivo.
+
+        Args:
+            output_path: Ruta del fichero (``str`` o ``Path``); por defecto ``auditoria.html`` junto al CSV.
+
+        Returns:
+            Ruta del fichero escrito.
+        """
         return self._exporters.exportar_resumen_html(output_path=validate_optional_path(output_path, "output_path"))
 
 

@@ -233,7 +233,7 @@ if ORACLE_THICK_MODE_INITIALIZED:
 
 ## 7. Estado y Revisión
 
-**Estado:** ACEPTADO E IMPLEMENTADO (sesión 2025-01-15, fases 1-8)
+**Estado:** ACEPTADO E IMPLEMENTADO (2026-10-05, commit `dca734ed`, versión 0.32.0; fases 1-8)
 
 **Commits Clave:**
 - Fases 1-6: Implementación principal (resolución de versión, thick mode, infraestructura de prueba)
@@ -245,7 +245,8 @@ if ORACLE_THICK_MODE_INITIALIZED:
 - 496 pruebas saltadas
 - 0 fallos
 
-**Fecha de Última Revisión:** 2025-01-15
+**Fecha de Última Revisión:** 2026-10-16 (unificación en un solo fichero en español; referencias verificadas contra el
+código)
 
 ---
 

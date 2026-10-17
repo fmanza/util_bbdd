@@ -17,6 +17,7 @@ nav:
       - Managers:
           - Gestión de Conexiones (Sync): functional/managers_sync.md
           - Gestión de Conexiones (Async): functional/managers_async.md
+          - Conexiones y Pools: functional/connection_management.md
       - Metadatos e Introspección:
           - Extracción de Metadatos: functional/metadata_extraction.md
           - Selección de Driver: functional/drivers_selection.md

@@ -149,7 +149,14 @@ class QueryResolver:
             ) from e
 
     def bind(self, db_type: str) -> QueryResolver:
-        """Crea un resolver ligado a un db_type manteniendo el mismo registry."""
+        """Crea un resolver ligado a un db_type manteniendo el mismo registry.
+
+        Args:
+            db_type: Tipo de motor al que se liga el nuevo resolver.
+
+        Returns:
+            Un resolver nuevo; el original no cambia.
+        """
         return QueryResolver(registry=self.registry, db_type=db_type)
 
     @staticmethod

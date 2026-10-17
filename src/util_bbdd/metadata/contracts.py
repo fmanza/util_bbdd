@@ -74,15 +74,30 @@ class CatalogDialect(Protocol):
         ...
 
     def normalize_name(self, name: str) -> str:
-        """Nombre de schema o tabla como lo guarda el catálogo (Oracle: ``scott`` → ``SCOTT``; entre comillas, literal)."""
+        """Nombre de schema o tabla como lo guarda el catálogo (Oracle: ``scott`` → ``SCOTT``; entre comillas, literal).
+
+        Args:
+            name: Nombre tal como lo escribe el usuario.
+        """
         ...
 
     def query(self, kind: Kind, *, filtered: bool = False) -> CatalogQuery | None:
-        """Consulta de ``kind``; ``None`` si el motor no tiene ese tipo de objeto."""
+        """Consulta de ``kind``; ``None`` si el motor no tiene ese tipo de objeto.
+
+        Args:
+            kind: Tipo de objeto a leer.
+            filtered: Variante limitada a unas tablas (la fuente la pide cuando ``snapshot()`` recibe ``tables``).
+        """
         ...
 
     def parse(self, kind: Kind, rows: Sequence[Sequence[Any]], schema: str) -> tuple[Any, ...]:
-        """Filas de :meth:`query` → objetos del modelo (``metadata.model``)."""
+        """Filas de :meth:`query` → objetos del modelo (``metadata.model``).
+
+        Args:
+            kind: Tipo de objeto de las filas.
+            rows: Filas devueltas por la consulta de :meth:`query`.
+            schema: Schema leído (para los objetos que lo incluyen, como las claves foráneas).
+        """
         ...
 
 

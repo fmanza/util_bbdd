@@ -35,7 +35,12 @@ class PoolFactory:
 
     @staticmethod
     def register_async_pool(db_type: str, builder: Callable[..., Any]) -> None:
-        """Registra constructor async de pool para un motor."""
+        """Registra constructor async de pool para un motor (sustituye al que hubiera; efecto global en el proceso).
+
+        Args:
+            db_type: Tipo de motor; se normaliza a minúsculas.
+            builder: Callable que recibe ``conn_params`` y ``**kwargs`` y devuelve el pool o una corrutina.
+        """
         PoolFactory._async_pool_builders[db_type.lower().strip()] = builder
 
     @staticmethod
@@ -69,7 +74,19 @@ class PoolFactory:
         conn_params: dict[str, Any],
         **kwargs: Any,
     ) -> Any:
-        """Crea pool async con constructor registrado por motor."""
+        """Crea pool async con constructor registrado por motor (o el integrado de la librería).
+
+        Args:
+            db_type: Tipo de motor; se normaliza a minúsculas.
+            conn_params: Parámetros de conexión y de pool.
+            **kwargs: Argumentos adicionales para el constructor.
+
+        Returns:
+            El pool async del driver.
+
+        Raises:
+            NotImplementedError: Si el motor no tiene pool async (HSQLDB) ni constructor registrado.
+        """
         normalized_type: str = db_type.lower().strip()
         builder: Callable[..., Any] | None = PoolFactory._async_pool_builders.get(normalized_type)
         if builder is None:

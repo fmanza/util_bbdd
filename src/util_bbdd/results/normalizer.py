@@ -13,14 +13,28 @@ class ResultNormalizer:
 
     @staticmethod
     def normalize_one(result: Any) -> RowOrNone:
-        """Normaliza resultado de fetchone()."""
+        """Normaliza resultado de fetchone().
+
+        Args:
+            result: Fila del driver (tupla, lista, fila de SQLAlchemy…) o ``None``.
+
+        Returns:
+            La fila como tupla, o ``None`` si no hay fila.
+        """
         if result is None:
             return None
         return ResultNormalizer._as_row(result)
 
     @staticmethod
     def normalize_many(result: Any) -> Rows:
-        """Normaliza resultado de fetchall() a lista materializada de filas."""
+        """Normaliza resultado de fetchall() a lista materializada de filas.
+
+        Args:
+            result: Resultado del driver: lista, tupla o iterable de filas, una fila suelta o ``None``.
+
+        Returns:
+            Lista de filas (tuplas); ``[]`` si ``result`` es ``None``.
+        """
         if result is None:
             return []
 

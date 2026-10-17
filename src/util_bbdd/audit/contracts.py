@@ -31,7 +31,15 @@ class AuditSink(Protocol):
     """
 
     def write(self, events: Sequence[AuditEvent], /) -> None:
-        """Añade ``events`` al destino."""
+        """Añade ``events`` al destino (atómico por llamada; ver el contrato de la clase).
+
+        Args:
+            events: Eventos a escribir, en orden; una secuencia vacía no hace nada.
+
+        Raises:
+            ValueError: Si el destino ya está cerrado.
+            OSError: Si falla la escritura (se propaga; quien llama decide si la operación auditada falla).
+        """
         ...
 
     def close(self) -> None:

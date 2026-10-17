@@ -501,6 +501,15 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
     ) -> dict[str, Any]:
         """Genera un diagrama independiente por nivel y por sentido (:meth:`pipe_level_graphs_ext` escrito a disco).
 
+        Args:
+            table_name: Tabla central del grafo.
+            output_dir: Directorio donde se escriben los diagramas.
+            format: Formato de salida de Graphviz (``svg``, ``png``…).
+            show_columns: Si mostrar columnas; ``None`` usa ``self.include_columns``.
+            max_depth: Profundidad máxima; ``None`` usa ``self.max_depth``.
+            direction: Sentido de las relaciones; ``None`` usa ``self.direction``.
+            document: ``GraphDocument`` ya construido; ``None`` lo construye.
+
         Returns:
             La estructura de :meth:`pipe_level_graphs_ext` con ``"path"`` en lugar de ``"bytes"`` en cada nivel.
         """

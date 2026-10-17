@@ -136,7 +136,18 @@ class AuditEvent:
         attributes: Mapping[str, AttributeValue] | None = None,
         **fields: str | int | float | None,
     ) -> AuditEvent:
-        """Evento con ``timestamp`` = ahora en UTC y ``attributes`` desde un diccionario."""
+        """Evento con ``timestamp`` = ahora en UTC y ``attributes`` desde un diccionario.
+
+        Args:
+            source: Módulo que emite el evento (``bulk``, ``dump`` o ``migrate``).
+            kind: Tipo de evento (operación, tabla, partición, ``run``…).
+            status: Resultado del evento.
+            attributes: Atributos adicionales; se guardan ordenados por nombre.
+            **fields: Resto de campos del evento (``engine``, ``target``, ``rows``, ``message``…).
+
+        Returns:
+            El evento, validado al construirse.
+        """
         return cls(
             source=source,
             kind=kind,
@@ -147,7 +158,11 @@ class AuditEvent:
         )
 
     def attribute(self, name: str) -> AttributeValue:
-        """Valor del atributo ``name`` o ``None`` si no está."""
+        """Valor del atributo ``name`` o ``None`` si no está.
+
+        Args:
+            name: Nombre del atributo.
+        """
         for key, value in self.attributes:
             if key == name:
                 return value
@@ -175,7 +190,12 @@ class AuditEvent:
 
     @staticmethod
     def one_line(text: str, limit: int) -> str:
-        """``text`` sin saltos de línea ni tabuladores (OWASP: inyección en logs) y truncado a ``limit`` caracteres."""
+        """``text`` sin saltos de línea ni tabuladores (OWASP: inyección en logs) y truncado a ``limit`` caracteres.
+
+        Args:
+            text: Texto de origen; cualquier secuencia de espacios en blanco queda en un espacio.
+            limit: Longitud máxima; si se supera, el último carácter es ``…``.
+        """
         flat = " ".join(text.replace("\t", " ").split())
         return flat if len(flat) <= limit else f"{flat[: limit - 1]}…"
 

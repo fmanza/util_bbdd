@@ -152,7 +152,11 @@ class DatabaseRelationshipGraphBase:
         self._table_visual_type_cache_by_context.clear()
 
     def analyze_table_relations(self, table_name: str) -> list[TableRelation]:
-        """Devuelve relaciones visibles del primer nivel."""
+        """Devuelve relaciones visibles del primer nivel.
+
+        Args:
+            table_name: Tabla central; se incluyen sus tablas padre e hijas directas.
+        """
         document = self.build_graph_document(table_name=table_name, max_depth=1, direction=LevelDirection.BOTH)
         return list(document.relations)
 
@@ -162,7 +166,19 @@ class DatabaseRelationshipGraphBase:
         max_depth: int = 1,
         direction: LevelDirection | str = LevelDirection.BOTH,
     ) -> GraphDocument:
-        """Construye un documento de grafo multinivel agnóstico al formato."""
+        """Construye un documento de grafo multinivel agnóstico al formato.
+
+        Args:
+            table_name: Tabla central del grafo.
+            max_depth: Niveles a incluir en cada sentido (mínimo 1); los que quedan fuera se cuentan como ocultos.
+            direction: ``outgoing`` (tablas hijas), ``incoming`` (tablas padre) o ``both``.
+
+        Returns:
+            El documento con niveles, nodos y relaciones; se cachea por contexto, tabla, profundidad y sentido.
+
+        Raises:
+            ValueError: Si ``direction`` no es un sentido válido.
+        """
         normalized_depth = max(1, int(max_depth))
         normalized_direction = self._normalize_direction(direction)
         context = self._get_relationship_context()

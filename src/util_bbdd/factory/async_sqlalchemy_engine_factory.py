@@ -66,6 +66,23 @@ class AsyncSQLAlchemyEngineFactory:
 
         Los parámetros de pool que no se indiquen se toman de ``conn_params`` y, si faltan, de
         :data:`~util_bbdd.factory._pool_policy.ENGINE_POOL_DEFAULTS` (misma política que el Engine sync).
+
+        Args:
+            db_type: Tipo de base de datos (``postgresql``, ``mariadb``, ``oracle``…).
+            conn_params: Parámetros de conexión validados.
+            database: Nombre de la base de datos.
+            use_pool: ``False`` crea el engine con ``NullPool`` (una conexión nueva por uso).
+            pool_size: Tamaño del pool; prevalece sobre ``conn_params``.
+            max_overflow: Conexiones extra sobre ``pool_size``; prevalece sobre ``conn_params``.
+            pool_timeout: Segundos de espera por una conexión libre; prevalece sobre ``conn_params``.
+            pool_recycle: Segundos tras los que se renueva una conexión; prevalece sobre ``conn_params``.
+            sql_server_driver: Driver async de SQL Server.
+
+        Returns:
+            ``AsyncEngine`` de SQLAlchemy configurado.
+
+        Raises:
+            ConnectionError: Si se pide ``oracle_thick_mode`` (Oracle async solo funciona en modo thin).
         """
         normalized_type: str = db_type.lower().strip()
         AsyncSQLAlchemyEngineFactory.logger.debug(f"🔧 Creando AsyncEngine de SQLAlchemy para {normalized_type}")

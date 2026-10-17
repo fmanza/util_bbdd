@@ -198,7 +198,11 @@ class RoutineKey:
     routine_type: str = ""
 
     def matches(self, other: RoutineKey) -> bool:
-        """Misma routine: nombre y firma iguales y tipo igual si las dos claves lo tienen."""
+        """Misma routine: nombre y firma iguales y tipo igual si las dos claves lo tienen.
+
+        Args:
+            other: Clave con la que comparar.
+        """
         return (
             self.name == other.name
             and self.signature == other.signature
