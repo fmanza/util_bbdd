@@ -7,7 +7,32 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **config IA**: slash command `/doc-generator` (`.claude/commands/doc-generator.md`), envoltorio fino del agente
+  Documentation Generator; su contrato de salida es el § «Formato de salida al usuario» del agente. Registrado en
+  `CLAUDE.md`, `.github/AGENTS.md` (15 comandos; 10 agentes respaldan comandos), `DOCUMENTATION_STANDARD.md` §5,
+  `docs/ai-config/claude.md`, `docs/guides/claude_code_guide.md` y `docs/guides/doc_verification_guide.md`.
+- **docs**: página funcional `functional/engine_readiness.md` (condiciones del motor: 12 criterios de aceptación
+  derivados de los tests del advisor).
+- **docs**: 6 ejemplos ejecutables nuevos en `docs/examples/`: `engine_readiness_advisor`, `audit_events`,
+  `connection_factory_example` y `normalize_records` (SQLite o sin BD, ejecutados completos por
+  `tests/unit/test_docs_examples.py`); `migrate_mysql` y `migrate_views` (con servidor, ejecutados contra el banco
+  por `tests/integration/test_docs_examples_engines.py`). Las páginas técnicas de `audit`, `connection_factory`,
+  `migrate_mysql`, `migrate_views`, `normalize` y `engine_readiness_advisor` enlazan su ejemplo en §5. Grupo
+  «Conexiones» nuevo en Ejemplos del `nav`.
+
+### Changed
+
+- **docs**: `api/metadata_manager.md` y `examples/database_documentation_generation.md` siguen ya la estructura de su
+  arquetipo (secciones 1-5; `CatalogSource` y la migración desde la API anterior pasan a subsecciones de §2; nueva §4
+  de dependencias).
+
 ### Fixed
+
+- **config IA**: `.claude/commands/documentation-architecture-audit.md` remitía a un agente
+  `documentation-architecture-auditor.agent.md` que no existe; `.github/AGENTS.md` no listaba `examples` entre los
+  tipos de entrada de Documentation Generator.
 
 - **audit**: `AuditManager.filtrar_multiple(umbral_tiempo=…)` incluía las filas con `tiempo_seg` igual al umbral
   (`>=`), mientras que `obtener_operaciones_lentas(umbral_segundos=…)` las dejaba fuera (`>`). Ahora los dos dejan

@@ -113,4 +113,6 @@ con su `AsyncEngine` ([managers async](managers_async.md)).
   `report_once`, `assess` y las hojas de los Excel.
 - [Generación de documentación](../examples/database_documentation_generation.md) — sección «Condiciones del motor»
   en Word, Excel y HTML.
-- Pendiente — crear ejemplo en `docs/examples/engine_readiness_advisor.md`.
+- [Verificar las Condiciones del Motor](../examples/engine_readiness_advisor.md) — checks estáticos, informe del
+  manager con los dinámicos y motor sin checks, sobre SQLite.
+- Documentación funcional: [Condiciones del Motor](../functional/engine_readiness.md).

@@ -28,12 +28,16 @@ EXAMPLES_DIR = Path(__file__).resolve().parents[2] / "docs" / "examples"
 
 SQLITE_EXAMPLES: tuple[str, ...] = (
     "async_concurrent_queries",
+    "audit_events",
     "benchmark_commit_cadence",
+    "connection_factory_example",
     "database_documentation_generation",
     "diff_reporters",
+    "engine_readiness_advisor",
     "example_connect_introspect",
     "exception_handling",
     "graph_generation",
+    "normalize_records",
     "parallel_bulk_insert",
     "query_execution_example",
     "schema_comparison",
@@ -44,9 +48,11 @@ SERVER_EXAMPLES: tuple[str, ...] = (
     "bulk_insert_csv",
     "dump_data_export",
     "migrate_mariadb_source",
+    "migrate_mysql",
     "migrate_oracle_mariadb",
     "migrate_postgresql_source",
     "migrate_sqlserver_source",
+    "migrate_views",
     "mysql_variables_example",
     "update_auto_increment_example",
 )

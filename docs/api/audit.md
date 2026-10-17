@@ -117,23 +117,5 @@ Sin dependencias nuevas: el destino JSON Lines usa `json` de la biblioteca está
 
 ## 5. Ejemplos Relacionados
 
-```python
-from pathlib import Path
-
-from util_bbdd import BulkCrud
-from util_bbdd.audit import JsonLinesAuditSink
-from util_bbdd.dump import DumpConfig, DumpOrchestrator
-from util_bbdd.bulk.options import AuditOptions
-
-sink = JsonLinesAuditSink(Path("logs/auditoria.jsonl"))
-
-crud = BulkCrud(engine, audit=AuditOptions(csv_path=Path("logs/auditoria.csv"), sink=sink))
-crud.bulk_insert_from_df(df, "clientes", generar_sql=False)
-
-result = DumpOrchestrator(DumpConfig(src_engine, dst_engine, output_dir=Path("reports"), audit_sink=sink)).run()
-print(result.audit_run_id)  # filtra el JSON Lines por este run_id
-
-plan.execute(target_manager, audit_sink=sink)  # MigrationPlan de MigrationPlanner.plan(...)
-```
-
+- [Ejemplo: Auditoría Común de Carga y Volcado](../examples/audit_events.md) — `BulkCrud` y `DumpOrchestrator` escribiendo en el mismo `JsonLinesAuditSink`, y lectura de los eventos por `run_id`
 - [Auditoría Bulk (AuditManager)](bulk_audit.md) — el CSV de auditoría heredado

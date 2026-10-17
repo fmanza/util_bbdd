@@ -100,29 +100,5 @@ reescribir con un aviso.
 
 ## 5. Ejemplos Relacionados
 
-```python
-from util_bbdd import SyncDatabaseManager
-from util_bbdd.migrate import MigrationPlanner
-
-origen = SyncDatabaseManager(
-    "oracle",
-    {"host": "localhost", "port": 1521, "user": "app", "password": "pw", "service_name": "FREEPDB1"},
-)
-destino = SyncDatabaseManager(
-    "postgresql",
-    {"host": "localhost", "user": "app", "password": "pw", "database": "ventas"},
-)
-try:
-    plan = MigrationPlanner(source_engine="oracle", target_engine="postgresql").plan(origen, "APP")
-    for resultado in plan.validate_views(destino):
-        if not resultado.valid:
-            print(resultado.view, resultado.method, resultado.error)
-    for vista in plan.views:
-        for aviso in vista.warnings:
-            print(vista.name, aviso.severity, aviso.target_type, aviso.message)
-finally:
-    origen.close()
-    destino.close()
-```
-
-Guía paso a paso: [Migración DDL entre motores § 3.5](../guides/ddl_migration_guide.md).
+- [Ejemplo: Migración de Vistas (PostgreSQL → MySQL)](../examples/migrate_views.md) — vista reescrita con sqlglot, su aviso `VIEW_REWRITTEN` y la validación sintáctica
+- Guía paso a paso: [Migración DDL entre motores § 3.5](../guides/ddl_migration_guide.md)

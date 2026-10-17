@@ -79,16 +79,5 @@ Las funciones no lanzan excepciones propias; un valor de un tipo no contemplado 
 
 ## 5. Ejemplos Relacionados
 
-```python
-import numpy as np
-import pandas as pd
-
-from util_bbdd.bulk import normalize_records_for_sql
-from util_bbdd.bulk.normalize import pandas_dtype_to_sqlalchemy
-
-df = pd.DataFrame({"id": np.array([1, 2]), "alta": pd.to_datetime(["2026-01-01", None]), "nombre": [" Ana ", "Luis"]})
-print(normalize_records_for_sql(df.to_dict("records")))
-# [{'id': 1, 'alta': datetime.datetime(2026, 1, 1, 0, 0), 'nombre': 'Ana'},
-#  {'id': 2, 'alta': None, 'nombre': 'Luis'}]
-print(pandas_dtype_to_sqlalchemy(df["nombre"]))  # VARCHAR(6): longitud máxima (" Ana ", sin recortar) + 1
-```
+- [Ejemplo: Normalizar Registros para SQL](../examples/normalize_records.md) — registros de un `DataFrame` a tipos nativos y tipo SQLAlchemy inferido por columna
+- [Ejemplo: Bulk Insert desde CSV](../examples/bulk_insert_csv.md) — la normalización dentro de una carga

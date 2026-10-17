@@ -75,7 +75,7 @@ doc = DatabaseDocumentation(
 doc.generate()
 ```
 
-## 4. Debugging: Verificar uso de cache
+### Depuración: verificar el uso de la caché
 
 Cuando se lanzan múltiples generaciones rápidamente, puedes ver si se reutiliza la carpeta (cache) activando logging `DEBUG`:
 
@@ -107,7 +107,7 @@ with SyncDatabaseManager("sqlite", {"database": ":memory:"}) as mgr:
 - `✨` → Nombre nuevo (cache vacía o caducada)
 - `📦` → Nombre reutilizado del cache
 
-## 5. Ejecución y Pruebas
+## 4. Ejecución y Pruebas
 
 ```bash
 # Grafos de relaciones (opcional): extra analysis + binarios de Graphviz

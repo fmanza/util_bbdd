@@ -89,25 +89,5 @@ para más detalles.
 
 ## 5. Ejemplos Relacionados
 
-Los managers usan la factoría internamente; llamarla directamente solo tiene sentido para obtener una conexión nativa
-sin pool:
-
-```python
-import asyncio
-
-from util_bbdd.factory import ConnectionFactory
-
-conn = ConnectionFactory.create_connection("sqlite", {"database": ":memory:"})
-print(conn.execute("SELECT 1").fetchone())  # (1,)
-conn.close()
-
-
-async def main() -> None:
-    aconn = await ConnectionFactory.create_async_connection("sqlite", {"database": ":memory:"})
-    cursor = await aconn.execute("SELECT 2")
-    print(await cursor.fetchone())  # (2,)
-    await aconn.close()
-
-
-asyncio.run(main())
-```
+- [Ejemplo: Conexiones Nativas con ConnectionFactory](../examples/connection_factory_example.md) — conexión sync y async sin pool sobre SQLite y rechazo de un motor no soportado
+- [Ejemplo: Conectar e Introspeccionar Base de Datos](../examples/example_connect_introspect.md) — el uso habitual, a través de un manager

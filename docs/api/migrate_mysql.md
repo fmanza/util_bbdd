@@ -91,24 +91,5 @@ el único punto autorizado para SQL de introspección.
 
 ## 5. Ejemplos Relacionados
 
-```python
-from util_bbdd import SyncDatabaseManager
-from util_bbdd.migrate import MigrationPlanner
-
-origen = SyncDatabaseManager(
-    "mysql",
-    {"host": "localhost", "user": "app", "password": "pw", "database": "ventas"},
-)
-try:
-    plan = MigrationPlanner(source_engine="mysql", target_engine="postgresql").plan(origen, "ventas")
-    print(plan.emit_ddl())
-    for aviso in plan.warnings:
-        print(aviso.severity, aviso.table, aviso.column, aviso.message)
-finally:
-    origen.close()
-
-# Destino MySQL: collation utf8mb4_0900_ai_ci por defecto, o una explícita válida en MySQL
-planner = MigrationPlanner(source_engine="mariadb", target_engine="mysql", collation="utf8mb4_bin")
-```
-
+- [Ejemplo: Migración MySQL → PostgreSQL](../examples/migrate_mysql.md) — plan, avisos y DDL de un schema MySQL; collation con MySQL como destino
 - [Migración MariaDB como origen](migrate_mariadb_source.md) — capas que MySQL reutiliza como origen

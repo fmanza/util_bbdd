@@ -70,25 +70,24 @@ Los modelos están en `util_bbdd.metadata.model` (dataclasses inmutables). Los c
 | Fallo de conexión o de permisos al leer el catálogo | Desde un manager: `MetadataError` (tras los reintentos), con el error del driver en `__cause__`. Desde `CatalogSource.from_engine`: el error de SQLAlchemy |
 | Snapshot sin un `Kind` pedido | `KindNotLoadedError` (solo si se usa `SchemaSnapshot` a mano con `kinds=` parciales) |
 
-## 3. Componentes y Clases
+### Lectura por lotes fuera de un manager: `CatalogSource`
 
-| Clase | Responsabilidad |
-|---|---|
-| `CatalogSource` / `AsyncCatalogSource` | Leen el catálogo por tipo de objeto y cachean el snapshot |
-| `CatalogDialect` (por motor) | SQL de catálogo y parseo a modelos neutros |
-| `SnapshotCache` | Caché LRU de snapshots por schema |
-| `SchemaSnapshot` | Vista inmutable del schema, con búsqueda por tabla |
-| `metadata.ddl` | DDL: desde los modelos (`view_ddl`, `routine_ddl`, `mysql_table_ddl`) y SQL del DDL nativo de tabla (`native_table_ddl_sql`) |
-| `metadata.storage` | SQL del inventario de almacenamiento por motor (`storage_query`, `read_storage_inventory`) |
+`CatalogSource` lee cada tipo de objeto (`Kind`: tablas, vistas, columnas, PK, UK, CHECK, FK, índices, identidad,
+routines, parámetros, base de datos) con **una consulta por schema**, guarda el resultado en una `SnapshotCache` y
+devuelve un `SchemaSnapshot` inmutable. Los managers lo exponen con `get_schema_metadata()` (y `metadata_source`),
+sobre sus propias conexiones y con su caché, que `clear_cache()` invalida; lo usan `doc`, `analysis`, `migrate`,
+`dump`, `bulk` y `comparar`. Lo implementan estos motores:
 
-## 4. Lectura por lotes fuera de un manager: `CatalogSource`
+| Motor | Módulo | Fuente del catálogo |
+|---|---|---|
+| PostgreSQL | `metadata.postgresql.catalog` | Solo `pg_catalog` |
+| Oracle 12c+ | `metadata.oracle.catalog` | `ALL_*` por owner con bind variables |
+| SQL Server 2012+ | `metadata.sqlserver.catalog` | `sys.*` |
+| MariaDB 10.2+ / MySQL 8.0.16+ | `metadata.mariadb.catalog` | `information_schema` sin joins entre vistas: FK y routines con dos consultas |
+| SQLite 3.16+ | `metadata.sqlite.catalog` | PRAGMA como funciones tabla; solo el schema `main`, sin CHECK ni nombres de constraint, que los PRAGMA no exponen |
+| HSQLDB 2.x | `metadata.hsqldb.catalog` | Por JDBC con `DbapiCatalogExecutor`; sin dialecto de SQLAlchemy |
 
-`CatalogSource` lee cada tipo de
-objeto (`Kind`: tablas, vistas, columnas, PK, UK, CHECK, FK, índices, identidad, routines, parámetros, base de datos)
-con **una consulta por schema**, guarda el resultado en una `SnapshotCache` y devuelve un `SchemaSnapshot` inmutable.
-Los managers lo exponen con `get_schema_metadata()` (y `metadata_source`), sobre sus propias conexiones y con su
-caché, que `clear_cache()` invalida; lo usan `doc`, `analysis`, `migrate`, `dump`, `bulk` y `comparar`. Lo
-implementan PostgreSQL (`metadata.postgresql.catalog`, solo `pg_catalog`) y Oracle 12c+ (`metadata.oracle.catalog`, `ALL_*` por owner con bind variables) SQL Server 2012+ (`metadata.sqlserver.catalog`, `sys.*`) y MariaDB 10.2+ / MySQL 8.0.16+ (`metadata.mariadb.catalog`, `information_schema` sin joins entre vistas: FK y routines con dos consultas) y SQLite 3.16+ (`metadata.sqlite.catalog`, PRAGMA como funciones tabla; solo el schema `main`, sin CHECK ni nombres de constraint, que los PRAGMA no exponen) y HSQLDB 2.x (`metadata.hsqldb.catalog`, por JDBC con `DbapiCatalogExecutor`; sin dialecto de SQLAlchemy). En Oracle, los nombres sin comillas en minúsculas se buscan en mayúsculas (`snapshot("scott")` lee `SCOTT`).
+En Oracle, los nombres sin comillas en minúsculas se buscan en mayúsculas (`snapshot("scott")` lee `SCOTT`).
 
 ```python
 from sqlalchemy import create_engine
@@ -121,7 +120,7 @@ tablas, 1,2 s y 26 MB en PostgreSQL 17, 2,2 s en Oracle 23 Free y 2,8 s en SQL S
 11.4: 15 y 14 consultas, 2,4 y 2,6 s). Antes de E2, recorrer 500 tablas con los `get_*` de
 los managers costaba 2503 consultas: 70 s en PostgreSQL, 121 s en SQL Server y 365 s en Oracle.
 
-## 5. Migración desde la API anterior (E2 de ADR-003)
+### Migración desde la API anterior (E2 de ADR-003)
 
 | Antes | Ahora |
 |---|---|
@@ -133,7 +132,30 @@ los managers costaba 2503 consultas: 70 s en PostgreSQL, 121 s en SQL Server y 3
 | `get_metadata_manager()`, `MetadataManager`, `AsyncMetadataManager` | `get_schema_metadata()` o los `get_*` del manager |
 | `manager.relationship_cache` / `get_relationship_cache()` | Sin sustituto: `analysis` lee del snapshot |
 
-## 6. Ejemplos Relacionados
+## 3. Componentes y Clases
 
+| Clase | Responsabilidad |
+|---|---|
+| `CatalogSource` / `AsyncCatalogSource` | Leen el catálogo por tipo de objeto y cachean el snapshot |
+| `CatalogDialect` (por motor) | SQL de catálogo y parseo a modelos neutros |
+| `SnapshotCache` | Caché LRU de snapshots por schema |
+| `SchemaSnapshot` | Vista inmutable del schema, con búsqueda por tabla |
+| `metadata.ddl` | DDL: desde los modelos (`view_ddl`, `routine_ddl`, `mysql_table_ddl`) y SQL del DDL nativo de tabla (`native_table_ddl_sql`) |
+| `metadata.storage` | SQL del inventario de almacenamiento por motor (`storage_query`, `read_storage_inventory`) |
+
+## 4. Dependencias y Requisitos
+
+| Dependencia | Propósito | Requerida | Comportamiento sin ella |
+|---|---|---|---|
+| `sqlalchemy` | `Engine`/`Connection` sobre los que `SqlAlchemyCatalogExecutor` ejecuta el SQL de catálogo; `Inspector` en `metadata.reflection` | Sí | El módulo no funciona |
+| Driver del motor (extras `mariadb`, `mysql`, `postgresql`; `oracledb` va en las dependencias base) | Conexión al catálogo de cada motor | Solo para ese motor | No se puede conectar a ese motor; el resto funciona |
+| `jaydebeapi` y un JDK | HSQLDB por JDBC (`DbapiCatalogExecutor`) | Solo para HSQLDB | No se pueden leer metadatos de HSQLDB |
+| `util_bbdd._core.exceptions` | `MetadataError` (`KindNotLoadedError`, su subclase, está en `metadata.model`) | Sí (interna) | — |
+
+## 5. Ejemplos Relacionados
+
+- [Ejemplo: Conectar e Introspeccionar Base de Datos](../examples/example_connect_introspect.md) — `get_tables()` y
+  `get_columns()` de un manager sobre SQLite
+- [Ejemplo: Generación de Grafos](../examples/graph_generation.md) — relaciones leídas del snapshot del schema
 - [ADR-003: centralización de metadatos](../adr/ADR-003-metadata-centralizada.md) — decisión y alternativas
 - [Arquitectura](../architecture.md) — capas y reglas de acceso a metadatos

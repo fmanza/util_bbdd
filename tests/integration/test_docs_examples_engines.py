@@ -125,6 +125,34 @@ def test_bulk_insert_csv(pg_engine: Engine, tmp_path: Path) -> None:
         _execute(pg_engine, [f"DROP SCHEMA IF EXISTS {schema} CASCADE"])
 
 
+def test_migrate_views(pg_engine: Engine, tmp_path: Path) -> None:
+    if importlib.util.find_spec("sqlglot") is None:
+        pytest.skip("sqlglot no instalado (extra util_bbdd[migrate]): el ejemplo usa view_strategy='transpile'")
+    schema = "zz_ex_views"
+    _execute(pg_engine, [f"DROP SCHEMA IF EXISTS {schema} CASCADE", f"CREATE SCHEMA {schema}"])
+    try:
+        _execute(
+            pg_engine,
+            [
+                f"CREATE TABLE {schema}.zz_ex_clientes (id INTEGER PRIMARY KEY, nombre VARCHAR(50) NOT NULL)",
+                f"CREATE VIEW {schema}.zz_ex_clientes_a AS SELECT id, nombre FROM {schema}.zz_ex_clientes "
+                "WHERE nombre ILIKE 'a%'",
+            ],
+        )
+        output = _run_example(
+            "migrate_views",
+            tmp_path,
+            {"UTIL_BBDD_EXAMPLE_URL": _render(_url(PG_URL)), "UTIL_BBDD_EXAMPLE_SCHEMA": schema},
+        )
+        assert "VIEW_REWRITTEN" in output  # ILIKE no existe en MySQL: la vista se reescribe
+        assert "[syntax]: válida" in output
+        ddl = (tmp_path / f"{schema}_views_mysql.sql").read_text(encoding="utf-8")
+        assert "zz_ex_clientes_a" in ddl
+        assert "ILIKE" not in ddl.upper()
+    finally:
+        _execute(pg_engine, [f"DROP SCHEMA IF EXISTS {schema} CASCADE"])
+
+
 # ── SQL Server (y volcado PostgreSQL → SQL Server) ───────────────────────────
 
 
@@ -253,6 +281,33 @@ def test_update_auto_increment_example(mariadb_engine: Engine, tmp_path: Path) -
         assert "AUTO_INCREMENT" in output
     finally:
         _execute(mariadb_engine, [f"DROP DATABASE IF EXISTS {database}"])
+
+
+def test_migrate_mysql(tmp_path: Path) -> None:
+    engine = create_engine(_url(MYSQL_URL))
+    database = "zz_util_bbdd_ex_mysql"
+    _execute(engine, [f"DROP DATABASE IF EXISTS {database}", f"CREATE DATABASE {database}"])
+    try:
+        _execute(
+            engine,
+            [
+                f"CREATE TABLE {database}.zz_ex_clientes (id INT AUTO_INCREMENT PRIMARY KEY, "
+                "estado ENUM('A','B') NOT NULL)",
+                f"CREATE TABLE {database}.zz_ex_pedidos (id INT PRIMARY KEY, cliente_id INT, "
+                f"FOREIGN KEY (cliente_id) REFERENCES {database}.zz_ex_clientes (id))",
+            ],
+        )
+        _run_example(
+            "migrate_mysql",
+            tmp_path,
+            {"UTIL_BBDD_EXAMPLE_URL": _render(_url(MYSQL_URL)), "UTIL_BBDD_EXAMPLE_SCHEMA": database},
+        )
+        ddl = (tmp_path / f"{database}_schema_postgresql.sql").read_text(encoding="utf-8")
+        assert "zz_ex_clientes" in ddl
+        assert "zz_ex_pedidos" in ddl
+    finally:
+        _execute(engine, [f"DROP DATABASE IF EXISTS {database}"])
+        engine.dispose()
 
 
 def test_mysql_variables_example(tmp_path: Path) -> None:

@@ -18,6 +18,7 @@ nav:
           - Gestión de Conexiones (Sync): functional/managers_sync.md
           - Gestión de Conexiones (Async): functional/managers_async.md
           - Conexiones y Pools: functional/connection_management.md
+          - Condiciones del Motor: functional/engine_readiness.md
       - Metadatos e Introspección:
           - Extracción de Metadatos: functional/metadata_extraction.md
           - Selección de Driver: functional/drivers_selection.md
@@ -147,12 +148,17 @@ nav:
   - Ejemplos:
       - Metadatos e Introspección:
           - Conectar e Introspeccionar Base de Datos: examples/example_connect_introspect.md
+      - Conexiones:
+          - Conexiones Nativas (ConnectionFactory): examples/connection_factory_example.md
+          - Condiciones del Motor: examples/engine_readiness_advisor.md
       - Operaciones Bulk:
           - Bulk Insert desde CSV: examples/bulk_insert_csv.md
           - Carga Masiva Paralela: examples/parallel_bulk_insert.md
           - "Benchmark: Commit Cadence": examples/benchmark_commit_cadence.md
           - "Validación de Variables MySQL/MariaDB": examples/mysql_variables_example.md
           - "Reajuste de AUTO_INCREMENT (MariaDB)": examples/update_auto_increment_example.md
+          - Normalización de Registros: examples/normalize_records.md
+          - Auditoría Común de Carga y Volcado: examples/audit_events.md
       - Sistema de Queries:
           - Ejecución de Consultas: examples/query_execution_example.md
           - Queries Concurrentes (Async): examples/async_concurrent_queries.md
@@ -167,6 +173,8 @@ nav:
           - Migración MariaDB (origen): examples/migrate_mariadb_source.md
           - Migración SQL Server (origen): examples/migrate_sqlserver_source.md
           - Migración PostgreSQL (origen): examples/migrate_postgresql_source.md
+          - Migración MySQL (origen): examples/migrate_mysql.md
+          - Migración de vistas: examples/migrate_views.md
       - Análisis de Relaciones:
           - Generación de Grafos: examples/graph_generation.md
       - Documentación de BD:
