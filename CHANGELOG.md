@@ -5,6 +5,16 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **audit**: `AuditManager.filtrar_multiple(umbral_tiempo=…)` incluía las filas con `tiempo_seg` igual al umbral
+  (`>=`), mientras que `obtener_operaciones_lentas(umbral_segundos=…)` las dejaba fuera (`>`). Ahora los dos dejan
+  fuera el propio umbral (`tiempo_seg > umbral`), el comportamiento que ya documentaba `obtener_operaciones_lentas`.
+  Afecta solo a las filas que coinciden con el umbral al milisegundo (el CSV guarda `tiempo_seg` con 3 decimales).
+  Tests de frontera para los dos métodos en `tests/unit/test_audit_subsystem.py`.
+
 ## [3.0.3] - 2026-10-16
 
 Sesión `.ai/sessions/2026-10-16i-documentation-review/` (revisión de documentación con Documentation Reviewer, niveles

@@ -37,7 +37,7 @@ flowchart TD
 | `filtrar_por_operacion` | `(operacion)` | Filas de `INSERT`, `UPDATE` o `DELETE` | `pd.DataFrame` |
 | `filtrar_por_tabla` / `filtrar_por_motor` | `(tabla)` / `(motor)` | Filas de una tabla o de un motor | `pd.DataFrame` |
 | `filtrar_por_rango_tiempo` | `(inicio, fin)` | Filas con `timestamp` entre ambas fechas, ordenadas | `pd.DataFrame` |
-| `filtrar_multiple` | `(operacion?, tabla?, motor?, umbral_tiempo?)` | Combina criterios con AND | `pd.DataFrame` |
+| `filtrar_multiple` | `(operacion?, tabla?, motor?, umbral_tiempo?)` | Combina criterios con AND; `umbral_tiempo`, como en `obtener_operaciones_lentas`, deja fuera el propio umbral (`tiempo_seg` mayor que él; hasta v3.0.3 lo incluía) | `pd.DataFrame` |
 | `exportar_resumen_excel` | `(agrupar_por="tabla", *, engine=None)` | Resumen agrupado por `tabla`, `fecha` o `tabla_fecha` en `auditoria.xlsx`, junto al CSV. Con un engine (`engine` o el del `BulkCrud` que creó el `AuditManager`), añade al final la hoja `Condiciones_motor` | `Path` |
 | `exportar_resumen_json` | `(output_path?)` | Estadísticas y conteos en JSON (por defecto `auditoria.json` junto al CSV) | `Path` |
 | `exportar_resumen_html` | `(output_path?)` | Informe HTML (por defecto `auditoria.html` junto al CSV) | `Path` |

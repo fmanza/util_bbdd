@@ -367,6 +367,15 @@ class TestServiceFiltros:
         df = service.filtrar_multiple(tabla="orders", operacion="INSERT")
         assert len(df) == 1
 
+    def test_umbral_igual_al_tiempo_queda_fuera_en_los_dos_filtros(self, service: AuditAnalyticsService) -> None:
+        # La fila de 0,5 s cae justo en el umbral: ninguno de los dos la cuenta (hasta 3.0.3 filtrar_multiple sí)
+        assert service.obtener_operaciones_lentas(umbral_segundos=0.5)["tiempo_seg"].tolist() == [8.0]
+        assert service.filtrar_multiple(umbral_tiempo=0.5)["tiempo_seg"].tolist() == [8.0]
+
+    def test_umbral_por_debajo_del_tiempo_lo_incluye_en_los_dos_filtros(self, service: AuditAnalyticsService) -> None:
+        assert sorted(service.obtener_operaciones_lentas(umbral_segundos=0.4)["tiempo_seg"]) == [0.5, 8.0]
+        assert sorted(service.filtrar_multiple(umbral_tiempo=0.4)["tiempo_seg"]) == [0.5, 8.0]
+
     def test_filtrar_por_rango_tiempo(self, service: AuditAnalyticsService) -> None:
         inicio = datetime.now() - timedelta(minutes=1)
         fin = datetime.now() + timedelta(minutes=1)

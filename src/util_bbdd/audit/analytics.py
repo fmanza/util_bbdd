@@ -118,7 +118,8 @@ class AuditAnalyticsService:
             dataframe = dataframe[dataframe["motor"] == motor]
 
         if umbral_tiempo is not None:
-            dataframe = dataframe[dataframe["tiempo_seg"] >= umbral_tiempo]
+            # Umbral excluido, igual que obtener_operaciones_lentas (hasta 3.0.3 aquí era >=)
+            dataframe = dataframe[dataframe["tiempo_seg"] > umbral_tiempo]
 
         self.logger.info(f"🔍 Filtrado múltiple devolvió {len(dataframe)} registros")
         return dataframe

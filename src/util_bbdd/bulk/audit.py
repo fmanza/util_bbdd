@@ -330,7 +330,8 @@ class AuditManager:
             operacion: ``INSERT``, ``UPDATE`` o ``DELETE``; ``None`` no filtra.
             tabla: Nombre exacto de la tabla; vacío o ``None`` no filtra.
             motor: Motor exacto; vacío o ``None`` no filtra.
-            umbral_tiempo: Tiempo mínimo, incluido (``tiempo_seg >= umbral_tiempo``); ``None`` no filtra.
+            umbral_tiempo: Tiempo mínimo, excluido (``tiempo_seg > umbral_tiempo``, como en
+                :meth:`obtener_operaciones_lentas`); ``None`` no filtra.
 
         Raises:
             AuditValidationError: Si ``operacion`` no es ``None`` ni una de las tres.
