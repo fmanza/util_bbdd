@@ -47,6 +47,7 @@ from sqlalchemy import (
 from sqlalchemy.exc import SQLAlchemyError
 
 from .._core.exceptions import ParallelLoadError
+from .._core.timing import medir_tiempo
 from .._core.validation import StrPath
 from ..audit.counters import AuditCounters
 from ..connection.performance_advisor import EngineReadinessAdvisor
@@ -113,26 +114,6 @@ from .options import AuditOptions, BatchOptions, BulkOptions, ExecutionOptions, 
 
 if TYPE_CHECKING:
     from ._execution.parallel_loader import ParallelLoadResult
-
-try:
-    from util.timing.medir_tiempo import medir_tiempo
-except ImportError:
-
-    def medir_tiempo(proceso: str = "") -> Any:
-        """Decorator placeholder for timing (util not available).
-
-        Args:
-            proceso: Process name for logging (unused)
-
-        Returns:
-            Decorator function that returns the original function unchanged
-        """
-        _: str = proceso
-
-        def _decorator(function: Any) -> Any:
-            return function
-
-        return _decorator
 
 
 @dataclass(frozen=True, slots=True)
@@ -388,7 +369,7 @@ class BulkCrud:
         """
         return self._persistence.resolve_sql_output_path(path_sql, tabla_destino, operacion)
 
-    @medir_tiempo("bulk_insert_from_df")
+    @medir_tiempo()
     def bulk_insert_from_df(
         self,
         df: pd.DataFrame,
@@ -446,7 +427,7 @@ class BulkCrud:
             exclude_autoincrement_pk=exclude_autoincrement_pk,
         )
 
-    @medir_tiempo("bulk_update_from_df")
+    @medir_tiempo()
     def bulk_update_from_df(
         self,
         df: pd.DataFrame,
@@ -481,7 +462,7 @@ class BulkCrud:
             strategy_key="update",
         )
 
-    @medir_tiempo("bulk_delete_from_df")
+    @medir_tiempo()
     def bulk_delete_from_df(
         self,
         df: pd.DataFrame,
@@ -515,7 +496,7 @@ class BulkCrud:
             strategy_key="delete",
         )
 
-    @medir_tiempo("bulk_insert_from_chunks")
+    @medir_tiempo()
     def bulk_insert_from_chunks(
         self,
         chunks: Iterable[pd.DataFrame],
@@ -605,7 +586,7 @@ class BulkCrud:
         self.logger.info(f"✅ bulk INSERT (chunks) finalizado: {total} filas ({self.db_info}).")
         return total
 
-    @medir_tiempo("bulk_update_from_chunks")
+    @medir_tiempo()
     def bulk_update_from_chunks(self, chunks: Iterable[pd.DataFrame], tabla_destino: str) -> int:
         """Actualiza en streaming con una secuencia de DataFrames, sin materializar todo el dataset en memoria (B-08).
 
@@ -626,7 +607,7 @@ class BulkCrud:
         """
         return self.__stream_operation(chunks, tabla_destino, "update")
 
-    @medir_tiempo("bulk_delete_from_chunks")
+    @medir_tiempo()
     def bulk_delete_from_chunks(self, chunks: Iterable[pd.DataFrame], tabla_destino: str) -> int:
         """Borra en streaming las filas cuyas PK llegan en una secuencia de DataFrames (B-08).
 

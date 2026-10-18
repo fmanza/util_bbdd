@@ -6,7 +6,6 @@
 - `pip` actualizado: `pip install --upgrade pip`
 - Acceso a GitHub: `util_bbdd` no está publicado en PyPI y se instala desde su repositorio
 - Driver Python del motor de base de datos que vayas a usar (ver [Paso 3](#3-drivers-por-motor))
-- **Dependencia interna `util`**: `util_bbdd` depende de `util @ git+https://github.com/fmanza/util.git@develop` (timing automático), por lo que la instalación requiere acceso a GitHub salvo que se instale `util` por separado (ver [Solución de Problemas](#5-solucion-de-problemas))
 
 ## 2. Instalación del Paquete
 
@@ -118,5 +117,4 @@ python -c "from util_bbdd import SyncDatabaseManager; m = SyncDatabaseManager('p
 | `'cryptography' package is required for sha256_password or caching_sha2_password` | MySQL 8 sin TLS necesita `cryptography` para autenticar | `pip install "pymysql[rsa]"` |
 | `pyodbc.Error: ('IM002'...)` | ODBC driver de SQL Server no instalado en el SO | Instalar [Microsoft ODBC Driver for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) |
 | `oracledb.DatabaseError: DPY-2014` | Oracle Instant Client no encontrado | Descargar Oracle Instant Client y configurar `oracle_client_path` en `conn_params` |
-| La instalación falla resolviendo `util @ git+...` | Sin acceso a GitHub (CI offline, red corporativa) | Instala `util` desde una copia local (`pip install <ruta>/util`) y luego `util_bbdd` con `--no-deps` |
 | `Timeout esperando conexión del pool` | Pool agotado | Aumentar `pool_size` en `conn_params` (`{"pool_size": 20, ...}`); `pool_timeout` existe en PostgreSQL, MySQL y SQL Server, y `max_overflow` en MySQL y SQL Server |

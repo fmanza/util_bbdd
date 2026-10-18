@@ -297,6 +297,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-10-16g-tech-debt-parallel-followups | **v3.0.1**: deuda D1–D5 de v3.0.0 (TEMP, INFO de auditoría, `rows_committed`, filas en `parallel_pk_ranges="auto"`, Oracle) y `scripts/bench_parallel.py` | develop | tech-debt | CLOSED | `2026-10-16g-tech-debt-parallel-followups/TRACEABILITY.md` |
 | 2026-10-16h-static-analysis-fixes | **v3.0.2**: avisos de Pylance y SonarLint sin cambios funcionales (`BulkOptions`, `SafeWorksheet.append`, `_core/exceptions.py`, `NOSONAR` en falsos positivos) | develop | correcciones IDE + version-closure | CLOSED | `2026-10-16h-static-analysis-fixes/TRACEABILITY.md` |
 | 2026-10-16i-documentation-review | **v3.0.3**: revisión de documentación (Documentation Reviewer, niveles 1–3), `/config-review`, criterios de aceptación en `docs/functional/`, autodoc nuevo y ejemplos con servidor ejecutables con test contra el banco | develop | documentation + config_review + version-closure | CLOSED | `2026-10-16i-documentation-review/TRACEABILITY.md` |
+| 2026-10-18-timing-decorator | `medir_tiempo` propio en `_core/timing.py` (tipado con `ParamSpec`); fuera la dependencia privada `util` y `GH_PAT` del CI | develop | new_feature | CLOSED | `2026-10-18-timing-decorator/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 

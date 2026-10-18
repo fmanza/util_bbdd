@@ -12,7 +12,7 @@
 | Python | 3.12 | `python --version` | 3.12, 3.13 o 3.14 soportados. En Windows: `py --version` |
 | Git | 2.x | `git --version` | Necesario para clonar y gestionar ramas |
 | pip | 23.x | `pip --version` | Incluido con Python 3.12+ |
-| Acceso a GitHub | — | `git ls-remote https://github.com/fmanza/util.git HEAD` | Requerido para la dependencia privada `util` (ver §4) |
+| Acceso a GitHub | — | `git ls-remote https://github.com/fmanza/util_bbdd.git HEAD` | Para clonar el repositorio (ver §2) |
 | Graphviz (binario `dot`) | — | `dot -V` | **Opcional** — solo para `analysis/` (grafos). El paquete Python `graphviz>=0.20` va en el extra `.[analysis]` |
 
 > **Sin Docker ni BD externa**: los tests unitarios usan SQLite en memoria (`:memory:`) y corren sin servicios externos. Los de integración contra motores reales se saltan si no hay URLs del banco (ver §8 › Tests).
@@ -30,17 +30,8 @@ cd util_bbdd
 git checkout develop
 ```
 
-**Dependencia privada `util`**: `pyproject.toml` declara `util @ git+https://github.com/fmanza/util.git@develop`. Para instalarla, pip necesita acceso de lectura a `fmanza/util` en GitHub.
-
-```bash
-# Verificar acceso (HTTPS con token o SSH configurado)
-git ls-remote https://github.com/fmanza/util.git HEAD
-
-# Si usas SSH
-ssh -T git@github.com
-```
-
-Si el acceso falla, solicita permiso al propietario del repositorio o configura un token personal de GitHub con scope `repo`.
+Las dependencias se instalan desde PyPI: desde 3.1.0 no hay dependencias privadas (el antiguo paquete `util` ya no se
+usa; la medición de tiempos está en `util_bbdd._core.timing`).
 
 ---
 
@@ -91,8 +82,6 @@ El flag `-e` instala en modo editable: los cambios en `src/` se reflejan sin rei
 
 | Error / Síntoma | Causa probable | Solución |
 |---|---|---|
-| `ERROR: Could not find a version that satisfies the requirement util` | Sin acceso al repositorio privado `fmanza/util` | Configurar token HTTPS (`GH_TOKEN`) o clave SSH para GitHub |
-| `Could not build wheels for util` | pip no puede resolver el VCS dependency | Usar `pip install --upgrade pip` y asegurar Git en PATH |
 | `ModuleNotFoundError: No module named 'aiosqlite'` | Solo se instaló `pip install -e .` sin extras | Reinstalar con `pip install -e ".[dev]"` |
 | Error de SSL / proxy corporativo | Proxy bloqueando PyPI o GitHub | `pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -e ".[dev]"` |
 | `oracledb: failed to load native libraries` | Modo thick intentado sin Oracle Instant Client | util_bbdd usa thin mode por defecto; sin Instant Client es suficiente |

@@ -182,9 +182,20 @@ crud.bulk_insert_from_df(df, "ventas", generar_sql=False)
 
 | Dependencia | Propósito | Requerida | Comportamiento sin ella |
 |---|---|---|---|
-| `util.timing.medir_tiempo` | Decorator para capturar duración de operaciones bulk | Sí (incluida en pyproject.toml) | Fallback: decorator placeholder; timing=0 ms en CSV de auditoría |
 | `pandas` | DataFrame como fuente de datos | Sí | Sin pandas no hay datos para insertar |
 | `sqlalchemy` | Reflexión de tabla, ejecución de sentencias | Sí | Módulo no funciona sin SQLAlchemy |
+
+Cada llamada a `bulk_{insert,update,delete}_from_{df,chunks}` registra su duración total en nivel `INFO` en el logger
+`util_bbdd.bulk.crud` (`⏱️  Tiempo ejecución de bulk_insert_from_df: 00:00:01.234`, con `(con error)` si lanzó una
+excepción). Es el mismo logger que el resto de mensajes de `BulkCrud`; subirlo a `WARNING` silencia ambos y deja
+avisos y errores:
+
+```python
+logging.getLogger("util_bbdd.bulk.crud").setLevel(logging.WARNING)
+```
+
+Ese tiempo cubre la llamada completa (reflexión de la tabla y reparto en paralelo incluidos) y es independiente de
+`tiempo_seg` del CSV de auditoría, que mide solo la ejecución o la generación del SQL.
 
 ## 5. Ejemplos Relacionados
 

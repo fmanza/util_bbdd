@@ -677,7 +677,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
     logging.getLogger("util_bbdd").setLevel(logging.INFO if args.verbose else logging.ERROR)
-    logging.getLogger("util").setLevel(logging.INFO if args.verbose else logging.ERROR)
 
     out_dir = args.out or ROOT / "bench_results" / datetime.now().strftime("%Y%m%d_%H%M%S")
     measurements = run_benchmark(

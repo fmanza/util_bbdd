@@ -15,6 +15,7 @@ ciclo. Un import bajo ``TYPE_CHECKING`` no crea ciclo en ejecución, pero tampoc
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import subprocess
@@ -230,3 +231,19 @@ def test_each_package_imports_cleanly_as_the_first_import(script: ModuleType) ->
         "Paquetes que no se importan como primer import (import circular o dependiente del orden):\n"
         + ("\n".join(f"  util_bbdd.{name}: {error}" for name, error in sorted(failures.items())))
     )
+
+
+def test_library_does_not_import_the_external_util_package() -> None:
+    """Desde 3.1.0 util_bbdd no depende del paquete privado ``util``; ``medir_tiempo`` vive en ``_core.timing``."""
+    offenders: list[str] = []
+    for path in sorted((PROJECT_ROOT / "src" / "util_bbdd").rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"), filename=str(path))):
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                names = [node.module]
+            else:
+                continue
+            if any(name == "util" or name.startswith("util.") for name in names):
+                offenders.append(f"{path.relative_to(PROJECT_ROOT).as_posix()}:{node.lineno}")
+    assert not offenders, "Imports del paquete externo util (usa util_bbdd._core.timing):\n  " + "\n  ".join(offenders)

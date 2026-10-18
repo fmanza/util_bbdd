@@ -27,8 +27,31 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **docs**: `api/metadata_manager.md` y `examples/database_documentation_generation.md` siguen ya la estructura de su
   arquetipo (secciones 1-5; `CatalogSource` y la migración desde la API anterior pasan a subsecciones de §2; nueva §4
   de dependencias).
+- **bulk**: la duración de `bulk_{insert,update,delete}_from_{df,chunks}` la registra ahora el decorador interno
+  `util_bbdd._core.timing.medir_tiempo` (antes `util.timing.medir_tiempo`, del paquete externo `util`). **El mensaje
+  sale en el logger `util_bbdd.bulk.crud`**, no en `util.timing.medir_tiempo`: quien silenciaba el logger `util` debe
+  ajustar ahora `util_bbdd.bulk.crud` (o `util_bbdd`), que también lleva el resto de mensajes de `BulkCrud`. El texto
+  es el mismo; si la operación lanza una excepción, termina en `(con error)`.
+
+### Removed
+
+- **dependencias**: `util @ git+https://github.com/fmanza/util.git@develop` deja de ser dependencia obligatoria (solo
+  se usaba para `medir_tiempo`); con ella desaparece `python-json-logger`, que arrastraba. La instalación ya no necesita
+  acceso a un repositorio privado ni depende de una rama que cambia. Guarda en
+  `tests/unit/test_architecture_import_rules.py`: ningún módulo de `src/` puede importar `util`.
+- **ci**: pasos `Configure git credentials for private deps` (secreto `GH_PAT`) de `tests.yml`, `docs.yml`,
+  `docs-release.yml` e `integration.yml`.
 
 ### Fixed
+
+- **bulk (tipado)**: los 6 métodos decorados de `BulkCrud` aparecían como `Any` para mypy en el código de quien usa la
+  librería (el decorador externo no tenía tipos). Ahora conservan su firma (`ParamSpec`), y
+  `disallow_any_decorated` en `util_bbdd.bulk.crud` impide que vuelva a pasar. Quien use mypy puede ver errores nuevos
+  en su código que antes ocultaba el `Any`.
+- **bulk**: el formato de la duración redondeaba mal en el límite del minuto (59,9996 s daba `00:00:60.000`; ahora
+  `00:01:00.000`).
+- **docs**: `api/bulk_crud.md` decía que sin `util` el CSV de auditoría registraba 0 ms; `tiempo_seg` nunca dependió
+  del decorador. `installation.md` y `guides/onboarding_dev.md` ya no piden acceso al repositorio `fmanza/util`.
 
 - **config IA**: `.claude/commands/documentation-architecture-audit.md` remitía a un agente
   `documentation-architecture-auditor.agent.md` que no existe; `.github/AGENTS.md` no listaba `examples` entre los

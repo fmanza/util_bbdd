@@ -107,7 +107,6 @@ Ver `CLAUDE.md` para:
 | `python-docx` | ≥1.2.0 | Generación de Word |
 | `oracledb` | ≥3.4.0 | Driver Oracle sync/async |
 | `jinja2` | ≥3.0.0 | Templates HTML para doc/ y comparar/reporters/ |
-| `util` | git+develop | Medición de tiempos (`medir_tiempo`) |
 
 ### Dependencias opcionales
 

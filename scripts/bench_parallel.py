@@ -233,7 +233,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             url = to_pyodbc_url(url)
         table.extend(bench_engine(key, url, args))
     if args.out is not None:
-        # La salida estándar lleva además los tiempos que imprime medir_tiempo (util.timing) si está instalado.
+        # Con --verbose, la salida estándar lleva además los tiempos de medir_tiempo (logger util_bbdd.bulk.crud).
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text("".join(f"{line}\n" for line in table), encoding="utf-8")
     return 0
