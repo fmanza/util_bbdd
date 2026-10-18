@@ -1,5 +1,7 @@
 # 📋 GitHub Actions Fix - Resumen de Cambios
 
+> **Desde 3.1.0 (2026-10-18)** los workflows ya no usan `GH_PAT` ni configuran credenciales git: `util_bbdd` dejó de depender del paquete privado `util`. Lo que esta guía dice sobre `GH_PAT` es histórico.
+
 ## 🎯 Problema Original
 Workflows de GitHub Actions fallaban consistentemente al subir código a GitHub.
 

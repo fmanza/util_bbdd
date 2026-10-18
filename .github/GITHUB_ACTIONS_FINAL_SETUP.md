@@ -1,5 +1,7 @@
 # GitHub Actions Final Setup & Validation Guide
 
+> **Desde 3.1.0 (2026-10-18)** los workflows ya no usan `GH_PAT` ni configuran credenciales git: `util_bbdd` dejó de depender del paquete privado `util`. Lo que esta guía dice sobre `GH_PAT` es histórico.
+
 ## 📋 Estado Actual (Validado Localmente)
 
 Todas las correcciones han sido aplicadas y validadas. Los siguientes componentes están funcionando correctamente:

@@ -66,15 +66,6 @@ jobs:
         python-version: "3.12"
         cache: pip
 
-    - name: Configure git credentials for private deps
-      run: |
-        if [ -n "${{ secrets.GH_PAT }}" ]; then
-          git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
-        else
-          git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
-        fi
-      shell: bash
-
     # SyncDatabaseManager("mariadb") usa MariaDB Connector/Python (paquete mariadb), que compila contra Connector/C.
     # Sin él los tests [mariadb] de caracterización se saltan (GoldenTarget.skip_reason) en lugar de probar el motor.
     - name: Install MariaDB Connector/C
