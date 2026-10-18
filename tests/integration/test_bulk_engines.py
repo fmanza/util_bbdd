@@ -876,6 +876,82 @@ def test_oracle_maintenance_scope_really_disables_foreign_keys(engine: Engine) -
         metadata.drop_all(engine)
 
 
+def _mssql_heap_with_incoming_fk(engine: Engine) -> tuple[MetaData, Table, Table, str]:
+    """Heap con PK NONCLUSTERED y un índice no único, y una tabla hija con FK hacia él (con una fila cada una)."""
+    from sqlalchemy import ForeignKey, Index, PrimaryKeyConstraint
+
+    n = partial(_name, engine=engine)
+    suffix = uuid.uuid4().hex[:8]
+    metadata = MetaData()
+    index_name = f"ix_zz_heap_{suffix}"
+    parent = Table(
+        n(f"zz_util_bbdd_it_h{suffix}"),
+        metadata,
+        Column(n("id"), Integer, autoincrement=False, nullable=False),
+        Column(n("a"), Integer),
+        PrimaryKeyConstraint(n("id"), mssql_clustered=False),
+        Index(index_name, n("a")),
+    )
+    child = Table(
+        n(f"zz_util_bbdd_it_hc{suffix}"),
+        metadata,
+        Column(n("id"), Integer, primary_key=True, autoincrement=False),
+        Column(n("pid"), Integer, ForeignKey(parent.c[n("id")])),
+    )
+    metadata.create_all(engine)
+    with engine.begin() as conn:
+        conn.execute(parent.insert(), [{n("id"): 1, n("a"): 1}])
+        conn.execute(child.insert(), [{n("id"): 1, n("pid"): 1}])
+    return metadata, parent, child, index_name
+
+
+def _mssql_index_disabled(conn: Any, table: Table) -> dict[str, bool]:
+    """Índices NONCLUSTERED de ``table`` y si están deshabilitados.
+
+    Dentro de ``maintenance_scope`` hay que pasar la conexión de la sesión: ``ALTER INDEX … DISABLE`` retiene un bloqueo
+    de esquema hasta el commit y la consulta desde otra conexión esperaría a que acabe la sesión (que la espera a ella).
+    """
+    rows = conn.execute(
+        text("SELECT name, is_primary_key, is_disabled FROM sys.indexes WHERE object_id = OBJECT_ID(:t) AND type = 2"),
+        {"t": table.name},
+    ).all()
+    return {("PK" if r[1] else str(r[0])): bool(r[2]) for r in rows}
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"mssql"})), indirect=True)
+def test_mssql_disable_indexes_on_heap_keeps_pk_and_incoming_foreign_keys(engine: Engine) -> None:
+    """Hotfix 2026-10-19: ``ALTER INDEX ALL … DISABLE`` en un heap deshabilitaba también la PK NONCLUSTERED; SQL Server
+    deshabilitaba con ella las FK entrantes y el ``REBUILD`` no las reactivaba (quedaban ``is_not_trusted = 1``)."""
+    metadata, parent, child, index_name = _mssql_heap_with_incoming_fk(engine)
+    try:
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False))
+        frame = pd.DataFrame({_name("id", engine): [2, 3], _name("a", engine): [2, 3]})
+        with crud.bulk_session(), crud.maintenance_scope(parent.name, disable_constraints=False, disable_indexes=True):
+            assert _mssql_index_disabled(crud._session.connection, parent) == {"PK": False, index_name: True}
+            crud.bulk_insert_from_df(frame, parent.name, generar_sql=False)
+        with engine.connect() as conn:
+            assert _mssql_index_disabled(conn, parent) == {"PK": False, index_name: False}
+        assert _fk_disabled_count(engine, child) == 0
+        assert _count(engine, parent) == 3
+    finally:
+        metadata.drop_all(engine)
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"mssql"})), indirect=True)
+def test_mssql_disable_indexes_on_heap_still_rejects_duplicate_pk(engine: Engine) -> None:
+    """Hotfix 2026-10-19: con la PK deshabilitada se aceptaban filas con PK duplicada durante la carga."""
+    metadata, parent, _, _ = _mssql_heap_with_incoming_fk(engine)
+    try:
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False))
+        duplicate = pd.DataFrame({_name("id", engine): [1], _name("a", engine): [9]})
+        with pytest.raises(IntegrityError), crud.bulk_session():
+            with crud.maintenance_scope(parent.name, disable_constraints=False, disable_indexes=True):
+                crud.bulk_insert_from_df(duplicate, parent.name, generar_sql=False)
+        assert _count(engine, parent) == 1
+    finally:
+        metadata.drop_all(engine)
+
+
 @pytest.mark.parametrize("commit_every_n_chunks", [None, 1])
 def test_maintenance_scope_error_keeps_original_exception_and_restores(
     engine: Engine, commit_every_n_chunks: int | None

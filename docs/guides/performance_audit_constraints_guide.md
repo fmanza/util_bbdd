@@ -36,7 +36,7 @@ Antes de auditar, conviene saber qué desactiva la librería por su cuenta:
 
 | Punto de entrada | Qué desactiva y cómo lo restaura | Referencia |
 |---|---|---|
-| `BulkCrud.maintenance_scope(tabla, disable_constraints=True, disable_indexes=False, require_optimization=False)` | MariaDB/MySQL: `FOREIGN_KEY_CHECKS=0` (y `DISABLE KEYS` solo en MyISAM/Aria). PostgreSQL: `DISABLE TRIGGER ALL` si el usuario es propietario o superusuario, con comprobación de filas huérfanas de cada FK al restaurar. SQL Server: `NOCHECK CONSTRAINT ALL` y, con `disable_indexes`, `ALTER INDEX ALL … DISABLE` solo si la tabla no tiene índice CLUSTERED. Oracle: `DISABLE`/`ENABLE VALIDATE CONSTRAINT` de cada FK, CHECK con nombre y UNIQUE. Requiere `bulk_session()` | [BulkCrud](../api/bulk_crud.md) |
+| `BulkCrud.maintenance_scope(tabla, disable_constraints=True, disable_indexes=False, require_optimization=False)` | MariaDB/MySQL: `FOREIGN_KEY_CHECKS=0` (y `DISABLE KEYS` solo en MyISAM/Aria). PostgreSQL: `DISABLE TRIGGER ALL` si el usuario es propietario o superusuario, con comprobación de filas huérfanas de cada FK al restaurar. SQL Server: `NOCHECK CONSTRAINT ALL` y, con `disable_indexes`, `ALTER INDEX … DISABLE` de cada índice NONCLUSTERED no único (los de PK y UNIQUE no se tocan) solo si la tabla no tiene índice CLUSTERED. Oracle: `DISABLE`/`ENABLE VALIDATE CONSTRAINT` de cada FK, CHECK con nombre y UNIQUE. Requiere `bulk_session()` | [BulkCrud](../api/bulk_crud.md) |
 | `ParallelBulkLoader(parallel=ParallelOptions(disable_constraints=True))` | Solo en el INSERT. En SQL Server y PostgreSQL desactiva una vez antes de lanzar los hilos; en el resto, cada worker usa `maintenance_scope`. Nunca desactiva índices (en SQL Server bloquearía la tabla entre hilos) | [Carga paralela](../api/bulk_parallel.md) |
 | `DumpOrchestrator` | Desactiva las constraints del destino durante la carga y las rehabilita al final (`DumpResult.constraint_results`); `DumpConfig.manage_indexes=True` gestiona además los índices | [Volcado](../api/dump.md) |
 
@@ -371,8 +371,10 @@ Restricción: Máximo 120s downtime
 ```
 Paso 1: Desactivar solo los índices NO CLUSTERED, uno a uno
   ALTER INDEX ix_tabla_columna ON tablename DISABLE;
-  -- ALTER INDEX ALL ... DISABLE desactiva también el CLUSTERED y la tabla deja de
-  -- ser accesible: maintenance_scope solo lo hace en tablas sin índice CLUSTERED.
+  -- ALTER INDEX ALL ... DISABLE desactiva también el CLUSTERED (la tabla deja de ser
+  -- accesible) y los de PK/UNIQUE (sin control de duplicados; las FK que apuntan a la
+  -- tabla quedan deshabilitadas y REBUILD no las reactiva). maintenance_scope solo
+  -- desactiva los NONCLUSTERED no únicos, y solo en tablas sin índice CLUSTERED.
 
 Paso 2: BULK INSERT sin la opción CHECK_CONSTRAINTS
   BULK INSERT tablename FROM 'file.csv' WITH (TABLOCK);

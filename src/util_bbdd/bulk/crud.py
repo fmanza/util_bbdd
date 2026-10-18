@@ -1596,8 +1596,8 @@ class BulkCrud:
           cargadas con los triggers desactivados (audit H-01, 2026-09-27).
         - **SQL Server**: Ejecuta ``ALTER TABLE ... NOCHECK CONSTRAINT ALL``. Persiste en
           catálogo pero se restaura al salir del bloque.
-          Soporta ``ALTER INDEX ALL ON ... DISABLE`` si ``disable_indexes=True``
-          (solo en tablas sin índice CLUSTERED).
+          Con ``disable_indexes=True`` deshabilita (``ALTER INDEX … DISABLE``) y reconstruye al salir los índices
+          NONCLUSTERED **no únicos**, solo en tablas sin índice CLUSTERED; los de PK y UNIQUE no se tocan.
         - **SQLite**: No soportado; opera sin optimización.
 
         Args:

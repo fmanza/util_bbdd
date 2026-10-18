@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "util_bbdd"
-version = "3.1.0"
+version = "3.1.1"
 description = "Librería de operaciones de base de datos: CRUD en lote, auditoría, conexiones pooled y documentación."
 readme = "README.md"
 requires-python = ">=3.12"

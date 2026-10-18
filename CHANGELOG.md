@@ -7,6 +7,22 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-10-19
+
+Hotfix de la sesión `.ai/sessions/2026-10-18b-index-modes-bulk-dump/`. SemVer: PATCH (corrección sin cambios en la
+API pública).
+
+### Fixed
+
+- **bulk (`maintenance_scope`, SQL Server)**: con `disable_indexes=True` en una tabla sin índice CLUSTERED se ejecutaba
+  `ALTER INDEX ALL … DISABLE`, que desactivaba también los índices de PK y UNIQUE NONCLUSTERED: durante la carga se
+  aceptaban claves duplicadas, y SQL Server deshabilitaba las FK de otras tablas que apuntan a la PK, que
+  `ALTER INDEX ALL … REBUILD` no reactiva (quedaban `is_disabled = 1` e `is_not_trusted = 1`). Ahora se deshabilitan y
+  reconstruyen uno a uno solo los NONCLUSTERED no únicos (`metadata.facts.secondary_nonunique_indexes`, la consulta de
+  `dump.IndexManager`); en tablas con índice CLUSTERED sigue sin tocarse ningún índice. Si una carga anterior dejó FK
+  deshabilitadas, reactívalas con `ALTER TABLE <hija> WITH CHECK CHECK CONSTRAINT <fk>`. Sesión
+  `.ai/sessions/2026-10-18b-index-modes-bulk-dump/` (comprobación en el banco con `scripts/bench_index_modes.py --probes`).
+
 ## [3.1.0] - 2026-10-18
 
 Sesión `.ai/sessions/2026-10-18-timing-decorator/` (`medir_tiempo` propio y retirada de la dependencia privada `util`),

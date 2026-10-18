@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+from collections.abc import Iterator
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -44,6 +46,33 @@ def _make_crud_for_dialect(dialect: str) -> tuple[BulkCrud, MagicMock]:
     crud._table_cache["t"] = table_mock  # type: ignore[assignment]
 
     return crud, conn
+
+
+_SECONDARY_INDEXES = "util_bbdd.bulk._execution.maintenance.facts.secondary_nonunique_indexes"
+
+
+def _make_mssql_crud_with_secondary_indexes(names: list[str], *, clustered: int = 0) -> tuple[BulkCrud, MagicMock]:
+    """BulkCrud SQL Server con ``clustered`` índices clustered y ``names`` como índices NONCLUSTERED no únicos.
+
+    El parche de ``secondary_nonunique_indexes`` sigue activo hasta el final del test (lo detiene ``_stop_patchers``).
+    """
+    crud, conn = _make_crud_for_dialect("mssql")
+    crud.engine.dialect.identifier_preparer.quote.side_effect = lambda name: f'"{name}"'  # type: ignore[attr-defined]
+    conn.execute.return_value.scalar.return_value = clustered
+    patcher = patch(_SECONDARY_INDEXES, return_value=[(name, None) for name in names])
+    patcher.start()
+    _PATCHERS.append(patcher)
+    return crud, conn
+
+
+_PATCHERS: list[Any] = []
+
+
+@pytest.fixture(autouse=True)
+def _stop_patchers() -> Iterator[None]:
+    yield
+    while _PATCHERS:
+        _PATCHERS.pop().stop()
 
 
 def _sql_calls(conn: MagicMock) -> list[str]:
@@ -213,42 +242,65 @@ class TestMaintenanceScopeSQLServer:
         assert 'ALTER TABLE "t" WITH CHECK CHECK CONSTRAINT ALL' in _sql_calls(conn)
 
     def test_disable_indexes_when_no_clustered(self) -> None:
-        crud, conn = _make_crud_for_dialect("mssql")
-        conn.execute.return_value.scalar.return_value = 0
+        crud, conn = _make_mssql_crud_with_secondary_indexes(["ix_a", "ix_b"])
         with crud.maintenance_scope("t", disable_indexes=True):
-            assert 'ALTER INDEX ALL ON "t" DISABLE' in _sql_calls(conn)
+            sqls = _sql_calls(conn)
+            assert 'ALTER INDEX "ix_a" ON "t" DISABLE' in sqls
+            assert 'ALTER INDEX "ix_b" ON "t" DISABLE' in sqls
+
+    def test_disable_indexes_never_uses_all_on_heap(self) -> None:
+        """Hotfix 2026-10-19: ``ALTER INDEX ALL … DISABLE`` en un heap desactivaba también la PK/UNIQUE NONCLUSTERED.
+
+        Sin ellas se aceptaban duplicados y SQL Server deshabilitaba las FK entrantes, que el ``REBUILD`` no reactiva.
+        """
+        crud, conn = _make_mssql_crud_with_secondary_indexes(["ix_a"])
+        with crud.maintenance_scope("t", disable_indexes=True):
+            pass
+        assert not [sql for sql in _sql_calls(conn) if "ALTER INDEX ALL" in sql]
+
+    def test_only_non_unique_nonclustered_indexes_are_requested(self) -> None:
+        crud, _ = _make_mssql_crud_with_secondary_indexes(["ix_a"])
+        with patch(_SECONDARY_INDEXES, return_value=[("ix_a", None)]) as discover:
+            with crud.maintenance_scope("t", disable_indexes=True):
+                pass
+        discover.assert_called_once()
+        assert discover.call_args.args[1:] == (None, "t", "mssql")
+
+    def test_no_disable_when_heap_has_no_secondary_indexes(self) -> None:
+        crud, conn = _make_mssql_crud_with_secondary_indexes([])
+        with crud.maintenance_scope("t", disable_indexes=True):
+            pass
+        assert not [sql for sql in _sql_calls(conn) if sql.startswith("ALTER INDEX")]
 
     def test_rebuild_indexes_on_exit_when_disabled(self) -> None:
-        crud, conn = _make_crud_for_dialect("mssql")
-        conn.execute.return_value.scalar.return_value = 0
+        crud, conn = _make_mssql_crud_with_secondary_indexes(["ix_a", "ix_b"])
         with crud.maintenance_scope("t", disable_indexes=True):
-            assert 'ALTER INDEX ALL ON "t" REBUILD' not in _sql_calls(conn)
-        assert 'ALTER INDEX ALL ON "t" REBUILD' in _sql_calls(conn)
+            assert 'ALTER INDEX "ix_a" ON "t" REBUILD' not in _sql_calls(conn)
+        sqls = _sql_calls(conn)
+        assert 'ALTER INDEX "ix_a" ON "t" REBUILD' in sqls
+        assert 'ALTER INDEX "ix_b" ON "t" REBUILD' in sqls
 
     def test_disable_before_rebuild_order(self) -> None:
-        crud, conn = _make_crud_for_dialect("mssql")
-        conn.execute.return_value.scalar.return_value = 0
+        crud, conn = _make_mssql_crud_with_secondary_indexes(["ix_a"])
         with crud.maintenance_scope("t", disable_indexes=True):
-            assert 'ALTER INDEX ALL ON "t" DISABLE' in _sql_calls(conn)
+            assert 'ALTER INDEX "ix_a" ON "t" DISABLE' in _sql_calls(conn)
         sqls = _sql_calls(conn)
-        assert sqls.index('ALTER INDEX ALL ON "t" DISABLE') < sqls.index('ALTER INDEX ALL ON "t" REBUILD')
+        assert sqls.index('ALTER INDEX "ix_a" ON "t" DISABLE') < sqls.index('ALTER INDEX "ix_a" ON "t" REBUILD')
 
     def test_skip_disable_indexes_when_clustered_exists(self, caplog: pytest.LogCaptureFixture) -> None:
-        crud, conn = _make_crud_for_dialect("mssql")
-        conn.execute.return_value.scalar.return_value = 1
+        crud, conn = _make_mssql_crud_with_secondary_indexes(["ix_a"], clustered=1)
         with caplog.at_level(logging.WARNING):
             with crud.maintenance_scope("t", disable_indexes=True):
-                assert 'ALTER INDEX ALL ON "t" DISABLE' not in _sql_calls(conn)
+                assert 'ALTER INDEX "ix_a" ON "t" DISABLE' not in _sql_calls(conn)
         sqls = _sql_calls(conn)
-        assert 'ALTER INDEX ALL ON "t" DISABLE' not in sqls
+        assert not [sql for sql in sqls if sql.startswith("ALTER INDEX")]
         assert any("CLUSTERED" in msg for msg in caplog.messages)
 
     def test_no_rebuild_when_clustered_prevented_disable(self) -> None:
-        crud, conn = _make_crud_for_dialect("mssql")
-        conn.execute.return_value.scalar.return_value = 1
+        crud, conn = _make_mssql_crud_with_secondary_indexes(["ix_a"], clustered=1)
         with crud.maintenance_scope("t", disable_indexes=True):
-            assert 'ALTER INDEX ALL ON "t" DISABLE' not in _sql_calls(conn)
-        assert 'ALTER INDEX ALL ON "t" REBUILD' not in _sql_calls(conn)
+            pass
+        assert 'ALTER INDEX "ix_a" ON "t" REBUILD' not in _sql_calls(conn)
 
 
 # ---------------------------------------------------------------------------
@@ -258,12 +310,11 @@ class TestMaintenanceScopeSQLServer:
 
 class TestMaintenanceScopeRestoreOrder:
     def test_indexes_restored_before_constraints_mssql(self) -> None:
-        crud, conn = _make_crud_for_dialect("mssql")
-        conn.execute.return_value.scalar.return_value = 0
+        crud, conn = _make_mssql_crud_with_secondary_indexes(["ix_a"])
         with crud.maintenance_scope("t", disable_indexes=True):
-            assert 'ALTER INDEX ALL ON "t" REBUILD' not in _sql_calls(conn)
+            assert 'ALTER INDEX "ix_a" ON "t" REBUILD' not in _sql_calls(conn)
         sqls = _sql_calls(conn)
-        rebuild_idx = sqls.index('ALTER INDEX ALL ON "t" REBUILD')
+        rebuild_idx = sqls.index('ALTER INDEX "ix_a" ON "t" REBUILD')
         check_idx = sqls.index('ALTER TABLE "t" WITH CHECK CHECK CONSTRAINT ALL')
         assert rebuild_idx < check_idx
 

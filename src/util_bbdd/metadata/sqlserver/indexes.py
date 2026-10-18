@@ -6,8 +6,8 @@ from __future__ import annotations
 def fetch_secondary_nonunique_indexes_sql() -> str:
     """SQL con los índices NONCLUSTERED no únicos y habilitados de una tabla (sin PK ni UNIQUE constraint).
 
-    Lo usa ``dump.IndexManager`` para deshabilitarlos antes de la carga y reconstruirlos después; el índice clustered no
-    se toca porque dejaría la tabla inaccesible.
+    Lo usan ``dump.IndexManager`` y ``BulkCrud.maintenance_scope`` para deshabilitarlos antes de la carga y reconstruirlos
+    después; el índice clustered no se toca porque dejaría la tabla inaccesible.
 
     Parámetros: ``:tbl`` y ``:schema`` (``None`` = ``SCHEMA_NAME()``).
 
@@ -32,7 +32,7 @@ def fetch_secondary_nonunique_indexes_sql() -> str:
 def fetch_clustered_index_count_sql() -> str:
     """SQL que cuenta los índices clustered de una tabla (0 = heap).
 
-    Lo usa ``BulkCrud.maintenance_scope``: ``ALTER INDEX ALL … DISABLE`` solo se aplica a tablas sin índice clustered.
+    Lo usa ``BulkCrud.maintenance_scope``: solo deshabilita índices en tablas sin índice clustered.
 
     Parámetro: ``:tbl`` (nombre para ``OBJECT_ID``, con esquema si hace falta).
 

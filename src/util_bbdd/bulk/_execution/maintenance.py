@@ -56,6 +56,8 @@ class TableMaintenance:
         self._cadence: CommitCadence = cadence
         self._table_snapshot: Callable[[Table, set[Kind]], Any] = table_snapshot
         self.logger: logging.Logger = logger
+        # SQL Server: índices NONCLUSTERED no únicos deshabilitados por _disable_indexes (una instancia por scope).
+        self._mssql_disabled_indexes: list[str] = []
 
     @contextmanager
     def scope(
@@ -235,8 +237,15 @@ class TableMaintenance:
         if dialect == "mssql":
             has_clustered = facts.clustered_index_count(conn, tabla_destino)
             if has_clustered == 0:
-                conn.execute(text(f"ALTER INDEX ALL ON {quoted_name} DISABLE"))
-                return True
+                # Hotfix 2026-10-19: solo los NONCLUSTERED no únicos. ``ALTER INDEX ALL … DISABLE`` desactivaba también los
+                # de PK/UNIQUE: se aceptaban duplicados y SQL Server deshabilitaba las FK entrantes, que REBUILD no reactiva.
+                prep = self.engine.dialect.identifier_preparer
+                self._mssql_disabled_indexes = [
+                    name for name, _ in facts.secondary_nonunique_indexes(conn, tabla.schema, tabla.name, "mssql")
+                ]
+                for name in self._mssql_disabled_indexes:
+                    conn.execute(text(f"ALTER INDEX {prep.quote(name)} ON {quoted_name} DISABLE"))
+                return bool(self._mssql_disabled_indexes)
             self.logger.warning(
                 f"⚠️ La tabla {tabla_destino} tiene un índice CLUSTERED. "
                 "Se omite la desactivación masiva de índices para mantener la tabla accesible."
@@ -256,7 +265,9 @@ class TableMaintenance:
         if dialect in MYSQL_FAMILY:
             conn.execute(text(f"ALTER TABLE {quoted_name} ENABLE KEYS"))
         elif dialect == "mssql":
-            conn.execute(text(f"ALTER INDEX ALL ON {quoted_name} REBUILD"))
+            prep = self.engine.dialect.identifier_preparer
+            for name in self._mssql_disabled_indexes:
+                conn.execute(text(f"ALTER INDEX {prep.quote(name)} ON {quoted_name} REBUILD"))
 
     def _enable_constraints(
         self,
