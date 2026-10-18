@@ -230,6 +230,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-10-16 | Deuda de la carga paralela → v3.0.1 (`2026-10-16g-tech-debt-parallel-followups`) | `dump` usa el `COUNT(*)` del origen en `"auto"`; TEMP cacheado en el loader; banco `scripts/bench_parallel.py` (calentamiento + tandas alternas); Oracle no gana en paralelo | CLOSED |
 | 2026-10-16 | Avisos de Pylance y SonarLint → v3.0.2 (`2026-10-16h-static-analysis-fixes`) | `default_factory=lambda: X()` para dataclasses con descriptor (pyright); S7632 lee comas tras `# noqa:`; S5886/S2068 falsos positivos con `NOSONAR` | CLOSED |
 | 2026-10-16 | Revisión de documentación (niveles 1–3) → v3.0.3 (`2026-10-16i-documentation-review`) | griffe trata `Example:` como aviso (el `>>>` sale como texto; `Examples:` lo publica como código); estructura funcional de 5 secciones en el bloque de dominio, no en el núcleo compartido; los ejemplos con servidor leen `UTIL_BBDD_EXAMPLE_*` y tienen test contra el banco | CLOSED |
+| 2026-10-18 | `medir_tiempo` propio y fuera la dependencia `util` → v3.1.0 (`2026-10-18-timing-decorator`) | Un decorador con `-> Any` borraba la firma de los métodos públicos de `BulkCrud` (`py.typed`); guarda `disallow_any_decorated` solo en `bulk.crud`; rechazar corrutinas y generadores (medirían su creación); simular un paquete ausente con un homónimo que lanza `ImportError` en `PYTHONPATH` | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 

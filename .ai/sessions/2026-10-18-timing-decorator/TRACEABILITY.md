@@ -72,11 +72,19 @@ aplicación. PLAN y AUDIT_PLAN
 - **[técnica]**: para probar «sin un paquete instalado» sin tocar el venv, anteponer en `PYTHONPATH` una carpeta con un
   paquete homónimo cuyo `__init__.py` lance `ImportError`.
 
+## Version closure (2026-10-18)
+- Commits de la sesión: `0356b780` (fix(bulk)) y `ed53629e` (chore(ci)); sin push.
+- `/version-closure` → **3.1.0** (MINOR): `[Unreleased]` pasa a `## [3.1.0] - 2026-10-18` (incluye lo acumulado desde
+  3.0.3: D4 de documentación, `/doc-generator`, umbral de `filtrar_multiple`). Campos de versión: `pyproject.toml`,
+  `README.md` (cabecera y «Current Version»), `docs/index.md`, `docs/roadmap.md`, pie de figura de
+  `docs/architecture.md` (340 ficheros según `scripts/gen_arquitectura_capas.py`, sin cambios en el SVG),
+  `.ai/CURRENT_STATE.md` y `.ai/sessions/SESSIONS_DIGEST.md`.
+- Las instrucciones de instalación siguen en `@v3.0.3` hasta que exista el tag `v3.1.0` (mismo criterio que R4).
+
 ## Veredicto final
-Veredicto: GO (AUDIT_CODE: APROBADO CON CONDICIONES → condiciones B1, B2 y D1 resueltas)
+Veredicto: CLOSED (AUDIT_CODE: APROBADO CON CONDICIONES → condiciones B1, B2 y D1 resueltas; versión 3.1.0 cerrada)
 Pendientes al cierre:
-- `/version-closure`: subir a **3.1.0** (MINOR). Si se elige otro número, corregir «3.1.0» en `CHANGELOG.md`,
-  `docs/guides/onboarding_dev.md`, `pyproject.toml` (comentario del override) y `.github/GITHUB_ACTIONS_*.md`.
-- Revocar el secreto `GH_PAT` del repositorio cuando el CI pase en verde.
+- R5 (`.ai/CURRENT_STATE.md`): push de `develop`, CI en verde sin `GH_PAT`, tag `v3.1.0`, `main`, instalación a
+  `@v3.1.0`, revocar el secreto `GH_PAT`.
 - Fuera de alcance: `elapsed_ms` con `time.time()` (no monotónico) en `executors/sync_query_executor.py`,
   `executors/async_query_executor.py` y `query/resolver.py`.

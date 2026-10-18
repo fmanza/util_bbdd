@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-10-18
+
+Sesión `.ai/sessions/2026-10-18-timing-decorator/` (`medir_tiempo` propio y retirada de la dependencia privada `util`),
+más lo acumulado desde 3.0.3 (pendientes D4 de la revisión de documentación, `/doc-generator`, umbral de
+`filtrar_multiple`). SemVer: MINOR (se retira una dependencia obligatoria y cambia el logger de los tiempos de `bulk`;
+sin cambios incompatibles en la API pública).
+
 ### Added
 
 - **config IA**: slash command `/doc-generator` (`.claude/commands/doc-generator.md`), envoltorio fino del agente
@@ -52,11 +59,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `00:01:00.000`).
 - **docs**: `api/bulk_crud.md` decía que sin `util` el CSV de auditoría registraba 0 ms; `tiempo_seg` nunca dependió
   del decorador. `installation.md` y `guides/onboarding_dev.md` ya no piden acceso al repositorio `fmanza/util`.
-
 - **config IA**: `.claude/commands/documentation-architecture-audit.md` remitía a un agente
   `documentation-architecture-auditor.agent.md` que no existe; `.github/AGENTS.md` no listaba `examples` entre los
   tipos de entrada de Documentation Generator.
-
 - **audit**: `AuditManager.filtrar_multiple(umbral_tiempo=…)` incluía las filas con `tiempo_seg` igual al umbral
   (`>=`), mientras que `obtener_operaciones_lentas(umbral_segundos=…)` las dejaba fuera (`>`). Ahora los dos dejan
   fuera el propio umbral (`tiempo_seg > umbral`), el comportamiento que ya documentaba `obtener_operaciones_lentas`.
