@@ -23,10 +23,10 @@ Configurar `AsyncDatabaseManager` y usar patrones de concurrencia async/await en
 
 ```bash
 # PostgreSQL (psycopg 3 + asyncpg)
-pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v3.0.3"
+pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v3.3.0"
 
 # MariaDB / MySQL (incluyen aiomysql)
-pip install "util_bbdd[mariadb] @ git+https://github.com/fmanza/util_bbdd.git@v3.0.3"
+pip install "util_bbdd[mariadb] @ git+https://github.com/fmanza/util_bbdd.git@v3.3.0"
 
 # SQL Server y SQLite async (no van en ningún extra)
 pip install aioodbc aiosqlite

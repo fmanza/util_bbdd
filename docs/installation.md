@@ -14,7 +14,7 @@
 Desde el repositorio, fijando la versión con su tag:
 
 ```bash
-pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v3.0.3"
+pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v3.3.0"
 ```
 
 ### Extras opcionales
@@ -22,7 +22,7 @@ pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v3.0.3"
 Extras declarados en `pyproject.toml` (se combinan: `util_bbdd[postgresql,analysis]`):
 
 ```bash
-pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v3.0.3"
+pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v3.3.0"
 ```
 
 | Extra | Para qué |

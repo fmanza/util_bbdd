@@ -13,7 +13,7 @@ Soporta dos motores de visualización: Graphviz (nodos con columnas y cardinalid
 - Gestor síncrono de BD configurado y conectado a la base de datos a analizar
 - Para Graphviz: binarios de Graphviz instalados en el sistema (`dot` en PATH) y paquete Python `graphviz`
 - Para Matplotlib: paquetes `matplotlib` y `networkx` instalados
-- Extra de instalación: `pip install "util_bbdd[analysis] @ git+https://github.com/fmanza/util_bbdd.git@v3.0.3"` (ver [Instalación](../installation.md))
+- Extra de instalación: `pip install "util_bbdd[analysis] @ git+https://github.com/fmanza/util_bbdd.git@v3.3.0"` (ver [Instalación](../installation.md))
 - Las tablas analizadas deben tener claves foráneas definidas para que aparezcan relaciones en el grafo
 
 ## 2. Reglas de Negocio
