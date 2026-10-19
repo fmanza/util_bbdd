@@ -14,10 +14,12 @@ from sqlalchemy import Engine
 
 from util_bbdd._core.validation import OptionalPathField, PathField, validate_batch_config
 from util_bbdd.audit.contracts import AuditSink
-from util_bbdd.bulk._models import PKSyncResult
+from util_bbdd.bulk._models import IndexActionResult, PKSyncResult
 from util_bbdd.bulk._support.rejects import validate_isolation
+from util_bbdd.bulk._support.secondary_indexes import IndexMode, resolve_index_mode
 
-__all__: list[str] = ["PKSyncResult"]
+# IndexActionResult vive en bulk desde 3.2.0 (lo devuelven también maintenance_scope y ParallelBulkLoader); se reexporta.
+__all__: list[str] = ["IndexActionResult", "PKSyncResult"]
 
 
 @dataclass
@@ -28,30 +30,6 @@ class ConstraintResult:
     constraint_name: str
     dialect: str
     status: Literal["enabled", "failed", "unverified"]
-    error_msg: str = ""
-
-
-@dataclass
-class IndexActionResult:
-    """Resultado de gestionar (deshabilitar/reconstruir) un índice individual en el destino.
-
-    Attributes:
-        table_name: Tabla a la que pertenece el índice (``"*"`` para resultados globales).
-        index_name: Nombre del índice (``"*"`` para resultados globales).
-        dialect: Dialecto del motor destino.
-        action: Resultado de la operación:
-
-            - ``"rebuilt"`` — índice deshabilitado/unusable y reconstruido (mssql/oracle).
-            - ``"recreated"`` — índice eliminado y recreado desde su DDL (postgresql).
-            - ``"failed"`` — fallo al reconstruir/recrear; ver ``error_msg``.
-            - ``"unsupported"`` — motor no soportado (mariadb/mysql InnoDB).
-        error_msg: Detalle del error cuando ``action="failed"`` o ``"unsupported"``.
-    """
-
-    table_name: str
-    index_name: str
-    dialect: str
-    action: Literal["rebuilt", "recreated", "failed", "unsupported"]
     error_msg: str = ""
 
 
@@ -99,16 +77,18 @@ class DumpConfig:
             **Advertencia:** con la cadencia activa la carga de una tabla deja de ser
             atómica; un fallo a mitad deja committeados los lotes anteriores de esa tabla
             (coherente con la semántica best-effort del volcado).
-        manage_indexes: Si ``True``, deshabilita los índices secundarios **no únicos** del
-            destino antes de la carga y los reconstruye al final, acelerando los INSERT en
-            tablas con muchos índices. ``False`` (default) = no se tocan los índices.
-            Comportamiento por motor: mssql ``ALTER INDEX DISABLE``→``REBUILD`` (solo
-            NONCLUSTERED), oracle ``UNUSABLE``→``REBUILD``, postgresql ``DROP``+recreate
-            desde ``pg_get_indexdef`` (DDL logueado antes del DROP), mariadb/mysql no
-            soportado (no-op). Nunca toca índices que respaldan PK/UNIQUE. Efecto medido a 3,5M
-            filas con 2 índices secundarios (tras solapar lectura y escritura): Oracle −14 %
-            (reconstrucción 2,7 s), SQL Server −8 %, PostgreSQL sin ganancia. Compensa más cuantos más
-            índices secundarios tenga el destino; no se activa automáticamente.
+        manage_indexes: ``True`` o ``"secondary"`` (3.2.0, equivalentes): deshabilita los índices secundarios
+            **no únicos** del destino antes de la carga y los reconstruye al final, acelerando los INSERT en
+            tablas con muchos índices. ``False`` (default) = no se tocan los índices. Misma estrategia que
+            ``BulkCrud.maintenance_scope(disable_indexes=...)`` (``bulk/_support/secondary_indexes.py``):
+            mssql ``ALTER INDEX DISABLE``→``REBUILD`` (solo NONCLUSTERED), oracle ``UNUSABLE``→``REBUILD``,
+            postgresql ``DROP``+recreate desde ``pg_get_indexdef``, mariadb/mysql (desde 3.2.0) InnoDB ``DROP
+            INDEX`` + un ``ALTER TABLE … ADD INDEX`` por tabla y MyISAM/Aria ``DISABLE KEYS`` (el DDL de lo que se
+            borra se loguea antes). Nunca toca índices que respaldan PK/UNIQUE ni, en InnoDB, los que necesita una
+            FK. Efecto medido a 3,5M filas con 2 índices secundarios (tras solapar lectura y escritura): Oracle
+            −14 % (reconstrucción 2,7 s), SQL Server −8 %, PostgreSQL sin ganancia; en una carga directa con
+            ``bulk`` la ganancia es mayor (sesión 2026-10-18b, G0). Compensa más cuantos más índices secundarios
+            tenga el destino; no se activa automáticamente.
         max_parallel_tables: Número máximo de tablas a cargar concurrentemente dentro de
             un mismo nivel topológico FK (tablas mutuamente independientes). ``1`` (default)
             = carga secuencial. Valores > 1 usan un ``ThreadPoolExecutor`` con una instancia
@@ -183,7 +163,7 @@ class DumpConfig:
     collect_row_counts: bool = True
     sync_pk_sequences: bool = True
     commit_every_n_chunks: int | None = None
-    manage_indexes: bool = False
+    manage_indexes: bool | IndexMode = False
     max_parallel_tables: int = 1
     parallel_pk_ranges: int | Literal["auto"] = 1
     bulk_audit_strict: bool = False
@@ -203,6 +183,7 @@ class DumpConfig:
         # DumpResult; bulk_audit_path como str fallaba antes de cargar. Las rutas ya llegan aquí como Path: las
         # normalizan y validan sus descriptores (PathField/OptionalPathField) al asignarse en __init__.
         validate_isolation(self.on_error, self.rejects_csv_path, self.max_rejects)
+        resolve_index_mode(self.manage_indexes, "manage_indexes")
         ranges = self.parallel_pk_ranges
         if ranges != "auto" and (isinstance(ranges, bool) or not isinstance(ranges, int)):
             raise ValueError(f"parallel_pk_ranges debe ser un entero o 'auto', recibido: {ranges!r}")

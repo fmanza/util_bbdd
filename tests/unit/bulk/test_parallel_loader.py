@@ -571,6 +571,94 @@ class TestParallelBulkLoaderConstraintHoist:
         crud_mock.maintenance_scope.assert_called_once()
 
 
+class TestParallelBulkLoaderIndexHoist:
+    """3.2.0: ``ParallelOptions(disable_indexes=...)`` desactiva una vez antes del pool y reconstruye al terminar."""
+
+    @staticmethod
+    def _engine(dialect: str, executed: list[str]) -> MagicMock:
+        engine = MagicMock()
+        engine.dialect.name = dialect
+        engine.dialect.identifier_preparer.format_table.return_value = "dbo.orders"
+        engine.dialect.identifier_preparer.quote.side_effect = lambda name: f"[{name}]"
+        for ctx in (engine.begin, engine.connect):
+            ctx.return_value.__enter__.return_value.execute.side_effect = lambda stmt, *a, **kw: (
+                executed.append(str(stmt)) or MagicMock()
+            )
+        return engine
+
+    def test_disables_once_restores_after_pool_and_reports(self) -> None:
+        executed: list[str] = []
+        engine = self._engine("mssql", executed)
+        df = pd.DataFrame({"id": [1], "v": ["a"]})
+        with (
+            patch.object(pl_mod, "BulkCrud") as crud_cls,
+            patch("util_bbdd.bulk._support.secondary_indexes.facts") as facts,
+        ):
+            facts.secondary_nonunique_indexes.return_value = [("ix_a", None)]
+            crud_mock = MagicMock()
+            crud_cls.return_value = crud_mock
+            loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=2, disable_indexes=True))
+            result = loader.load("orders", [lambda: iter([df]), lambda: iter([df])])
+
+        assert executed == ["ALTER INDEX [ix_a] ON dbo.orders DISABLE", "ALTER INDEX [ix_a] ON dbo.orders REBUILD"]
+        assert [(r.index_name, r.action) for r in result.index_results] == [("ix_a", "rebuilt")]
+        facts.secondary_nonunique_indexes.assert_called_once()
+        assert crud_mock.bulk_insert_from_chunks.call_count == 2
+
+    def test_indexes_are_rebuilt_before_constraints_are_reenabled(self) -> None:
+        executed: list[str] = []
+        engine = self._engine("mssql", executed)
+        with (
+            patch.object(pl_mod, "BulkCrud") as crud_cls,
+            patch("util_bbdd.bulk._support.secondary_indexes.facts") as facts,
+        ):
+            facts.secondary_nonunique_indexes.return_value = [("ix_a", None)]
+            crud_cls.return_value.bulk_insert_from_chunks.return_value = 0
+            loader = ParallelBulkLoader(
+                engine, parallel=ParallelOptions(max_workers=1, disable_constraints=True, disable_indexes="secondary")
+            )
+            loader.load("orders", [lambda: iter([])])
+
+        kinds = [sql.split()[0:3] for sql in executed]
+        assert [" ".join(k) for k in kinds] == [
+            "ALTER TABLE dbo.orders",  # NOCHECK
+            "ALTER INDEX [ix_a]",  # DISABLE
+            "ALTER INDEX [ix_a]",  # REBUILD
+            "ALTER TABLE dbo.orders",  # WITH CHECK
+        ]
+        assert "NOCHECK" in executed[0]
+        assert "REBUILD" in executed[2]
+        assert "WITH CHECK" in executed[3]
+
+    def test_warns_where_it_was_slower_in_parallel(self, caplog: pytest.LogCaptureFixture) -> None:
+        executed: list[str] = []
+        engine = self._engine("postgresql", executed)
+        with (
+            patch.object(pl_mod, "BulkCrud") as crud_cls,
+            patch("util_bbdd.bulk._support.secondary_indexes.facts") as facts,
+            caplog.at_level(logging.WARNING),
+        ):
+            facts.secondary_nonunique_indexes.return_value = []
+            crud_cls.return_value.bulk_insert_from_chunks.return_value = 0
+            loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=2, disable_indexes=True))
+            loader.load("orders", [lambda: iter([]), lambda: iter([])])
+
+        assert any("más lento" in msg and "postgresql" in msg for msg in caplog.messages)
+
+    def test_update_does_not_touch_indexes(self) -> None:
+        executed: list[str] = []
+        engine = self._engine("mssql", executed)
+        loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1, disable_indexes=True))
+        with patch.object(pl_mod.ParallelBulkLoader, "_hoist_indexes_for_workers") as hoist:
+            with patch.object(pl_mod, "BulkCrud"):
+                loader.update("orders", [lambda: iter([])])
+        hoist.assert_not_called()
+
+    def test_invalid_mode_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="disable_indexes"):
+            ParallelOptions(disable_indexes="all")  # type: ignore[arg-type]
+
+
 class TestParallelBulkLoaderPartitionRanges:
     """F-08: Validación de rangos de partición no solapados."""
 

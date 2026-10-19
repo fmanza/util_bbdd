@@ -35,6 +35,34 @@ class PKSyncResult:
 
 
 @dataclass
+class IndexActionResult:
+    """Resultado de gestionar (deshabilitar/reconstruir) un índice individual en el destino.
+
+    Lo devuelven ``dump.IndexManager`` (``DumpResult.index_results``), :meth:`BulkCrud.maintenance_scope`
+    (``MaintenanceScopeResult.index_results``) y ``ParallelBulkLoader.load`` (``ParallelLoadResult.index_results``).
+    Desde 3.2.0 vive en ``bulk``; ``util_bbdd.dump.IndexActionResult`` es la misma clase.
+
+    Attributes:
+        table_name: Tabla a la que pertenece el índice (``"*"`` para resultados globales).
+        index_name: Nombre del índice (``"*"``: toda la tabla, p. ej. ``DISABLE KEYS`` de MyISAM/Aria).
+        dialect: Dialecto del motor destino.
+        action: Resultado de la operación:
+
+            - ``"rebuilt"`` — índice deshabilitado/unusable y reconstruido (mssql/oracle; MyISAM/Aria ``ENABLE KEYS``).
+            - ``"recreated"`` — índice eliminado y recreado desde su DDL (postgresql; mariadb/mysql InnoDB).
+            - ``"failed"`` — fallo al reconstruir/recrear; ver ``error_msg``.
+            - ``"unsupported"`` — motor no soportado (hasta 3.1.x, mariadb/mysql InnoDB en ``dump``).
+        error_msg: Detalle del error cuando ``action="failed"`` o ``"unsupported"``.
+    """
+
+    table_name: str
+    index_name: str
+    dialect: str
+    action: Literal["rebuilt", "recreated", "failed", "unsupported"]
+    error_msg: str = ""
+
+
+@dataclass
 class MaintenanceScopeConstraintResult:
     """Resultado de rehabilitar una constraint individual durante :meth:`BulkCrud.maintenance_scope`."""
 
@@ -49,14 +77,20 @@ class MaintenanceScopeResult:
 
     Se obtiene mediante ``as`` en el bloque ``with``::
 
-        with bulk.maintenance_scope("orders") as ms:
+        with bulk.maintenance_scope("orders", disable_indexes=True) as ms:
             bulk.bulk_insert_from_df(df, "orders")
         for r in ms.constraint_results:
             print(r.constraint_name, r.status)
+        for r in ms.index_results:
+            print(r.index_name, r.action)
+
+    ``index_results`` (desde 3.2.0): un :class:`IndexActionResult` por índice desactivado con ``disable_indexes``,
+    disponible tras salir del bloque sin error.
     """
 
     optimization_applied: bool = False
     constraint_results: list[MaintenanceScopeConstraintResult] = field(default_factory=list)
+    index_results: list[IndexActionResult] = field(default_factory=list)
 
 
-__all__: list[str] = ["MaintenanceScopeConstraintResult", "MaintenanceScopeResult", "PKSyncResult"]
+__all__: list[str] = ["IndexActionResult", "MaintenanceScopeConstraintResult", "MaintenanceScopeResult", "PKSyncResult"]

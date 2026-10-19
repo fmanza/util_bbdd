@@ -847,6 +847,143 @@ def _fk_disabled_count(engine: Engine, child: Table) -> int:
     return 0
 
 
+def _indexed_table(engine: Engine) -> tuple[MetaData, Table]:
+    """Tabla con PK y dos índices secundarios no únicos (``a`` y ``s``); nombres según la convención de ``BulkCrud``."""
+    from sqlalchemy import Index
+
+    n = partial(_name, engine=engine)
+    suffix = uuid.uuid4().hex[:8]
+    metadata = MetaData()
+    table = Table(
+        n(f"zz_util_bbdd_it_ix{suffix}"),
+        metadata,
+        Column(n("id"), Integer, primary_key=True, autoincrement=False),
+        Column(n("a"), Integer),
+        Column(n("s"), String(30)),
+        Index(f"ix_zz_a_{suffix}", n("a")),
+        Index(f"ix_zz_s_{suffix}", n("s")),
+    )
+    metadata.create_all(engine)
+    return metadata, table
+
+
+def _index_state(engine: Engine, table: Table) -> tuple[list[str], int]:
+    """Nombres (en minúsculas) de los índices no únicos de ``table`` y cuántos están deshabilitados o no válidos."""
+    from sqlalchemy import inspect
+
+    names = sorted(str(i["name"]).lower() for i in inspect(engine).get_indexes(table.name) if not i["unique"])
+    dialect = engine.dialect.name
+    queries = {
+        "mssql": ("SELECT count(*) FROM sys.indexes WHERE object_id = OBJECT_ID(:t) AND is_disabled = 1", table.name),
+        "oracle": (
+            "SELECT count(*) FROM user_indexes WHERE table_name = :t AND status NOT IN ('VALID', 'N/A')",
+            table.name.upper(),
+        ),
+        "postgresql": (
+            "SELECT count(*) FROM pg_index i JOIN pg_class c ON c.oid = i.indrelid WHERE c.relname = :t "
+            "AND NOT i.indisvalid",
+            table.name,
+        ),
+    }
+    if dialect not in queries:
+        return names, 0
+    sql, name = queries[dialect]
+    with engine.connect() as conn:
+        return names, int(conn.execute(text(sql), {"t": name}).scalar_one())
+
+
+def _indexed_frame(engine: Engine, rows: int) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            _name("id", engine): np.arange(1, rows + 1),
+            _name("a", engine): np.arange(rows) % 50,
+            _name("s", engine): [f"v{i}" for i in range(rows)],
+        }
+    )
+
+
+@pytest.mark.parametrize("engine", _engine_params(exclude=frozenset({"sqlite"})), indirect=True)
+def test_maintenance_scope_disable_indexes_restores_them(engine: Engine) -> None:
+    """3.2.0: estrategia común con dump. En InnoDB, con la sesión atómica, se omite (su DDL confirmaría lo pendiente)."""
+    metadata, table = _indexed_table(engine)
+    try:
+        before = _index_state(engine, table)
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False))
+        with (
+            crud.bulk_session(),
+            crud.maintenance_scope(table.name, disable_constraints=False, disable_indexes=True) as ms,
+        ):
+            crud.bulk_insert_from_df(_indexed_frame(engine, 500), table.name, generar_sql=False)
+        assert _count(engine, table) == 500
+        assert _index_state(engine, table) == before
+        if engine.dialect.name in ("mysql", "mariadb"):
+            assert ms.index_results == []
+        else:
+            assert {r.action for r in ms.index_results} == (
+                {"recreated"} if engine.dialect.name == "postgresql" else {"rebuilt"}
+            )
+            assert len(ms.index_results) == 2
+    finally:
+        metadata.drop_all(engine)
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=MYSQL_FAMILY - {MARIADB_CONNECTOR}), indirect=True)
+def test_maintenance_scope_innodb_recreates_indexes_with_commit_cadence(engine: Engine) -> None:
+    metadata, table = _indexed_table(engine)
+    try:
+        before = _index_state(engine, table)
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False), batch=BatchOptions(commit_every_n_chunks=1))
+        with (
+            crud.bulk_session(),
+            crud.maintenance_scope(table.name, disable_constraints=False, disable_indexes=True) as ms,
+        ):
+            assert _index_state(engine, table)[0] == []  # borrados durante la carga
+            crud.bulk_insert_from_df(_indexed_frame(engine, 500), table.name, generar_sql=False)
+        assert _count(engine, table) == 500
+        assert _index_state(engine, table) == before
+        assert [r.action for r in ms.index_results] == ["recreated", "recreated"]
+    finally:
+        metadata.drop_all(engine)
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"postgresql", "mssql"})), indirect=True)
+def test_maintenance_scope_disable_indexes_rolls_back_with_the_session(engine: Engine) -> None:
+    """PostgreSQL y SQL Server: el DDL va en la transacción; si la carga falla, el rollback devuelve los índices."""
+    metadata, table = _indexed_table(engine)
+    try:
+        before = _index_state(engine, table)
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False))
+        with pytest.raises(RuntimeError, match="fallo"), crud.bulk_session():
+            with crud.maintenance_scope(table.name, disable_constraints=False, disable_indexes=True):
+                crud.bulk_insert_from_df(_indexed_frame(engine, 100), table.name, generar_sql=False)
+                raise RuntimeError("fallo posterior")
+        assert _count(engine, table) == 0
+        assert _index_state(engine, table) == before
+    finally:
+        metadata.drop_all(engine)
+
+
+@pytest.mark.parametrize("engine", _engine_params(exclude=frozenset({"sqlite"})), indirect=True)
+def test_parallel_disable_indexes_restores_them(engine: Engine) -> None:
+    metadata, table = _indexed_table(engine)
+    try:
+        before = _index_state(engine, table)
+        loader = ParallelBulkLoader(
+            engine,
+            audit=AuditOptions(warn_if_disabled=False),
+            parallel=ParallelOptions(mode="manual", max_workers=2, disable_indexes=True),
+        )
+        frame = _indexed_frame(engine, 2_000)
+        result = loader.load(table.name, [lambda: iter([frame.iloc[:1000]]), lambda: iter([frame.iloc[1000:]])])
+        assert result.partition_errors == []
+        assert _count(engine, table) == 2_000
+        assert _index_state(engine, table) == before
+        assert len(result.index_results) == 2
+        assert all(r.action in ("rebuilt", "recreated") for r in result.index_results)
+    finally:
+        metadata.drop_all(engine)
+
+
 @pytest.mark.parametrize("engine", _engine_params(only=frozenset({"oracle"})), indirect=True)
 def test_oracle_parallel_disable_constraints_reenables_unique(engine: Engine) -> None:
     """Hotfix 2026-10-19: con ``ParallelOptions(disable_constraints=True)`` cada worker desactivaba y reactivaba las

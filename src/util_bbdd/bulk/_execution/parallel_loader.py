@@ -40,9 +40,11 @@ from ...metadata import facts
 from .._audit.counters import AuditCounters
 from .._audit.errors import AuditError
 from .._audit.events import BulkAuditEvents
+from .._models import IndexActionResult
 from .._support.dialect import can_disable_pg_triggers, disable_table_integrity_sql, enable_table_integrity_sql
 from .._support.iterables import closing_iterable, skip_rows as skip_leading_rows
 from .._support.pool import pool_capacity
+from .._support.secondary_indexes import SUPPORTED_DIALECTS, IndexDdlRunner, SecondaryIndexPlanner, resolve_index_mode
 from ..audit import AuditManager
 from ..crud import BulkCrud
 from ..options import (
@@ -130,6 +132,9 @@ class ParallelLoadResult:
     ``audit_run_id``: ``run_id`` de los eventos de ``audit.sink`` de la carga (``None`` sin destino).
 
     ``plan``: hilos usados y por qué (:class:`ParallelPlan`, v3.0.0); ``None`` si no había particiones.
+
+    ``index_results``: con ``ParallelOptions(disable_indexes=...)`` (v3.2.0), un :class:`IndexActionResult` por índice
+    desactivado antes de lanzar los hilos y reconstruido al terminar.
     """
 
     total_rows: int = 0
@@ -138,6 +143,7 @@ class ParallelLoadResult:
     partition_results: list[PartitionResult] = field(default_factory=list)
     audit_run_id: str | None = None
     plan: ParallelPlan | None = None
+    index_results: list[IndexActionResult] = field(default_factory=list)
 
     @property
     def audit_failures(self) -> int:
@@ -256,8 +262,9 @@ class ParallelBulkLoader:
                 pedidos recortados por la capacidad del pool, SQLite (un solo escritor; v3.0.0) y el UPDATE de
                 PostgreSQL fila a fila; en ``"auto"``, además, las reglas medidas por motor y operación; ``"off"``, uno.
                 ``disable_constraints`` desactiva las constraints en :meth:`load` (en SQL Server, PostgreSQL y Oracle una vez,
-                antes de lanzar los hilos; en el resto, cada worker con ``maintenance_scope``; nunca los índices, que en
-                paralelo toman un lock DDL global en SQL Server). Reintentos: ``parallel.retry`` (:class:`RetryOptions`).
+                antes de lanzar los hilos; en el resto, cada worker con ``maintenance_scope``). ``disable_indexes``
+                (v3.2.0) desactiva los índices secundarios una vez antes de lanzar los hilos (por worker, el lock DDL de
+                SQL Server serializaba la carga). Reintentos: ``parallel.retry`` (:class:`RetryOptions`).
 
         Raises:
             AuditConfigError: Si no se puede crear el directorio de ``audit.csv_path`` (subclase de ``ValueError``).
@@ -446,7 +453,14 @@ class ParallelBulkLoader:
             if self._parallel.disable_constraints and operation == "insert"
             else contextlib.nullcontext(False)
         )
-        with constraint_ctx as skip_maintenance, ThreadPoolExecutor(max_workers=workers) as pool:
+        index_ctx = (
+            self._hoist_indexes_for_workers(tabla_destino, result, workers)
+            if resolve_index_mode(self._parallel.disable_indexes, "disable_indexes") and operation == "insert"
+            else contextlib.nullcontext()
+        )
+        # Constraints fuera e índices dentro: se reconstruyen los índices antes de reactivar las constraints (su validación
+        # los aprovecha), como en dump y en maintenance_scope.
+        with constraint_ctx as skip_maintenance, index_ctx, ThreadPoolExecutor(max_workers=workers) as pool:
             futures = [
                 pool.submit(
                     self._load_partition,
@@ -845,8 +859,9 @@ class ParallelBulkLoader:
         activa del ``bulk_session`` externo.
 
         ``disable_indexes`` se fuerza a ``False``: deshabilitar índices en
-        paralelo adquiere un lock DDL global en MSSQL (SCH-M) que serializa
-        la carga y cancela el beneficio del paralelismo.
+        cada worker adquiere un lock DDL global en MSSQL (SCH-M) que serializa
+        la carga; con ``ParallelOptions.disable_indexes`` se hace una vez antes
+        del pool (:meth:`_hoist_indexes_for_workers`).
         """
         total = 0
         # Reflejar antes de abrir la sesión: maintenance_scope y bulk_insert_from_df usan la tabla ya en caché y el worker
@@ -939,6 +954,59 @@ class ParallelBulkLoader:
             finally:
                 with self._engine.begin() as conn:
                     conn.execute(text(enable_table_integrity_sql(dialect, quoted)))
+
+    #: Motores donde, con varios hilos, desactivar los índices secundarios fue más lento en el banco (G0, 4 hilos,
+    #: 1M filas): tiempo total frente a no tocarlos.
+    _INDEXES_SLOWER_IN_PARALLEL: ClassVar[dict[str, str]] = {
+        "postgresql": "+3 % a +4 %",
+        "mariadb": "+11 %",
+    }
+
+    @contextmanager
+    def _hoist_indexes_for_workers(
+        self, tabla_destino: str, result: ParallelLoadResult, workers: int
+    ) -> Generator[None, None, None]:
+        """``ParallelOptions.disable_indexes``: desactiva una vez, antes del pool, los índices secundarios no únicos.
+
+        Misma estrategia que ``dump.IndexManager`` (``bulk/_support/secondary_indexes.py``), con una conexión propia y
+        un commit por sentencia (sin bloqueos largos; en SQL Server, el SCH-M de ``ALTER INDEX`` por worker serializaba
+        la carga). Los reconstruye al terminar, también si falla una partición, y deja un resultado por índice en
+        ``result.index_results``. Con varios hilos, en PostgreSQL y MariaDB fue más lento (la carga ya reparte el coste
+        de los índices y la reconstrucción es en serie): se aplica igualmente y se avisa.
+        """
+        dialect = self._engine.dialect.name
+        if dialect not in SUPPORTED_DIALECTS:
+            self.logger.warning(
+                "disable_indexes no está soportado en '%s': la carga de '%s' sigue sin tocar índices.",
+                dialect,
+                tabla_destino,
+            )
+            yield
+            return
+        slower = self._INDEXES_SLOWER_IN_PARALLEL.get(dialect)
+        if slower is not None and workers > 1:
+            self.logger.warning(
+                "disable_indexes en '%s' con %d hilos: en %s fue más lento en el banco (4 hilos, 1M filas: %s de tiempo "
+                "total); en SQL Server y Oracle sí compensa. Se aplica igualmente.",
+                tabla_destino,
+                workers,
+                dialect,
+                slower,
+            )
+        tabla = self._resolve_table(tabla_destino)
+        planner = SecondaryIndexPlanner(dialect, self._engine.dialect.identifier_preparer)
+        runner = IndexDdlRunner(dialect, self.logger, commit=True, savepoint=False)
+        quoted = self._engine.dialect.identifier_preparer.format_table(tabla)
+        with self._engine.connect() as conn:
+            disabled = runner.disable(
+                conn, planner.plan(conn, table=tabla.name, schema=tabla.schema, quoted_table=quoted)
+            )
+        try:
+            yield
+        finally:
+            if disabled:
+                with self._engine.connect() as conn:
+                    result.index_results = runner.restore(conn, disabled)
 
     @contextmanager
     def _hoist_oracle_constraints(self, tabla_destino: str) -> Generator[None, None, None]:

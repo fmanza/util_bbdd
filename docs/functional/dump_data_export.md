@@ -61,7 +61,7 @@ flowchart TD
 | Palanca | Parámetro | Efecto | Contrapartida |
 |---|---|---|---|
 | Cadencia de commit | `commit_every_n_chunks=N` | Commit cada N lotes; acota el undo log | La carga de la tabla deja de ser atómica |
-| Gestión de índices | `manage_indexes=True` | Deshabilita índices secundarios durante la carga | DROP+recreate en PostgreSQL (destructivo) |
+| Gestión de índices | `manage_indexes=True` | Deshabilita índices secundarios no únicos durante la carga | DROP+recreate en PostgreSQL y MySQL/MariaDB InnoDB (destructivo; el DDL se loguea antes de borrar) |
 | Paralelismo por tabla | `max_parallel_tables=N` | Carga tablas independientes en paralelo | Solo dentro del mismo nivel topológico FK |
 | Paralelismo por rangos PK | `parallel_pk_ranges=N` o `"auto"` | Particiona una tabla con PK entera en N rangos; con `"auto"` (v3.0.0) solo donde las mediciones dicen que gana (hoy, destino SQL Server desde 3,5M filas) | Requiere destino sin triggers per-fila |
 
@@ -70,7 +70,7 @@ flowchart TD
 - Sin transacción global: cada tabla se inserta en su propia transacción
 - Resincronización de secuencias/identidades: PostgreSQL, SQL Server, MariaDB, MySQL y Oracle ≥ 12c (en SQLite y HSQLDB queda como `unsupported`)
 - Gestión de constraints en SQL Server, MariaDB, MySQL, PostgreSQL y Oracle; en SQLite y HSQLDB se carga sin desactivarlas (WARNING)
-- Gestión de índices (`manage_indexes`) en SQL Server, Oracle y PostgreSQL; en MySQL/MariaDB no se aplica
+- Gestión de índices (`manage_indexes`) en SQL Server, Oracle, PostgreSQL y, desde v3.2.0, MySQL/MariaDB (InnoDB sin los índices que necesita una FK)
 - Paralelismo por rangos PK solo para tablas con PK de una única columna entera
 - El informe Excel usa `openpyxl` (dependencia de la librería, incluida en la instalación base)
 

@@ -84,6 +84,7 @@ from ._support.rejects import (
     RejectsCoordinator,
     RejectsWriter,
 )
+from ._support.secondary_indexes import IndexMode, resolve_index_mode
 from ._support.sql_helpers import (
     SqlColumns,
     build_override_identity_text_stmt,
@@ -1575,7 +1576,7 @@ class BulkCrud:
         self,
         tabla_destino: str,
         disable_constraints: bool = True,
-        disable_indexes: bool = False,
+        disable_indexes: bool | IndexMode = False,
         require_optimization: bool = False,
     ) -> Generator[MaintenanceScopeResult, None, None]:
         """Context manager que prepara la tabla para una carga de alto volumen (>1M).
@@ -1583,9 +1584,9 @@ class BulkCrud:
         Deshabilita temporalmente las comprobaciones de integridad y (opcionalmente)
         los índices para maximizar el rendimiento (throughput).
 
-        Soporte por motor:
-        - **MariaDB/MySQL**: Deshabilita `FOREIGN_KEY_CHECKS` a nivel de sesión.
-          Aplica `DISABLE KEYS` (aunque InnoDB suele ignorarlo; solo efectivo en MyISAM/Aria).
+        Soporte por motor (constraints):
+        - **MariaDB/MySQL**: Deshabilita `FOREIGN_KEY_CHECKS` a nivel de sesión. Con FK checks desactivadas tampoco se
+          ejecutan los ``ON DELETE/UPDATE CASCADE``: un DELETE o UPDATE dentro del bloque no los propaga a las hijas.
         - **Oracle**: Deshabilita cada FK, CHECK (no SYS_C) y UNIQUE con
           ``ALTER TABLE ... DISABLE CONSTRAINT``. Re-habilita con ``ENABLE VALIDATE``. En Oracle el DDL confirma la
           transacción: lo cargado en la sesión antes de entrar y lo cargado dentro del bloque queda confirmado al
@@ -1596,22 +1597,30 @@ class BulkCrud:
           cargadas con los triggers desactivados (audit H-01, 2026-09-27).
         - **SQL Server**: Ejecuta ``ALTER TABLE ... NOCHECK CONSTRAINT ALL``. Persiste en
           catálogo pero se restaura al salir del bloque.
-          Con ``disable_indexes=True`` deshabilita (``ALTER INDEX … DISABLE``) y reconstruye al salir los índices
-          NONCLUSTERED **no únicos**, solo en tablas sin índice CLUSTERED; los de PK y UNIQUE no se tocan.
         - **SQLite**: No soportado; opera sin optimización.
+
+        Índices (``disable_indexes``; desde 3.2.0, la misma estrategia que ``DumpConfig.manage_indexes``): se desactivan
+        los secundarios **no únicos** y se reconstruyen al salir (``index_results``); nunca los de PK/UNIQUE ni el
+        índice clustered. SQL Server ``ALTER INDEX … DISABLE``→``REBUILD`` (NONCLUSTERED; hasta 3.1.x solo en tablas sin
+        CLUSTERED); PostgreSQL ``DROP INDEX``→recreación desde ``pg_get_indexdef`` (se loguea antes; DDL dentro de la
+        transacción: el rollback de la sesión los devuelve); Oracle ``UNUSABLE``→``REBUILD`` (confirma la transacción,
+        como sus constraints); MyISAM/Aria ``DISABLE KEYS``; InnoDB ``DROP INDEX``→un ``ADD INDEX`` por tabla (sin los
+        que necesita una FK), **solo con** ``commit_every_n_chunks``: en la sesión atómica se omite, porque su DDL
+        confirmaría lo pendiente. Un índice que no se puede desactivar o reconstruir se avisa y no detiene al resto.
+        Medido en serie a 3,5M filas con 2 secundarios: entre −9 % (MariaDB) y −88 % (Oracle) de tiempo total.
 
         Args:
             tabla_destino: Nombre de la tabla destino (acepta "esquema.tabla").
             disable_constraints: Deshabilita FKs y triggers. Por defecto True.
-            disable_indexes: Deshabilita índices secundarios (MariaDB, MySQL y SQL Server).
-                Por defecto False.
+            disable_indexes: ``True`` o ``"secondary"`` (equivalentes): desactiva los índices secundarios no únicos
+                durante el bloque (ver arriba). Por defecto False.
             require_optimization: Si True y la optimización no puede aplicarse (p.ej.
                 PostgreSQL sin privilegios suficientes), lanza :exc:`RuntimeError` en lugar
                 de continuar en silencio. Por defecto False.
 
         Yields:
-            :class:`MaintenanceScopeResult` con ``optimization_applied`` y
-            ``constraint_results`` (disponibles tras salir del bloque ``with``).
+            :class:`MaintenanceScopeResult` con ``optimization_applied``, ``constraint_results`` e ``index_results``
+            (estos dos, disponibles tras salir del bloque ``with``).
 
         Ejemplo::
 
@@ -1625,7 +1634,9 @@ class BulkCrud:
         Raises:
             RuntimeError: Si se invoca fuera de un :meth:`bulk_session` activo, o si
                 ``require_optimization=True`` y la optimización no puede aplicarse.
+            ValueError: Si ``disable_indexes`` no es ``bool`` ni ``"secondary"``.
         """
+        index_mode = resolve_index_mode(disable_indexes, "disable_indexes")
         tabla = self.reflect_table(tabla_destino)
         # A5 (v1.1.0): la desactivación y restauración por motor viven en TableMaintenance (_execution/maintenance.py).
         # Se crea en cada llamada para usar el engine, la sesión y el _table_snapshot vigentes.
@@ -1640,7 +1651,7 @@ class BulkCrud:
             tabla,
             tabla_destino,
             disable_constraints=disable_constraints,
-            disable_indexes=disable_indexes,
+            disable_indexes=index_mode is not None,
             require_optimization=require_optimization,
         ) as result:
             yield result

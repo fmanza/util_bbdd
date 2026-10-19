@@ -15,7 +15,11 @@ from typing import Any
 
 from sqlalchemy import text
 
-from .mariadb.tables import fetch_table_storage_engine_sql
+from .mariadb.tables import (
+    fetch_nonunique_index_columns_sql,
+    fetch_table_fk_columns_sql,
+    fetch_table_storage_engine_sql,
+)
 from .oracle.indexes import fetch_secondary_nonunique_indexes_sql as _oracle_secondary_indexes_sql
 from .oracle.tables import fetch_identity_generation_sql
 from .postgresql.tables import (
@@ -85,11 +89,14 @@ def can_disable_triggers(conn: Any, schema: str | None, table: str) -> bool:
 def secondary_nonunique_indexes(
     conn: Any, schema: str | None, table: str, dialect: str | None = None
 ) -> list[tuple[str, str | None]]:
-    """Índices secundarios no únicos de una tabla que ``dump`` puede desactivar: ``[(nombre, DDL o None)]``.
+    """Índices secundarios no únicos de una tabla que ``bulk`` y ``dump`` pueden desactivar: ``[(nombre, DDL o None)]``.
 
     - SQL Server: ``NONCLUSTERED`` no únicos, sin PK ni constraint y habilitados (DDL ``None``).
     - Oracle: ``NORMAL`` no únicos que no respaldan una constraint (DDL ``None``).
     - PostgreSQL: no únicos, sin PK ni constraint, con su ``pg_get_indexdef`` para recrearlos.
+    - MariaDB/MySQL: BTREE no únicos de columnas completas en orden ascendente, visibles y sin comentario (sin
+      prefijos ni expresiones), que no empiezan por las columnas de una FK de la tabla ni por las que referencia una FK
+      de otra (InnoDB los necesita). DDL: la cláusula para ``ALTER TABLE … ADD`` (``INDEX `n` (`a`, `b`)``).
     - Resto: ``[]``.
 
     ``dialect`` (nombre de SQLAlchemy) evita leerlo de la conexión.
@@ -105,7 +112,54 @@ def secondary_nonunique_indexes(
     if dialect == "postgresql":
         rows = conn.execute(text(_pg_secondary_indexes_sql()), {"tbl": table, "schema": schema}).fetchall()
         return [(str(r[0]), str(r[1])) for r in rows]
+    if dialect in ("mysql", "mariadb"):
+        return _mysql_secondary_indexes(conn, schema, table)
     return []
+
+
+def _mysql_secondary_indexes(conn: Any, schema: str | None, table: str) -> list[tuple[str, str | None]]:
+    """MariaDB/MySQL: ver :func:`secondary_nonunique_indexes`."""
+    params = {"schema": schema, "tbl": table}
+    columns: dict[str, list[str]] = {}
+    rejected: set[str] = set()
+    for row in conn.execute(text(fetch_nonunique_index_columns_sql()), params):
+        info = {str(key).upper(): value for key, value in row._mapping.items()}
+        name = str(info["INDEX_NAME"])
+        simple = (
+            info.get("COLUMN_NAME") is not None  # MySQL 8: NULL en los índices funcionales
+            and info.get("SUB_PART") is None
+            and info.get("EXPRESSION") is None
+            and str(info.get("INDEX_TYPE") or "").upper() == "BTREE"
+            and str(info.get("COLLATION") or "A").upper() == "A"
+            and str(info.get("IS_VISIBLE") or "YES").upper() == "YES"
+            and str(info.get("IGNORED") or "NO").upper() == "NO"
+            and not str(info.get("INDEX_COMMENT") or "")
+        )
+        if not simple:
+            rejected.add(name)
+        columns.setdefault(name, []).append(str(info.get("COLUMN_NAME")))
+    fk_prefixes = _mysql_fk_column_lists(conn, params, table)
+    prep = conn.dialect.identifier_preparer
+    out: list[tuple[str, str | None]] = []
+    for name, cols in columns.items():
+        lowered = [c.lower() for c in cols]
+        if name in rejected or any(lowered[: len(fk)] == fk for fk in fk_prefixes):
+            continue
+        out.append((name, f"INDEX {prep.quote(name)} ({', '.join(prep.quote(c) for c in cols)})"))
+    return out
+
+
+def _mysql_fk_column_lists(conn: Any, params: dict[str, Any], table: str) -> list[list[str]]:
+    """Columnas (en minúsculas y en orden) de cada FK de la tabla y de cada FK de otra tabla que la referencia."""
+    child: dict[tuple[str, str, str], list[str]] = {}
+    parent: dict[tuple[str, str, str], list[tuple[int, str]]] = {}
+    for row in conn.execute(text(fetch_table_fk_columns_sql()), params):
+        key = (str(row[0]), str(row[1]), str(row[2]))
+        if str(row[1]).lower() == table.lower():
+            child.setdefault(key, []).append(str(row[3]).lower())
+        if str(row[5]).lower() == table.lower():
+            parent.setdefault(key, []).append((int(row[8] or row[7] or 0), str(row[6]).lower()))
+    return list(child.values()) + [[col for _, col in sorted(cols)] for cols in parent.values()]
 
 
 def foreign_key_definition(conn: Any, table_ref: str, name: str) -> Any:

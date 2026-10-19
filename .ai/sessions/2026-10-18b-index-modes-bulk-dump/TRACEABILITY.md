@@ -82,6 +82,14 @@ Ver `00_REQUEST.md` (solicitud inicial y cuatro ampliaciones en la misma sesión
 - **Rollback**: revertir el commit. Constraints dejadas deshabilitadas por cargas anteriores:
   `SELECT constraint_name FROM user_constraints WHERE status = 'DISABLED'` y `ALTER TABLE <t> ENABLE VALIDATE CONSTRAINT <c>`.
 
+## IMPLEMENT v3.2.0 (2026-10-19)
+
+- Alcance y cambios por fichero en `04_IMPLEMENT_3_2_0.md` (G1, G2, G3, G4 y G6; G5, G5b y G7 a 3.3.0).
+- Decisiones del usuario: G6 (InnoDB) en 3.2.0; en paralelo, aplicar y avisar donde empeora.
+- SQLAlchemy 2.1.5 instalado por el usuario a las 08:15 (intencionado): mypy pedía anotación en
+  `dump/orchestrator.py::_count_rows`; corregida sin cambio funcional.
+- Correcciones al AUDIT_PLAN: T5 (orden de los context managers) y cifras de MySQL en paralelo (ver `04_…`).
+
 ## Artefactos generados
 
 | Artefacto | Ruta | Estado |
@@ -89,6 +97,10 @@ Ver `00_REQUEST.md` (solicitud inicial y cuatro ampliaciones en la misma sesión
 | REQUEST | `.ai/sessions/2026-10-18b-index-modes-bulk-dump/00_REQUEST.md` | emitido |
 | PLAN | `.ai/sessions/2026-10-18b-index-modes-bulk-dump/01_PLAN.md` | emitido |
 | AUDIT_PLAN | `.ai/sessions/2026-10-18b-index-modes-bulk-dump/02_AUDIT_PLAN.md` | emitido (`GO_CONDICIONAL`) |
+| G0 | `.ai/sessions/2026-10-18b-index-modes-bulk-dump/03_G0_MEDICION.md` | emitido |
+| IMPLEMENT 3.2.0 | `.ai/sessions/2026-10-18b-index-modes-bulk-dump/04_IMPLEMENT_3_2_0.md` | completado |
+| Hotfix 3.1.1 | `5f11ffcb` | commit |
+| Hotfix 3.1.2 | `274f563d` | commit |
 
 ## Directrices para Futuras IAs
 - **[bulk/índices]**: `BulkCrud.maintenance_scope(disable_indexes=True)` y `dump.IndexManager` son dos implementaciones
@@ -102,6 +114,14 @@ Ver `00_REQUEST.md` (solicitud inicial y cuatro ampliaciones en la misma sesión
   2026-09-24); no convertirlo en error (rompería la sesión atómica por defecto).
 - **[paralelo]**: el DDL de tabla en `ParallelBulkLoader` debe hacerse una vez antes del pool
   (`_hoist_constraints_for_workers`), nunca por worker (lock SCH-M / ACCESS EXCLUSIVE).
+- **[bulk/índices]**: desde 3.2.0 el punto canónico es `bulk/_support/secondary_indexes.py` (`SecondaryIndexPlanner` +
+  `IndexDdlRunner`); `dump.IndexManager`, `TableMaintenance` y `ParallelBulkLoader._hoist_indexes_for_workers` solo
+  eligen conexión y modo (autónomo con commit por sentencia o en sesión con savepoint).
+- **[paralelo/orden]**: en `ParallelBulkLoader.load` el context manager de constraints va fuera y el de índices dentro
+  (los índices se reconstruyen antes de reactivar constraints).
+- **[mssql/tests]**: dentro de una sesión con `ALTER INDEX … DISABLE`, consultar `sys.indexes` desde otra conexión se
+  bloquea hasta el commit; usar la conexión de la sesión (`crud._session.connection`).
+- **[oracle/paralelo]**: DDL de constraints por worker falla con ORA-00054; siempre una vez antes del pool.
 - **[banco]**: MariaDB 11.4 no tiene change buffer y MySQL 8.4 lo trae desactivado: el argumento de que InnoDB ya
   amortigua el mantenimiento de secundarios no vale sin medir.
 

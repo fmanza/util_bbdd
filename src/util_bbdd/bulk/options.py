@@ -28,6 +28,7 @@ from ..audit.contracts import AuditSink
 from ._execution.batch import InsertStrategyResolver, validate_chunk_size
 from ._support.rejects import optional_non_negative_int, validate_isolation
 from ._support.retry import is_retriable
+from ._support.secondary_indexes import IndexMode, resolve_index_mode
 
 #: Modo de ejecución paralela: ``"off"`` en serie, ``"manual"`` los hilos pedidos (solo con los límites de seguridad),
 #: ``"auto"`` los que decide :class:`~util_bbdd.bulk.ParallelPlanner` con las mediciones del banco.
@@ -208,11 +209,16 @@ class ParallelOptions:
             regla (por debajo no hay medición).
         disable_constraints: Solo INSERT de ``ParallelBulkLoader``: desactiva las constraints de la tabla durante la
             carga (en SQL Server, PostgreSQL y Oracle una vez, antes de lanzar los hilos). Requiere permisos DDL.
+        disable_indexes: Solo INSERT de ``ParallelBulkLoader`` (v3.2.0): ``True`` o ``"secondary"`` desactiva una vez,
+            antes de lanzar los hilos, los índices secundarios no únicos de la tabla y los reconstruye al terminar
+            (misma estrategia que ``DumpConfig.manage_indexes``; resultados en ``ParallelLoadResult.index_results``).
+            Medido con 4 hilos y 1M filas: SQL Server −33 %, Oracle −82 % y MySQL −4 % a −6 % de tiempo total; en
+            PostgreSQL (+3 %) y MariaDB (+11 %) fue **más lento** (se aplica igualmente y se avisa). Requiere permisos DDL.
         retry: Reintentos por partición (:class:`RetryOptions`).
 
     Raises:
         ValueError: Si ``mode`` no es ``"off"``, ``"manual"`` ni ``"auto"``, ``max_workers`` no es un entero ≥ 1 o
-            ``min_rows`` no es ``None`` ni un entero ≥ 1.
+            ``min_rows`` no es ``None`` ni un entero ≥ 1, o ``disable_indexes`` no es ``bool`` ni ``"secondary"``.
     """
 
     mode: ParallelMode = "manual"
@@ -220,6 +226,7 @@ class ParallelOptions:
     partition_column: str | None = None
     min_rows: int | None = None
     disable_constraints: bool = False
+    disable_indexes: bool | IndexMode = False
     retry: RetryOptions = field(default_factory=RetryOptions)
 
     def __post_init__(self) -> None:
@@ -228,6 +235,7 @@ class ParallelOptions:
         _positive_int(self.max_workers, "max_workers")
         if self.min_rows is not None:
             _positive_int(self.min_rows, "min_rows")
+        resolve_index_mode(self.disable_indexes, "disable_indexes")
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -7,6 +7,50 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-10-19
+
+Sesión `.ai/sessions/2026-10-18b-index-modes-bulk-dump/` (PLAN, AUDIT_PLAN, G0 de medición e IMPLEMENT de la entrega
+3.2.0). SemVer: MINOR (parámetros y campos nuevos; cambios de comportamiento solo con `disable_indexes`/
+`manage_indexes` activados, documentados abajo). Requiere SQLAlchemy ≥ 2.0.46 (probado también con 2.1.5).
+
+### Added
+
+- **bulk**: estrategia común de índices secundarios no únicos para `bulk` y `dump`
+  (`bulk/_support/secondary_indexes.py`): SQL Server `ALTER INDEX … DISABLE`→`REBUILD` (NONCLUSTERED), Oracle
+  `UNUSABLE`→`REBUILD`, PostgreSQL `DROP INDEX`→`pg_get_indexdef` con `IF NOT EXISTS`, MariaDB/MySQL InnoDB
+  `DROP INDEX`→un único `ALTER TABLE … ADD INDEX …` por tabla y MyISAM/Aria `DISABLE KEYS`. Nunca toca PK, UNIQUE, el
+  índice clustered ni, en InnoDB, los índices que necesita una FK (como hija o como referenciada); en MariaDB/MySQL
+  solo índices BTREE de columnas completas, ascendentes, visibles y sin comentario. El DDL de lo que se borra se loguea
+  antes. Un índice que falla al desactivarse o reconstruirse se avisa y no detiene al resto.
+- **bulk (`ParallelOptions.disable_indexes`)**: `True` o `"secondary"` desactiva los índices una vez antes de lanzar
+  los hilos y los reconstruye al terminar (también si falla una partición); `ParallelLoadResult.index_results`. Con 4
+  hilos y 1M filas: SQL Server −33 %, Oracle −82 %, MySQL −4 a −6 %; en PostgreSQL (+3 %) y MariaDB (+11 %) es más
+  lento: se aplica igualmente con un WARNING.
+- **bulk**: `MaintenanceScopeResult.index_results` (un `IndexActionResult` por índice).
+- **metadata**: `facts.secondary_nonunique_indexes` para MariaDB/MySQL (consultas en `metadata/mariadb/tables.py`).
+- **scripts**: `scripts/bench_index_modes.py` (modos `none`/`secondary`/`all`, `FOREIGN_KEY_CHECKS`, `unique_checks`,
+  MyISAM, paralelo y `--probes`); resultados en la sesión (`03_G0_MEDICION.md`) y en
+  `docs/guides/performance_audit_constraints_guide.md`.
+
+### Changed
+
+- **bulk (`maintenance_scope(disable_indexes=True)`)**: usa la estrategia común. Acepta `True` o `"secondary"` (otro
+  valor: `ValueError`). Cambios de comportamiento con el parámetro activado:
+  - SQL Server: también en tablas **con** índice clustered (hasta 3.1.x solo en heaps); cada sentencia en un savepoint.
+  - PostgreSQL y Oracle: antes no hacía nada; ahora `DROP`/recreación (PostgreSQL, dentro de la transacción de la
+    sesión: el rollback devuelve los índices; requiere ser propietario) y `UNUSABLE`/`REBUILD` (Oracle; confirma la
+    transacción, como sus constraints).
+  - MariaDB/MySQL InnoDB: con `commit_every_n_chunks`, `DROP INDEX`/`ADD INDEX` (su DDL confirma lo pendiente); en la
+    sesión atómica por defecto se sigue omitiendo con un INFO.
+  - Medido en serie a 3,5M filas con 2 secundarios: PostgreSQL −25 %, MySQL −16 %, MariaDB −9 %, SQL Server −22 %,
+    Oracle −88 % de tiempo total.
+- **dump (`DumpConfig.manage_indexes`)**: adaptador de la estrategia común; acepta `True` o `"secondary"`. MariaDB/MySQL
+  deja de devolver `action="unsupported"`: InnoDB recrea sus índices (`"recreated"`) y MyISAM/Aria hace `DISABLE KEYS`
+  (`index_name="*"`, `"rebuilt"`). PostgreSQL recrea con `CREATE INDEX IF NOT EXISTS`.
+- **bulk/dump**: `IndexActionResult` vive en `util_bbdd.bulk._models`; `util_bbdd.dump.IndexActionResult` es la misma
+  clase (sin cambios para quien la importa de `dump`).
+- **dump (`orchestrator`)**: anotación de tipos para SQLAlchemy 2.1 en `_count_rows` (sin cambio funcional).
+
 ## [3.1.2] - 2026-10-19
 
 Hotfix de la sesión `.ai/sessions/2026-10-18b-index-modes-bulk-dump/` (hallazgo de G0). SemVer: PATCH (corrección

@@ -287,20 +287,94 @@ class TestMaintenanceScopeSQLServer:
         sqls = _sql_calls(conn)
         assert sqls.index('ALTER INDEX "ix_a" ON "t" DISABLE') < sqls.index('ALTER INDEX "ix_a" ON "t" REBUILD')
 
-    def test_skip_disable_indexes_when_clustered_exists(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_tables_with_clustered_index_also_disable_secondary_indexes(self) -> None:
+        """3.2.0: estrategia común con dump; la condición de «solo heaps» de 3.1.x desaparece (el clustered no se toca)."""
         crud, conn = _make_mssql_crud_with_secondary_indexes(["ix_a"], clustered=1)
-        with caplog.at_level(logging.WARNING):
-            with crud.maintenance_scope("t", disable_indexes=True):
-                assert 'ALTER INDEX "ix_a" ON "t" DISABLE' not in _sql_calls(conn)
-        sqls = _sql_calls(conn)
-        assert not [sql for sql in sqls if sql.startswith("ALTER INDEX")]
-        assert any("CLUSTERED" in msg for msg in caplog.messages)
+        with crud.maintenance_scope("t", disable_indexes=True) as ms:
+            assert 'ALTER INDEX "ix_a" ON "t" DISABLE' in _sql_calls(conn)
+        assert 'ALTER INDEX "ix_a" ON "t" REBUILD' in _sql_calls(conn)
+        assert [(r.index_name, r.action) for r in ms.index_results] == [("ix_a", "rebuilt")]
 
-    def test_no_rebuild_when_clustered_prevented_disable(self) -> None:
-        crud, conn = _make_mssql_crud_with_secondary_indexes(["ix_a"], clustered=1)
-        with crud.maintenance_scope("t", disable_indexes=True):
+    def test_each_index_ddl_runs_in_a_savepoint(self) -> None:
+        crud, conn = _make_mssql_crud_with_secondary_indexes(["ix_a", "ix_b"])
+        with crud.maintenance_scope("t", disable_constraints=False, disable_indexes=True):
             pass
+        assert conn.begin_nested.call_count == 4  # 2 DISABLE + 2 REBUILD
+        conn.commit.assert_not_called()  # la sesión confirma al salir, no cada sentencia
+
+
+# ---------------------------------------------------------------------------
+# Índices: estrategia común con dump (3.2.0)
+# ---------------------------------------------------------------------------
+
+
+class TestMaintenanceScopeIndexStrategy:
+    def test_postgresql_drops_and_recreates_with_if_not_exists(self, caplog: pytest.LogCaptureFixture) -> None:
+        crud, conn = _make_crud_for_dialect("postgresql")
+        crud.engine.dialect.identifier_preparer.quote.side_effect = lambda name: f'"{name}"'  # type: ignore[attr-defined]
+        ddl = "CREATE INDEX ix_a ON public.t USING btree (a)"
+        with (
+            patch(_SECONDARY_INDEXES, return_value=[("ix_a", ddl)]),
+            caplog.at_level(logging.WARNING),
+            crud.maintenance_scope("t", disable_constraints=False, disable_indexes="secondary") as ms,
+        ):
+            assert 'DROP INDEX "ix_a"' in _sql_calls(conn)
+        assert "CREATE INDEX IF NOT EXISTS ix_a ON public.t USING btree (a)" in _sql_calls(conn)
+        assert ddl in caplog.text  # DDL de recuperación antes del DROP
+        assert [(r.index_name, r.action) for r in ms.index_results] == [("ix_a", "recreated")]
+
+    def test_oracle_marks_unusable_and_rebuilds_without_savepoint(self) -> None:
+        crud, conn = _make_crud_for_dialect("oracle")
+        crud.engine.dialect.identifier_preparer.quote.side_effect = lambda name: name  # type: ignore[attr-defined]
+        with (
+            patch(_SECONDARY_INDEXES, return_value=[("IX_A", None)]),
+            crud.maintenance_scope("t", disable_constraints=False, disable_indexes=True),
+        ):
+            assert "ALTER INDEX IX_A UNUSABLE" in _sql_calls(conn)
+        assert "ALTER INDEX IX_A REBUILD" in _sql_calls(conn)
+        conn.begin_nested.assert_not_called()
+
+    @pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
+    def test_innodb_with_commit_cadence_drops_and_adds_in_one_alter(self, dialect: str) -> None:
+        crud, conn = _make_crud_for_dialect(dialect)
+        crud.engine.dialect.identifier_preparer.quote.side_effect = lambda name: f"`{name}`"  # type: ignore[attr-defined]
+        crud._batch_statement_executor.cadence.every = 10
+        with (
+            patch("util_bbdd.metadata.facts.storage_engine", return_value="InnoDB"),
+            patch(_SECONDARY_INDEXES, return_value=[("ix_a", "INDEX `ix_a` (`a`)"), ("ix_b", "INDEX `ix_b` (`b`)")]),
+            crud.maintenance_scope("t", disable_constraints=False, disable_indexes=True) as ms,
+        ):
+            pass
+        assert [sql for sql in _sql_calls(conn) if sql.startswith("ALTER TABLE")] == [
+            'ALTER TABLE "t" DROP INDEX `ix_a`',
+            'ALTER TABLE "t" DROP INDEX `ix_b`',
+            'ALTER TABLE "t" ADD INDEX `ix_a` (`a`), ADD INDEX `ix_b` (`b`)',
+        ]
+        assert [r.action for r in ms.index_results] == ["recreated", "recreated"]
+
+    def test_unknown_index_mode_is_rejected(self) -> None:
+        crud, _ = _make_crud_for_dialect("postgresql")
+        with pytest.raises(ValueError, match="disable_indexes"):
+            with crud.maintenance_scope("t", disable_indexes="all"):  # type: ignore[arg-type]
+                pass
+
+    def test_failed_disable_is_skipped_and_not_restored(self, caplog: pytest.LogCaptureFixture) -> None:
+        from sqlalchemy.exc import SQLAlchemyError
+
+        crud, conn = _make_mssql_crud_with_secondary_indexes(["ix_a", "ix_b"])
+
+        def execute(stmt: object, *args: object, **kwargs: object) -> MagicMock:
+            if 'ALTER INDEX "ix_a" ON "t" DISABLE' in str(stmt):
+                raise SQLAlchemyError("locked")
+            return MagicMock()
+
+        conn.execute.side_effect = execute
+        with caplog.at_level(logging.WARNING):
+            with crud.maintenance_scope("t", disable_constraints=False, disable_indexes=True) as ms:
+                pass
         assert 'ALTER INDEX "ix_a" ON "t" REBUILD' not in _sql_calls(conn)
+        assert [r.index_name for r in ms.index_results] == ["ix_b"]
+        assert any("ix_a" in msg for msg in caplog.messages)
 
 
 # ---------------------------------------------------------------------------

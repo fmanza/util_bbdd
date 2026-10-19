@@ -1,8 +1,8 @@
 """Desactivación y restauración de constraints e índices de una tabla durante una carga masiva.
 
-Cuerpo de :meth:`BulkCrud.maintenance_scope`, extraído de ``bulk/crud.py`` en v1.1.0 (A5, SRP de ``BulkCrud`` por dentro)
-sin cambios de comportamiento: mismo SQL por motor, mismo orden de restauración y mismos mensajes en el logger de
-``BulkCrud``. La firma pública, el resultado (:class:`MaintenanceScopeResult`) y la documentación siguen en ``BulkCrud``.
+Cuerpo de :meth:`BulkCrud.maintenance_scope`, extraído de ``bulk/crud.py`` en v1.1.0 (A5, SRP de ``BulkCrud`` por dentro).
+Desde 3.2.0 los índices siguen la estrategia común con ``dump`` (``bulk/_support/secondary_indexes.py``). La firma
+pública, el resultado (:class:`MaintenanceScopeResult`) y la documentación siguen en ``BulkCrud``.
 """
 
 from __future__ import annotations
@@ -18,13 +18,14 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from ...metadata import facts
 from ...metadata.model import Kind
-from .._models import MaintenanceScopeConstraintResult, MaintenanceScopeResult
+from .._models import IndexActionResult, MaintenanceScopeConstraintResult, MaintenanceScopeResult
 from .._support.dialect import (
     MYSQL_FAMILY,
     can_disable_pg_triggers,
     disable_table_integrity_sql,
     enable_table_integrity_sql,
 )
+from .._support.secondary_indexes import SUPPORTED_DIALECTS, IndexDdlRunner, IndexStep, SecondaryIndexPlanner
 from .session import CommitCadence, SessionScope
 
 
@@ -56,8 +57,6 @@ class TableMaintenance:
         self._cadence: CommitCadence = cadence
         self._table_snapshot: Callable[[Table, set[Kind]], Any] = table_snapshot
         self.logger: logging.Logger = logger
-        # SQL Server: índices NONCLUSTERED no únicos deshabilitados por _disable_indexes (una instancia por scope).
-        self._mssql_disabled_indexes: list[str] = []
 
     @contextmanager
     def scope(
@@ -83,13 +82,13 @@ class TableMaintenance:
 
         pg_disabled = False
         mssql_constraints_disabled = False
-        indexes_disabled = False
+        indexes_disabled: list[IndexStep] = []
         oracle_disabled: list[str] = []
         result = MaintenanceScopeResult()
 
         def restore(on: Any = conn) -> list[MaintenanceScopeConstraintResult]:
             if disable_indexes:
-                self._enable_indexes(on, dialect, quoted_name, indexes_disabled)
+                result.index_results = self._enable_indexes(on, dialect, indexes_disabled)
             if disable_constraints:
                 return self._enable_constraints(
                     on, dialect, quoted_name, tabla, pg_disabled, mssql_constraints_disabled, oracle_disabled
@@ -219,55 +218,42 @@ class TableMaintenance:
         quoted_name: str,
         tabla: Table,
         tabla_destino: str,
-    ) -> bool:
-        """Deshabilita índices secundarios por motor; retorna True si se deshabilitaron (hay que restaurarlos)."""
-        if dialect in MYSQL_FAMILY:
-            # DISABLE KEYS solo tiene efecto en MyISAM/Aria (no transaccionales). En InnoDB el servidor lo ignora, pero
-            # como DDL provoca un commit implícito que rompía la atomicidad de la sesión (auditoría de bulk
-            # 2026-09-24, hallazgo 8): solo se ejecuta cuando sirve.
-            storage_engine = facts.storage_engine(conn, tabla.schema, tabla.name)
-            if str(storage_engine or "").upper() in ("MYISAM", "ARIA"):
-                conn.execute(text(f"ALTER TABLE {quoted_name} DISABLE KEYS"))
-                return True
-            self.logger.info(
-                f"ℹ️ Se omite DISABLE KEYS en {tabla_destino}: motor {storage_engine} (solo tiene efecto en MyISAM/Aria "
-                "y en InnoDB provocaría un commit implícito)."
-            )
-            return False
-        if dialect == "mssql":
-            has_clustered = facts.clustered_index_count(conn, tabla_destino)
-            if has_clustered == 0:
-                # Hotfix 2026-10-19: solo los NONCLUSTERED no únicos. ``ALTER INDEX ALL … DISABLE`` desactivaba también los
-                # de PK/UNIQUE: se aceptaban duplicados y SQL Server deshabilitaba las FK entrantes, que REBUILD no reactiva.
-                prep = self.engine.dialect.identifier_preparer
-                self._mssql_disabled_indexes = [
-                    name for name, _ in facts.secondary_nonunique_indexes(conn, tabla.schema, tabla.name, "mssql")
-                ]
-                for name in self._mssql_disabled_indexes:
-                    conn.execute(text(f"ALTER INDEX {prep.quote(name)} ON {quoted_name} DISABLE"))
-                return bool(self._mssql_disabled_indexes)
-            self.logger.warning(
-                f"⚠️ La tabla {tabla_destino} tiene un índice CLUSTERED. "
-                "Se omite la desactivación masiva de índices para mantener la tabla accesible."
-            )
-        return False
+    ) -> list[IndexStep]:
+        """Deshabilita los índices secundarios no únicos (estrategia común con ``dump``); devuelve los que hay que restaurar.
 
-    def _enable_indexes(
-        self,
-        conn: Any,
-        dialect: str,
-        quoted_name: str,
-        disabled: bool,
-    ) -> None:
-        """Restaura los índices deshabilitados por ``_disable_indexes``."""
+        En la conexión de la sesión. SQL Server y PostgreSQL: DDL transaccional, cada sentencia en un savepoint (un fallo
+        no aborta la sesión y su rollback deshace la desactivación). Oracle: el DDL confirma la transacción (como sus
+        constraints). MariaDB/MySQL InnoDB: ``DROP INDEX`` confirma la transacción, así que solo se aplica con
+        ``commit_every_n_chunks`` (sesión no atómica); en la sesión atómica se omite (auditoría de bulk 2026-09-24,
+        hallazgo 8). MyISAM/Aria: ``DISABLE KEYS``.
+        """
+        if dialect in MYSQL_FAMILY and self._cadence.every is None:
+            storage_engine = facts.storage_engine(conn, tabla.schema, tabla.name)
+            if str(storage_engine or "").upper() not in ("MYISAM", "ARIA"):
+                self.logger.info(
+                    f"ℹ️ Se omite la desactivación de índices en {tabla_destino}: motor {storage_engine}. En InnoDB el "
+                    "DROP INDEX provocaría un commit implícito y la sesión dejaría de ser atómica; se aplica con "
+                    "commit_every_n_chunks, en dump (manage_indexes) y en la carga paralela."
+                )
+                return []
+        if dialect not in SUPPORTED_DIALECTS:
+            return []
+        planner = SecondaryIndexPlanner(dialect, self.engine.dialect.identifier_preparer)
+        steps = planner.plan(conn, table=tabla.name, schema=tabla.schema, quoted_table=quoted_name)
+        if dialect in MYSQL_FAMILY and any(step.grouped for step in steps):
+            self.logger.warning(
+                f"⚠️ {tabla_destino}: DROP INDEX en InnoDB confirma lo pendiente de la sesión (commit implícito)."
+            )
+        return self._index_runner(dialect).disable(conn, steps)
+
+    def _enable_indexes(self, conn: Any, dialect: str, disabled: list[IndexStep]) -> list[IndexActionResult]:
+        """Restaura los índices deshabilitados por ``_disable_indexes``; un resultado por índice."""
         if not disabled:
-            return
-        if dialect in MYSQL_FAMILY:
-            conn.execute(text(f"ALTER TABLE {quoted_name} ENABLE KEYS"))
-        elif dialect == "mssql":
-            prep = self.engine.dialect.identifier_preparer
-            for name in self._mssql_disabled_indexes:
-                conn.execute(text(f"ALTER INDEX {prep.quote(name)} ON {quoted_name} REBUILD"))
+            return []
+        return self._index_runner(dialect).restore(conn, disabled)
+
+    def _index_runner(self, dialect: str) -> IndexDdlRunner:
+        return IndexDdlRunner(dialect, self.logger, commit=False, savepoint=dialect in ("mssql", "postgresql"))
 
     def _enable_constraints(
         self,

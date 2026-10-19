@@ -99,7 +99,7 @@ afectado (`ConstraintManager` desactiva una vez). Pendiente de RCA → candidato
 | G1–G3 (`"secondary"` en serie) | **Justificado en los 5 motores** (D3 a 3,5M) |
 | G6 (InnoDB DROP/ADD) | **Sube a 3.2.0**: MySQL +16 %, MariaDB +9 % a 3,5M; el argumento del change buffer no vale en estas versiones |
 | G5 (`"all"`) | Justificado en los 5 motores en serie (+15 % a +89 % a 3,5M); sigue en 3.3.0 con las salvaguardas del AUDIT_PLAN |
-| G4 (`ParallelOptions.disable_indexes`) | Solo compensa en SQL Server y Oracle; en PostgreSQL/MySQL/MariaDB **empeora**. Documentarlo y avisar (o no aplicarlo) en esos motores; nunca automático |
+| G4 (`ParallelOptions.disable_indexes`) | Con `"secondary"` compensa en SQL Server (−33 %), Oracle (−82 %) y poco en MySQL (−4 a −6 %); **empeora** en PostgreSQL (+3 a +4 %) y MariaDB (+11 %). Con `"all"` empeoran los tres. Decisión del usuario: aplicarlo y avisar; nunca automático |
 | G5b (`validate_fks_after`) | Coste no medido todavía |
 | `unique_checks` | Pendiente de medir con `sec2u` |
 

@@ -36,8 +36,8 @@ Antes de auditar, conviene saber qué desactiva la librería por su cuenta:
 
 | Punto de entrada | Qué desactiva y cómo lo restaura | Referencia |
 |---|---|---|
-| `BulkCrud.maintenance_scope(tabla, disable_constraints=True, disable_indexes=False, require_optimization=False)` | MariaDB/MySQL: `FOREIGN_KEY_CHECKS=0` (y `DISABLE KEYS` solo en MyISAM/Aria). PostgreSQL: `DISABLE TRIGGER ALL` si el usuario es propietario o superusuario, con comprobación de filas huérfanas de cada FK al restaurar. SQL Server: `NOCHECK CONSTRAINT ALL` y, con `disable_indexes`, `ALTER INDEX … DISABLE` de cada índice NONCLUSTERED no único (los de PK y UNIQUE no se tocan) solo si la tabla no tiene índice CLUSTERED. Oracle: `DISABLE`/`ENABLE VALIDATE CONSTRAINT` de cada FK, CHECK con nombre y UNIQUE. Requiere `bulk_session()` | [BulkCrud](../api/bulk_crud.md) |
-| `ParallelBulkLoader(parallel=ParallelOptions(disable_constraints=True))` | Solo en el INSERT. En SQL Server, PostgreSQL y Oracle desactiva una vez antes de lanzar los hilos; en el resto, cada worker usa `maintenance_scope`. Nunca desactiva índices (en SQL Server bloquearía la tabla entre hilos) | [Carga paralela](../api/bulk_parallel.md) |
+| `BulkCrud.maintenance_scope(tabla, disable_constraints=True, disable_indexes=False, require_optimization=False)` | MariaDB/MySQL: `FOREIGN_KEY_CHECKS=0` (tampoco se ejecutan los `ON DELETE/UPDATE CASCADE`). PostgreSQL: `DISABLE TRIGGER ALL` si el usuario es propietario o superusuario, con comprobación de filas huérfanas de cada FK al restaurar. SQL Server: `NOCHECK CONSTRAINT ALL`. Oracle: `DISABLE`/`ENABLE VALIDATE CONSTRAINT` de cada FK, CHECK con nombre y UNIQUE. Con `disable_indexes` (v3.2.0, estrategia común con `dump`): índices secundarios no únicos, SQL Server `DISABLE`→`REBUILD`, Oracle `UNUSABLE`→`REBUILD`, PostgreSQL `DROP`→recreación, MyISAM/Aria `DISABLE KEYS`, InnoDB `DROP`→`ADD` solo con `commit_every_n_chunks`; nunca PK/UNIQUE ni el clustered. Requiere `bulk_session()` | [BulkCrud](../api/bulk_crud.md) |
+| `ParallelBulkLoader(parallel=ParallelOptions(disable_constraints=True))` | Solo en el INSERT. En SQL Server, PostgreSQL y Oracle desactiva una vez antes de lanzar los hilos; en el resto, cada worker usa `maintenance_scope`. Los índices, con `disable_indexes` (v3.2.0): una vez antes de lanzar los hilos; compensa en SQL Server y Oracle (y poco en MySQL), no en PostgreSQL ni MariaDB | [Carga paralela](../api/bulk_parallel.md) |
 | `DumpOrchestrator` | Desactiva las constraints del destino durante la carga y las rehabilita al final (`DumpResult.constraint_results`); `DumpConfig.manage_indexes=True` gestiona además los índices | [Volcado](../api/dump.md) |
 
 La auditoría sirve para decidir si esas palancas compensan en tu caso y qué validar después.
@@ -470,6 +470,34 @@ python scripts/bench_bulk.py --engines postgresql --sizes 100000,1000000 --ops i
 `bench_bulk.py` escribe `results.csv`, `summary.md` y `environment.json` en `--out`. Para comparar con constraints
 desactivadas, mide tu propia carga dentro de `bulk_session()` + `maintenance_scope(...)` frente a la misma carga sin él.
 Los tests de comportamiento (no de rendimiento) de `maintenance_scope` están en `tests/unit/bulk/test_maintenance_scope.py`.
+
+### Índices secundarios durante la carga (v3.2.0)
+
+`maintenance_scope(disable_indexes=True)`, `ParallelOptions(disable_indexes=True)` y `DumpConfig(manage_indexes=True)`
+comparten estrategia: desactivan los índices secundarios **no únicos** y los reconstruyen al final; nunca PK, UNIQUE ni
+el índice clustered. Medido en el banco con `scripts/bench_index_modes.py` (tiempo total: desactivar + cargar +
+reconstruir; PK + 2 secundarios + 1 UNIQUE):
+
+| Motor | En serie, 3,5M filas | 4 hilos, 1M filas |
+|---|---|---|
+| PostgreSQL 17 | −25 % | +3 % a +4 % (más lento) |
+| MySQL 8.4 | −16 % | −4 % a −6 % |
+| MariaDB 11.4 | −9 % | +11 % (más lento) |
+| SQL Server 2022 | −22 % | −32 % a −34 % |
+| Oracle Free 23 | −88 % | −81 % a −82 % |
+
+Compensa más cuantos más índices tenga la tabla y con filas desordenadas. En paralelo, PostgreSQL y MariaDB
+ya reparten el coste de los índices entre hilos y la reconstrucción va en serie: se aplica igualmente, con un aviso.
+En MariaDB/MySQL, `FOREIGN_KEY_CHECKS=0` (`disable_constraints=True`) ganó además un 9 % en una tabla con 2 FK. La
+cifra de Oracle está inflada por el banco (2 CPU, columnas indexadas de baja cardinalidad); la dirección es robusta.
+Detalle: `.ai/sessions/2026-10-18b-index-modes-bulk-dump/03_G0_MEDICION.md`.
+
+```bash
+python scripts/bench_index_modes.py --engines postgresql,mssql --rows 1000000 --profiles sec2u --repeat 3 \
+    --out build/logs/bench_index_modes.md
+python scripts/bench_index_modes.py --engines mysql,mariadb --profiles fk2 --constraints on,off --unique-checks on,off
+python scripts/bench_index_modes.py --engines mssql,mysql,mariadb --probes-only   # comprobaciones de corrección
+```
 
 ---
 

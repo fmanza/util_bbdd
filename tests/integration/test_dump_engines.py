@@ -196,6 +196,37 @@ def test_dump_copies_values_exactly(setup: Setup, request: pytest.FixtureRequest
     assert got == VALUES
 
 
+@pytest.mark.parametrize("setup", _target_params(), indirect=True)
+def test_manage_indexes_restores_secondary_indexes(setup: Setup, request: pytest.FixtureRequest) -> None:
+    """3.2.0: estrategia común con ``BulkCrud``; MariaDB/MySQL (InnoDB) pasa de «unsupported» a recrear sus índices."""
+    from sqlalchemy import Index
+
+    source_table = _values_table(setup.name("ix"), schema=setup.source_schema)
+    source_table.create(setup.source)
+    with setup.source.begin() as conn:
+        conn.execute(
+            source_table.insert(), [dict(zip(("id", "big", "amount", "s"), row, strict=True)) for row in VALUES]
+        )
+    target_table = _values_table(setup.name("ix"))
+    Index(f"{setup.prefix}_ix_s", target_table.c.s)
+    Index(f"{setup.prefix}_ix_big", target_table.c.big)
+    _create(request, setup.target, target_table)
+
+    def indexes() -> list[str]:
+        return sorted(
+            str(i["name"]).lower() for i in inspect(setup.target).get_indexes(target_table.name) if not i["unique"]
+        )
+
+    before = indexes()
+    result = setup.run(["ix"], manage_indexes=True)
+
+    assert [r.status for r in result.table_results] == ["success"], [r.error_msg for r in result.table_results]
+    assert indexes() == before
+    assert result.index_results is not None
+    assert sorted(r.index_name.lower() for r in result.index_results) == before
+    assert {r.action for r in result.index_results} <= {"rebuilt", "recreated"}
+
+
 def _parent_child(
     engine: Engine, prefix: str, *, schema: str | None = None, identity: bool = True
 ) -> tuple[Table, Table]:

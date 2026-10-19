@@ -106,7 +106,7 @@ El volcado es correcto cuando: `errores` está vacío, `result.report` apunta a 
 | Palanca | Parámetro `DumpConfig` | Efecto | Contrapartida |
 |---|---|---|---|
 | Cadencia de commit | `commit_every_n_chunks=N` | Commit cada N lotes; acota el undo log | La carga de la tabla deja de ser atómica |
-| Gestión de índices | `manage_indexes=True` | Deshabilita índices secundarios durante la carga | DROP+recreate en PostgreSQL (destructivo) |
+| Gestión de índices | `manage_indexes=True` | Deshabilita índices secundarios no únicos durante la carga | DROP+recreate en PostgreSQL y MySQL/MariaDB InnoDB (destructivo; el DDL se loguea antes de borrar) |
 | Paralelismo por tabla | `max_parallel_tables=N` | Tablas independientes en paralelo | Solo dentro del mismo nivel topológico FK |
 | Paralelismo por rangos PK | `parallel_pk_ranges=N` o `"auto"` | Particiona una tabla con PK entera en N rangos; con `"auto"` (v3.0.0) solo donde las mediciones dicen que gana (hoy, destino SQL Server desde 3,5M filas) | Requiere destino sin triggers per-fila |
 
