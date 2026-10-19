@@ -1312,7 +1312,8 @@ class DumpOrchestrator:
         quoted = quote_table(table, schema, engine)
         with engine.connect() as conn:
             result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted}"))
-            val = result.scalar_one()
+            # SQLAlchemy 2.1: un text() sin columnas tipadas infiere un resultado sin tipo y mypy pide la anotación.
+            val: Any = result.scalar_one()
             return int(val) if val is not None else 0
 
     _build_fk_graph = staticmethod(_fk_graph.build_fk_graph)
