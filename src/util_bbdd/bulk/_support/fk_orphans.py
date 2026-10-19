@@ -16,7 +16,8 @@ def orphan_check_sql(dialect: str, prep: Any, child: str, fk: Mapping[str, Any])
     """SQL de la primera fila huérfana de ``fk`` en ``child`` (ya citada); ``None`` si la FK está mal formada.
 
     Args:
-        dialect: Nombre del dialecto (límite de filas: ``LIMIT``, ``TOP`` o ``FETCH FIRST``).
+        dialect: Nombre del dialecto (límite de filas: ``LIMIT``, ``TOP`` o, en Oracle, ``ROWNUM``: 11g no tiene
+            ``FETCH FIRST``).
         prep: ``identifier_preparer`` del dialecto.
         child: Tabla hija citada.
         fk: ``constrained_columns``, ``referred_schema``, ``referred_table`` y ``referred_columns`` (como
@@ -41,7 +42,7 @@ def orphan_check_sql(dialect: str, prep: Any, child: str, fk: Mapping[str, Any])
     if dialect == "mssql":
         return f"SELECT TOP 1 1 {body}"
     if dialect == "oracle":
-        return f"SELECT 1 {body} FETCH FIRST 1 ROWS ONLY"
+        return f"SELECT 1 {body} AND ROWNUM = 1"
     return f"SELECT 1 {body} LIMIT 1"
 
 

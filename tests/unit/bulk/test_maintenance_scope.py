@@ -791,6 +791,19 @@ class TestMaintenanceScopeAllMode:
         assert [r.action for r in ms.index_results] == ["failed"]
         assert any("disable_indexes='all'" in msg for msg in caplog.messages)
 
+    def test_innodb_atomic_session_does_not_warn_that_uniques_were_disabled(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Auditoría 2026-10-19: en la sesión atómica de InnoDB no se toca ningún índice; no se avisa de que sí."""
+        crud, conn = _make_crud_for_dialect("mysql")
+        with caplog.at_level(logging.INFO):
+            with crud.maintenance_scope("t", disable_indexes="all", validate_fks_after=False) as ms:
+                pass
+        assert ms.index_results == []
+        assert not any("disable_indexes='all'" in msg for msg in caplog.messages)
+        assert any("Se omite la desactivación de índices" in msg for msg in caplog.messages)
+        assert not any("DROP INDEX" in sql for sql in _sql_calls(conn))
+
 
 class TestMaintenanceScopeValidateFksAfter:
     @pytest.mark.parametrize("dialect", ["mysql", "mariadb"])

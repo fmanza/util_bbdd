@@ -85,14 +85,20 @@ def fetch_unique_indexes_sql() -> str:
 
     Parámetros: ``:tbl`` y ``:schema`` (``None`` = ``current_schema()``).
 
+    ``columns[]`` son las columnas de la clave (sin las de ``INCLUDE`` y sin los elementos que son expresiones);
+    ``key_sql[]``, cada elemento de la clave tal como lo escribe ``pg_get_indexdef(oid, n, true)`` (columna citada o
+    expresión, p. ej. ``lower((email)::text)``), para buscar duplicados.
+
     Returns:
-        str: SQL para (index_name, constraint_name, contype, indexdef, constraintdef, columns[]).
+        str: SQL para (index_name, constraint_name, contype, indexdef, constraintdef, columns[], key_sql[]).
     """
     return (
         "SELECT ic.relname, con.conname, con.contype, pg_get_indexdef(i.indexrelid), "
         "  CASE WHEN con.oid IS NULL THEN NULL ELSE pg_get_constraintdef(con.oid) END, "
         "  ARRAY(SELECT a.attname FROM unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord) "
-        "        JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum ORDER BY k.ord) "
+        "        JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum "
+        "        WHERE k.ord <= i.indnkeyatts ORDER BY k.ord), "
+        "  ARRAY(SELECT pg_get_indexdef(i.indexrelid, k, true) FROM generate_series(1, i.indnkeyatts) AS k ORDER BY k) "
         "FROM pg_index i "
         "JOIN pg_class ic ON ic.oid = i.indexrelid "
         "JOIN pg_class tc ON tc.oid = i.indrelid "

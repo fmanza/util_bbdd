@@ -445,9 +445,9 @@ class IndexRebuildError(DatabaseOperationError):
     Attributes:
         results: ``IndexActionResult`` de todos los índices (``action="failed"`` en los que no se reconstruyeron).
         duplicates: Por índice que falló, hasta 5 claves duplicadas encontradas (texto ``"valores → repeticiones"``).
-        recovery_ddl: Por índice que se borró para la carga y no se pudo recrear (PostgreSQL, MariaDB/MySQL InnoDB y,
-            desde 4.0.0, índices únicos sin constraint de Oracle), el DDL para recrearlo a mano una vez quitados los
-            duplicados.
+        recovery_ddl: Por índice (único o no) o FK que se borró para la carga y no se pudo recrear (PostgreSQL,
+            MariaDB/MySQL InnoDB y, desde 4.0.0, índices únicos sin constraint de Oracle), el DDL para recrearlo a mano
+            una vez quitados los duplicados.
 
     Examples:
         >>> try:

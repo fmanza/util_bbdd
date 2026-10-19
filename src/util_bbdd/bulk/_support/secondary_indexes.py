@@ -89,6 +89,8 @@ class IndexStep:
         step_id: Identificador del paso (por defecto ``table.index_name``).
         depends_on: ``step_id`` que tiene que haberse desactivado para que este paso cuente.
         unique_columns: Columnas citadas de la clave de un índice único (diagnóstico de duplicados si no se reconstruye).
+        unique: ``True`` si es un índice único o PK/UNIQUE (``"all"``): si no se reconstruye, ``IndexRebuildError``.
+            No depende de ``unique_columns``, que puede quedar vacío si no se conoce la clave.
         exists_check: PostgreSQL: ``(constraint, tabla citada)``; si la constraint ya existe
             (``facts.constraint_exists``), la restauración no se ejecuta (un rollback pudo devolverla).
         skip_reason: Si no es ``None``, no se toca: se avisa y se informa como ``"skipped"`` con este motivo (índice
@@ -107,6 +109,7 @@ class IndexStep:
     step_id: str = ""
     depends_on: str | None = None
     unique_columns: tuple[str, ...] = ()
+    unique: bool = False
     exists_check: tuple[str, str] | None = None
     skip_reason: str | None = None
 
@@ -206,6 +209,7 @@ class SecondaryIndexPlanner:
                     "rebuilt",
                     priority=_UNIQUE_INDEX,
                     unique_columns=self._key_columns(fact),
+                    unique=True,
                 )
             )
         disabled = {fact.name for fact in uniques}
@@ -253,6 +257,7 @@ class SecondaryIndexPlanner:
                     "rebuilt",
                     priority=_CONSTRAINT,
                     unique_columns=self._key_columns(fact),
+                    unique=True,
                 )
             )
         for fk in inbound:
@@ -285,11 +290,12 @@ class SecondaryIndexPlanner:
             quoted_table,
             fact.name,
             f"DROP INDEX {self._qualified(fact.name, schema)}",
-            _escape_colons(fact.ddl),
+            fact.ddl,  # los ':' de sus literales se escapan al ejecutar (IndexDdlRunner._execute)
             "recreated",
             recovery_ddl=fact.ddl,
             priority=_UNIQUE_INDEX,
             unique_columns=self._key_columns(fact),
+            unique=True,
         )
 
     def _plan_unique_postgresql(
@@ -359,6 +365,7 @@ class SecondaryIndexPlanner:
                     recovery_ddl=ddl,
                     priority=priority,
                     unique_columns=self._key_columns(fact),
+                    unique=True,
                     exists_check=exists,
                 )
             )
@@ -407,6 +414,7 @@ class SecondaryIndexPlanner:
             grouped=True,
             priority=_SECONDARY if unique is None else _UNIQUE_INDEX,
             unique_columns=() if unique is None else self._key_columns(unique),
+            unique=unique is not None,
         )
 
     def _qualified(self, name: str, schema: str | None) -> str:
@@ -423,7 +431,10 @@ def _if_not_exists(ddl: str) -> str:
 
 
 def _escape_colons(sql: str) -> str:
-    """``text()``: un ``:`` del DDL (p. ej. en ``'HH24:MI'``) no es un parámetro."""
+    """``text()``: un ``:`` del DDL no es un parámetro (``' :x'`` en el predicado de un índice parcial sería ``:x``).
+
+    Las sentencias de la estrategia no llevan parámetros: se escapan todas al ejecutarlas.
+    """
     return sql.replace(":", "\\:")
 
 
@@ -448,20 +459,25 @@ def restore_batches(steps: Sequence[IndexStep]) -> list[tuple[str, list[IndexSte
 def duplicates_sql(dialect: str, quoted_table: str, columns: Sequence[str], limit: int = MAX_DUPLICATES) -> str:
     """SQL con hasta ``limit`` claves repetidas de ``columns`` en la tabla y cuántas veces aparece cada una.
 
-    Oracle: sin las claves todo-NULL (un índice único no las guarda: no son duplicados) y con ``ROWNUM`` (11g no tiene
-    ``FETCH FIRST``); ``columns`` puede llevar expresiones (índices basados en función).
+    Los NULL, como los trata cada motor: SQL Server los compara como iguales (todas las claves); Oracle no guarda las
+    claves todo-NULL (se excluyen) y usa ``ROWNUM`` (11g no tiene ``FETCH FIRST``); PostgreSQL y MariaDB/MySQL admiten
+    varias filas con un NULL en la clave (se excluyen las que tienen alguno). ``columns`` puede llevar expresiones
+    (índices basados en función).
     """
     cols = ", ".join(columns)
-    body = f"{cols}, COUNT(*) FROM {quoted_table} GROUP BY {cols} HAVING COUNT(*) > 1"
     if dialect == "mssql":
-        return f"SELECT TOP {limit} {body}"
+        return f"SELECT TOP {limit} {cols}, COUNT(*) FROM {quoted_table} GROUP BY {cols} HAVING COUNT(*) > 1"
     if dialect == "oracle":
         all_null = " AND ".join(f"{c} IS NULL" for c in columns)
         return (
             f"SELECT * FROM (SELECT {cols}, COUNT(*) FROM {quoted_table} WHERE NOT ({all_null}) GROUP BY {cols} "
             f"HAVING COUNT(*) > 1) WHERE ROWNUM <= {limit}"
         )
-    return f"SELECT {body} LIMIT {limit}"
+    not_null = " AND ".join(f"{c} IS NOT NULL" for c in columns)
+    return (
+        f"SELECT {cols}, COUNT(*) FROM {quoted_table} WHERE {not_null} GROUP BY {cols} HAVING COUNT(*) > 1 "
+        f"LIMIT {limit}"
+    )
 
 
 class IndexDdlRunner:
@@ -476,7 +492,11 @@ class IndexDdlRunner:
 
     Attributes:
         duplicates: Tras :meth:`restore`, por índice único que no se reconstruyó (``tabla.índice``), sus claves repetidas.
-        recovery_ddl: Tras :meth:`restore`, por índice único borrado que no se pudo recrear, el DDL para hacerlo a mano.
+        recovery_ddl: Tras :meth:`restore`, por índice (o FK de PostgreSQL) borrado que no se pudo recrear, el DDL para
+            hacerlo a mano.
+
+    Si falla el ``ALTER TABLE`` común de InnoDB, cada índice se reintenta en el suyo: un único con duplicados no deja
+    sin recrear a los demás de la tabla.
     """
 
     def __init__(self, dialect: str, logger: logging.Logger, *, commit: bool, savepoint: bool) -> None:
@@ -534,19 +554,39 @@ class IndexDdlRunner:
             except SQLAlchemyError as exc:
                 names = ", ".join(f"{s.table}.{s.index_name}" for s in members)
                 self.logger.warning(f"Error al restaurar {names}: {exc}")
-                for step in members:
-                    message = str(exc)
-                    if step.unique_columns:
-                        dups = self._find_duplicates(conn, step)
-                        self.failed_unique.append(f"{step.table}.{step.index_name}")
-                        if dups:
-                            self.duplicates[f"{step.table}.{step.index_name}"] = dups
-                            message = f"{message} | claves duplicadas: {'; '.join(dups)}"
-                        if step.recovery_ddl and step.action == "recreated":  # borrado: no queda nada
-                            self.recovery_ddl[f"{step.table}.{step.index_name}"] = step.recovery_ddl
-                            message = f"{message} | DDL para recrearlo: {step.recovery_ddl}"
-                    results.append(IndexActionResult(step.table, step.index_name, self.dialect, "failed", message))
+                if len(members) > 1:
+                    # ALTER agrupado de InnoDB: un único con duplicados no debe arrastrar a los demás; uno a uno.
+                    results.extend(self._restore_one_by_one(conn, members))
+                else:
+                    results.append(self._failure(conn, members[0], exc))
         return results
+
+    def _restore_one_by_one(self, conn: Any, members: Sequence[IndexStep]) -> list[IndexActionResult]:
+        """Tras fallar el ``ALTER TABLE`` común, cada cláusula en su propio ``ALTER TABLE`` (``recovery_ddl``)."""
+        results: list[IndexActionResult] = []
+        for step in members:
+            try:
+                self._execute(conn, step.recovery_ddl or f"ALTER TABLE {step.quoted_table} {step.restore_sql}")
+                results.append(IndexActionResult(step.table, step.index_name, self.dialect, step.action))
+            except SQLAlchemyError as exc:
+                self.logger.warning(f"Error al restaurar {step.table}.{step.index_name}: {exc}")
+                results.append(self._failure(conn, step, exc))
+        return results
+
+    def _failure(self, conn: Any, step: IndexStep, exc: SQLAlchemyError) -> IndexActionResult:
+        """Resultado ``"failed"``; si era único, sus duplicados y ``failed_unique``; si se borró, su DDL."""
+        key = f"{step.table}.{step.index_name}"
+        message = str(exc)
+        if step.unique:
+            self.failed_unique.append(key)
+            dups = self._find_duplicates(conn, step) if step.unique_columns else []
+            if dups:
+                self.duplicates[key] = dups
+                message = f"{message} | claves duplicadas: {'; '.join(dups)}"
+        if step.recovery_ddl and step.action == "recreated":  # borrado: no queda nada
+            self.recovery_ddl[key] = step.recovery_ddl
+            message = f"{message} | DDL para recrearlo: {step.recovery_ddl}"
+        return IndexActionResult(step.table, step.index_name, self.dialect, "failed", message)
 
     def _already_restored(self, conn: Any, step: IndexStep) -> bool:
         """``True`` si ``step.exists_check`` encuentra el objeto (ya está: un rollback deshizo su borrado)."""
@@ -572,12 +612,13 @@ class IndexDdlRunner:
         return [f"{', '.join(map(str, row[:-1]))} → {row[-1]}" for row in rows]
 
     def _execute(self, conn: Any, sql: str) -> None:
+        statement = text(_escape_colons(sql))
         try:
             if self._savepoint:
                 with conn.begin_nested():
-                    conn.execute(text(sql))
+                    conn.execute(statement)
             else:
-                conn.execute(text(sql))
+                conn.execute(statement)
             if self._commit:
                 conn.commit()
         except SQLAlchemyError:

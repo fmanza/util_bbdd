@@ -124,9 +124,8 @@ class TableMaintenance:
                     pg_disabled or mssql_constraints_disabled or bool(oracle_disabled) or dialect in MYSQL_FAMILY
                 )
             if index_mode is not None:
-                if index_mode == "all":
-                    self._warn_all_mode(conn, tabla, tabla_destino)
                 indexes_disabled = self._disable_indexes(conn, dialect, quoted_name, tabla, tabla_destino, index_mode)
+                self._warn_all_mode(conn, tabla, tabla_destino, indexes_disabled)
             self.logger.info(f"🛠️ Modo mantenimiento activado: {tabla_destino} ({dialect})")
             yield result
         except BaseException:
@@ -142,8 +141,13 @@ class TableMaintenance:
                     # deshace la carga entera; en Oracle y MariaDB/MySQL el DDL ya confirmó.
                     raise rebuild_failure[0]
 
-    def _warn_all_mode(self, conn: Any, tabla: Table, tabla_destino: str) -> None:
-        """Aviso de ``disable_indexes="all"`` y, si la tabla ya tiene filas, de que sus duplicados no se detectarán."""
+    def _warn_all_mode(self, conn: Any, tabla: Table, tabla_destino: str, disabled: list[IndexStep]) -> None:
+        """Aviso de ``disable_indexes="all"`` y, si la tabla ya tiene filas, de que sus duplicados no se detectarán.
+
+        Solo si de verdad se desactivó un único (en la sesión atómica de InnoDB, por ejemplo, no se toca nada).
+        """
+        if not any(step.unique and step.skip_reason is None for step in disabled):
+            return
         self.logger.warning(
             f"⚠️ disable_indexes='all' en {tabla_destino}: PK/UNIQUE desactivadas durante la carga, sin control de "
             "duplicados. Solo para datos ya validados; si la reconstrucción falla se lanza IndexRebuildError."
@@ -280,7 +284,8 @@ class TableMaintenance:
             return []
         planner = SecondaryIndexPlanner(dialect, self.engine.dialect.identifier_preparer)
         steps = planner.plan(conn, table=tabla.name, schema=tabla.schema, quoted_table=quoted_name, mode=mode)
-        if dialect in MYSQL_FAMILY and any(step.grouped for step in steps):
+        innodb = not any(step.index_name == "*" for step in steps)  # MyISAM/Aria: un paso DISABLE KEYS ("*")
+        if dialect in MYSQL_FAMILY and innodb and any(step.grouped for step in steps):
             self.logger.warning(
                 f"⚠️ {tabla_destino}: DROP INDEX en InnoDB confirma lo pendiente de la sesión (commit implícito)."
             )

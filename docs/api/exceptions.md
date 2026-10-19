@@ -72,8 +72,9 @@ DatabaseException
     puede reconstruir al terminar la carga, casi siempre por claves duplicadas. Se lanza después de restaurar todo lo
     demás: `exc.results` tiene un `IndexActionResult` por índice y `exc.duplicates`, hasta 5 claves repetidas por índice
     (vacío en SQL Server dentro de `bulk_session`, donde el propio servidor deshace la transacción al fallar).
-    `exc.recovery_ddl` (desde 4.0.0) tiene, por índice que se borró para la carga y no se pudo recrear (PostgreSQL,
-    MariaDB/MySQL InnoDB e índices únicos sin constraint de Oracle), el DDL para recrearlo a mano.
+    `exc.recovery_ddl` (desde 4.0.0) tiene, por índice (único o no) o FK que se borró para la carga y no se pudo
+    recrear (PostgreSQL, MariaDB/MySQL InnoDB e índices únicos sin constraint de Oracle), el DDL para recrearlo a mano.
+    Los índices únicos de expresión de PostgreSQL (`lower(email)`) cuentan igual que el resto.
 
 !!! tip "Capturar errores genéricamente"
     Para capturar cualquier error de `util_bbdd`, usa `except DatabaseException`.

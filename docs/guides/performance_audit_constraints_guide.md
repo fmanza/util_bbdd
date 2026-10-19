@@ -523,7 +523,8 @@ MySQL −24 %, MariaDB −15 %, SQL Server −31 %, Oracle −89 %). **La unicid
   deshace al fallar el `REBUILD`, y las claves no se pueden listar); en Oracle y MariaDB/MySQL las filas quedan.
 - un índice que se **borró** para la carga (PostgreSQL, InnoDB y los únicos sin constraint de Oracle) y no se pudo
   recrear queda borrado: su DDL está en el log (antes del `DROP`), en `error_msg` y en `IndexRebuildError.recovery_ddl`
-  (desde 4.0.0), para recrearlo a mano una vez quitados los duplicados.
+  (desde 4.0.0), para recrearlo a mano una vez quitados los duplicados. En InnoDB, si falla el `ALTER TABLE … ADD`
+  común de la tabla, cada índice se reintenta en el suyo: solo queda borrado el que tiene duplicados.
 
 Patrón recomendado para procesos de carga con iteraciones de calidad:
 

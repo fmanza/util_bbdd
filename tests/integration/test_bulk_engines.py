@@ -1112,6 +1112,76 @@ def test_maintenance_scope_all_duplicates_raise_with_keys_when_ddl_committed(eng
         metadata.drop_all(engine)
 
 
+def _index_names(engine: Engine, table: str) -> list[str]:
+    from sqlalchemy import inspect
+
+    return sorted(str(i["name"]) for i in inspect(engine).get_indexes(table))
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"postgresql"})), indirect=True)
+def test_postgresql_all_expression_unique_and_partial_index_with_colon(engine: Engine) -> None:
+    """Auditoría 2026-10-19 (H1, H3): un único de expresión y un parcial con ``' :x'`` en el predicado.
+
+    Sin duplicados se recrean los dos (el ``:x`` no es un parámetro); con duplicados en ``lower(code)`` se lanza
+    ``IndexRebuildError`` (antes el fallo quedaba solo en ``index_results``) y la sesión lo deshace todo."""
+    from util_bbdd.exceptions import IndexRebuildError
+
+    suffix = uuid.uuid4().hex[:8]
+    name = f"zz_util_bbdd_it_px{suffix}"
+    with engine.begin() as conn:
+        conn.execute(text(f"CREATE TABLE {name} (id INTEGER PRIMARY KEY, code VARCHAR(20), note VARCHAR(20))"))
+        conn.execute(text(f"CREATE UNIQUE INDEX ux_{suffix} ON {name} (lower(code))"))
+        conn.execute(text(f"CREATE INDEX ix_{suffix} ON {name} (id) WHERE (note <> ' \\:x')"))  # text(): ':x' literal
+        conn.execute(text(f"INSERT INTO {name} VALUES (1, 'c1', 'n')"))
+    try:
+        before = _index_names(engine, name)
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False))
+        frame = pd.DataFrame({"id": [2, 3], "code": ["k0", "k1"], "note": ["n", "n"]})
+        with crud.bulk_session(), crud.maintenance_scope(name, disable_indexes="all") as ms:
+            crud.bulk_insert_from_df(frame, name, generar_sql=False)
+        assert all(r.action == "recreated" for r in ms.index_results), ms.index_results
+        assert _index_names(engine, name) == before
+
+        duplicated = pd.DataFrame({"id": [4, 5], "code": ["k2", "K2"], "note": ["n", "n"]})
+        with pytest.raises(IndexRebuildError) as info, crud.bulk_session():
+            with crud.maintenance_scope(name, disable_indexes="all"):
+                crud.bulk_insert_from_df(duplicated, name, generar_sql=False)
+        assert f"{name}.ux_{suffix}" in info.value.duplicates, info.value.duplicates
+        with engine.connect() as conn:
+            assert conn.execute(text(f"SELECT count(*) FROM {name}")).scalar_one() == 3
+        assert _index_names(engine, name) == before
+    finally:
+        with engine.begin() as conn:
+            conn.execute(text(f"DROP TABLE {name}"))
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"mysql", "mariadb"})), indirect=True)
+def test_innodb_all_duplicates_do_not_leave_secondary_indexes_dropped(engine: Engine) -> None:
+    """Auditoría 2026-10-19 (H2): falla el ``ALTER TABLE … ADD`` común; el secundario se recrea en el suyo y solo el
+    único queda borrado, con su DDL en ``recovery_ddl``."""
+    from util_bbdd.exceptions import IndexRebuildError
+
+    suffix = uuid.uuid4().hex[:8]
+    name = f"zz_util_bbdd_it_gx{suffix}"
+    with engine.begin() as conn:
+        conn.execute(text(f"CREATE TABLE {name} (id INT PRIMARY KEY, code VARCHAR(20), a INT) ENGINE=InnoDB"))
+        conn.execute(text(f"CREATE UNIQUE INDEX ux_{suffix} ON {name} (code)"))
+        conn.execute(text(f"CREATE INDEX ix_{suffix} ON {name} (a)"))
+    try:
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False), batch=BatchOptions(commit_every_n_chunks=1))
+        frame = pd.DataFrame({"id": [1, 2], "code": ["k0", "k0"], "a": [1, 2]})
+        with pytest.raises(IndexRebuildError) as info, crud.bulk_session():
+            with crud.maintenance_scope(name, disable_indexes="all"):
+                crud.bulk_insert_from_df(frame, name, generar_sql=False)
+        assert _index_names(engine, name) == [f"ix_{suffix}"]
+        assert list(info.value.recovery_ddl) == [f"{name}.ux_{suffix}"]
+        actions = {r.index_name: r.action for r in info.value.results}
+        assert actions == {f"ux_{suffix}": "failed", f"ix_{suffix}": "recreated"}
+    finally:
+        with engine.begin() as conn:
+            conn.execute(text(f"DROP TABLE {name}"))
+
+
 def _oracle_unique_indexes_table(engine: Engine, owner: str | None = None) -> tuple[Table, list[str]]:
     """Oracle: tabla sin constraints con dos índices únicos sin constraint (uno basado en función con ``'HH24:MI'``)."""
     suffix = uuid.uuid4().hex[:8].upper()

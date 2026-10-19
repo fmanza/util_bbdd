@@ -35,6 +35,24 @@ SemVer: MAJOR (`oracledb` deja de instalarse con la librería).
 
 ### Fixed
 
+- **bulk (`disable_indexes="all"`), PostgreSQL**: un índice único de expresión (`UNIQUE (lower(email))`) que no se
+  podía recrear por duplicados no lanzaba `IndexRebuildError` (no tiene columnas en `pg_index.indkey` y el fallo solo
+  contaba si las había): en `maintenance_scope` la sesión confirmaba la carga sin el índice. Ahora cuenta como cualquier
+  único y el diagnóstico de duplicados agrupa por la expresión (`pg_get_indexdef(oid, n, true)`); las columnas
+  `INCLUDE` ya no entran en la clave.
+- **bulk/dump (índices, MariaDB/MySQL InnoDB)**: si fallaba el `ALTER TABLE … ADD …` común de una tabla (un único con
+  duplicados), ninguno de sus índices se recreaba y los secundarios quedaban borrados sin su DDL en el resultado. Ahora
+  cada índice se reintenta en su propio `ALTER TABLE`: solo falla el que tiene duplicados. Todo índice o FK borrado
+  que no se recrea lleva su DDL en `error_msg` y en `IndexRebuildError.recovery_ddl`, sea único o no.
+- **bulk/dump (índices, PostgreSQL y MariaDB/MySQL)**: un `:` en el DDL recreado (p. ej. `' :x'` en el predicado de un
+  índice parcial) se tomaba como parámetro de `text()` y la recreación fallaba tras el `DROP`. Ahora se escapan los
+  `:` de todas las sentencias de la estrategia, como ya se hacía en Oracle.
+- **bulk/dump (diagnóstico de duplicados de `"all"`, PostgreSQL y MariaDB/MySQL)**: ya no lista como duplicadas las
+  claves con algún NULL, que esos motores admiten repetidas en un índice único.
+- **bulk (`maintenance_scope(disable_indexes="all")`, InnoDB)**: en la sesión atómica, donde no se toca ningún índice,
+  ya no avisa de que se desactivaron PK/UNIQUE; el aviso de commit implícito de InnoDB ya no sale en MyISAM/Aria.
+- **bulk/dump (comprobación de FK huérfanas)**: en Oracle, la consulta común usa `ROWNUM` en vez de `FETCH FIRST`
+  (12c+), como el diagnóstico de duplicados (hoy solo la usan PostgreSQL y MariaDB/MySQL).
 - **bulk/dump (diagnóstico de duplicados de `"all"`, Oracle)**: la consulta de claves repetidas usaba `FETCH FIRST`
   (12c+) y en 11g fallaba sin listarlas; ahora usa `ROWNUM`. Tampoco cuenta como duplicadas las claves todo-NULL, que
   un índice único de Oracle no guarda.

@@ -183,8 +183,8 @@ class UniqueIndexFact:
         ddl: PostgreSQL: ``pg_get_constraintdef`` (PK/UNIQUE) o ``pg_get_indexdef``; MariaDB/MySQL: cláusula ``ADD``;
             Oracle ``unique_index``: ``DBMS_METADATA.GET_DDL`` (``None`` si no se pudo obtener, ver ``ddl_error``).
         constraint: PostgreSQL: nombre de la constraint que respalda el índice.
-        key_sql: Oracle ``unique_index``: SQL de cada elemento de la clave (columna citada o expresión de un índice
-            basado en función), para buscar duplicados; ``()`` = citar ``columns``.
+        key_sql: Oracle ``unique_index`` y PostgreSQL: SQL de cada elemento de la clave (columna citada o expresión de
+            un índice basado en función), para buscar duplicados; ``()`` = citar ``columns``.
         ddl_error: Oracle ``unique_index``: por qué no hay ``ddl`` (p. ej. ``ORA-31603`` sin privilegios de catálogo).
     """
 
@@ -289,12 +289,20 @@ def _oracle_index_ddl(conn: Any, schema: str | None, name: str) -> tuple[str | N
 def _pg_unique_indexes(conn: Any, schema: str | None, table: str) -> list[UniqueIndexFact]:
     out: list[UniqueIndexFact] = []
     rows = conn.execute(text(_pg_unique_indexes_sql()), {"tbl": table, "schema": schema})
-    for index, constraint, contype, indexdef, constraintdef, columns in rows:
+    for index, constraint, contype, indexdef, constraintdef, columns, key in rows:
+        # key_sql: también los elementos que son expresiones (lower(email)), que no tienen columna.
+        key_sql = tuple(str(element) for element in key or ())
         if constraint is None:
-            out.append(UniqueIndexFact(str(index), "unique_index", tuple(columns or ()), str(indexdef)))
+            out.append(
+                UniqueIndexFact(str(index), "unique_index", tuple(columns or ()), str(indexdef), key_sql=key_sql)
+            )
             continue
         kind: _UniqueKind = "pk" if contype == "p" else "unique_constraint"
-        out.append(UniqueIndexFact(str(index), kind, tuple(columns or ()), str(constraintdef), str(constraint)))
+        out.append(
+            UniqueIndexFact(
+                str(index), kind, tuple(columns or ()), str(constraintdef), str(constraint), key_sql=key_sql
+            )
+        )
     return out
 
 

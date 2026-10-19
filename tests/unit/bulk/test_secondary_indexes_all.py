@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from util_bbdd.bulk._support.fk_orphans import orphan_check_sql
@@ -118,9 +117,8 @@ def test_oracle_all_drops_unique_index_without_constraint_and_recreates_it_from_
     ux = next(s for s in steps if s.index_name == "UX_T")
     assert (ux.disable_sql, ux.action, ux.recovery_ddl) == ("DROP INDEX `UX_T`", "recreated", _ORA_DDL)
     assert ux.unique_columns == ("TO_CHAR(\"DT\",'HH24:MI')", '"ID"')
-    assert _restore_sql(steps)[0] == _ORA_DDL.replace(":", "\\:")  # antes que la PK, como el resto de únicos
-    assert text(ux.restore_sql).compile().params == {}  # el ':' del literal no es un parámetro
-    assert "'HH24:MI'" in str(text(ux.restore_sql))
+    assert ux.unique
+    assert _restore_sql(steps)[0] == _ORA_DDL  # antes que la PK, como el resto de únicos; ':' escapado al ejecutar
 
 
 def test_oracle_unique_index_without_ddl_is_kept_and_reported_as_skipped() -> None:
@@ -137,7 +135,9 @@ def test_oracle_unique_index_without_ddl_is_kept_and_reported_as_skipped() -> No
 def test_failed_recreation_of_a_dropped_unique_index_carries_its_ddl() -> None:
     conn = MagicMock()
     conn.execute.side_effect = [SQLAlchemyError("ORA-01452"), SQLAlchemyError("sin diagnóstico")]
-    step = IndexStep("t", "t", "UX_T", "DROP INDEX UX_T", "CREATE …", "recreated", _ORA_DDL, unique_columns=("C",))
+    step = IndexStep(
+        "t", "t", "UX_T", "DROP INDEX UX_T", "CREATE …", "recreated", _ORA_DDL, unique_columns=("C",), unique=True
+    )
     runner = IndexDdlRunner("oracle", _LOG, commit=True, savepoint=False)
     results = runner.restore(conn, [step])
     assert results[0].action == "failed"
@@ -152,7 +152,7 @@ def test_rebuilt_unique_failure_has_no_recovery_ddl() -> None:
     """Un índice desactivado (no borrado) sigue existiendo: no hay DDL que recuperar."""
     conn = MagicMock()
     conn.execute.side_effect = [SQLAlchemyError("dup"), SQLAlchemyError("sin diagnóstico")]
-    step = IndexStep("t", "t", "uq", "ALTER INDEX uq DISABLE", "REBUILD", "rebuilt", unique_columns=("c",))
+    step = IndexStep("t", "t", "uq", "ALTER INDEX uq DISABLE", "REBUILD", "rebuilt", unique_columns=("c",), unique=True)
     runner = IndexDdlRunner("mssql", _LOG, commit=True, savepoint=False)
     runner.restore(conn, [step])
     assert runner.recovery_ddl == {}
@@ -285,7 +285,7 @@ def test_failed_unique_rebuild_reports_duplicates_and_builds_the_error() -> None
     duplicates.fetchall.return_value = [("A1", 2), ("B7", 3)]
     conn.execute.side_effect = [SQLAlchemyError("duplicate key"), duplicates, MagicMock()]
     steps = [
-        IndexStep("t", "t", "uq", "…", "REBUILD uq", "rebuilt", priority=0, unique_columns=("code",)),
+        IndexStep("t", "t", "uq", "…", "REBUILD uq", "rebuilt", priority=0, unique_columns=("code",), unique=True),
         IndexStep("t", "t", "ix", "…", "REBUILD ix", "rebuilt"),
     ]
     runner = IndexDdlRunner("postgresql", _LOG, commit=False, savepoint=False)
@@ -293,7 +293,7 @@ def test_failed_unique_rebuild_reports_duplicates_and_builds_the_error() -> None
     assert [(r.index_name, r.action) for r in results] == [("uq", "failed"), ("ix", "rebuilt")]
     assert "A1 → 2" in results[0].error_msg
     assert str(conn.execute.call_args_list[1].args[0]) == (
-        "SELECT code, COUNT(*) FROM t GROUP BY code HAVING COUNT(*) > 1 LIMIT 5"
+        "SELECT code, COUNT(*) FROM t WHERE code IS NOT NULL GROUP BY code HAVING COUNT(*) > 1 LIMIT 5"
     )
     error = rebuild_error(runner, results, "carga")
     assert isinstance(error, IndexRebuildError)
@@ -341,7 +341,16 @@ def test_rebuild_error_is_none_without_unique_failures() -> None:
             "SELECT * FROM (SELECT a, b, COUNT(*) FROM t WHERE NOT (a IS NULL AND b IS NULL) GROUP BY a, b "
             "HAVING COUNT(*) > 1) WHERE ROWNUM <= 5",
         ),
-        ("mysql", "SELECT a, b, COUNT(*) FROM t GROUP BY a, b HAVING COUNT(*) > 1 LIMIT 5"),
+        (
+            "mysql",
+            "SELECT a, b, COUNT(*) FROM t WHERE a IS NOT NULL AND b IS NOT NULL GROUP BY a, b HAVING COUNT(*) > 1 "
+            "LIMIT 5",
+        ),
+        (
+            "postgresql",
+            "SELECT a, b, COUNT(*) FROM t WHERE a IS NOT NULL AND b IS NOT NULL GROUP BY a, b HAVING COUNT(*) > 1 "
+            "LIMIT 5",
+        ),
     ],
 )
 def test_duplicates_sql_per_dialect(dialect: str, expected: str) -> None:
@@ -352,7 +361,7 @@ def test_duplicates_sql_per_dialect(dialect: str, expected: str) -> None:
     ("dialect", "prefix", "suffix"),
     [
         ("mssql", "SELECT TOP 1 1 ", ""),
-        ("oracle", "SELECT 1 ", " FETCH FIRST 1 ROWS ONLY"),
+        ("oracle", "SELECT 1 ", " AND ROWNUM = 1"),
         ("mysql", "SELECT 1 ", " LIMIT 1"),
     ],
 )
@@ -362,6 +371,112 @@ def test_orphan_check_sql_per_dialect(dialect: str, prefix: str, suffix: str) ->
         f"{prefix}FROM `c` c WHERE c.`pid` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM `p` p WHERE p.`id` = c.`pid`){suffix}"
     )
     assert orphan_check_sql(dialect, _prep(), "`c`", {**fk, "referred_columns": []}) is None
+
+
+# ---------------------------------------------------------------------------
+# Auditoría v3.0.3..HEAD (2026-10-19): H1, H2 y H3
+# ---------------------------------------------------------------------------
+
+
+class _FailingConn:
+    """Conexión falsa: falla la sentencia que contiene ``fail_on`` y apunta lo que se ejecuta (con sus parámetros)."""
+
+    def __init__(self, fail_on: str) -> None:
+        self.fail_on = fail_on
+        self.executed: list[str] = []
+        self.binds: list[list[str]] = []
+
+    def execute(self, statement: object, *args: object, **kwargs: object) -> MagicMock:
+        sql = str(statement)
+        self.executed.append(sql)
+        self.binds.append(list(getattr(statement, "_bindparams", {})))
+        if self.fail_on in sql:
+            raise SQLAlchemyError("duplicate key")
+        return MagicMock()
+
+    def commit(self) -> None: ...
+
+    def rollback(self) -> None: ...
+
+
+def test_postgresql_expression_unique_index_that_fails_raises_index_rebuild_error() -> None:
+    """H1: un único de expresión no tiene columnas (``attnum`` 0); su fallo tiene que dar ``IndexRebuildError``."""
+    ddl = "CREATE UNIQUE INDEX ux_email ON public.t USING btree (lower((email)::text))"
+    steps = _plan_all(
+        "postgresql", [_UNIQUE("ux_email", "unique_index", (), ddl, key_sql=("lower((email)::text)",))], [], []
+    )
+    assert steps[0].unique
+    assert steps[0].unique_columns == ("lower((email)::text)",)
+    conn = _FailingConn("CREATE UNIQUE INDEX")
+    runner = IndexDdlRunner("postgresql", _LOG, commit=True, savepoint=False)
+    results = runner.restore(conn, runner.disable(conn, steps))
+    assert [(r.index_name, r.action) for r in results] == [("ux_email", "failed")]
+    error = rebuild_error(runner, results, "carga")
+    assert isinstance(error, IndexRebuildError)
+    assert error.recovery_ddl == {"t.ux_email": ddl}
+    assert "GROUP BY lower((email)::text)" in conn.executed[-1]  # diagnóstico de duplicados sobre la expresión
+
+
+def test_unique_step_without_known_key_still_counts_as_failed_unique() -> None:
+    """H1: sin ``unique_columns`` no hay diagnóstico de duplicados, pero el fallo sigue contando."""
+    step = IndexStep("t", "t", "ux", "DROP INDEX ux", "CREATE UNIQUE INDEX ux …", "recreated", "CREATE …", unique=True)
+    conn = _FailingConn("CREATE UNIQUE INDEX")
+    runner = IndexDdlRunner("postgresql", _LOG, commit=True, savepoint=False)
+    results = runner.restore(conn, [step])
+    assert runner.failed_unique == ["t.ux"]
+    assert conn.executed == ["CREATE UNIQUE INDEX ux …"]  # sin SELECT de duplicados
+    assert isinstance(rebuild_error(runner, results, "carga"), IndexRebuildError)
+
+
+def test_facts_postgresql_unique_indexes_carry_key_sql() -> None:
+    row = ("ux_email", None, None, "CREATE UNIQUE INDEX ux_email …", None, [], ["lower((email)::text)"])
+    pk = ("t_pkey", "t_pkey", "p", "CREATE UNIQUE INDEX t_pkey …", "PRIMARY KEY (id)", ["id"], ["id"])
+    conn = MagicMock()
+    conn.execute.return_value = iter([row, pk])
+    out = {f.name: f for f in facts.unique_indexes(conn, "public", "t", "postgresql")}
+    assert out["ux_email"].key_sql == ("lower((email)::text)",)
+    assert out["ux_email"].columns == ()
+    assert (out["t_pkey"].kind, out["t_pkey"].constraint, out["t_pkey"].key_sql) == ("pk", "t_pkey", ("id",))
+
+
+def test_failed_grouped_innodb_restore_retries_each_index_on_its_own() -> None:
+    """H2: el único con duplicados no deja sin recrear al secundario del mismo ``ALTER TABLE``."""
+    steps = _plan_all(
+        "mysql",
+        [_UNIQUE("ux_a", "unique_index", ("a",), "UNIQUE INDEX `ux_a` (`a`)")],
+        [],
+        [("ix_b", "INDEX `ix_b` (`b`)")],
+    )
+    conn = _FailingConn("ADD UNIQUE INDEX")
+    runner = IndexDdlRunner("mysql", _LOG, commit=True, savepoint=False)
+    results = runner.restore(conn, runner.disable(conn, steps))
+    assert [(r.index_name, r.action) for r in results] == [("ux_a", "failed"), ("ix_b", "recreated")]
+    assert "ALTER TABLE `t` ADD INDEX `ix_b` (`b`)" in conn.executed
+    error = rebuild_error(runner, results, "carga")
+    assert isinstance(error, IndexRebuildError)
+    assert error.recovery_ddl == {"t.ux_a": "ALTER TABLE `t` ADD UNIQUE INDEX `ux_a` (`a`)"}
+
+
+def test_dropped_secondary_index_that_fails_carries_its_ddl() -> None:
+    """H2: un secundario borrado que no se recrea también deja su DDL en el resultado y en ``recovery_ddl``."""
+    step = IndexStep("t", "t", "ix", "DROP INDEX ix", "CREATE INDEX ix …", "recreated", "CREATE INDEX ix …")
+    runner = IndexDdlRunner("postgresql", _LOG, commit=True, savepoint=False)
+    results = runner.restore(_FailingConn("CREATE INDEX"), [step])
+    assert "DDL para recrearlo: CREATE INDEX ix …" in results[0].error_msg
+    assert runner.recovery_ddl == {"t.ix": "CREATE INDEX ix …"}
+    assert rebuild_error(runner, results, "carga") is None  # no es único: no hay IndexRebuildError
+
+
+def test_colons_in_postgresql_ddl_are_not_bind_parameters() -> None:
+    """H3: ``' :x'`` en el predicado de un índice parcial no es un parámetro de ``text()``."""
+    ddl = "CREATE INDEX ix_p ON public.t USING btree (a) WHERE (code <> ' :x'::text)"
+    steps = _plan_all("postgresql", [], [], [("ix_p", ddl)])
+    conn = _FailingConn("never")
+    runner = IndexDdlRunner("postgresql", _LOG, commit=True, savepoint=False)
+    results = runner.restore(conn, runner.disable(conn, steps))
+    assert [r.action for r in results] == ["recreated"]
+    assert conn.binds == [[], []]
+    assert "' :x'::text" in conn.executed[-1]
 
 
 # ---------------------------------------------------------------------------
