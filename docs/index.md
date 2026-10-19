@@ -51,7 +51,7 @@ la API 3.0](guides/api_3_0_migration.md) (opciones de `BulkCrud` y `ParallelBulk
 ## 3. Quick Start
 
 ```bash
-pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v3.4.1"
+pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v4.0.0"
 ```
 
 ```python
