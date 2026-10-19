@@ -71,7 +71,7 @@ flowchart TD
 - Resincronización de secuencias/identidades: PostgreSQL, SQL Server, MariaDB, MySQL y Oracle ≥ 12c (en SQLite y HSQLDB queda como `unsupported`)
 - Gestión de constraints en SQL Server, MariaDB, MySQL, PostgreSQL y Oracle; en SQLite y HSQLDB se carga sin desactivarlas (WARNING)
 - Gestión de índices (`manage_indexes`) en SQL Server, Oracle, PostgreSQL y, desde v3.2.0, MySQL/MariaDB (InnoDB sin los índices que necesita una FK); desde v3.3.0, `manage_indexes="all"` también desactiva índices únicos y PK/UNIQUE (solo para datos ya validados, con `truncate_target=True`)
-- Comprobación de filas huérfanas tras reactivar `FOREIGN_KEY_CHECKS` en MySQL/MariaDB (`validate_fks_after`, v3.3.0)
+- Comprobación de filas huérfanas tras reactivar `FOREIGN_KEY_CHECKS` en MySQL/MariaDB (`validate_fks_after`, v3.3.0; activada por defecto desde v3.4.0)
 - Paralelismo por rangos PK solo para tablas con PK de una única columna entera
 - El informe Excel usa `openpyxl` (dependencia de la librería, incluida en la instalación base)
 

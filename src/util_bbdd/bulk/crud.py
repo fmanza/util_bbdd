@@ -1578,7 +1578,7 @@ class BulkCrud:
         disable_constraints: bool = True,
         disable_indexes: bool | IndexMode = False,
         require_optimization: bool = False,
-        validate_fks_after: bool = False,
+        validate_fks_after: bool = True,
     ) -> Generator[MaintenanceScopeResult, None, None]:
         """Context manager que prepara la tabla para una carga de alto volumen (>1M).
 
@@ -1629,10 +1629,11 @@ class BulkCrud:
             require_optimization: Si True y la optimización no puede aplicarse (p.ej.
                 PostgreSQL sin privilegios suficientes), lanza :exc:`RuntimeError` en lugar
                 de continuar en silencio. Por defecto False.
-            validate_fks_after: MariaDB/MySQL (v3.3.0): al reactivar ``FOREIGN_KEY_CHECKS`` comprueba con un
-                ``NOT EXISTS`` por FK que no se cargaron filas huérfanas (``constraint_results`` con ``"enabled"`` o
-                ``"failed"`` por FK en vez de ``"unverified"``). Cuesta en torno al 1 % de la carga (1M filas, 2 FK).
-                En el resto de motores la validación ya se hace al reactivar. Por defecto False.
+            validate_fks_after: MariaDB/MySQL (v3.3.0; por defecto desde v3.4.0): al reactivar
+                ``FOREIGN_KEY_CHECKS`` comprueba con un ``NOT EXISTS`` por FK que no se cargaron filas huérfanas
+                (``constraint_results`` con ``"enabled"`` o ``"failed"`` por FK en vez de ``"unverified"``). Cuesta en
+                torno al 1 % de la carga (1M filas, 2 FK). En el resto de motores la validación ya se hace al
+                reactivar. Por defecto True; ``False`` mantiene la fila única ``"unverified"`` de hasta 3.3.0.
 
         Yields:
             :class:`MaintenanceScopeResult` con ``optimization_applied``, ``constraint_results`` e ``index_results``

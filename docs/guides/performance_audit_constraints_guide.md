@@ -529,11 +529,11 @@ Patrón recomendado para procesos de carga con iteraciones de calidad:
 | De validación (1…n−1) | `False` o `"secondary"` | PK y UNIQUE activas: un duplicado falla en el momento |
 | Carga final, datos ya validados | `"all"` | Máximo rendimiento; la reconstrucción de los únicos es la última comprobación |
 
-### Validar FK tras cargar sin FK checks: `validate_fks_after` (v3.3.0)
+### Validar FK tras cargar sin FK checks: `validate_fks_after` (v3.3.0, por defecto desde v3.4.0)
 
 En MariaDB/MySQL, `FOREIGN_KEY_CHECKS=1` no revisa lo ya cargado (resultado `"unverified"`).
-`maintenance_scope(validate_fks_after=True)` y `DumpConfig(validate_fks_after=True)` lanzan al reactivar un `NOT EXISTS`
-por FK y devuelven `"enabled"` o `"failed"` por FK. Coste medido con 1M filas y 2 FK: 0,2–0,23 s (≈1 % de la carga); la
+Desde v3.4.0, `maintenance_scope` y `DumpConfig` lanzan por defecto al reactivar un `NOT EXISTS` por FK y devuelven
+`"enabled"` o `"failed"` por FK (`validate_fks_after=False` vuelve a la fila única `"unverified"`). Coste medido con 1M filas y 2 FK: 0,2–0,23 s (≈1 % de la carga); la
 revalidación nativa de los otros motores cuesta lo mismo (`WITH CHECK CHECK CONSTRAINT` 0,06 s en SQL Server,
 `VALIDATE CONSTRAINT` 0,15 s en PostgreSQL, `ENABLE VALIDATE` 0,15 s en Oracle). `unique_checks=0` en MariaDB/MySQL
 **no compensa** (sin índices desactivados fue un 3–7 % más lento; con `"secondary"`, como mucho un 1,5 % más rápido) y

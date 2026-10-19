@@ -7,6 +7,23 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-10-19
+
+Decisión R7 de `.ai/CURRENT_STATE.md` tras medir el coste en la sesión `.ai/sessions/2026-10-18b-index-modes-bulk-dump/`.
+SemVer: MINOR (cambia un valor por defecto; el parámetro y su comportamiento con `False` no cambian).
+
+### Changed
+
+- **bulk (`BulkCrud.maintenance_scope`) y dump (`DumpConfig`, `ConstraintManager`)**: `validate_fks_after` pasa a `True`
+  por defecto. En MariaDB/MySQL, con `disable_constraints` (o siempre en `dump`), al reactivar `FOREIGN_KEY_CHECKS` se
+  comprueba con un `NOT EXISTS` por FK que no se cargaron filas huérfanas. **Cambia la forma del resultado**:
+  `constraint_results` deja de ser una fila `FOREIGN_KEY_CHECKS` con `"unverified"` y pasa a una fila por FK con
+  `"enabled"` o `"failed"` (con WARNING si hay huérfanas); en el informe de `dump`, la sección «Constraints con
+  incidencia al rehabilitar» deja de mostrar siempre la fila `FOREIGN_KEY_CHECKS` sin verificar y muestra solo las FK
+  con filas huérfanas (o `"unverified"` si no se pudieron leer las FK).
+  Coste medido: ≈1 % de la carga (1M filas, 2 FK: 0,20 s en MySQL 8.4, 0,23 s en MariaDB 11.4). Para el comportamiento
+  anterior: `validate_fks_after=False`. Sin cambios en el resto de motores (ya validaban al reactivar).
+
 ## [3.3.0] - 2026-10-19
 
 Sesión `.ai/sessions/2026-10-18b-index-modes-bulk-dump/` (entrega 3.3.0: G5, G5b y G7 del PLAN). SemVer: MINOR (valores

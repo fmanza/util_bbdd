@@ -77,7 +77,7 @@ class TableMaintenance:
         disable_constraints: bool,
         index_mode: IndexMode | None,
         require_optimization: bool,
-        validate_fks_after: bool = False,
+        validate_fks_after: bool = True,
     ) -> Generator[MaintenanceScopeResult, None, None]:
         """Ver :meth:`BulkCrud.maintenance_scope` (``tabla`` ya reflejada)."""
         dialect: str = self.engine.dialect.name

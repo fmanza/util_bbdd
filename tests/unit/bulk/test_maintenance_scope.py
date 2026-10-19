@@ -438,7 +438,7 @@ class TestMaintenanceScopeResult:
 
     def test_constraint_results_populated_mysql(self) -> None:
         crud, conn = _make_crud_for_dialect("mysql")
-        with crud.maintenance_scope("t") as ms:
+        with crud.maintenance_scope("t", validate_fks_after=False) as ms:
             pass
         assert len(ms.constraint_results) == 1
         assert ms.constraint_results[0].constraint_name == "FOREIGN_KEY_CHECKS"
@@ -805,8 +805,19 @@ class TestMaintenanceScopeValidateFksAfter:
         assert [(r.constraint_name, r.status) for r in ms.constraint_results] == [("fk_user", "failed")]
         assert any("LIMIT 1" in sql and "NOT EXISTS" in sql for sql in _sql_calls(conn))
 
-    def test_default_keeps_unverified(self) -> None:
+    def test_false_keeps_the_single_unverified_row(self) -> None:
         crud, _ = _make_crud_for_dialect("mysql")
-        with crud.maintenance_scope("t") as ms:
+        with crud.maintenance_scope("t", validate_fks_after=False) as ms:
             pass
-        assert [r.status for r in ms.constraint_results] == ["unverified"]
+        assert [(r.constraint_name, r.status) for r in ms.constraint_results] == [("FOREIGN_KEY_CHECKS", "unverified")]
+
+    def test_validation_is_on_by_default(self) -> None:
+        """v3.4.0: ``validate_fks_after=True`` por defecto (≈1 % de la carga medido en G0)."""
+        crud, conn = _make_crud_for_dialect("mysql")
+        crud.engine.dialect.identifier_preparer.quote.side_effect = lambda x: f"`{x}`"
+        crud.engine.dialect.identifier_preparer.quote_identifier.side_effect = lambda x: f"`{x}`"
+        conn.execute.return_value.first.return_value = None
+        with patch.object(BulkCrud, "_table_snapshot", return_value=_make_pg_inspector_mock(fks=[_FK_USER])):
+            with crud.maintenance_scope("t") as ms:
+                pass
+        assert [(r.constraint_name, r.status) for r in ms.constraint_results] == [("fk_user", "enabled")]

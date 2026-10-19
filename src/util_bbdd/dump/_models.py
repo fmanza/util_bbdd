@@ -96,10 +96,10 @@ class DumpConfig:
             ``truncate_target=True`` y no admite ``on_error="isolate"`` (los duplicados no darían error que apartar).
             Si un único no se puede reconstruir (duplicados), el resultado del índice es ``"failed"`` con las claves
             repetidas en ``error_msg``.
-        validate_fks_after: MariaDB/MySQL (3.3.0): tras reactivar ``FOREIGN_KEY_CHECKS``, comprueba con un
-            ``NOT EXISTS`` por FK que no se cargaron filas huérfanas (``constraint_results`` pasa de
+        validate_fks_after: MariaDB/MySQL (3.3.0; por defecto desde 3.4.0): tras reactivar ``FOREIGN_KEY_CHECKS``,
+            comprueba con un ``NOT EXISTS`` por FK que no se cargaron filas huérfanas (``constraint_results`` pasa de
             ``"unverified"`` a ``"enabled"``/``"failed"``). En el resto de motores la validación ya se hace al
-            reactivar. ``False`` (default).
+            reactivar. ``True`` (default desde 3.4.0); ``False`` deja la fila única ``"unverified"`` de hasta 3.3.0.
         max_parallel_tables: Número máximo de tablas a cargar concurrentemente dentro de
             un mismo nivel topológico FK (tablas mutuamente independientes). ``1`` (default)
             = carga secuencial. Valores > 1 usan un ``ThreadPoolExecutor`` con una instancia
@@ -183,7 +183,7 @@ class DumpConfig:
     rejects_csv_path: OptionalPathField = OptionalPathField()
     max_rejects: int | None = None
     audit_sink: AuditSink | None = None
-    validate_fks_after: bool = False
+    validate_fks_after: bool = True
 
     def __post_init__(self) -> None:
         # Validar aquí y no en la primera BulkCrud: run() la crea después de vaciar el destino (truncate_target), así que

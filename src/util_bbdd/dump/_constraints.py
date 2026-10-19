@@ -44,7 +44,7 @@ class ConstraintManager:
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__name__)
 
-    def __init__(self, engine: Engine, schema: str | None = None, *, validate_fks_after: bool = False) -> None:
+    def __init__(self, engine: Engine, schema: str | None = None, *, validate_fks_after: bool = True) -> None:
         self._engine = engine
         self._schema = schema
         self._dialect = engine.dialect.name

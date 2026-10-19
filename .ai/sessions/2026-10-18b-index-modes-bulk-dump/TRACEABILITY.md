@@ -112,6 +112,12 @@ Ver `00_REQUEST.md` (solicitud inicial y cuatro ampliaciones en la misma sesión
 - `"all"`, `IndexRebuildError`, `validate_fks_after` y eventos `index`: ver `05_IMPLEMENT_3_3_0.md` (condiciones del
   AUDIT_PLAN, cambios por fichero, hallazgos y tests).
 
+## Tras el cierre (2026-10-19)
+
+- R6: instrucciones de instalación a `@v3.3.0` (`bcc331f9`, 18 en `README.md` y `docs/`).
+- R7 → v3.4.0: `validate_fks_after=True` por defecto en `maintenance_scope`, `DumpConfig` y `ConstraintManager`
+  (decisión del usuario tras ver el coste medido, ≈1 %); CHANGELOG con el cambio de forma de `constraint_results`.
+
 ## Artefactos generados
 
 | Artefacto | Ruta | Estado |

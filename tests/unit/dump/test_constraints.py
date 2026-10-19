@@ -221,7 +221,7 @@ class TestConstraintManagerMariaDB:
         engine = _make_engine("mariadb")
 
         with patch("util_bbdd.dump._constraints.event") as mock_event:
-            mgr = ConstraintManager(engine)
+            mgr = ConstraintManager(engine, validate_fks_after=False)
             mgr.disable_all(tables=[])
 
             results = mgr.enable_all()
