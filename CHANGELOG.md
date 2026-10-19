@@ -7,6 +7,21 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.2.1] - 2026-10-19
+
+Hotfix de compatibilidad con SQLAlchemy 2.1 (sesión `.ai/sessions/2026-10-18b-index-modes-bulk-dump/`). SemVer: PATCH.
+
+### Fixed
+
+- **metadata (lectura por lotes de SQL Server, `CatalogSource`/`prefetch_table_metadata`)**: con SQLAlchemy 2.1 el
+  resultado dejaba de coincidir con `Inspector`, que es el contrato de la lectura por lotes (lo usan `comparar`, `doc`,
+  `migrate` y `bulk`): `Float` se leía sin precisión (`FLOAT()` en vez de `FLOAT(precision=53)`; en 2.1 `Float` ya no
+  hereda de `Numeric`), `TEXT`/`NTEXT` llevaban una longitud de 16 (el puntero LOB) que 2.1 ya no pone, y los índices
+  seguían devolviendo `include_columns`, que 2.1 quitó (las columnas incluidas siguen en
+  `dialect_options["mssql_include"]`). Ahora se reproduce el `MSDialect` de la versión instalada (2.0 o 2.1). Lo detectó
+  `tests/integration/test_comparar_prefetch_engines.py::test_prefetch_matches_per_table_reflection[mssql]` tras
+  actualizar a SQLAlchemy 2.1.5.
+
 ## [3.2.0] - 2026-10-19
 
 Sesión `.ai/sessions/2026-10-18b-index-modes-bulk-dump/` (PLAN, AUDIT_PLAN, G0 de medición e IMPLEMENT de la entrega

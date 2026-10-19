@@ -6,7 +6,7 @@ La paridad contra motores reales está en ``tests/integration/test_comparar_pref
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -224,6 +224,43 @@ class TestSqlServerPkIndexesComments:
         }
         assert meta.get("pk", "sin_pk") == {"constrained_columns": [], "name": None}
 
+    def test_float_keeps_its_precision(self) -> None:
+        """Hotfix 2026-10-19: en SQLAlchemy 2.1 ``Float`` no hereda de ``Numeric`` y se reflejaba ``FLOAT()``."""
+        from sqlalchemy.dialects import mssql
+
+        import util_bbdd.metadata.reflection as reflection
+
+        coltype = reflection._mssql_column_type(mssql.dialect(), "float", "float", 8, 53, 0, None)
+        assert coltype.precision == 53
+
+    @pytest.mark.parametrize("sqlalchemy_2_0", [True, False])
+    def test_text_length_follows_the_installed_sqlalchemy(self, sqlalchemy_2_0: bool) -> None:
+        """SQLAlchemy 2.1 no da longitud a TEXT/NTEXT (``max_length`` 16 es el puntero LOB); 2.0 sí."""
+        from sqlalchemy.dialects import mssql
+
+        import util_bbdd.metadata.reflection as reflection
+
+        with patch.object(reflection, "_MSSQL_TEXT_HAS_LENGTH", sqlalchemy_2_0):
+            text_type = reflection._mssql_column_type(mssql.dialect(), "text", "text", 16, 0, 0, "Modern_Spanish_CI_AS")
+            ntext_type = reflection._mssql_column_type(mssql.dialect(), "ntext", "ntext", 16, 0, 0, None)
+        assert text_type.length == (16 if sqlalchemy_2_0 else None)
+        assert ntext_type.length == (8 if sqlalchemy_2_0 else None)
+        assert text_type.collation == "Modern_Spanish_CI_AS"
+
+    @pytest.mark.parametrize("sqlalchemy_2_0", [True, False])
+    def test_include_columns_key_follows_the_installed_sqlalchemy(self, sqlalchemy_2_0: bool) -> None:
+        """Hotfix 2026-10-19: SQLAlchemy 2.1 quitó ``include_columns`` de ``MSDialect.get_indexes`` (queda en
+        ``dialect_options["mssql_include"]``); la lectura por lotes lo seguía devolviendo y ya no coincidía con él."""
+        import util_bbdd.metadata.reflection as reflection
+
+        insp = self._inspector([("t", 2, "ix_inc", False, 2, None)], [("t", 2, "a", False), ("t", 2, "b", True)])
+        with patch.object(reflection, "_MSSQL_INDEX_HAS_INCLUDE_COLUMNS", sqlalchemy_2_0):
+            (index,) = prefetch_table_metadata(insp, None, ["t"], kinds=["indexes"]).get("indexes", "t")
+        assert ("include_columns" in index) is sqlalchemy_2_0
+        assert index["dialect_options"]["mssql_include"] == ["b"]
+        if sqlalchemy_2_0:
+            assert index["include_columns"] == ["b"]
+
     def test_indexes_follow_msdialect_rules(self) -> None:
         index_rows = [
             ("t", 2, "ix_inc", False, 2, None),
@@ -243,7 +280,9 @@ class TestSqlServerPkIndexesComments:
 
         indexes = prefetch_table_metadata(insp, None, ["t", "sin_ix"], kinds=["indexes"]).get("indexes", "t")
 
-        assert [(i["name"], i["unique"], i["column_names"], i["include_columns"]) for i in indexes] == [
+        assert [
+            (i["name"], i["unique"], i["column_names"], i["dialect_options"]["mssql_include"]) for i in indexes
+        ] == [
             ("ix_inc", False, ["a"], ["b"]),
             ("ix_filt", True, ["a"], []),
             ("ccs", False, [], []),

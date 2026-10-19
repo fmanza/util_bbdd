@@ -28,11 +28,14 @@ propagan igual que sin precarga.
 
 from __future__ import annotations
 
+import itertools
 import logging
 
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, overload
+
+import sqlalchemy
 
 from sqlalchemy import Table, inspect, text, types as sqltypes
 from sqlalchemy.engine import Engine
@@ -325,6 +328,26 @@ def _mssql_add_index_column(index: dict[str, Any], column: str, is_included: Any
         index["column_names"].append(column)
 
 
+def _sqlalchemy_before(major: int, minor: int) -> bool:
+    """``True`` si la versión instalada de SQLAlchemy es anterior a ``major.minor``."""
+    parts: list[int] = []
+    for part in sqlalchemy.__version__.split(".")[:2]:
+        digits = "".join(itertools.takewhile(str.isdigit, part))
+        parts.append(int(digits or 0))
+    return tuple(parts) < (major, minor)
+
+
+#: La lectura por lotes de SQL Server reproduce ``MSDialect`` de la versión instalada de SQLAlchemy (hotfix 2026-10-19:
+#: con 2.1.5, ``test_prefetch_matches_per_table_reflection[mssql]`` fallaba). Diferencias de 2.1 frente a 2.0:
+#: ``get_indexes`` ya no devuelve ``include_columns`` (obsoleto; queda ``dialect_options["mssql_include"]``), ``TEXT`` y
+#: ``NTEXT`` no llevan longitud (``max_length`` es el puntero LOB) y ``Float`` deja de heredar de ``Numeric``.
+_SQLALCHEMY_2_0: bool = _sqlalchemy_before(2, 1)
+_MSSQL_INDEX_HAS_INCLUDE_COLUMNS: bool = _SQLALCHEMY_2_0
+_MSSQL_TEXT_HAS_LENGTH: bool = _SQLALCHEMY_2_0
+#: Base de los tipos numéricos con precisión (``NumericCommon`` en 2.1, que incluye ``Float``; ``Numeric`` en 2.0).
+_NUMERIC_BASE: Any = getattr(sqltypes, "NumericCommon", sqltypes.Numeric)
+
+
 def _mssql_build_indexes(
     results: list[Sequence[Any]], _schema: str | None, _owner: str, names: Sequence[str], _dialect: Any
 ) -> dict[str, Any]:
@@ -350,7 +373,8 @@ def _mssql_build_indexes(
             _mssql_add_index_column(found, column, is_included)
     for indexes in result.values():
         for index in indexes:
-            index["dialect_options"]["mssql_include"] = index["include_columns"]
+            included = index["include_columns"] if _MSSQL_INDEX_HAS_INCLUDE_COLUMNS else index.pop("include_columns")
+            index["dialect_options"]["mssql_include"] = included
     return result
 
 
@@ -396,8 +420,11 @@ def _mssql_length_kwargs(coltype: Any, maxlen: Any, collation: Any) -> dict[str,
 
     if coltype in (mssql.MSBinary, mssql.MSVarBinary, sqltypes.LargeBinary):
         return {"length": maxlen if maxlen != -1 else None}
-    if coltype in (mssql.MSString, mssql.MSChar, mssql.MSText):
-        kwargs: dict[str, Any] = {"length": maxlen if maxlen != -1 else None}
+    text_types = () if _MSSQL_TEXT_HAS_LENGTH else (mssql.MSText, mssql.MSNText)
+    if coltype in text_types:
+        kwargs: dict[str, Any] = {}  # SQLAlchemy 2.1: TEXT/NTEXT sin longitud, solo collation
+    elif coltype in (mssql.MSString, mssql.MSChar, mssql.MSText):
+        kwargs = {"length": maxlen if maxlen != -1 else None}
     elif coltype in (mssql.MSNVarchar, mssql.MSNChar, mssql.MSNText):
         kwargs = {"length": maxlen // 2 if maxlen != -1 else None}
     else:
@@ -409,7 +436,7 @@ def _mssql_length_kwargs(coltype: Any, maxlen: Any, collation: Any) -> dict[str,
 
 def _mssql_column_type(dialect: Any, type_name: str, base_type: str | None, maxlen: Any, prec: Any, scale: Any,
                        collation: Any) -> Any:  # fmt: skip
-    """Tipo de SQLAlchemy de una columna con las reglas de ``MSDialect.get_columns`` (SQLAlchemy 2.0)."""
+    """Tipo de SQLAlchemy de una columna con las reglas de ``MSDialect.get_columns`` de la versión instalada."""
 
     coltype = dialect.ischema_names.get(type_name)
     if coltype is None and base_type is not None and base_type != type_name:
@@ -417,7 +444,7 @@ def _mssql_column_type(dialect: Any, type_name: str, base_type: str | None, maxl
     if coltype is None:
         return None  # tipo no reconocido: lo resuelve la reflexión tabla a tabla (con su aviso)
     kwargs: dict[str, Any] = _mssql_length_kwargs(coltype, maxlen, collation)
-    if issubclass(coltype, sqltypes.Numeric):
+    if issubclass(coltype, _NUMERIC_BASE):
         kwargs["precision"] = prec
         if not issubclass(coltype, sqltypes.Float):
             kwargs["scale"] = scale

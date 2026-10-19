@@ -90,6 +90,22 @@ Ver `00_REQUEST.md` (solicitud inicial y cuatro ampliaciones en la misma sesión
   `dump/orchestrator.py::_count_rows`; corregida sin cambio funcional.
 - Correcciones al AUDIT_PLAN: T5 (orden de los context managers) y cifras de MySQL en paralelo (ver `04_…`).
 
+## Hotfix v3.2.1 — SQLAlchemy 2.1 en la lectura por lotes de SQL Server
+
+- **Evidencia**: con SQLAlchemy 2.1.5 (actualizado por el usuario, intencionado) falla
+  `test_prefetch_matches_per_table_reflection[mssql]`, también en `274f563d` (anterior a 3.2.0).
+- **RCA**: `metadata/reflection.py` copia las reglas de `MSDialect` de SQLAlchemy 2.0. En 2.1: `Float` hereda de
+  `NumericCommon` y no de `Numeric` (se perdía la precisión), `TEXT`/`NTEXT` sin longitud y `get_indexes` sin
+  `include_columns`.
+- **Fix mínimo**: constantes de versión (`_SQLALCHEMY_2_0`, `_MSSQL_INDEX_HAS_INCLUDE_COLUMNS`,
+  `_MSSQL_TEXT_HAS_LENGTH`) y `_NUMERIC_BASE = getattr(sqltypes, "NumericCommon", sqltypes.Numeric)`; el resultado
+  reproduce la versión instalada (2.0 o 2.1).
+- **Tests**: 5 unitarios en `tests/comparar/test_prefetch.py` (fallan sin el fix; cada regla con 2.0 y 2.1 simuladas);
+  `test_comparar_prefetch_engines.py` 5 de 5 contra el banco.
+- **Verificación**: mypy sin errores (341 ficheros); `pytest` sin URLs 6320 passed, 567 skipped; con el banco y
+  `JAVA_HOME` 6879 passed, 8 skipped; `zensical build --strict` limpio.
+- **Rollback**: revertir el commit (no hay datos afectados; solo la forma de los metadatos leídos).
+
 ## Artefactos generados
 
 | Artefacto | Ruta | Estado |
