@@ -50,6 +50,9 @@ def _canonical(name: str) -> str | None:
 def get_catalog_dialect(name: str) -> CatalogDialect:
     """``CatalogDialect`` de un ``db_type`` o de un nombre de dialecto de SQLAlchemy.
 
+    Args:
+        name: ``db_type`` (``"postgresql"``) o nombre de dialecto de SQLAlchemy (``"mssql"``); sin distinguir mayúsculas.
+
     Raises:
         CatalogDialectNotFoundError: Si el motor no tiene dialecto de catálogo.
     """
@@ -68,7 +71,11 @@ def get_catalog_dialect(name: str) -> CatalogDialect:
 
 
 def register_catalog_dialect(dialect: CatalogDialect) -> None:
-    """Registra (o sustituye) el dialecto de catálogo de ``dialect.name``."""
+    """Registra (o sustituye) el dialecto de catálogo de ``dialect.name``.
+
+    Args:
+        dialect: Dialecto de catálogo; prevalece sobre el incluido del mismo motor.
+    """
     with _lock:
         _extra[dialect.name.strip().lower()] = dialect
 

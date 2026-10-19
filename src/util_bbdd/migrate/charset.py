@@ -113,6 +113,9 @@ def validate_storage_engine(engine: str) -> str:
     Se escribe sin comillas en el DDL: cualquier otra cosa (``"InnoDB; DROP TABLE x"``) acabaría en el script. No se
     limita a una lista: InnoDB, Aria, MyISAM, ColumnStore, RocksDB... son válidos.
 
+    Args:
+        engine: Motor de almacenamiento (ej. ``"InnoDB"``).
+
     Returns:
         El nombre sin espacios alrededor.
 
@@ -167,6 +170,12 @@ def validate_mysql_collation(collation: str) -> str:
     """Valida y normaliza una collation para un destino MySQL.
 
     Aplica ``validate_collation`` y rechaza las collations que solo existen en MariaDB.
+
+    Args:
+        collation: Nombre de la collation (ej. "utf8mb4_0900_ai_ci").
+
+    Returns:
+        Collation normalizada en minúsculas.
 
     Raises:
         ValueError: Si la collation no está soportada o no existe en MySQL.

@@ -54,7 +54,11 @@ class SnapshotCache:
 
     # ── lectura y escritura ──────────────────────────────────────────────────
     def get(self, key: CacheKey) -> Value | None:
-        """Valor de ``key`` (lo marca como recién usado) o ``None`` si no está; cuenta el acierto."""
+        """Valor de ``key`` (lo marca como recién usado) o ``None`` si no está; cuenta el acierto.
+
+        Args:
+            key: Clave ``(fuente, schema, kind, tablas)``.
+        """
         with self._lock:
             group = self._groups.get((key[0], key[1]))
             if group is None or key not in group:
@@ -64,7 +68,12 @@ class SnapshotCache:
             return group[key]
 
     def put(self, key: CacheKey, value: Value) -> None:
-        """Guarda ``value``; si se supera ``max_schemas``, descarta el schema menos usado."""
+        """Guarda ``value``; si se supera ``max_schemas``, descarta el schema menos usado.
+
+        Args:
+            key: Clave ``(fuente, schema, kind, tablas)``.
+            value: Lectura de catálogo (tupla inmutable).
+        """
         with self._lock:
             group_key = (key[0], key[1])
             self._groups.setdefault(group_key, {})[key] = value
@@ -89,7 +98,12 @@ class SnapshotCache:
             locks.pop(key, None)  # quien ya lo tenga lo sigue usando; los siguientes leen la caché o crean otro
 
     def get_or_load(self, key: CacheKey, loader: Callable[[], Value]) -> Value:
-        """Valor de ``key``; si no está, lo carga una sola vez aunque lo pidan varios hilos a la vez."""
+        """Valor de ``key``; si no está, lo carga una sola vez aunque lo pidan varios hilos a la vez.
+
+        Args:
+            key: Clave ``(fuente, schema, kind, tablas)``.
+            loader: Lee el catálogo si ``key`` no está en caché; si lanza, no se guarda nada y la excepción se propaga.
+        """
         cached = self.get(key)
         if cached is not None:
             return cached
@@ -110,7 +124,12 @@ class SnapshotCache:
             return value
 
     async def aget_or_load(self, key: CacheKey, loader: Callable[[], Awaitable[Value]]) -> Value:
-        """Variante async de :meth:`get_or_load` (una sola carga por clave entre tareas)."""
+        """Variante async de :meth:`get_or_load` (una sola carga por clave entre tareas).
+
+        Args:
+            key: Clave ``(fuente, schema, kind, tablas)``.
+            loader: Corrutina que lee el catálogo si ``key`` no está en caché.
+        """
         cached = self.get(key)
         if cached is not None:
             return cached
@@ -132,7 +151,16 @@ class SnapshotCache:
 
     # ── invalidación ─────────────────────────────────────────────────────────
     def invalidate(self, source: str, schema: str | None = None, kinds: Collection[Kind] | None = None) -> int:
-        """Descarta lecturas de ``source`` (todas, de un schema o de unos tipos de objeto). Devuelve cuántas."""
+        """Descarta lecturas de ``source`` (todas, de un schema o de unos tipos de objeto).
+
+        Args:
+            source: Fuente cuyas lecturas se descartan.
+            schema: Solo las de este schema. ``None``: todos.
+            kinds: Solo las de estos tipos de objeto. ``None``: todos.
+
+        Returns:
+            Número de entradas descartadas.
+        """
         removed = 0
         kind_set = frozenset(kinds) if kinds is not None else None
         with self._lock:

@@ -146,6 +146,11 @@ class OracleDDLEmitter:
     ) -> str:
         """Genera el script DDL Oracle completo listo para guardar en fichero .sql.
 
+        Args:
+            tables: Tablas canónicas transformadas.
+            views: Vistas canónicas transformadas. Se emiten después de las tablas.
+            routines: Rutinas canónicas transformadas. Se emiten al final.
+
         Returns:
             Script SQL para SQL*Plus/SQLcl: cada sentencia termina en ``;`` y cada bloque PL/SQL (trigger, rutina) en
             una línea ``/`` (sin ella, las sentencias siguientes se añadirían al bloque).
@@ -170,6 +175,14 @@ class OracleDDLEmitter:
         6. ALTER TABLE ADD CONSTRAINT (FKs externas, con comentario)
         7. CREATE OR REPLACE VIEW (ordenadas topológicamente)
         8. CREATE OR REPLACE PROCEDURE/FUNCTION
+
+        Args:
+            tables: Tablas canónicas transformadas.
+            views: Vistas canónicas transformadas. Se emiten después de las tablas.
+            routines: Rutinas canónicas transformadas. Se emiten al final.
+
+        Returns:
+            Sentencias en ese orden; los bloques PL/SQL (triggers, rutinas) incluidos.
         """
         ordered, circular_fk_pairs = _topological_sort(tables)
 

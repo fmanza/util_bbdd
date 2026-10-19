@@ -113,7 +113,11 @@ def secondary_nonunique_indexes(
       de otra (InnoDB los necesita). DDL: la cláusula para ``ALTER TABLE … ADD`` (``INDEX `n` (`a`, `b`)``).
     - Resto: ``[]``.
 
-    ``dialect`` (nombre de SQLAlchemy) evita leerlo de la conexión.
+    Args:
+        conn: Conexión SQLAlchemy abierta.
+        schema: Schema de la tabla. ``None``: el actual de la conexión.
+        table: Nombre de la tabla.
+        dialect: Nombre de dialecto de SQLAlchemy; ``None``: el de ``conn`` (pasarlo evita leerlo de la conexión).
     """
     dialect = dialect or conn.dialect.name
     if dialect == "mssql":
@@ -230,6 +234,12 @@ def unique_indexes(conn: Any, schema: str | None, table: str, dialect: str | Non
     - MariaDB/MySQL: índices únicos (sin la PK, que en InnoDB es el clustered) con las reglas de
       :func:`secondary_nonunique_indexes`, sin los que usa o referencia una FK.
     - Resto: ``[]``.
+
+    Args:
+        conn: Conexión SQLAlchemy abierta.
+        schema: Schema de la tabla. ``None``: el actual de la conexión.
+        table: Nombre de la tabla.
+        dialect: Nombre de dialecto de SQLAlchemy; ``None``: el de ``conn``.
     """
     dialect = dialect or conn.dialect.name
     reader = _UNIQUE_INDEX_READERS.get("mysql" if dialect == "mariadb" else dialect)
@@ -334,6 +344,12 @@ def inbound_foreign_keys(
 
     SQL Server (todas, con su estado), Oracle (las activas) y PostgreSQL (todas, con su DDL); resto ``[]`` (en
     MariaDB/MySQL los índices referenciados no se tocan).
+
+    Args:
+        conn: Conexión SQLAlchemy abierta.
+        schema: Schema de la tabla. ``None``: el actual de la conexión.
+        table: Nombre de la tabla.
+        dialect: Nombre de dialecto de SQLAlchemy; ``None``: el de ``conn``.
     """
     dialect = dialect or conn.dialect.name
     if dialect == "mssql":

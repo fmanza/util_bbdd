@@ -134,6 +134,10 @@ class RangePartitioner:
         Lo usa ``ParallelBulkLoader`` con ``partition_ranges`` antes de lanzar los hilos (v3.0.0: antes era una función
         suelta de ``parallel_loader.py``).
 
+        Args:
+            ranges: Rangos ``(lo, hi)`` inclusivos, uno por lector.
+            n_readers: Número de lectores (hilos) de la carga.
+
         Raises:
             ValueError: Si ``len(ranges) != n_readers`` o algún par de rangos se solapa.
 
@@ -158,7 +162,11 @@ class RangePartitioner:
 
     @staticmethod
     def is_rangeable(series: pd.Series) -> bool:
-        """``True`` si ``series`` es entera o datetime64 (el tipo que admite :meth:`partition_dataframe`)."""
+        """``True`` si ``series`` es entera o datetime64 (el tipo que admite :meth:`partition_dataframe`).
+
+        Args:
+            series: Columna candidata a particionar.
+        """
         dtype = series.dtype
         return bool(pd.api.types.is_integer_dtype(dtype) or pd.api.types.is_datetime64_any_dtype(dtype))
 

@@ -187,7 +187,11 @@ class RetryOptions:
         object.__setattr__(self, "backoff", (float(self.backoff[0]), float(self.backoff[1])))
 
     def should_retry(self, exc: BaseException) -> bool:
-        """``True`` si ``exc`` se reintenta (``retry_on`` o, sin él, ``is_retriable``)."""
+        """``True`` si ``exc`` se reintenta (``retry_on`` o, sin él, ``is_retriable``).
+
+        Args:
+            exc: Excepción de la partición que ha fallado.
+        """
         return (self.retry_on or is_retriable)(exc)
 
 
@@ -273,7 +277,15 @@ class BulkOptions:
         execution: ExecutionOptions | None = None,
         parallel: ParallelOptions | None = None,
     ) -> BulkOptions:
-        """``BulkOptions`` con los paquetes recibidos y los de por defecto en los ``None`` (salvo ``parallel``)."""
+        """``BulkOptions`` con los paquetes recibidos y los de por defecto en los ``None`` (salvo ``parallel``).
+
+        Args:
+            batch: Lotes y transacciones. ``None``: ``BatchOptions()``.
+            audit: Auditoría de la carga. ``None``: ``AuditOptions()``.
+            rejects: Filas rechazadas. ``None``: ``RejectOptions()``.
+            execution: Vía de ejecución por motor y tratamiento de los datos. ``None``: ``ExecutionOptions()``.
+            parallel: Ejecución paralela. ``None``: en serie.
+        """
         return cls(
             batch=batch or BatchOptions(),
             audit=audit or AuditOptions(),
@@ -284,7 +296,11 @@ class BulkOptions:
 
     def for_worker(self, *, run_id: str | None) -> BulkOptions:
         """Opciones de la ``BulkCrud`` de una partición: sin ``parallel`` (un worker no vuelve a paralelizar), sin aviso
-        de auditoría deshabilitada (lo da quien reparte, una vez) y con el ``run_id`` común de la carga."""
+        de auditoría deshabilitada (lo da quien reparte, una vez) y con el ``run_id`` común de la carga.
+
+        Args:
+            run_id: ``run_id`` de los eventos de auditoría, común a todas las particiones (``None`` sin ``audit.sink``).
+        """
         # S5886 es un falso positivo: replace() devuelve el tipo de su argumento (BulkOptions), no DataclassInstance.
         return replace(self, audit=replace(self.audit, warn_if_disabled=False, run_id=run_id), parallel=None)  # NOSONAR
 

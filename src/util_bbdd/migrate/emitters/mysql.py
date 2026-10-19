@@ -26,6 +26,9 @@ def strip_int_display_width(column_type: str) -> str:
     """Quita el ancho de visualización de un tipo entero MySQL (``INT(11) UNSIGNED`` → ``INT UNSIGNED``).
 
     ``TINYINT(1)`` se mantiene; el resto de tipos no cambia.
+
+    Args:
+        column_type: Tipo de columna MySQL tal como lo da el catálogo (``COLUMN_TYPE``).
     """
     match = _INT_DISPLAY_WIDTH.match(column_type)
     if match is None:

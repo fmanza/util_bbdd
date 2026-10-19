@@ -161,12 +161,25 @@ class ParallelPlanner:
 
     @classmethod
     def rule(cls, workload: Workload, dialect: str, operation: Operation) -> ParallelRule | None:
-        """Regla medida de la combinación, o ``None`` si no se ha medido."""
+        """Regla medida de la combinación, o ``None`` si no se ha medido.
+
+        Args:
+            workload: Origen de los datos de la carga.
+            dialect: Motor de destino (nombre de dialecto de SQLAlchemy).
+            operation: Operación de la carga.
+        """
         return cls.RULES.get((workload, dialect, operation))
 
     @classmethod
     def plan(cls, facts: PlanInput) -> ParallelPlan:
-        """Hilos de la carga descrita por ``facts``: las reglas de seguridad y, en ``"auto"``, las de rendimiento."""
+        """Hilos de la carga descrita por ``facts``: las reglas de seguridad y, en ``"auto"``, las de rendimiento.
+
+        Args:
+            facts: Datos de la carga (opciones, motor, operación, filas, particiones y capacidad del pool).
+
+        Returns:
+            Número de hilos y motivos de cada recorte.
+        """
         options = facts.options
         if options.mode == "off":
             return ParallelPlan(1, ("mode='off': en serie",))

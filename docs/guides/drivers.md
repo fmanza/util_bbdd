@@ -82,6 +82,10 @@ Con `SyncDatabaseManager` es igual (sin `await`): thin es el modo por defecto ta
    export LD_LIBRARY_PATH=$HOME/oracle/instantclient_19_x:$LD_LIBRARY_PATH
    ```
 
+   Desde la versión 26 de python-oracledb (mínimo de util_bbdd desde 4.0.0), en Linux y macOS el modo thick busca la
+   librería por su nombre sin versión (`libclntsh.so` o `libclntsh.dylib`): si el Instant Client solo trae el nombre
+   versionado (`libclntsh.so.19.1`), crea el enlace (`ln -s libclntsh.so.19.1 libclntsh.so`) en su directorio.
+
 4. **python-oracledb**: instálalo con el extra `oracle` (`pip install "util_bbdd[oracle] @ git+https://github.com/fmanza/util_bbdd.git@v3.4.1"`)
    o con `pip install oracledb`.
 

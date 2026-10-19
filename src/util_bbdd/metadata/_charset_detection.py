@@ -151,7 +151,11 @@ class CharsetStateDetector:
 
     @classmethod
     def diagnosis_from_row(cls, row: tuple[Any, ...]) -> CharsetDiagnosis:
-        """``CharsetDiagnosis`` desde la fila de ``_DIAGNOSIS_SQL`` (compartido por :meth:`diagnose` y :func:`adiagnose`)."""
+        """``CharsetDiagnosis`` desde la fila de ``_DIAGNOSIS_SQL`` (compartido por :meth:`diagnose` y :func:`adiagnose`).
+
+        Args:
+            row: Fila de ``_DIAGNOSIS_SQL`` con sus ``_DIAGNOSIS_COLUMNS`` columnas.
+        """
         server, database, client, connection, collation, _comment, converted, schema_charset = row
         return cls.build_diagnosis(
             server,
@@ -192,7 +196,18 @@ class CharsetStateDetector:
         can_convert_utf8mb4: bool,
         info_schema_charset: str | None,
     ) -> CharsetDiagnosis:
-        """``CharsetDiagnosis`` a partir de los valores leídos (compartido por :meth:`diagnose` y :func:`adiagnose`)."""
+        """``CharsetDiagnosis`` a partir de los valores leídos (compartido por :meth:`diagnose` y :func:`adiagnose`).
+
+        Args:
+            server_charset: ``@@character_set_server`` (``str``, ``bytes`` o ``None``).
+            database_charset: ``@@character_set_database``.
+            client_charset: ``@@character_set_client``.
+            connection_charset: ``@@character_set_connection``.
+            collation_connection: ``@@collation_connection``.
+            can_read_comments: Si los comentarios de tabla se leen sin error.
+            can_convert_utf8mb4: Si ``CONVERT(... USING utf8mb4)`` funciona.
+            info_schema_charset: Charset de la base de datos actual en ``information_schema``, o ``None``.
+        """
         # Normalizar valores (MariaDB puede devolver bytes)
         server = str(server_charset).lower() if server_charset else None
         database = str(database_charset).lower() if database_charset else None
@@ -339,7 +354,11 @@ async def _aquery_reads(connection: Any, sql: str) -> bool:
 
 
 async def adiagnose(connection: Any) -> CharsetDiagnosis:
-    """Diagnóstico de charset sobre una conexión async (aiomysql); mismas consultas y reglas que ``diagnose()``."""
+    """Diagnóstico de charset sobre una conexión async (aiomysql); mismas consultas y reglas que ``diagnose()``.
+
+    Args:
+        connection: Conexión async abierta (aiomysql).
+    """
     row = await _afetch_row(connection, _DIAGNOSIS_SQL)
     if row is not None and len(row) == _DIAGNOSIS_COLUMNS:
         return CharsetStateDetector.diagnosis_from_row(row)

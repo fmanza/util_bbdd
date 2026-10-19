@@ -45,7 +45,12 @@ class SqlAlchemyCatalogExecutor:
         self.bind = bind
 
     def fetch_all(self, sql: str, params: Mapping[str, Any]) -> list[tuple[Any, ...]]:
-        """Ejecuta ``sql`` (parámetros ``:nombre``; las listas se expanden) y devuelve todas las filas."""
+        """Ejecuta ``sql`` (parámetros ``:nombre``; las listas se expanden) y devuelve todas las filas.
+
+        Args:
+            sql: Consulta de catálogo con marcadores ``:nombre``.
+            params: Valores de los marcadores; una lista o tupla se expande en ``IN (...)``.
+        """
         expanded, flat = expand_lists(sql, params)
         statement = text(expanded)
         if isinstance(self.bind, Connection):
@@ -271,7 +276,14 @@ class CatalogSource(_SourceBase):
         kinds: Collection[Kind] = ALL_KINDS,
         tables: Collection[str] | None = None,
     ) -> SchemaSnapshot:
-        """Metadatos de ``schema`` para ``kinds``: una consulta por tipo de objeto no cacheado."""
+        """Metadatos de ``schema`` para ``kinds``: una consulta por tipo de objeto no cacheado.
+
+        Args:
+            schema: Schema que leer. ``None``: el schema actual de la conexión.
+            kinds: Tipos de objeto que leer. Default: todos.
+            tables: Solo estas tablas en los tipos ligados a una tabla (columnas, índices, FK…). ``None``, o más de
+                ``FILTER_MAX_TABLES``: el schema completo.
+        """
         schema = self.dialect.normalize_name(schema) if schema else self.current_schema()
         wanted, selected = self._plan(kinds, tables)
         data: dict[Kind, tuple[Any, ...]] = {}
@@ -366,7 +378,14 @@ class AsyncCatalogSource(_SourceBase):
         kinds: Collection[Kind] = ALL_KINDS,
         tables: Collection[str] | None = None,
     ) -> SchemaSnapshot:
-        """Metadatos de ``schema`` para ``kinds``: una consulta por tipo de objeto no cacheado."""
+        """Metadatos de ``schema`` para ``kinds``: una consulta por tipo de objeto no cacheado.
+
+        Args:
+            schema: Schema que leer. ``None``: el schema actual de la conexión.
+            kinds: Tipos de objeto que leer. Default: todos.
+            tables: Solo estas tablas en los tipos ligados a una tabla (columnas, índices, FK…). ``None``, o más de
+                ``FILTER_MAX_TABLES``: el schema completo.
+        """
         schema = self.dialect.normalize_name(schema) if schema else await self.current_schema()
         wanted, selected = self._plan(kinds, tables)
         data: dict[Kind, tuple[Any, ...]] = {}
