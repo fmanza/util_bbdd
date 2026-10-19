@@ -298,7 +298,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-10-16h-static-analysis-fixes | **v3.0.2**: avisos de Pylance y SonarLint sin cambios funcionales (`BulkOptions`, `SafeWorksheet.append`, `_core/exceptions.py`, `NOSONAR` en falsos positivos) | develop | correcciones IDE + version-closure | CLOSED | `2026-10-16h-static-analysis-fixes/TRACEABILITY.md` |
 | 2026-10-16i-documentation-review | **v3.0.3**: revisión de documentación (Documentation Reviewer, niveles 1–3), `/config-review`, criterios de aceptación en `docs/functional/`, autodoc nuevo y ejemplos con servidor ejecutables con test contra el banco | develop | documentation + config_review + version-closure | CLOSED | `2026-10-16i-documentation-review/TRACEABILITY.md` |
 | 2026-10-18-timing-decorator | `medir_tiempo` propio en `_core/timing.py` (tipado con `ParamSpec`); fuera la dependencia privada `util` y `GH_PAT` del CI | develop | new_feature | CLOSED | `2026-10-18-timing-decorator/TRACEABILITY.md` |
-| 2026-10-18b-index-modes-bulk-dump | PLAN + AUDIT_PLAN: modos de índices (`False`/`"secondary"`/`"all"`) compartidos por `bulk` y `dump`, `FOREIGN_KEY_CHECKS` y `validate_fks_after`; medición G0 previa | develop | new_feature | GO_CONDICIONAL | `2026-10-18b-index-modes-bulk-dump/TRACEABILITY.md` |
+| 2026-10-18b-index-modes-bulk-dump | **v3.1.1–v3.3.0**: modos de índices (`"secondary"`/`"all"`) compartidos por `bulk` y `dump`, `IndexRebuildError`, `validate_fks_after`; medición G0; hotfixes de SQL Server, Oracle en paralelo y SQLAlchemy 2.1 | develop | new_feature + hotfix + version-closure | CLOSED | `2026-10-18b-index-modes-bulk-dump/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 

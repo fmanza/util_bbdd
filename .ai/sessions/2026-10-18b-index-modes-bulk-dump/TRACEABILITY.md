@@ -4,8 +4,8 @@
 - id: 2026-10-18b-index-modes-bulk-dump
 - fecha: 2026-10-18
 - rama: develop
-- skill: new_feature
-- fase: PLAN + AUDIT_PLAN
+- skill: new_feature + hotfix (×3) + version_closure
+- fase: PLAN + AUDIT_PLAN + G0 (medición) + IMPLEMENT 3.2.0/3.3.0 + hotfix 3.1.1/3.1.2/3.2.1 + VERSION
 
 ## Prompt issued
 Ver `00_REQUEST.md` (solicitud inicial y cuatro ampliaciones en la misma sesión).
@@ -126,8 +126,8 @@ Ver `00_REQUEST.md` (solicitud inicial y cuatro ampliaciones en la misma sesión
 | Hotfix 3.1.2 | `274f563d` | commit |
 
 ## Directrices para Futuras IAs
-- **[bulk/índices]**: `BulkCrud.maintenance_scope(disable_indexes=True)` y `dump.IndexManager` son dos implementaciones
-  distintas del mismo concepto; el catálogo común es `metadata.facts.secondary_nonunique_indexes`.
+- **[bulk/índices]**: hasta 3.1.x, `BulkCrud.maintenance_scope(disable_indexes=True)` y `dump.IndexManager` eran dos
+  implementaciones distintas del mismo concepto; desde 3.2.0 comparten `bulk/_support/secondary_indexes.py`.
 - **[oracle/constraints]**: con `disable_constraints=True`, `bulk` y `dump` ya desactivan las UNIQUE en Oracle
   (`bulk/_execution/maintenance.py:383`, `dump/_constraints.py:385`); cualquier gestión de índices únicos debe
   coordinarse con esa ruta.
@@ -150,13 +150,33 @@ Ver `00_REQUEST.md` (solicitud inicial y cuatro ampliaciones en la misma sesión
 - **[índices/all]**: la propiedad de una PK/UNIQUE la tiene quien la desactiva primero (solo se planifican las
   `ENABLED`); así no hay doble gestión con la ruta de constraints de Oracle.
 - **[bash]**: heredocs con `\|` o comillas rompen; para Markdown con tablas usar Edit/Write.
+- **[sqlalchemy/2.1]**: `metadata/reflection.py` reproduce `MSDialect` según la versión instalada (`_SQLALCHEMY_2_0`):
+  en 2.1 `Float` hereda de `NumericCommon` (no de `Numeric`), `TEXT`/`NTEXT` van sin longitud y `get_indexes` no
+  devuelve `include_columns`. `test_prefetch_matches_per_table_reflection` es el que detecta estas divergencias.
+- **[medición]**: en el banco Oracle Free (2 CPU) dos índices de baja cardinalidad multiplican la carga ×7; las cifras
+  de Oracle están infladas, la dirección no. En `dump` la ganancia de índices se mide con lectura solapada (menor que
+  en `bulk` directo): no extrapolar entre los dos.
+- **[medición/paralelo]**: con 4 hilos desactivar índices empeora en PostgreSQL y MariaDB (y `"all"` también en
+  MySQL); la reconstrucción va en serie. Los avisos están en `ParallelBulkLoader._INDEXES_SLOWER_IN_PARALLEL`.
+- **[mysql/unique_checks]**: `SET unique_checks=0` medido sin ganancia (≤ 1,5 %, a veces más lento): no ofrecerlo.
 - **[banco]**: MariaDB 11.4 no tiene change buffer y MySQL 8.4 lo trae desactivado: el argumento de que InnoDB ya
   amortigua el mantenimiento de secundarios no vale sin medir.
 
 ## Veredicto final
-Veredicto: GO_CONDICIONAL
+Veredicto: CLOSED (v3.3.0, `19596362`; cierre de versión 2026-10-19)
+
+Versiones de la sesión: 3.1.1 (`5f11ffcb`), 3.1.2 (`274f563d`), 3.2.0 (`ef742255`), 3.2.1 (`22d33e6a`) y 3.3.0
+(`19596362`); además `0fbabde0` (banco G0), `5e562706` (resultados G0) y `c567e243` (anotación para SQLAlchemy 2.1).
+Ninguna publicada: `origin/develop` sigue en 3.1.0 (`ea0507a7`, con su tag `v3.1.0` ya en el remoto) y `main` en 3.0.3.
+
+Verificación de la versión cerrada (3.3.0, con SQLAlchemy 2.1.5): ruff, `ruff format --check` y mypy sin errores
+(342 ficheros); `pytest` sin URLs 6354 passed, 588 skipped; con el banco (6 motores y `JAVA_HOME`) 6934 passed,
+8 skipped; `zensical build --strict` limpio; `python -m build` genera `util_bbdd-3.3.0.tar.gz` y `.whl`; diagrama de capas
+sin cambios (342 ficheros).
+
 Pendientes al cierre:
-- G0: `scripts/bench_index_modes.py` y medición en el banco.
-- Verificar F4 (reintentos de partición × commits periódicos) antes de G5.
-- Comprobar en banco: `REBUILD` de PK NONCLUSTERED en SQL Server y FK entrantes; DROP de índice requerido por FK en
-  MariaDB 11.4 vs MySQL 8.4.
+- Publicación: push de `develop`, tags (al menos `v3.3.0`; opcionalmente `v3.1.1`, `v3.1.2`, `v3.2.0`, `v3.2.1` sobre sus
+  commits), fast-forward de `main` y CI en verde; las instrucciones de instalación siguen en `@v3.0.3` (R5 de
+  `.ai/CURRENT_STATE.md`).
+- Decisión: `validate_fks_after=True` por defecto (coste medido ≈1 %).
+- Oracle: `"all"` no toca índices únicos sin constraint (necesitaría `DBMS_METADATA.GET_DDL`).
