@@ -1,6 +1,6 @@
-Todas las funciones - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Todas las funciones - <sqlite_db>
 Todas las funciones
-Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db · Generado: <fecha> · Registros: 0
+Base de datos: <sqlite_db> · Generado: <fecha> · Registros: 0
 Anterior
 Página 1/1
 Siguiente
@@ -25,9 +25,9 @@ Tipo
 Valor por defecto
 Posición
 Detalle
-Todos los procedures - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Todos los procedures - <sqlite_db>
 Todos los procedures
-Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db · Generado: <fecha> · Registros: 0
+Base de datos: <sqlite_db> · Generado: <fecha> · Registros: 0
 Anterior
 Página 1/1
 Siguiente
@@ -52,9 +52,9 @@ Tipo
 Valor por defecto
 Posición
 Detalle
-Todo el almacenamiento - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Todo el almacenamiento - <sqlite_db>
 Todo el almacenamiento
-Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db · Generado: <fecha> · Registros: 0
+Base de datos: <sqlite_db> · Generado: <fecha> · Registros: 0
 Anterior
 Página 1/1
 Siguiente
@@ -74,9 +74,9 @@ Sección
 Estado
 Mensaje
 Detalle
-Todas las tablas y columnas - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Todas las tablas y columnas - <sqlite_db>
 Todas las tablas y columnas
-Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db · Generado: <fecha> · Registros: 16
+Base de datos: <sqlite_db> · Generado: <fecha> · Registros: 16
 Anterior
 Página 1/1
 Siguiente
@@ -224,9 +224,9 @@ YES
 No
 -> zz_gold_composite(b)
 Abrir detalle
-Todas las vistas y columnas - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Todas las vistas y columnas - <sqlite_db>
 Todas las vistas y columnas
-Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db · Generado: <fecha> · Registros: 2
+Base de datos: <sqlite_db> · Generado: <fecha> · Registros: 2
 Anterior
 Página 1/1
 Siguiente
@@ -261,8 +261,8 @@ code
 VARCHAR(20)
 YES
 Abrir detalle
-Índice documentación BD - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
-Índice de documentación - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Índice documentación BD - <sqlite_db>
+Índice de documentación - <sqlite_db>
 Generado: <fecha>
 Buscar en
 TABLA
@@ -321,10 +321,10 @@ No hay información de base de datos.
 Anterior
 Página 1/1
 Siguiente
-Tabla - zz_gold_child | C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Tabla - zz_gold_child | <sqlite_db>
 Tabla: zz_gold_child
 Generado: <fecha>
-Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Base de datos: <sqlite_db>
 Comentario:
 DDL
 Copiar DDL
@@ -370,10 +370,10 @@ Tipo de Índice
 ix_zz_gold_child_label
 label
 No
-Tabla - zz_gold_composite | C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Tabla - zz_gold_composite | <sqlite_db>
 Tabla: zz_gold_composite
 Generado: <fecha>
-Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Base de datos: <sqlite_db>
 Comentario:
 DDL
 Copiar DDL
@@ -411,10 +411,10 @@ Sí
 sqlite_autoindex_zz_gold_composite_1
 b
 Sí
-Tabla - zz_gold_identity | C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Tabla - zz_gold_identity | <sqlite_db>
 Tabla: zz_gold_identity
 Generado: <fecha>
-Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Base de datos: <sqlite_db>
 Comentario:
 DDL
 Copiar DDL
@@ -441,10 +441,10 @@ Restricciones Únicas
 No se encontraron claves únicas.
 Índices
 No se encontraron índices.
-Tabla - zz_gold_parent | C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Tabla - zz_gold_parent | <sqlite_db>
 Tabla: zz_gold_parent
 Generado: <fecha>
-Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Base de datos: <sqlite_db>
 Comentario:
 DDL
 Copiar DDL
@@ -489,10 +489,10 @@ Tipo de Índice
 sqlite_autoindex_zz_gold_parent_1
 code
 Sí
-Tabla - zz_gold_ref_composite | C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Tabla - zz_gold_ref_composite | <sqlite_db>
 Tabla: zz_gold_ref_composite
 Generado: <fecha>
-Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Base de datos: <sqlite_db>
 Comentario:
 DDL
 Copiar DDL
@@ -537,10 +537,10 @@ Restricciones Únicas
 No se encontraron claves únicas.
 Índices
 No se encontraron índices.
-Vista - zz_gold_v_parent | C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Vista - zz_gold_v_parent | <sqlite_db>
 Vista: zz_gold_v_parent
 Generado: <fecha>
-Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Base de datos: <sqlite_db>
 Comentario:
 DDL
 Copiar DDL

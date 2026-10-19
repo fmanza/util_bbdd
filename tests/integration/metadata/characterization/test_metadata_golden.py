@@ -34,7 +34,16 @@ import pytest
 
 from util_bbdd import SyncDatabaseManager
 
-from ._schemas import ORACLE_ADMIN_URL_ENV, PREFIX, GoldenTarget, build, drop, oracle_doc_target, targets
+from ._schemas import (
+    ORACLE_ADMIN_URL_ENV,
+    PREFIX,
+    GoldenTarget,
+    build,
+    drop,
+    oracle_doc_target,
+    sqlite_path,
+    targets,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -158,6 +167,8 @@ def _doc_text(mgr: SyncDatabaseManager, engine: str) -> str:
     ).generate()
     pages = sorted(out.rglob("*.html"))
     text = "\n".join(html.unescape(_TAG.sub(" ", _EMBEDDED.sub(" ", p.read_text(encoding="utf-8")))) for p in pages)
+    # La ruta del .db de SQLite depende del SO y del usuario (tempfile.gettempdir()): el dorado no puede llevarla.
+    text = text.replace(str(sqlite_path()), "<sqlite_db>")
     lines = (" ".join(_VOLATILE.sub("<fecha>", line).split()) for line in text.splitlines())
     return "\n".join(line for line in lines if line) + "\n"
 
