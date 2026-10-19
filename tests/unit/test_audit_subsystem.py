@@ -316,6 +316,16 @@ class TestServiceEstadisticas:
         stats = service.obtener_estadisticas()
         assert stats["total_filas_procesadas"] == 17
 
+    def test_operacion_mas_lenta(self, service: AuditAnalyticsService) -> None:
+        stats = service.obtener_estadisticas()
+        assert stats["operacion_mas_lenta"] == "DELETE"
+
+    def test_operacion_mas_lenta_en_empate_es_la_primera(self, populated_repo: AuditCsvRepository) -> None:
+        populated_repo.registrar_operacion(tabla="users", motor="sqlite", operacion="INSERT", rowcount=1, elapsed=8.0)
+        service = AuditAnalyticsService(repository=populated_repo, logger=logging.getLogger("test"))
+
+        assert service.obtener_estadisticas()["operacion_mas_lenta"] == "DELETE"
+
     def test_operaciones_por_tipo(self, service: AuditAnalyticsService) -> None:
         counts = service.obtener_operaciones_por_tipo()
         assert counts["INSERT"] == 1

@@ -40,7 +40,8 @@ class AuditAnalyticsService:
             "tiempo_promedio_segundos": float(dataframe["tiempo_seg"].mean()),
             "tiempo_maximo_segundos": float(dataframe["tiempo_seg"].max()),
             "tiempo_minimo_segundos": float(dataframe["tiempo_seg"].min()),
-            "operacion_mas_lenta": str(dataframe.loc[dataframe["tiempo_seg"].idxmax(), "operacion"]),
+            # Por posición (argmax), no por etiqueta: pandas-stubs ≥ 3.0.5 no acepta el Hashable de idxmax() en .loc.
+            "operacion_mas_lenta": str(dataframe["operacion"].iloc[dataframe["tiempo_seg"].argmax()]),
             "tabla_mas_activa": str(dataframe["tabla"].value_counts().index[0]),
             "motor_mas_usado": str(dataframe["motor"].value_counts().index[0]),
             "fecha_inicio": str(dataframe["timestamp"].min()),

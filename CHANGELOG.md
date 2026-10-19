@@ -5,6 +5,15 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## Sin publicar
+
+### Fixed
+
+- **audit**: `AuditAnalyticsService.obtener_estadisticas()` obtiene `operacion_mas_lenta` por posición
+  (`Series.argmax()`) en lugar de por etiqueta (`.loc[idxmax(), ...]`). pandas-stubs 3.0.5 ya no acepta el
+  `Hashable` de `idxmax()` en `.loc` y mypy fallaba en el CI (que instala la última versión de los stubs). Mismo
+  resultado: la primera operación con el tiempo máximo. Tests nuevos del valor y del empate.
+
 ## [4.0.0] - 2026-10-19
 
 SemVer: MAJOR (`oracledb` deja de instalarse con la librería).
