@@ -483,6 +483,76 @@ class TestParallelBulkLoaderConstraintHoist:
         crud_mock.maintenance_scope.assert_called_once()
         crud_mock.bulk_insert_from_chunks.assert_not_called()
 
+    @staticmethod
+    def _oracle_engine(executed: list[str], fail_on: str | None = None) -> MagicMock:
+        engine = MagicMock()
+        engine.dialect.name = "oracle"
+        engine.dialect.identifier_preparer.format_table.return_value = "ORDERS"
+        engine.dialect.identifier_preparer.quote_identifier.side_effect = lambda name: f'"{name}"'
+        conn_mock = engine.begin.return_value.__enter__.return_value
+
+        def execute(stmt: object, *args: object, **kwargs: object) -> MagicMock:
+            sql = str(stmt)
+            executed.append(sql)
+            if fail_on is not None and fail_on in sql:
+                raise SQLAlchemyError(f"ORA-00054 simulado: {sql}")
+            return MagicMock()
+
+        conn_mock.execute.side_effect = execute
+        return engine
+
+    def test_oracle_hoist_disables_once_and_workers_skip_maintenance_scope(self) -> None:
+        """Hotfix 2026-10-19: en Oracle cada worker desactivaba y reactivaba las constraints con su maintenance_scope;
+        con otro worker insertando, DISABLE y ENABLE VALIDATE fallaban con ORA-00054 y la UNIQUE quedaba deshabilitada."""
+        executed: list[str] = []
+        engine = self._oracle_engine(executed)
+        df = pd.DataFrame({"id": [1], "v": ["a"]})
+        with (
+            patch.object(pl_mod, "BulkCrud") as crud_cls,
+            patch.object(pl_mod.TableMaintenance, "_oracle_fetch_constraint_names", return_value=["FK_A", "UQ_S"]),
+        ):
+            crud_mock = MagicMock()
+            crud_cls.return_value = crud_mock
+            loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=2, disable_constraints=True))
+            loader.load("orders", [lambda: iter([df]), lambda: iter([df])])
+
+        assert executed == [
+            'ALTER TABLE ORDERS DISABLE CONSTRAINT "FK_A"',
+            'ALTER TABLE ORDERS DISABLE CONSTRAINT "UQ_S"',
+            'ALTER TABLE ORDERS ENABLE VALIDATE CONSTRAINT "FK_A"',
+            'ALTER TABLE ORDERS ENABLE VALIDATE CONSTRAINT "UQ_S"',
+        ]
+        crud_mock.maintenance_scope.assert_not_called()
+        assert crud_mock.bulk_insert_from_chunks.call_count == 2
+
+    def test_oracle_hoist_enable_failure_tries_the_rest_and_raises(self) -> None:
+        executed: list[str] = []
+        engine = self._oracle_engine(executed, fail_on='ENABLE VALIDATE CONSTRAINT "FK_A"')
+        with (
+            patch.object(pl_mod, "BulkCrud") as crud_cls,
+            patch.object(pl_mod.TableMaintenance, "_oracle_fetch_constraint_names", return_value=["FK_A", "UQ_S"]),
+        ):
+            crud_cls.return_value.bulk_insert_from_chunks.return_value = 0
+            loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1, disable_constraints=True))
+            with pytest.raises(SQLAlchemyError, match="FK_A"):
+                loader.load("orders", [lambda: iter([])])
+
+        assert 'ALTER TABLE ORDERS ENABLE VALIDATE CONSTRAINT "UQ_S"' in executed
+
+    def test_oracle_hoist_skips_constraints_it_could_not_disable(self) -> None:
+        executed: list[str] = []
+        engine = self._oracle_engine(executed, fail_on='DISABLE CONSTRAINT "FK_A"')
+        with (
+            patch.object(pl_mod, "BulkCrud") as crud_cls,
+            patch.object(pl_mod.TableMaintenance, "_oracle_fetch_constraint_names", return_value=["FK_A", "UQ_S"]),
+        ):
+            crud_cls.return_value.bulk_insert_from_chunks.return_value = 0
+            loader = ParallelBulkLoader(engine, parallel=ParallelOptions(max_workers=1, disable_constraints=True))
+            loader.load("orders", [lambda: iter([])])
+
+        assert not [sql for sql in executed if 'ENABLE VALIDATE CONSTRAINT "FK_A"' in sql]
+        assert 'ALTER TABLE ORDERS ENABLE VALIDATE CONSTRAINT "UQ_S"' in executed
+
     def test_mysql_disable_constraints_uses_per_worker_no_hoist(self) -> None:
         """MySQL/MariaDB usa SET SESSION — sin lock DDL, no necesita hoist."""
         engine = MagicMock()

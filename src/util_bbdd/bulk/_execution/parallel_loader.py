@@ -54,6 +54,7 @@ from ..options import (
     RejectOptions,
     RetryOptions,
 )
+from .maintenance import TableMaintenance
 from .parallel_planner import ParallelPlan, ParallelPlanner, PlanInput
 from .range_partitioner import RangePartitioner
 
@@ -254,7 +255,7 @@ class ParallelBulkLoader:
                 como hasta v2.x). Los hilos de cada carga los decide :class:`ParallelPlanner`: en ``"manual"``, los
                 pedidos recortados por la capacidad del pool, SQLite (un solo escritor; v3.0.0) y el UPDATE de
                 PostgreSQL fila a fila; en ``"auto"``, además, las reglas medidas por motor y operación; ``"off"``, uno.
-                ``disable_constraints`` desactiva las constraints en :meth:`load` (en SQL Server y PostgreSQL una vez,
+                ``disable_constraints`` desactiva las constraints en :meth:`load` (en SQL Server, PostgreSQL y Oracle una vez,
                 antes de lanzar los hilos; en el resto, cada worker con ``maintenance_scope``; nunca los índices, que en
                 paralelo toman un lock DDL global en SQL Server). Reintentos: ``parallel.retry`` (:class:`RetryOptions`).
 
@@ -567,7 +568,7 @@ class ParallelBulkLoader:
 
         Args:
             skip_maintenance: Si ``True``, omite ``maintenance_scope`` aunque
-                ``disable_constraints=True``. Usado cuando MSSQL o PostgreSQL ya
+                ``disable_constraints=True``. Usado cuando MSSQL, PostgreSQL u Oracle ya
                 deshabilitaron constraints globalmente antes del pool
                 (``_hoist_constraints_for_workers``).
         """
@@ -889,10 +890,16 @@ class ParallelBulkLoader:
           Solo se ejecuta si el usuario tiene privilegios (superuser o propietario).
           Sin privilegios: devuelve ``False`` y los workers usan el path per-worker,
           que también comprueba privilegios y emite warning si fallan.
+        - **Oracle**: ``DISABLE``/``ENABLE VALIDATE CONSTRAINT`` de cada FK, CHECK con nombre y UNIQUE
+          (:meth:`_hoist_oracle_constraints`); por worker fallaban con ORA-00054 (hotfix 2026-10-19).
         - **MySQL/MariaDB** y otros: ``SET SESSION FOREIGN_KEY_CHECKS=0`` es una variable
           de sesión sin lock de tabla — el path per-worker es correcto; devuelve ``False``.
         """
         dialect = self._engine.dialect.name
+        if dialect == "oracle":
+            with self._hoist_oracle_constraints(tabla_destino):
+                yield True
+            return
         if dialect not in ("mssql", "postgresql"):
             yield False
             return
@@ -932,6 +939,56 @@ class ParallelBulkLoader:
             finally:
                 with self._engine.begin() as conn:
                     conn.execute(text(enable_table_integrity_sql(dialect, quoted)))
+
+    @contextmanager
+    def _hoist_oracle_constraints(self, tabla_destino: str) -> Generator[None, None, None]:
+        """Oracle: desactiva una vez, antes del pool, las FK, CHECK con nombre y UNIQUE; las reactiva al terminar.
+
+        Hotfix 2026-10-19 (G0 de ``.ai/sessions/2026-10-18b-index-modes-bulk-dump``): cada worker lo hacía en su
+        ``maintenance_scope``. Con otro worker insertando, ``DISABLE`` y ``ENABLE VALIDATE CONSTRAINT`` fallaban con
+        ORA-00054 (solo un aviso en el log): los workers que no la desactivaron no la reactivaban y la del que sí, fallaba;
+        la UNIQUE quedaba ``DISABLED`` y sin índice. Mismas constraints que ``maintenance_scope``. Si alguna no se puede
+        reactivar, se intentan las demás y se propaga el primer error (si la carga no había fallado ya).
+        """
+        crud = BulkCrud(
+            self._engine,
+            batch=self._options.batch,
+            audit=AuditOptions(warn_if_disabled=False),
+            execution=self._options.execution,
+        )
+        tabla = crud.reflect_table(tabla_destino)
+        names = TableMaintenance(
+            engine=self._engine,
+            session=crud._session,  # noqa: SLF001 — mismo paquete (bulk); solo se usa su lector de metadatos
+            cadence=crud._batch_statement_executor.cadence,  # noqa: SLF001
+            table_snapshot=crud._table_snapshot,  # noqa: SLF001
+            logger=self.logger,
+        )._oracle_fetch_constraint_names(tabla)  # noqa: SLF001
+        prep = self._engine.dialect.identifier_preparer
+        quoted = prep.format_table(tabla)
+        disabled: list[str] = []
+        for name in names:
+            try:
+                with self._engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE {quoted} DISABLE CONSTRAINT {prep.quote_identifier(name)}"))
+                disabled.append(name)
+            except SQLAlchemyError as exc:
+                self.logger.warning("No se pudo deshabilitar la constraint '%s' en '%s': %s", name, tabla_destino, exc)
+        errors: list[SQLAlchemyError] = []
+        try:
+            yield
+        finally:
+            for name in disabled:
+                try:
+                    with self._engine.begin() as conn:
+                        conn.execute(
+                            text(f"ALTER TABLE {quoted} ENABLE VALIDATE CONSTRAINT {prep.quote_identifier(name)}")
+                        )
+                except SQLAlchemyError as exc:
+                    self.logger.error("No se pudo rehabilitar la constraint '%s' en '%s': %s", name, tabla_destino, exc)
+                    errors.append(exc)
+        if errors:
+            raise errors[0]
 
     def _resolve_table(self, tabla_destino: str) -> Table:
         """``Table`` reflejada con la misma resolución de nombre que ``BulkCrud`` (mayúsculas y esquema).

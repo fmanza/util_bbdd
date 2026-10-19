@@ -4,7 +4,7 @@ Librería Python para **operaciones de base de datos** en MariaDB, MySQL, Oracle
 async) y HSQLDB (sync): conexiones con pool, carga masiva desde DataFrames, volcado entre motores, migración DDL,
 comparación de esquemas y documentación de la base de datos.
 
-**Version:** 3.1.1 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 3.1.2 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -345,7 +345,7 @@ pruebas (`scripts/bench_env.example.sh`). Flujo con asistentes de IA (Claude Cod
 [Semantic Versioning](https://semver.org/): desde 1.0.0, la API pública (la raíz y los submódulos públicos listados
 arriba) solo cambia de forma incompatible en una versión MAJOR.
 
-**Current Version: v3.1.1** (corrección de `maintenance_scope(disable_indexes=True)` en SQL Server; sin dependencias privadas: `util` retirada en v3.1.0; paquetes de opciones de `BulkCrud`/`ParallelBulkLoader` y carga paralela con `ParallelPlanner` desde v3.0.0; ver [Migración a la API 3.0](docs/guides/api_3_0_migration.md))
+**Current Version: v3.1.2** (correcciones de `disable_constraints` en la carga paralela de Oracle y de `maintenance_scope(disable_indexes=True)` en SQL Server; sin dependencias privadas: `util` retirada en v3.1.0; paquetes de opciones de `BulkCrud`/`ParallelBulkLoader` y carga paralela con `ParallelPlanner` desde v3.0.0; ver [Migración a la API 3.0](docs/guides/api_3_0_migration.md))
 
 Historial completo: [CHANGELOG.md](CHANGELOG.md) · Hoja de ruta: [docs/roadmap.md](docs/roadmap.md).
 

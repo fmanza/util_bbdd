@@ -207,7 +207,7 @@ class ParallelOptions:
         min_rows: En ``"auto"``, filas mínimas para paralelizar. ``None`` (default): el menor volumen medido de cada
             regla (por debajo no hay medición).
         disable_constraints: Solo INSERT de ``ParallelBulkLoader``: desactiva las constraints de la tabla durante la
-            carga (en SQL Server y PostgreSQL una vez, antes de lanzar los hilos). Requiere permisos DDL.
+            carga (en SQL Server, PostgreSQL y Oracle una vez, antes de lanzar los hilos). Requiere permisos DDL.
         retry: Reintentos por partición (:class:`RetryOptions`).
 
     Raises:

@@ -35,7 +35,10 @@ Ver `00_REQUEST.md` (solicitud inicial y cuatro ampliaciones en la misma sesión
 
 - G0 (2026-10-18/19): `scripts/bench_index_modes.py` + `tests/unit/test_bench_index_modes_script.py` (13 tests).
   Comprobaciones en el banco (`build/logs/bench_index_modes_probes_20261018.md`) y primera tanda de 1M filas en serie
-  (`build/logs/bench_index_modes_1m_serial_*20261018.*`); resultados en `03_G0_MEDICION.md` cuando termine G0.
+  (`build/logs/bench_index_modes_1m_serial_*20261018.*`); segunda tanda 2026-10-19 (confirmación de Oracle, FK
+  checks, orden aleatorio, 4 hilos, 3,5M). Resultados y consecuencias para el PLAN en `03_G0_MEDICION.md`.
+- Hallazgo G0: Oracle + `ParallelOptions(disable_constraints=True)` deja la UNIQUE deshabilitada y sin índice
+  (intermitente, 4 de 6 tandas); pendiente de RCA.
 - Hotfix v3.1.1 (2026-10-19), ver § Hotfix.
 
 ## Hotfix v3.1.1 — `maintenance_scope(disable_indexes=True)` en heaps de SQL Server
@@ -57,6 +60,27 @@ Ver `00_REQUEST.md` (solicitud inicial y cuatro ampliaciones en la misma sesión
   --strict` limpio; `gen_arquitectura_capas.py` sin cambios (340 ficheros).
 - **Rollback**: revertir el commit del hotfix (no hay migración de datos). Tablas afectadas por cargas anteriores:
   `ALTER TABLE <hija> WITH CHECK CHECK CONSTRAINT <fk>` en las FK con `is_disabled = 1` o `is_not_trusted = 1`.
+
+## Hotfix v3.1.2 — `ParallelOptions(disable_constraints=True)` en Oracle
+
+- **Evidencia**: G0, 4 hilos, 1M filas: «Restaurado: no» en 4 de 6 tandas de `none`/`secondary` (UNIQUE `DISABLED`,
+  `NOT VALIDATED`, sin índice). Reproductor con el log visible (200K filas, 3 intentos): `ORA-00054` en
+  `ALTER TABLE … DISABLE CONSTRAINT` (workers 2–4) y en `ENABLE VALIDATE CONSTRAINT` (el worker que la desactivó).
+- **RCA**: en Oracle no había desactivación previa al pool (`_hoist_constraints_for_workers` solo SQL Server y
+  PostgreSQL); cada worker usaba `maintenance_scope`, cuyo DDL necesita la tabla sin transacciones de otros. Los que no
+  la desactivaron no la reactivan; la reactivación del que sí, choca con los demás insertando. El fallo solo era un aviso.
+- **Fix mínimo**: `_hoist_oracle_constraints` en `bulk/_execution/parallel_loader.py`: mismas constraints que
+  `maintenance_scope` (`TableMaintenance._oracle_fetch_constraint_names`), `DISABLE` una vez antes del pool y
+  `ENABLE VALIDATE` al terminar; si una reactivación falla se intentan las demás y se propaga el primer error (si la carga
+  no falló antes). Los workers omiten `maintenance_scope`, como en SQL Server/PostgreSQL.
+- **Ficheros**: `src/util_bbdd/bulk/_execution/parallel_loader.py`, docstring de `bulk/options.py`,
+  `docs/api/bulk_parallel.md`, `docs/guides/performance_audit_constraints_guide.md`, `CHANGELOG.md`, campos de versión
+  (3.1.2), `tests/unit/bulk/test_parallel_loader.py` (3 tests; fallan sin el fix), `tests/integration/test_bulk_engines.py`
+  (Oracle, 4 hilos, 200K filas: sin el fix falla en 3 de 4 ejecuciones por ser una carrera; con el fix 4 de 4 pasan).
+- **Verificación**: ruff y mypy sin errores (340 ficheros); `pytest` sin URLs 6285 passed, 545 skipped; con el banco
+  y `JAVA_HOME` 6822 passed, 8 skipped; `zensical build --strict` limpio.
+- **Rollback**: revertir el commit. Constraints dejadas deshabilitadas por cargas anteriores:
+  `SELECT constraint_name FROM user_constraints WHERE status = 'DISABLED'` y `ALTER TABLE <t> ENABLE VALIDATE CONSTRAINT <c>`.
 
 ## Artefactos generados
 

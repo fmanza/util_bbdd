@@ -7,6 +7,24 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.1.2] - 2026-10-19
+
+Hotfix de la sesión `.ai/sessions/2026-10-18b-index-modes-bulk-dump/` (hallazgo de G0). SemVer: PATCH (corrección
+sin cambios en la API pública).
+
+### Fixed
+
+- **bulk (`ParallelBulkLoader` / `ParallelOptions(disable_constraints=True)`, Oracle)**: cada worker desactivaba y
+  reactivaba las constraints de la tabla en su propio `maintenance_scope`. Con otro worker insertando, `DISABLE` y
+  `ENABLE VALIDATE CONSTRAINT` fallaban con ORA-00054 (solo un aviso en el log): los workers que no la habían
+  desactivado no la reactivaban y la reactivación del que sí, fallaba. Las UNIQUE quedaban `DISABLED`/`NOT VALIDATED`
+  y sin índice (en el banco, 4 de 6 cargas de 1M filas con 4 hilos), sin control de duplicados. Ahora, como en SQL
+  Server y PostgreSQL, se desactivan una vez antes de lanzar los hilos (las mismas FK, CHECK con nombre y UNIQUE que
+  `maintenance_scope`) y se reactivan al terminar; si alguna no se puede reactivar, se intentan las demás y `load()`
+  propaga el error. `dump` no estaba afectado. Si una carga anterior dejó constraints deshabilitadas:
+  `SELECT constraint_name FROM user_constraints WHERE status = 'DISABLED'` y `ALTER TABLE <t> ENABLE VALIDATE
+  CONSTRAINT <c>`.
+
 ## [3.1.1] - 2026-10-19
 
 Hotfix de la sesión `.ai/sessions/2026-10-18b-index-modes-bulk-dump/`. SemVer: PATCH (corrección sin cambios en la

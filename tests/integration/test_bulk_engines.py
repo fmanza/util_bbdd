@@ -847,6 +847,43 @@ def _fk_disabled_count(engine: Engine, child: Table) -> int:
     return 0
 
 
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"oracle"})), indirect=True)
+def test_oracle_parallel_disable_constraints_reenables_unique(engine: Engine) -> None:
+    """Hotfix 2026-10-19: con ``ParallelOptions(disable_constraints=True)`` cada worker desactivaba y reactivaba las
+    constraints en su ``maintenance_scope``; con otro worker insertando, DISABLE y ENABLE VALIDATE fallaban con ORA-00054
+    y la UNIQUE quedaba DISABLED y sin índice (G0 de la sesión 2026-10-18b, 4 de 6 tandas)."""
+    from sqlalchemy import UniqueConstraint
+
+    suffix = uuid.uuid4().hex[:8]
+    metadata = MetaData()
+    table = Table(
+        f"zz_util_bbdd_it_pu{suffix}",
+        metadata,
+        Column("id", Integer, primary_key=True, autoincrement=False),
+        Column("s", String(30)),
+        UniqueConstraint("s", name=f"uq_zz_pu_{suffix}"),
+    )
+    metadata.create_all(engine)
+    try:
+        rows = 200_000  # con menos filas los workers apenas coinciden y la carrera no siempre se daba
+        frame = pd.DataFrame({"id": np.arange(1, rows + 1), "s": [f"v{i}" for i in range(rows)]})
+        crud = BulkCrud(
+            engine,
+            audit=AuditOptions(warn_if_disabled=False),
+            parallel=ParallelOptions(mode="manual", max_workers=4, disable_constraints=True),
+        )
+        crud.bulk_insert_from_df(frame, table.name, generar_sql=False)
+        with engine.connect() as conn:
+            states = conn.execute(
+                text("SELECT constraint_name, status, validated FROM user_constraints WHERE table_name = :t"),
+                {"t": table.name.upper()},
+            ).all()
+        assert _count(engine, table) == rows
+        assert {(str(status), str(validated)) for _, status, validated in states} == {("ENABLED", "VALIDATED")}
+    finally:
+        metadata.drop_all(engine)
+
+
 def test_oracle_maintenance_scope_really_disables_foreign_keys(engine: Engine) -> None:
     """H-31 (C5): en Oracle los nombres de constraint llegaban en minúsculas (normalizados por SQLAlchemy) y
     ``ALTER TABLE … DISABLE CONSTRAINT "fk_x"`` fallaba en silencio: la optimización no se aplicaba nunca. Ahora salen
