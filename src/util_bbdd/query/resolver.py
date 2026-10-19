@@ -94,7 +94,7 @@ class QueryResolver:
             ```
         """
         params = params or {}
-        start_time: float = time.time()
+        start_time: float = time.perf_counter()  # monotónico (T1)
         effective_db_type: str = self._resolve_db_type()
 
         try:
@@ -118,7 +118,7 @@ class QueryResolver:
             final_sql: str = self._interpolate_sql(query_def.sql_template, params)
 
             # Calcular elapsed time
-            elapsed_ms: float = (time.time() - start_time) * 1000
+            elapsed_ms: float = (time.perf_counter() - start_time) * 1000
 
             self.logger.debug(
                 f"✅ Query resolved successfully: name={query_name}, "

@@ -211,7 +211,7 @@ class AsyncQueryExecutor:
         conn = None
         cursor = None
         owns_cursor = False
-        start_time: float = time.time()
+        start_time: float = time.perf_counter()  # monotónico (T1)
 
         try:
             async with self._timeout_context(
@@ -231,7 +231,7 @@ class AsyncQueryExecutor:
                     await self._execute_sql_with_optional_params(cursor, final_sql, execute_params)
                     result, result_rows = await self._fetch_and_normalize(cursor, expect_one)
 
-            elapsed_ms: float = (time.time() - start_time) * 1000
+            elapsed_ms: float = (time.perf_counter() - start_time) * 1000
             self.logger.debug(
                 f"✅ Query executed: query_name={query_name}, db_type={db_type}, "
                 f"elapsed_ms={elapsed_ms:.2f}, result_rows={result_rows}"
@@ -257,7 +257,7 @@ class AsyncQueryExecutor:
         conn = None
         cursor = None
         owns_cursor = False
-        start_time: float = time.time()
+        start_time: float = time.perf_counter()  # monotónico (T1)
 
         try:
             async with self._timeout_context(
@@ -272,7 +272,7 @@ class AsyncQueryExecutor:
                     await self._execute_sql_with_optional_params(cursor, sql, params)
                     result, result_rows = await self._fetch_and_normalize(cursor, expect_one)
 
-            elapsed_ms: float = (time.time() - start_time) * 1000
+            elapsed_ms: float = (time.perf_counter() - start_time) * 1000
             self.logger.debug(f"✅ Custom query executed: elapsed_ms={elapsed_ms:.2f}, result_rows={result_rows}")
             return result
 

@@ -313,7 +313,7 @@ class SyncQueryExecutor:
     ) -> RowOrNone | Rows:
         conn = None
         cursor = None
-        start_time: float = time.time()
+        start_time: float = time.perf_counter()  # monotónico (T1)
         timeout_msg: str = f"Query execution exceeded timeout: {query_name}"
         deadline = self._build_deadline(timeout)
 
@@ -344,7 +344,7 @@ class SyncQueryExecutor:
             result_rows = self._calculate_result_rows(result, expect_one)
             self._raise_if_timed_out(deadline, timeout_msg)
 
-            elapsed_ms: float = (time.time() - start_time) * 1000
+            elapsed_ms: float = (time.perf_counter() - start_time) * 1000
             self.logger.debug(
                 f"✅ Query executed: query_name={query_name}, db_type={db_type}, "
                 f"elapsed_ms={elapsed_ms:.2f}, result_rows={result_rows}"
@@ -371,7 +371,7 @@ class SyncQueryExecutor:
     ) -> RowOrNone | Rows:
         conn = None
         cursor = None
-        start_time: float = time.time()
+        start_time: float = time.perf_counter()  # monotónico (T1)
         timeout_msg = "Custom query execution exceeded timeout"
         deadline: float | None = self._build_deadline(timeout)
 
@@ -398,7 +398,7 @@ class SyncQueryExecutor:
             result_rows: int = self._calculate_result_rows(result, expect_one)
             self._raise_if_timed_out(deadline, timeout_msg)
 
-            elapsed_ms: float = (time.time() - start_time) * 1000
+            elapsed_ms: float = (time.perf_counter() - start_time) * 1000
             self.logger.debug(f"✅ Custom query executed: elapsed_ms={elapsed_ms:.2f}, result_rows={result_rows}")
             return result
 
