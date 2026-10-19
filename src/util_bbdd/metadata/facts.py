@@ -31,6 +31,7 @@ from .oracle.tables import fetch_identity_generation_sql
 from .postgresql.tables import (
     fetch_can_create_temp_tables_sql,
     fetch_can_disable_triggers_sql,
+    fetch_constraint_exists_sql,
     fetch_fk_definition_sql,
     fetch_inbound_foreign_keys_sql as _pg_inbound_fks_sql,
     fetch_secondary_nonunique_indexes_sql as _pg_secondary_indexes_sql,
@@ -330,6 +331,11 @@ def _mysql_fk_column_lists(conn: Any, params: dict[str, Any], table: str) -> lis
     return list(child.values()) + [[col for _, col in sorted(cols)] for cols in parent.values()]
 
 
+def constraint_exists(conn: Any, table_ref: str, name: str) -> bool:
+    """PostgreSQL: si existe la constraint ``name`` en ``table_ref`` (tabla citada, convertible con ``to_regclass``)."""
+    return conn.execute(text(fetch_constraint_exists_sql()), {"name": name, "tbl": table_ref}).first() is not None
+
+
 def foreign_key_definition(conn: Any, table_ref: str, name: str) -> Any:
     """PostgreSQL: ``(tabla referenciada, [columnas], [columnas referenciadas])`` de una FK, citados; o ``None``.
 
@@ -344,6 +350,7 @@ __all__: list[str] = [
     "can_disable_triggers",
     "clustered_index_count",
     "compatibility_level",
+    "constraint_exists",
     "foreign_key_definition",
     "identity_generation",
     "InboundForeignKeyFact",

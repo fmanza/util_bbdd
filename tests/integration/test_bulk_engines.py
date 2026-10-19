@@ -1068,6 +1068,31 @@ def test_maintenance_scope_all_duplicates_raise_and_roll_back(engine: Engine) ->
         metadata.drop_all(engine)
 
 
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"postgresql"})), indirect=True)
+def test_maintenance_scope_all_error_before_first_commit_restores_without_false_failures(
+    engine: Engine, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Con ``commit_every_n_chunks`` y un fallo antes del primer commit periódico, el rollback ya devuelve PK/UNIQUE y FK;
+    la restauración no debe intentar recrearlas y avisar de un fallo que no lo es («ya existe»)."""
+    import logging
+
+    metadata, parent, child = _unique_parent_child(engine)
+    try:
+        before = _full_index_state(engine, parent, child)
+        crud = BulkCrud(
+            engine, audit=AuditOptions(warn_if_disabled=False), batch=BatchOptions(commit_every_n_chunks=1_000)
+        )
+        with caplog.at_level(logging.WARNING), pytest.raises(RuntimeError, match="fallo"), crud.bulk_session():
+            with crud.maintenance_scope(parent.name, disable_indexes="all"):
+                crud.bulk_insert_from_df(_unique_frame(engine, 50), parent.name, generar_sql=False)
+                raise RuntimeError("fallo posterior")
+        assert _count(engine, parent) == 1
+        assert _full_index_state(engine, parent, child) == before
+        assert not [m for m in caplog.messages if "Error al restaurar" in m or "No se pudieron restaurar" in m]
+    finally:
+        metadata.drop_all(engine)
+
+
 @pytest.mark.parametrize("engine", _engine_params(only=frozenset({"oracle", "mysql", "mariadb"})), indirect=True)
 def test_maintenance_scope_all_duplicates_raise_with_keys_when_ddl_committed(engine: Engine) -> None:
     """Oracle y MariaDB/MySQL: el DDL ya confirmó la carga; ``IndexRebuildError`` lista las claves y las filas quedan."""

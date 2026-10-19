@@ -189,6 +189,33 @@ def test_failed_unique_rebuild_reports_duplicates_and_builds_the_error() -> None
     assert error.results == results
 
 
+def test_restore_skips_constraints_that_already_exist() -> None:
+    """Un rollback de la sesión devolvió la PK/UNIQUE o FK borrada: no se recrea (no habría fallo, sino «ya existe»)."""
+    conn = MagicMock()
+    conn.execute.return_value.first.side_effect = [MagicMock(name="ya existe"), None]
+    check = ("pk", "t")
+    steps = [
+        IndexStep("t", "t", "pk", "DROP pk", "ADD pk", "recreated", priority=2, exists_check=check),
+        IndexStep("c", "c", "fk", "DROP fk", "ADD fk", "recreated", priority=3, exists_check=check),
+    ]
+    results = IndexDdlRunner("postgresql", _LOG, commit=False, savepoint=False).restore(conn, steps)
+    assert [(r.index_name, r.action) for r in results] == [("pk", "recreated"), ("fk", "recreated")]
+    executed = [str(c.args[0]) for c in conn.execute.call_args_list]
+    assert "ADD pk" not in executed
+    assert "ADD fk" in executed
+
+
+def test_postgresql_constraint_steps_carry_an_existence_check() -> None:
+    steps = _plan_all(
+        "postgresql",
+        [_UNIQUE("t_pkey", "pk", ("id",), "PRIMARY KEY (id)", "t_pkey")],
+        [_INBOUND("", "public", "child", "fk_c", True, True, "FOREIGN KEY (pid) REFERENCES t(id)")],
+        [],
+    )
+    checks = {s.index_name: s.exists_check for s in steps if s.exists_check is not None}
+    assert checks == {"t_pkey": ("t_pkey", "`t`"), "fk_c": ("fk_c", "`public`.`child`")}
+
+
 def test_rebuild_error_is_none_without_unique_failures() -> None:
     assert rebuild_error(IndexDdlRunner("mssql", _LOG, commit=False, savepoint=False), [], "carga") is None
 

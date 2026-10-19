@@ -131,6 +131,18 @@ def fetch_inbound_foreign_keys_sql() -> str:
     )
 
 
+def fetch_constraint_exists_sql() -> str:
+    """SQL que devuelve una fila si existe la constraint ``:name`` en la tabla ``:tbl`` (texto para ``to_regclass``).
+
+    Lo usa la restauración de ``disable_indexes="all"`` (v3.4.1): tras un rollback que deshizo el ``DROP CONSTRAINT``,
+    la PK/UNIQUE o FK ya existe y no se recrea.
+
+    Returns:
+        str: SQL con una fila si existe.
+    """
+    return "SELECT 1 FROM pg_constraint WHERE conname = :name AND conrelid = to_regclass(:tbl)"
+
+
 def fetch_fk_definition_sql() -> str:
     """SQL con la definición de una FK desde el catálogo: tabla referenciada y columnas de la hija y de la referenciada.
 

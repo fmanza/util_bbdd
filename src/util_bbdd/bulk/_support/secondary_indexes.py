@@ -87,6 +87,8 @@ class IndexStep:
         step_id: Identificador del paso (por defecto ``table.index_name``).
         depends_on: ``step_id`` que tiene que haberse desactivado para que este paso cuente.
         unique_columns: Columnas citadas de la clave de un índice único (diagnóstico de duplicados si no se reconstruye).
+        exists_check: PostgreSQL: ``(constraint, tabla citada)``; si la constraint ya existe
+            (``facts.constraint_exists``), la restauración no se ejecuta (un rollback pudo devolverla).
     """
 
     table: str
@@ -101,6 +103,7 @@ class IndexStep:
     step_id: str = ""
     depends_on: str | None = None
     unique_columns: tuple[str, ...] = ()
+    exists_check: tuple[str, str] | None = None
 
     @property
     def key(self) -> str:
@@ -286,6 +289,7 @@ class SecondaryIndexPlanner:
                     recovery_ddl=f"ALTER TABLE {child} ADD CONSTRAINT {name} {ddl}",
                     priority=_FOREIGN_KEY,
                     step_id=fk_id,
+                    exists_check=(fk.name, child),
                 )
             )
             if not_valid:
@@ -303,10 +307,12 @@ class SecondaryIndexPlanner:
                     )
                 )
         for fact in uniques:
+            exists: tuple[str, str] | None = None
             if fact.constraint is not None:
                 q = self._prep.quote(fact.constraint)
                 ddl = f"ALTER TABLE {quoted_table} ADD CONSTRAINT {q} {fact.ddl}"
                 disable, restore, priority = f"ALTER TABLE {quoted_table} DROP CONSTRAINT {q}", ddl, _CONSTRAINT
+                exists = (fact.constraint, quoted_table)
             else:
                 ddl = fact.ddl or ""
                 disable, restore, priority = (
@@ -325,6 +331,7 @@ class SecondaryIndexPlanner:
                     recovery_ddl=ddl,
                     priority=priority,
                     unique_columns=self._key_columns(fact),
+                    exists_check=exists,
                 )
             )
         return steps
@@ -463,6 +470,10 @@ class IndexDdlRunner:
         """Restaura lo desactivado por prioridad; un resultado por paso. Los únicos que fallan, en ``failed_unique``."""
         results: list[IndexActionResult] = []
         for sql, members in restore_batches(steps):
+            if len(members) == 1 and self._already_restored(conn, members[0]):
+                step = members[0]
+                results.append(IndexActionResult(step.table, step.index_name, self.dialect, step.action))
+                continue
             try:
                 self._execute(conn, sql)
                 results.extend(IndexActionResult(s.table, s.index_name, self.dialect, s.action) for s in members)
@@ -479,6 +490,17 @@ class IndexDdlRunner:
                             message = f"{message} | claves duplicadas: {'; '.join(dups)}"
                     results.append(IndexActionResult(step.table, step.index_name, self.dialect, "failed", message))
         return results
+
+    def _already_restored(self, conn: Any, step: IndexStep) -> bool:
+        """``True`` si ``step.exists_check`` encuentra el objeto (ya está: un rollback deshizo su borrado)."""
+        if step.exists_check is None:
+            return False
+        name, table_ref = step.exists_check
+        try:
+            return facts.constraint_exists(conn, table_ref, name)
+        except SQLAlchemyError as exc:
+            self.logger.debug(f"No se pudo comprobar si '{step.table}.{step.index_name}' ya existe: {exc}")
+            return False
 
     def _find_duplicates(self, conn: Any, step: IndexStep) -> list[str]:
         """Hasta :data:`MAX_DUPLICATES` claves repetidas (``"valores → repeticiones"``); ``[]`` si no se pueden leer."""
