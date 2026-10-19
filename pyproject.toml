@@ -75,7 +75,9 @@ dev = [
     "mypy>=2.4",
     "black>=26.10",
     "isort>=9.0",
-    "pandas-stubs>=3.0",
+    # Con tope: cada pandas-stubs nueva puede romper mypy en el CI sin cambios propios (3.0.5 lo hizo en 4.0.0).
+    # Se sube a mano, comprobando `mypy src` con la versión nueva.
+    "pandas-stubs>=3.0.5,<3.1",
     "types-networkx",
     "types-PyMySQL",
     "types-openpyxl",
