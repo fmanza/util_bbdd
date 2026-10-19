@@ -230,6 +230,7 @@ Personalizaciones por contexto:
   - 13 gemelos de los slash commands: `new_feature`, `hotfix`, `refactor`, `audit_code`, `security_review`, `tech_debt`, `maturity_assessment`, `performance_audit_bulk`, `performance_audit_dump`, `performance_audit_constraints`, `metadata_centralization_audit_and_refactor` (`/metadata-centralization`), `config_review`, `version_closure`
   - 2 flujos operativos de agente: `performance_audit_dump_agent`, `performance_audit_constraints_agent`
   - Documentación: arquetipos `functional_doc`, `technical_doc`, `guide_doc`, `example_doc`, `architecture_doc`, `landing_doc`, `onboarding_dev`, `normative_traceability`, y `documentation_review`
+  - Proyectos derivados: `web_project_bootstrap` (crea `util_bbdd_web`, la aplicación web multiusuario que consume esta librería, con su configuración IA y su roadmap por fases)
   - Apoyo: `bootstrap_ai_config`, `engine_readiness_integration` (pre-requisito de las auditorías de rendimiento) y el análisis de reutilización `code_reusability_architecture` (+ `_quick`; guía en `docs/guides/code_reusability_analysis_guide.md`)
   - Diseño acotado (**ejecutado en v0.29.0**, se conserva como referencia): `audit_module` (módulo de auditoría centralizado para `bulk`/`dump`/`migrate`; ADR-002; línea base en `.ai/audit/audit_module_baseline_inventory.md`, con las rutas anteriores al traslado)
   - Sin conteos fijos: el listado real es la carpeta.
@@ -251,4 +252,4 @@ Gobernanza entre plataformas: [`SHARED_INSTRUCTIONS.md`](SHARED_INSTRUCTIONS.md)
 
 ---
 
-*Actualizado: 2026-10-17*
+*Actualizado: 2026-10-19*
