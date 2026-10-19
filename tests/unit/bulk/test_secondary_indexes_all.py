@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from util_bbdd.bulk._support.fk_orphans import orphan_check_sql
@@ -97,6 +98,117 @@ def test_oracle_all_disables_constraints_cascade_and_reenables_children() -> Non
         "ALTER TABLE `t` ENABLE VALIDATE CONSTRAINT `PK_T`",
         "ALTER TABLE `HR`.`CHILD` ENABLE VALIDATE CONSTRAINT `FK_C`",
     ]
+
+
+_ORA_DDL = """CREATE UNIQUE INDEX "HR"."UX_T" ON "HR"."T" (TO_CHAR("DT",'HH24:MI'), "ID") TABLESPACE "USERS\""""
+
+
+def test_oracle_all_drops_unique_index_without_constraint_and_recreates_it_from_its_ddl() -> None:
+    steps = _plan_all(
+        "oracle",
+        [
+            _UNIQUE("PK_T", "pk", ("ID",)),
+            _UNIQUE(
+                "UX_T", "unique_index", ("SYS_NC00005$", "ID"), _ORA_DDL, key_sql=("TO_CHAR(\"DT\",'HH24:MI')", '"ID"')
+            ),
+        ],
+        [],
+        [],
+    )
+    ux = next(s for s in steps if s.index_name == "UX_T")
+    assert (ux.disable_sql, ux.action, ux.recovery_ddl) == ("DROP INDEX `UX_T`", "recreated", _ORA_DDL)
+    assert ux.unique_columns == ("TO_CHAR(\"DT\",'HH24:MI')", '"ID"')
+    assert _restore_sql(steps)[0] == _ORA_DDL.replace(":", "\\:")  # antes que la PK, como el resto de únicos
+    assert text(ux.restore_sql).compile().params == {}  # el ':' del literal no es un parámetro
+    assert "'HH24:MI'" in str(text(ux.restore_sql))
+
+
+def test_oracle_unique_index_without_ddl_is_kept_and_reported_as_skipped() -> None:
+    steps = _plan_all("oracle", [_UNIQUE("UX_T", "unique_index", ("C",), ddl_error="ORA-31603: no encontrado")], [], [])
+    conn = MagicMock()
+    runner = IndexDdlRunner("oracle", _LOG, commit=True, savepoint=False)
+    done = runner.disable(conn, steps)
+    results = runner.restore(conn, done)
+    conn.execute.assert_not_called()
+    assert [(r.index_name, r.action, r.error_msg) for r in results] == [("UX_T", "skipped", "ORA-31603: no encontrado")]
+    assert rebuild_error(runner, results, "carga") is None
+
+
+def test_failed_recreation_of_a_dropped_unique_index_carries_its_ddl() -> None:
+    conn = MagicMock()
+    conn.execute.side_effect = [SQLAlchemyError("ORA-01452"), SQLAlchemyError("sin diagnóstico")]
+    step = IndexStep("t", "t", "UX_T", "DROP INDEX UX_T", "CREATE …", "recreated", _ORA_DDL, unique_columns=("C",))
+    runner = IndexDdlRunner("oracle", _LOG, commit=True, savepoint=False)
+    results = runner.restore(conn, [step])
+    assert results[0].action == "failed"
+    assert f"DDL para recrearlo: {_ORA_DDL}" in results[0].error_msg
+    error = rebuild_error(runner, results, "carga")
+    assert isinstance(error, IndexRebuildError)
+    assert error.recovery_ddl == {"t.UX_T": _ORA_DDL}
+    assert _ORA_DDL in str(error)
+
+
+def test_rebuilt_unique_failure_has_no_recovery_ddl() -> None:
+    """Un índice desactivado (no borrado) sigue existiendo: no hay DDL que recuperar."""
+    conn = MagicMock()
+    conn.execute.side_effect = [SQLAlchemyError("dup"), SQLAlchemyError("sin diagnóstico")]
+    step = IndexStep("t", "t", "uq", "ALTER INDEX uq DISABLE", "REBUILD", "rebuilt", unique_columns=("c",))
+    runner = IndexDdlRunner("mssql", _LOG, commit=True, savepoint=False)
+    runner.restore(conn, [step])
+    assert runner.recovery_ddl == {}
+
+
+def _oracle_conn(
+    constraints: list[tuple[str, str, str]], index_rows: list[tuple[str, str, str | None]], ddl: dict[str, object]
+) -> MagicMock:
+    def execute(statement: object, params: dict[str, object]) -> MagicMock:
+        sql = str(statement)
+        result = MagicMock()
+        if "DBMS_METADATA" in sql:
+            value = ddl[str(params["name"])]
+            if isinstance(value, Exception):
+                raise value
+            result.scalar.return_value = value
+        elif "all_ind_columns" in sql:
+            result.__iter__.return_value = iter(index_rows)
+        else:
+            result.__iter__.return_value = iter(constraints)
+        return result
+
+    conn = MagicMock()
+    conn.execute.side_effect = execute
+    return conn
+
+
+def test_facts_oracle_unique_indexes_include_indexes_without_constraint() -> None:
+    error = SQLAlchemyError("x")
+    error.orig = Exception('ORA-31603: object "UX_B" of type INDEX not found in schema "HR"\nmás detalle')  # type: ignore[attr-defined]
+    conn = _oracle_conn(
+        [("PK_T", "P", "ID")],
+        [
+            ("UX_A", "C", None),
+            ("UX_A", "SYS_NC00005$", 'CASE  WHEN "D"=\'S\' THEN "C" END '),
+            ("UX_B", "E", None),
+            ("UX_C", "F", None),
+        ],
+        {"UX_A": '\n  CREATE UNIQUE INDEX "HR"."UX_A" ON "HR"."T" ("C") ', "UX_B": error, "UX_C": "ALTER SESSION …"},
+    )
+    out = {f.name: f for f in facts.unique_indexes(conn, "HR", "T", "oracle")}
+    assert out["PK_T"].kind == "pk"
+    assert out["UX_A"] == _UNIQUE(
+        "UX_A",
+        "unique_index",
+        ("C", "SYS_NC00005$"),
+        'CREATE UNIQUE INDEX "HR"."UX_A" ON "HR"."T" ("C")',
+        key_sql=('"C"', 'CASE  WHEN "D"=\'S\' THEN "C" END'),
+    )
+    assert out["UX_B"].ddl is None
+    assert (
+        out["UX_B"].ddl_error
+        == 'DBMS_METADATA.GET_DDL falló: ORA-31603: object "UX_B" of type INDEX not found in schema "HR"'
+    )
+    assert out["UX_C"].ddl is None
+    assert "no devolvió un CREATE UNIQUE INDEX" in str(out["UX_C"].ddl_error)
 
 
 def test_postgresql_all_drops_inbound_fks_first_and_validates_them_last() -> None:
@@ -224,7 +336,11 @@ def test_rebuild_error_is_none_without_unique_failures() -> None:
     ("dialect", "expected"),
     [
         ("mssql", "SELECT TOP 5 a, b, COUNT(*) FROM t GROUP BY a, b HAVING COUNT(*) > 1"),
-        ("oracle", "SELECT a, b, COUNT(*) FROM t GROUP BY a, b HAVING COUNT(*) > 1 FETCH FIRST 5 ROWS ONLY"),
+        (
+            "oracle",
+            "SELECT * FROM (SELECT a, b, COUNT(*) FROM t WHERE NOT (a IS NULL AND b IS NULL) GROUP BY a, b "
+            "HAVING COUNT(*) > 1) WHERE ROWNUM <= 5",
+        ),
         ("mysql", "SELECT a, b, COUNT(*) FROM t GROUP BY a, b HAVING COUNT(*) > 1 LIMIT 5"),
     ],
 )

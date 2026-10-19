@@ -12,7 +12,9 @@ DDL por motor:
   deshabilita las FK que referencian un índice deshabilitado; se reactivan con ``WITH CHECK CHECK CONSTRAINT``.
 - Oracle: ``ALTER INDEX … UNUSABLE`` → ``REBUILD`` (el DDL confirma la transacción). En ``"all"``, PK/UNIQUE con
   ``DISABLE CONSTRAINT … CASCADE`` → ``ENABLE VALIDATE`` y después las FK entrantes; nunca la PK de una IOT. Los índices
-  únicos sin constraint no se tocan.
+  únicos sin constraint (``UNUSABLE`` haría fallar el INSERT con ORA-01502), desde 4.0.0: ``DROP INDEX`` → su
+  ``DBMS_METADATA.GET_DDL`` (el DDL se loguea antes de borrar); si no se puede obtener (p. ej. sin privilegios de
+  catálogo sobre otro esquema), no se tocan y salen en los resultados como ``"skipped"``.
 - PostgreSQL: ``DROP INDEX`` → su ``pg_get_indexdef`` con ``IF NOT EXISTS`` (el DDL se loguea antes de borrar). En
   ``"all"``, primero se borran las FK entrantes, después PK/UNIQUE (``pg_get_constraintdef``) e índices únicos; se
   recrean al revés y las FK con ``NOT VALID`` + ``VALIDATE CONSTRAINT``.
@@ -89,6 +91,8 @@ class IndexStep:
         unique_columns: Columnas citadas de la clave de un índice único (diagnóstico de duplicados si no se reconstruye).
         exists_check: PostgreSQL: ``(constraint, tabla citada)``; si la constraint ya existe
             (``facts.constraint_exists``), la restauración no se ejecuta (un rollback pudo devolverla).
+        skip_reason: Si no es ``None``, no se toca: se avisa y se informa como ``"skipped"`` con este motivo (índice
+            único de Oracle sin DDL).
     """
 
     table: str
@@ -104,6 +108,7 @@ class IndexStep:
     depends_on: str | None = None
     unique_columns: tuple[str, ...] = ()
     exists_check: tuple[str, str] | None = None
+    skip_reason: str | None = None
 
     @property
     def key(self) -> str:
@@ -170,11 +175,11 @@ class SecondaryIndexPlanner:
         if self.dialect == "mssql":
             return self._plan_unique_mssql(table, quoted_table, uniques, inbound)
         if self.dialect == "oracle":
-            return self._plan_unique_oracle(table, quoted_table, uniques, inbound)
+            return self._plan_unique_oracle(table, schema, quoted_table, uniques, inbound)
         return self._plan_unique_postgresql(table, schema, quoted_table, uniques, inbound)
 
     def _key_columns(self, fact: facts.UniqueIndexFact) -> tuple[str, ...]:
-        return tuple(self._prep.quote(c) for c in fact.columns)
+        return fact.key_sql or tuple(self._prep.quote(c) for c in fact.columns)
 
     def _child(self, fk: facts.InboundForeignKeyFact) -> str:
         return (
@@ -227,12 +232,16 @@ class SecondaryIndexPlanner:
     def _plan_unique_oracle(
         self,
         table: str,
+        schema: str | None,
         quoted_table: str,
         uniques: Sequence[facts.UniqueIndexFact],
         inbound: Sequence[facts.InboundForeignKeyFact],
     ) -> list[IndexStep]:
         steps: list[IndexStep] = []
         for fact in uniques:
+            if fact.kind == "unique_index":  # sin constraint: ninguna FK lo referencia
+                steps.append(self._oracle_unique_index(table, schema, quoted_table, fact))
+                continue
             q = self._prep.quote(fact.name)
             steps.append(
                 IndexStep(
@@ -263,6 +272,25 @@ class SecondaryIndexPlanner:
                 )
             )
         return steps
+
+    def _oracle_unique_index(
+        self, table: str, schema: str | None, quoted_table: str, fact: facts.UniqueIndexFact
+    ) -> IndexStep:
+        """DROP + DDL de ``DBMS_METADATA``; sin DDL, un paso que no toca nada (``skip_reason``)."""
+        if fact.ddl is None:
+            reason = fact.ddl_error or "sin DDL para recrearlo"
+            return IndexStep(table, quoted_table, fact.name, "", "", "recreated", skip_reason=reason)
+        return IndexStep(
+            table,
+            quoted_table,
+            fact.name,
+            f"DROP INDEX {self._qualified(fact.name, schema)}",
+            _escape_colons(fact.ddl),
+            "recreated",
+            recovery_ddl=fact.ddl,
+            priority=_UNIQUE_INDEX,
+            unique_columns=self._key_columns(fact),
+        )
 
     def _plan_unique_postgresql(
         self,
@@ -394,6 +422,11 @@ def _if_not_exists(ddl: str) -> str:
     return ddl
 
 
+def _escape_colons(sql: str) -> str:
+    """``text()``: un ``:`` del DDL (p. ej. en ``'HH24:MI'``) no es un parámetro."""
+    return sql.replace(":", "\\:")
+
+
 def restore_batches(steps: Sequence[IndexStep]) -> list[tuple[str, list[IndexStep]]]:
     """Sentencias de restauración por prioridad; los pasos ``grouped`` de una tabla, en un solo ``ALTER TABLE``."""
     batches: list[tuple[str, list[IndexStep]]] = []
@@ -413,13 +446,21 @@ def restore_batches(steps: Sequence[IndexStep]) -> list[tuple[str, list[IndexSte
 
 
 def duplicates_sql(dialect: str, quoted_table: str, columns: Sequence[str], limit: int = MAX_DUPLICATES) -> str:
-    """SQL con hasta ``limit`` claves repetidas de ``columns`` en la tabla y cuántas veces aparece cada una."""
+    """SQL con hasta ``limit`` claves repetidas de ``columns`` en la tabla y cuántas veces aparece cada una.
+
+    Oracle: sin las claves todo-NULL (un índice único no las guarda: no son duplicados) y con ``ROWNUM`` (11g no tiene
+    ``FETCH FIRST``); ``columns`` puede llevar expresiones (índices basados en función).
+    """
     cols = ", ".join(columns)
     body = f"{cols}, COUNT(*) FROM {quoted_table} GROUP BY {cols} HAVING COUNT(*) > 1"
     if dialect == "mssql":
         return f"SELECT TOP {limit} {body}"
     if dialect == "oracle":
-        return f"SELECT {body} FETCH FIRST {limit} ROWS ONLY"
+        all_null = " AND ".join(f"{c} IS NULL" for c in columns)
+        return (
+            f"SELECT * FROM (SELECT {cols}, COUNT(*) FROM {quoted_table} WHERE NOT ({all_null}) GROUP BY {cols} "
+            f"HAVING COUNT(*) > 1) WHERE ROWNUM <= {limit}"
+        )
     return f"SELECT {body} LIMIT {limit}"
 
 
@@ -435,6 +476,7 @@ class IndexDdlRunner:
 
     Attributes:
         duplicates: Tras :meth:`restore`, por índice único que no se reconstruyó (``tabla.índice``), sus claves repetidas.
+        recovery_ddl: Tras :meth:`restore`, por índice único borrado que no se pudo recrear, el DDL para hacerlo a mano.
     """
 
     def __init__(self, dialect: str, logger: logging.Logger, *, commit: bool, savepoint: bool) -> None:
@@ -444,6 +486,7 @@ class IndexDdlRunner:
         self._savepoint = savepoint
         self.duplicates: dict[str, list[str]] = {}
         self.failed_unique: list[str] = []
+        self.recovery_ddl: dict[str, str] = {}
 
     def disable(self, conn: Any, steps: Sequence[IndexStep]) -> list[IndexStep]:
         """Desactiva los índices; devuelve los que se desactivaron (los que hay que restaurar)."""
@@ -452,6 +495,13 @@ class IndexDdlRunner:
         for step in steps:
             if step.depends_on is not None and step.depends_on not in done_keys:
                 continue  # lo que lo provocaba no se desactivó
+            if step.skip_reason is not None:
+                self.logger.warning(
+                    f"No se desactiva el índice único '{step.table}.{step.index_name}' (se mantiene durante la carga): "
+                    f"{step.skip_reason}"
+                )
+                done.append(step)  # restore() lo informa como "skipped"
+                continue
             if step.disable_sql and step.recovery_ddl:
                 # Antes de borrar: si el proceso cae entre DROP y CREATE, se recupera desde el log.
                 self.logger.warning(
@@ -468,8 +518,12 @@ class IndexDdlRunner:
 
     def restore(self, conn: Any, steps: Sequence[IndexStep]) -> list[IndexActionResult]:
         """Restaura lo desactivado por prioridad; un resultado por paso. Los únicos que fallan, en ``failed_unique``."""
-        results: list[IndexActionResult] = []
-        for sql, members in restore_batches(steps):
+        results = [
+            IndexActionResult(s.table, s.index_name, self.dialect, "skipped", s.skip_reason)
+            for s in steps
+            if s.skip_reason is not None
+        ]
+        for sql, members in restore_batches([s for s in steps if s.skip_reason is None]):
             if len(members) == 1 and self._already_restored(conn, members[0]):
                 step = members[0]
                 results.append(IndexActionResult(step.table, step.index_name, self.dialect, step.action))
@@ -488,6 +542,9 @@ class IndexDdlRunner:
                         if dups:
                             self.duplicates[f"{step.table}.{step.index_name}"] = dups
                             message = f"{message} | claves duplicadas: {'; '.join(dups)}"
+                        if step.recovery_ddl and step.action == "recreated":  # borrado: no queda nada
+                            self.recovery_ddl[f"{step.table}.{step.index_name}"] = step.recovery_ddl
+                            message = f"{message} | DDL para recrearlo: {step.recovery_ddl}"
                     results.append(IndexActionResult(step.table, step.index_name, self.dialect, "failed", message))
         return results
 
@@ -505,7 +562,8 @@ class IndexDdlRunner:
     def _find_duplicates(self, conn: Any, step: IndexStep) -> list[str]:
         """Hasta :data:`MAX_DUPLICATES` claves repetidas (``"valores → repeticiones"``); ``[]`` si no se pueden leer."""
         try:
-            rows = conn.execute(text(duplicates_sql(self.dialect, step.quoted_table, step.unique_columns))).fetchall()
+            sql = _escape_colons(duplicates_sql(self.dialect, step.quoted_table, step.unique_columns))
+            rows = conn.execute(text(sql)).fetchall()  # la clave puede ser una expresión con literales
         except SQLAlchemyError as exc:
             self.logger.debug(f"No se pudieron leer las claves duplicadas de {step.table}.{step.index_name}: {exc}")
             if self._commit:
@@ -538,10 +596,12 @@ def rebuild_error(runner: IndexDdlRunner, results: list[IndexActionResult], wher
         f"{name}: {', '.join(runner.duplicates[name])}" if name in runner.duplicates else name
         for name in runner.failed_unique
     )
+    message = f"{where}: no se pudieron reconstruir índices únicos o PK tras la carga (¿claves duplicadas?): {detail}"
+    if runner.recovery_ddl:
+        ddl = "; ".join(f"{name}: {sql}" for name, sql in runner.recovery_ddl.items())
+        message = f"{message}. Quedaron borrados; DDL para recrearlos: {ddl}"
     return IndexRebuildError(
-        f"{where}: no se pudieron reconstruir índices únicos o PK tras la carga (¿claves duplicadas?): {detail}",
-        results=results,
-        duplicates=dict(runner.duplicates),
+        message, results=results, duplicates=dict(runner.duplicates), recovery_ddl=dict(runner.recovery_ddl)
     )
 
 

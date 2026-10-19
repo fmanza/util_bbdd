@@ -52,13 +52,15 @@ class IndexActionResult:
             - ``"recreated"`` — índice eliminado y recreado desde su DDL (postgresql; mariadb/mysql InnoDB).
             - ``"failed"`` — fallo al reconstruir/recrear; ver ``error_msg``.
             - ``"unsupported"`` — motor no soportado (hasta 3.1.x, mariadb/mysql InnoDB en ``dump``).
-        error_msg: Detalle del error cuando ``action="failed"`` o ``"unsupported"``.
+            - ``"skipped"`` — no se desactivó y se mantuvo durante la carga (desde 4.0.0: índice único de Oracle sin
+              constraint cuyo DDL no se pudo obtener; el motivo, en ``error_msg``).
+        error_msg: Detalle del error cuando ``action="failed"``, ``"unsupported"`` o ``"skipped"``.
     """
 
     table_name: str
     index_name: str
     dialect: str
-    action: Literal["rebuilt", "recreated", "failed", "unsupported"]
+    action: Literal["rebuilt", "recreated", "failed", "unsupported", "skipped"]
     error_msg: str = ""
 
 

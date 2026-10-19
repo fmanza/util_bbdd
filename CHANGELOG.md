@@ -9,6 +9,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 SemVer: MAJOR (`oracledb` deja de instalarse con la librería).
 
+### Added
+
+- **bulk/dump**: `IndexActionResult.action="skipped"` (índice que se mantuvo durante la carga; motivo en `error_msg`) e
+  `IndexRebuildError.recovery_ddl`: por índice borrado para la carga que no se pudo recrear (PostgreSQL, MariaDB/MySQL
+  InnoDB y únicos sin constraint de Oracle), su DDL.
+
 ### Changed
 
 - **BREAKING — dependencias**: `oracledb` pasa de las dependencias base al extra `oracle`. Quien se conecte a Oracle
@@ -18,8 +24,20 @@ SemVer: MAJOR (`oracledb` deja de instalarse con la librería).
   año; en modo thick y Linux/macOS exige los nombres `libclntsh.so`/`libclntsh.dylib` sin versión), `jinja2>=3.1`,
   drivers (`pymysql>=1.2`, `aiomysql>=0.3`, `psycopg>=3.3`, `psycopg-pool>=3.3`, `asyncpg>=0.32`), extras de análisis
   y SVG, y herramientas de `dev`/`docs` (`ruff>=0.17`, `mypy>=2.4`, `pytest>=9.1`, …).
+- **bulk/dump (`disable_indexes="all"`, `ParallelOptions(disable_indexes="all")`, `DumpConfig(manage_indexes="all")`),
+  Oracle**: los índices únicos sin constraint ya no se quedan activos durante la carga: se borran (`DROP INDEX`, con el
+  DDL en el log antes) y se recrean con su `DBMS_METADATA.GET_DDL`, incluidos los basados en función. Si el DDL no se
+  puede obtener (p. ej. índice de otro esquema sin privilegios de catálogo), no se tocan y salen en `index_results`
+  como `"skipped"` con el motivo, más un warning. Con duplicados ya no falla el INSERT sino la recreación
+  (`IndexRebuildError`) y el índice **queda borrado**: su DDL va en `error_msg` y en `IndexRebuildError.recovery_ddl`.
 - **ruff**: `[tool.ruff.lint]` usa `select` en vez de `extend-select` para mantener las mismas reglas con ruff 0.17,
   que amplió las reglas por defecto.
+
+### Fixed
+
+- **bulk/dump (diagnóstico de duplicados de `"all"`, Oracle)**: la consulta de claves repetidas usaba `FETCH FIRST`
+  (12c+) y en 11g fallaba sin listarlas; ahora usa `ROWNUM`. Tampoco cuenta como duplicadas las claves todo-NULL, que
+  un índice único de Oracle no guarda.
 
 ## [3.4.1] - 2026-10-19
 

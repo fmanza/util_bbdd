@@ -508,7 +508,7 @@ tabla (índice clustered de SQL Server, PK de InnoDB, PK de una IOT de Oracle), 
 | Motor | Únicos y PK/UNIQUE | FK de otras tablas que los referencian |
 |---|---|---|
 | SQL Server | NONCLUSTERED: `DISABLE` → `REBUILD` | El motor las deshabilita; se reactivan con `WITH CHECK CHECK CONSTRAINT` |
-| Oracle | `DISABLE CONSTRAINT … CASCADE` → `ENABLE VALIDATE` (índices únicos sin constraint: no se tocan) | `ENABLE VALIDATE` después de la PK/UNIQUE |
+| Oracle | PK/UNIQUE: `DISABLE CONSTRAINT … CASCADE` → `ENABLE VALIDATE`. Índices únicos sin constraint (desde 4.0.0): `DROP INDEX` → su `DBMS_METADATA.GET_DDL`; sin DDL (p. ej. sin privilegios de catálogo sobre otro esquema), no se tocan y salen como `"skipped"` | `ENABLE VALIDATE` después de la PK/UNIQUE (un índice sin constraint no lo referencia ninguna FK) |
 | PostgreSQL | `DROP CONSTRAINT`/`DROP INDEX` → recreación con su DDL | Se borran antes y se recrean con `NOT VALID` + `VALIDATE CONSTRAINT` |
 | MariaDB/MySQL | Únicos secundarios: `DROP INDEX` → `ADD UNIQUE INDEX` (en el mismo `ALTER` que los secundarios) | Los índices referenciados por una FK no se tocan |
 
@@ -521,6 +521,9 @@ MySQL −24 %, MariaDB −15 %, SQL Server −31 %, Oracle −89 %). **La unicid
   hasta 5 claves repetidas (`dump` no lanza: el índice queda `"failed"` con las claves en `error_msg`). En PostgreSQL
   y SQL Server, dentro de `bulk_session`, la sesión deshace también la carga (en SQL Server el propio servidor la
   deshace al fallar el `REBUILD`, y las claves no se pueden listar); en Oracle y MariaDB/MySQL las filas quedan.
+- un índice que se **borró** para la carga (PostgreSQL, InnoDB y los únicos sin constraint de Oracle) y no se pudo
+  recrear queda borrado: su DDL está en el log (antes del `DROP`), en `error_msg` y en `IndexRebuildError.recovery_ddl`
+  (desde 4.0.0), para recrearlo a mano una vez quitados los duplicados.
 
 Patrón recomendado para procesos de carga con iteraciones de calidad:
 

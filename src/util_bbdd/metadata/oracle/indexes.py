@@ -56,6 +56,48 @@ def fetch_unique_constraint_columns_sql() -> str:
     )
 
 
+def fetch_unique_indexes_without_constraint_sql() -> str:
+    """SQL con los índices **únicos** de una tabla que no respaldan una constraint y sus claves en orden (v4.0.0).
+
+    ``disable_indexes="all"`` los borra y los recrea con su DDL (:func:`fetch_index_ddl_sql`): un índice único
+    ``UNUSABLE`` hace fallar el INSERT (ORA-01502). Solo los tipos que ``DBMS_METADATA`` recrea tal cual (``NORMAL``,
+    ``REV`` y basados en función), válidos y de tablas no temporales. ``column_expression`` (``LONG``) es la expresión de
+    un elemento basado en función: su ``column_name`` es una columna oculta (``SYS_NC…$``) que cambia al recrearlo.
+
+    Parámetros: ``:tbl`` y ``:owner`` (``None`` = ``USER``; ambos se comparan en mayúsculas).
+
+    Returns:
+        str: SQL para (index_name, column_name, column_expression), ordenado por índice y posición.
+    """
+    return (
+        "SELECT i.index_name, ic.column_name, ie.column_expression "
+        "FROM all_indexes i "
+        "JOIN all_ind_columns ic ON ic.index_owner = i.owner AND ic.index_name = i.index_name "
+        "LEFT JOIN all_ind_expressions ie ON ie.index_owner = ic.index_owner AND ie.index_name = ic.index_name "
+        "  AND ie.column_position = ic.column_position "
+        "WHERE i.table_owner = NVL(UPPER(:owner), USER) AND i.table_name = UPPER(:tbl) "
+        "  AND i.uniqueness = 'UNIQUE' AND i.temporary = 'N' AND i.status IN ('VALID', 'N/A') "
+        "  AND i.index_type IN ('NORMAL', 'NORMAL/REV', 'FUNCTION-BASED NORMAL', 'FUNCTION-BASED NORMAL/REV') "
+        "  AND NOT EXISTS (SELECT 1 FROM all_constraints c "
+        "                  WHERE c.index_owner = i.owner AND c.index_name = i.index_name) "
+        "ORDER BY i.index_name, ic.column_position"
+    )
+
+
+def fetch_index_ddl_sql() -> str:
+    """SQL con el DDL de un índice (``DBMS_METADATA.GET_DDL``, disponible desde 9i).
+
+    Sin transformaciones de sesión (``SET_TRANSFORM_PARAM``): el DDL por defecto se ejecuta tal cual y la conexión
+    (quizá del pool) no cambia de estado. Sin privilegios sobre el índice de otro esquema da ORA-31603.
+
+    Parámetros: ``:name`` (como en el catálogo) y ``:owner`` (``None`` = ``USER``).
+
+    Returns:
+        str: SQL para (ddl).
+    """
+    return "SELECT DBMS_METADATA.GET_DDL('INDEX', :name, NVL(UPPER(:owner), USER)) FROM DUAL"
+
+
 def fetch_inbound_foreign_keys_sql() -> str:
     """SQL con las FK **activas** de otras tablas (o de la misma) que referencian una PK/UNIQUE de la tabla.
 
@@ -78,6 +120,8 @@ def fetch_inbound_foreign_keys_sql() -> str:
 
 __all__: list[str] = [
     "fetch_inbound_foreign_keys_sql",
+    "fetch_index_ddl_sql",
     "fetch_secondary_nonunique_indexes_sql",
     "fetch_unique_constraint_columns_sql",
+    "fetch_unique_indexes_without_constraint_sql",
 ]

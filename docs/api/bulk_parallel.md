@@ -90,7 +90,7 @@ en serie. `ParallelLoadResult.plan.reasons` y `BulkCrud.parallel_plan()` dicen q
 | `total_rows` | `int` | Suma de filas insertadas en todas las particiones |
 | `elapsed_seconds` | `float` | Duración total de la operación |
 | `audit_run_id` | `str \| None` | Identificador de la ejecución en los eventos de `audit.sink` ([auditoría](audit.md)) |
-| `index_results` | `list[IndexActionResult]` | Con `parallel.disable_indexes` (v3.2.0): un resultado por índice (`rebuilt`, `recreated` o `failed`) |
+| `index_results` | `list[IndexActionResult]` | Con `parallel.disable_indexes` (v3.2.0): un resultado por índice (`rebuilt`, `recreated`, `failed` o, desde 4.0.0, `skipped`: índice único de Oracle sin constraint que no se pudo recrear y se mantuvo durante la carga) |
 | `plan` | `ParallelPlan \| None` | Hilos usados (`workers`) y por qué (`reasons`), según [`ParallelPlanner`](#planificador-parallelplanner-v300) (v3.0.0); `None` sin particiones |
 | `partition_errors` | `list[str]` | Un mensaje por partición fallida; vacío si todo fue bien |
 | `partition_results` | `list[PartitionResult]` | Resultado de cada partición: `index`, `rows`, `elapsed_seconds`, `error`, `retries`, `retry_wait_seconds`, `rows_rejected` y los contadores de auditoría `audit_failures`, `audited_rows`, `unaudited_committed_rows` y `audit_uncommitted_records` |

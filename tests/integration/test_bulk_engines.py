@@ -1112,6 +1112,114 @@ def test_maintenance_scope_all_duplicates_raise_with_keys_when_ddl_committed(eng
         metadata.drop_all(engine)
 
 
+def _oracle_unique_indexes_table(engine: Engine, owner: str | None = None) -> tuple[Table, list[str]]:
+    """Oracle: tabla sin constraints con dos índices únicos sin constraint (uno basado en función con ``'HH24:MI'``)."""
+    suffix = uuid.uuid4().hex[:8].upper()
+    name = f"ZZ_UTIL_BBDD_IT_UX{suffix}"
+    prefix = f"{owner}." if owner else ""
+    indexes = [f"UX_ZZ_CODE_{suffix}", f"UX_ZZ_HM_{suffix}"]
+    with engine.begin() as conn:
+        conn.execute(text(f"CREATE TABLE {prefix}{name} (ID NUMBER(10) NOT NULL, CODE VARCHAR2(20), DT DATE)"))
+        conn.execute(text(f"CREATE UNIQUE INDEX {prefix}{indexes[0]} ON {prefix}{name} (CODE)"))
+        conn.execute(text(f"CREATE UNIQUE INDEX {prefix}{indexes[1]} ON {prefix}{name} (TO_CHAR(DT, 'HH24:MI'), ID)"))
+        conn.execute(text(f"INSERT INTO {prefix}{name} (ID, CODE) VALUES (1, 'c1')"))
+    table = Table(name.lower(), MetaData(schema=owner.lower() if owner else None), Column("id", Integer))
+    return table, indexes
+
+
+def _oracle_index_state(engine: Engine, table: Table) -> list[tuple[str, str, str]]:
+    sql = (
+        "SELECT index_name, status, index_type FROM all_indexes "
+        "WHERE table_owner = NVL(UPPER(:owner), USER) AND table_name = UPPER(:tbl) ORDER BY index_name"
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(text(sql), {"owner": table.schema, "tbl": table.name}).fetchall()
+    return [(str(a), str(b), str(c)) for a, b, c in rows]
+
+
+def _oracle_frame(rows: int, *, duplicate: bool = False) -> pd.DataFrame:
+    codes = [f"k{i}" for i in range(rows)]
+    if duplicate:
+        codes[-1] = codes[0]
+    return pd.DataFrame({"id": np.arange(2, rows + 2), "code": codes})
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"oracle"})), indirect=True)
+def test_oracle_all_recreates_unique_indexes_without_constraint(engine: Engine) -> None:
+    """4.0.0: con ``"all"``, los índices únicos sin constraint se borran y se recrean con su ``DBMS_METADATA.GET_DDL``
+    (también uno basado en función con ``:`` en un literal) y vuelven a garantizar la unicidad."""
+    from sqlalchemy.exc import IntegrityError
+
+    table, indexes = _oracle_unique_indexes_table(engine)
+    try:
+        before = _oracle_index_state(engine, table)
+        assert [name for name, _, _ in before] == indexes
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False))
+        with crud.bulk_session(), crud.maintenance_scope(table.name, disable_indexes="all") as ms:
+            crud.bulk_insert_from_df(_oracle_frame(500), table.name, generar_sql=False)
+        assert _count(engine, table) == 501
+        assert _oracle_index_state(engine, table) == before
+        assert sorted((r.index_name, r.action) for r in ms.index_results) == [(i, "recreated") for i in indexes]
+        with pytest.raises(IntegrityError), engine.begin() as conn:
+            conn.execute(text(f"INSERT INTO {table.name} (ID, CODE) VALUES (9999, 'k0')"))
+    finally:
+        with engine.begin() as conn:
+            conn.execute(text(f"DROP TABLE {table.name} PURGE"))
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"oracle"})), indirect=True)
+def test_oracle_all_duplicates_leave_the_unique_index_dropped_with_its_ddl(engine: Engine) -> None:
+    """Con duplicados no se puede recrear (ORA-01452): ``IndexRebuildError`` lleva las claves y el DDL, que recrea el
+    índice una vez quitados."""
+    from util_bbdd.exceptions import IndexRebuildError
+
+    table, indexes = _oracle_unique_indexes_table(engine)
+    try:
+        before = _oracle_index_state(engine, table)
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False))
+        with pytest.raises(IndexRebuildError) as info, crud.bulk_session():
+            with crud.maintenance_scope(table.name, disable_indexes="all"):
+                crud.bulk_insert_from_df(_oracle_frame(50, duplicate=True), table.name, generar_sql=False)
+        key = f"{table.name}.{indexes[0]}"
+        assert list(info.value.recovery_ddl) == [key]
+        assert any("k0" in dup for dup in info.value.duplicates[key]), info.value.duplicates
+        assert info.value.recovery_ddl[key] in str(info.value)
+        assert [name for name, _, _ in _oracle_index_state(engine, table)] == indexes[1:]
+        with engine.begin() as conn:
+            conn.execute(text(f"DELETE FROM {table.name} WHERE ID = 51"))
+            conn.exec_driver_sql(info.value.recovery_ddl[key])
+        assert _oracle_index_state(engine, table) == before
+    finally:
+        with engine.begin() as conn:
+            conn.execute(text(f"DROP TABLE {table.name} PURGE"))
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"oracle"})), indirect=True)
+def test_oracle_all_skips_unique_index_without_ddl_privileges(engine: Engine) -> None:
+    """Tabla de otro esquema con permisos de carga pero sin privilegios de catálogo: ``GET_DDL`` da ORA-31603, el índice
+    no se toca y sale como ``"skipped"`` con el motivo."""
+    admin_url = os.environ.get("UTIL_BBDD_TEST_ORACLE_ADMIN_URL")
+    if not admin_url:
+        pytest.skip("sin UTIL_BBDD_TEST_ORACLE_ADMIN_URL para crear la tabla en otro esquema")
+    admin = create_engine(admin_url)
+    user = engine.url.username
+    table, indexes = _oracle_unique_indexes_table(admin, owner="SYSTEM")
+    try:
+        with admin.begin() as conn:
+            conn.execute(text(f"GRANT SELECT, INSERT, ALTER ON SYSTEM.{table.name} TO {user}"))
+        before = _oracle_index_state(admin, table)
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False))
+        with crud.bulk_session(), crud.maintenance_scope(f"system.{table.name}", disable_indexes="all") as ms:
+            crud.bulk_insert_from_df(_oracle_frame(50), f"system.{table.name}", generar_sql=False)
+        assert sorted((r.index_name, r.action) for r in ms.index_results) == [(i, "skipped") for i in indexes]
+        assert all("ORA-31603" in r.error_msg for r in ms.index_results), ms.index_results
+        assert _oracle_index_state(admin, table) == before
+    finally:
+        with admin.begin() as conn:
+            conn.execute(text(f"DROP TABLE SYSTEM.{table.name} PURGE"))
+        admin.dispose()
+
+
 @pytest.mark.parametrize("engine", _engine_params(only=frozenset({"mssql", "oracle", "postgresql"})), indirect=True)
 def test_parallel_all_restores_uniques_and_inbound_fks(engine: Engine) -> None:
     metadata, parent, child = _unique_parent_child(engine)

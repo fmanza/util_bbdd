@@ -35,6 +35,7 @@ class DumpAuditEvents:
         "recreated": "ok",
         "failed": "failed",
         "unsupported": "skipped",
+        "skipped": "skipped",
     }
     PK_SYNC_STATUS: ClassVar[dict[str, AuditStatus]] = {
         "synced": "ok",

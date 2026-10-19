@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from .mariadb.tables import (
     fetch_nonunique_index_columns_sql,
@@ -24,8 +25,10 @@ from .mariadb.tables import (
 )
 from .oracle.indexes import (
     fetch_inbound_foreign_keys_sql as _oracle_inbound_fks_sql,
+    fetch_index_ddl_sql as _oracle_index_ddl_sql,
     fetch_secondary_nonunique_indexes_sql as _oracle_secondary_indexes_sql,
     fetch_unique_constraint_columns_sql as _oracle_unique_constraints_sql,
+    fetch_unique_indexes_without_constraint_sql as _oracle_unique_indexes_sql,
 )
 from .oracle.tables import fetch_identity_generation_sql
 from .postgresql.tables import (
@@ -174,11 +177,15 @@ class UniqueIndexFact:
     """Índice único o PK/UNIQUE de una tabla que ``disable_indexes="all"`` puede desactivar (v3.3.0).
 
     Attributes:
-        name: Índice (SQL Server, PostgreSQL, MariaDB/MySQL) o constraint (Oracle).
+        name: Índice (SQL Server, PostgreSQL, MariaDB/MySQL; Oracle ``unique_index``) o constraint (Oracle PK/UNIQUE).
         kind: ``"pk"``, ``"unique_constraint"`` o ``"unique_index"`` (sin constraint).
         columns: Columnas de la clave, en orden (sin citar).
-        ddl: PostgreSQL: ``pg_get_constraintdef`` (PK/UNIQUE) o ``pg_get_indexdef``; MariaDB/MySQL: cláusula ``ADD``.
+        ddl: PostgreSQL: ``pg_get_constraintdef`` (PK/UNIQUE) o ``pg_get_indexdef``; MariaDB/MySQL: cláusula ``ADD``;
+            Oracle ``unique_index``: ``DBMS_METADATA.GET_DDL`` (``None`` si no se pudo obtener, ver ``ddl_error``).
         constraint: PostgreSQL: nombre de la constraint que respalda el índice.
+        key_sql: Oracle ``unique_index``: SQL de cada elemento de la clave (columna citada o expresión de un índice
+            basado en función), para buscar duplicados; ``()`` = citar ``columns``.
+        ddl_error: Oracle ``unique_index``: por qué no hay ``ddl`` (p. ej. ``ORA-31603`` sin privilegios de catálogo).
     """
 
     name: str
@@ -186,6 +193,8 @@ class UniqueIndexFact:
     columns: tuple[str, ...]
     ddl: str | None = None
     constraint: str | None = None
+    key_sql: tuple[str, ...] = ()
+    ddl_error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -215,7 +224,8 @@ def unique_indexes(conn: Any, schema: str | None, table: str, dialect: str | Non
     """Índices únicos y PK/UNIQUE de una tabla que ``disable_indexes="all"`` puede desactivar (v3.3.0).
 
     - SQL Server: NONCLUSTERED únicos habilitados (PK, UNIQUE o unique index); nunca el clustered.
-    - Oracle: PK y UNIQUE ``ENABLED`` (sin la PK de una IOT).
+    - Oracle: PK y UNIQUE ``ENABLED`` (sin la PK de una IOT) y, desde 4.0.0, índices únicos sin constraint con su DDL
+      (``DBMS_METADATA.GET_DDL``) o el motivo por el que no se pudo obtener (``ddl_error``).
     - PostgreSQL: índices únicos válidos, con su constraint PK/UNIQUE si la respaldan.
     - MariaDB/MySQL: índices únicos (sin la PK, que en InnoDB es el clustered) con las reglas de
       :func:`secondary_nonunique_indexes`, sin los que usa o referencia una FK.
@@ -249,7 +259,31 @@ def _mssql_unique_indexes(conn: Any, schema: str | None, table: str) -> list[Uni
 
 def _oracle_unique_indexes(conn: Any, schema: str | None, table: str) -> list[UniqueIndexFact]:
     rows = conn.execute(text(_oracle_unique_constraints_sql()), {"tbl": table, "owner": schema})
-    return _grouped_facts((name, "pk" if ctype == "P" else "unique_constraint", column) for name, ctype, column in rows)
+    out = _grouped_facts((name, "pk" if ctype == "P" else "unique_constraint", column) for name, ctype, column in rows)
+    keys: dict[str, list[tuple[str, str]]] = {}
+    for name, column, expression in conn.execute(text(_oracle_unique_indexes_sql()), {"tbl": table, "owner": schema}):
+        quoted = '"' + str(column).replace('"', '""') + '"'
+        keys.setdefault(str(name), []).append((str(column), quoted if expression is None else str(expression).strip()))
+    for name, key in keys.items():
+        ddl, error = _oracle_index_ddl(conn, schema, name)
+        columns = tuple(column for column, _ in key)
+        out.append(
+            UniqueIndexFact(name, "unique_index", columns, ddl, key_sql=tuple(sql for _, sql in key), ddl_error=error)
+        )
+    return out
+
+
+def _oracle_index_ddl(conn: Any, schema: str | None, name: str) -> tuple[str | None, str | None]:
+    """``(DDL, None)`` de un índice único de Oracle, o ``(None, motivo)`` si no se puede obtener o no es un CREATE."""
+    try:
+        value = conn.execute(text(_oracle_index_ddl_sql()), {"name": name, "owner": schema}).scalar()
+    except SQLAlchemyError as exc:
+        lines = str(getattr(exc, "orig", None) or exc).strip().splitlines()
+        return None, f"DBMS_METADATA.GET_DDL falló: {lines[0] if lines else type(exc).__name__}"
+    ddl = (value.read() if hasattr(value, "read") else str(value or "")).strip()
+    if not ddl.upper().startswith("CREATE UNIQUE INDEX"):
+        return None, f"DBMS_METADATA.GET_DDL no devolvió un CREATE UNIQUE INDEX: {ddl[:80]!r}"
+    return ddl, None
 
 
 def _pg_unique_indexes(conn: Any, schema: str | None, table: str) -> list[UniqueIndexFact]:

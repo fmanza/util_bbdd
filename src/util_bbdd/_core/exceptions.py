@@ -445,6 +445,9 @@ class IndexRebuildError(DatabaseOperationError):
     Attributes:
         results: ``IndexActionResult`` de todos los índices (``action="failed"`` en los que no se reconstruyeron).
         duplicates: Por índice que falló, hasta 5 claves duplicadas encontradas (texto ``"valores → repeticiones"``).
+        recovery_ddl: Por índice que se borró para la carga y no se pudo recrear (PostgreSQL, MariaDB/MySQL InnoDB y,
+            desde 4.0.0, índices únicos sin constraint de Oracle), el DDL para recrearlo a mano una vez quitados los
+            duplicados.
 
     Examples:
         >>> try:
@@ -454,10 +457,18 @@ class IndexRebuildError(DatabaseOperationError):
         ...     print(exc.duplicates)
     """
 
-    def __init__(self, message: str, *, results: Any = None, duplicates: dict[str, list[str]] | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        results: Any = None,
+        duplicates: dict[str, list[str]] | None = None,
+        recovery_ddl: dict[str, str] | None = None,
+    ) -> None:
         super().__init__(message)
         self.results: Any = results
         self.duplicates: dict[str, list[str]] = duplicates or {}
+        self.recovery_ddl: dict[str, str] = recovery_ddl or {}
 
 
 # Las clases se definen aquí, pero su ruta pública es util_bbdd.exceptions (API 1.0): es la que muestran trazas, repr y

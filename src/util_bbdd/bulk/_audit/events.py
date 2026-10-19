@@ -93,6 +93,7 @@ class BulkAuditEvents:
         "recreated": "ok",
         "failed": "failed",
         "unsupported": "skipped",
+        "skipped": "skipped",
     }
 
     @staticmethod

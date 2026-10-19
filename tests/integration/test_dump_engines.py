@@ -229,8 +229,8 @@ def test_manage_indexes_restores_indexes(setup: Setup, request: pytest.FixtureRe
     assert result.index_results is not None
     touched = {r.index_name.lower() for r in result.index_results}
     assert f"{setup.prefix}_ix_s" in touched
-    # Oracle: "all" desactiva PK/UNIQUE constraints, no índices únicos sin constraint (como ux_big).
-    assert (f"{setup.prefix}_ux_big" in touched) is (mode == "all" and setup.target.dialect.name != "oracle")
+    # "all" también toca los índices únicos sin constraint (ux_big); en Oracle, desde 4.0.0 (DROP + GET_DDL).
+    assert (f"{setup.prefix}_ux_big" in touched) is (mode == "all")
     assert {r.action for r in result.index_results} <= {"rebuilt", "recreated"}, result.index_results
 
 

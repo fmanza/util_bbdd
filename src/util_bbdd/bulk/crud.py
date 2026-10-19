@@ -1619,7 +1619,8 @@ class BulkCrud:
         (duplicados), al salir lanza :exc:`~util_bbdd.exceptions.IndexRebuildError` con las claves repetidas, después
         de restaurar todo lo demás: en PostgreSQL y SQL Server la sesión deshace también la carga; en Oracle y
         MariaDB/MySQL las filas quedan cargadas. En Oracle, una UNIQUE que ya desactivó ``disable_constraints`` sigue a
-        cargo de esa ruta; los índices únicos sin constraint de Oracle no se tocan.
+        cargo de esa ruta. Los índices únicos sin constraint de Oracle (desde 4.0.0) se borran y se recrean con su
+        ``DBMS_METADATA.GET_DDL``; si no se puede obtener, no se tocan y salen en ``index_results`` como ``"skipped"``.
 
         Args:
             tabla_destino: Nombre de la tabla destino (acepta "esquema.tabla").
