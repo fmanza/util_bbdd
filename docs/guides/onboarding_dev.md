@@ -76,7 +76,8 @@ El flag `-e` instala en modo editable: los cambios en `src/` se reflejan sin rei
 | Grafos (Graphviz) | `pip install -e ".[analysis]"` | graphviz >= 0.21 |
 | Grafos (Matplotlib) | `pip install -e ".[analysis-matplotlib]"` | matplotlib, networkx |
 | SVG→PNG en Word | `pip install -e ".[doc-svg]"` | cairosvg >= 2.9 |
-| Entorno de referencia | `pip install -e ".[dev,docs]"` | El que usan los recuentos de tests y mypy (`SHARED_INSTRUCTIONS.md`) |
+| Drivers solo de tests | `pip install -e ".[test-drivers]"` | pyodbc, aioodbc, pymssql, SQLAlchemy async (greenlet) |
+| Entorno de referencia | `pip install -e ".[dev-full]"` | dev, docs, todos los drivers y `test-drivers`; el del CI y los recuentos de tests y mypy. Necesita Graphviz del sistema y, en Linux, `libmariadb-dev` (`SHARED_INSTRUCTIONS.md`) |
 
 **Errores frecuentes en la instalación**:
 

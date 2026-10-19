@@ -13,6 +13,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   (`Series.argmax()`) en lugar de por etiqueta (`.loc[idxmax(), ...]`). pandas-stubs 3.0.5 ya no acepta el
   `Hashable` de `idxmax()` en `.loc` y mypy fallaba en el CI (que instala la última versión de los stubs). Mismo
   resultado: la primera operación con el tiempo máximo. Tests nuevos del valor y del empate.
+- **tests**: `test_docs_build_plugin.py` y `test_dataframe_to_sql_records.py` se saltan (o se saltan el caso
+  `string[pyarrow]`) sin `mkdocs`/`pyarrow`, en lugar de romper la recogida de toda la suite.
+- **tests**: el dorado de documentación de SQLite (`tests/fixtures/metadata_golden/sqlite_doc.txt`) llevaba la ruta
+  temporal de Windows del equipo que lo generó y fallaba en Linux; la ruta del `.db` se sustituye por `<sqlite_db>`.
+
+### Changed
+
+- **dependencias de desarrollo**: extras nuevos `test-drivers` (pyodbc, aioodbc, pymssql, SQLAlchemy async) y
+  `dev-full` (entorno de referencia: dev, docs, todos los drivers y `test-drivers`). El CI instala `.[dev-full]`
+  más Graphviz y, en Linux, `libmariadb-dev`; con solo `.[dev]` fallaban unos 95 tests. `pandas-stubs` con tope
+  (`>=3.0.5,<3.1`).
 
 ## [4.0.0] - 2026-10-19
 

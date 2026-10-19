@@ -33,12 +33,27 @@ jobs:
         allow-prereleases: true
         cache: pip
 
+    # Paquetes del sistema del entorno de referencia (extra dev-full): Graphviz (`dot`) para grafos y documentación;
+    # en Linux, libmariadb-dev para compilar el conector de MariaDB (sin wheels) y unixodbc para pyodbc.
+    - name: System packages (Ubuntu)
+      if: runner.os == 'Linux'
+      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends graphviz libmariadb-dev unixodbc
+
+    - name: System packages (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        choco install graphviz --no-progress -y
+        "C:\Program Files\Graphviz\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    # Entorno de referencia completo: con solo .[dev] unos 95 tests fallan por drivers que faltan.
     - name: Install dependencies
+      shell: bash
       run: |
         python -m pip install --upgrade pip setuptools wheel
-        python -m pip install -e ".[dev]" || {
+        python -m pip install -e ".[dev-full]" || {
           echo "ERROR: Failed to install dependencies"
-          python -m pip install -e ".[dev]" --verbose
+          python -m pip install -e ".[dev-full]" --verbose
           exit 1
         }
 

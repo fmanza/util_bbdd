@@ -65,6 +65,18 @@ analysis-matplotlib = [
 doc-svg = [
     "cairosvg>=2.9",
 ]
+# Drivers que solo usan los tests (SQL Server por ODBC y pymssql, SQLAlchemy async); no son extras de la librería.
+test-drivers = [
+    "pyodbc>=5.2",
+    "aioodbc>=0.5",
+    "pymssql>=2.4",
+    "sqlalchemy[asyncio]>=2.1",  # greenlet
+]
+# Entorno de referencia (CI y recuentos de tests/mypy): sin él, unos 95 tests fallan por drivers que faltan.
+# Además necesita del sistema Graphviz (`dot`) y, en Linux, libmariadb-dev para compilar el conector de MariaDB.
+dev-full = [
+    "util_bbdd[dev,docs,oracle,mariadb,mysql,postgresql,migrate,analysis,analysis-matplotlib,test-drivers]",
+]
 dev = [
     "build>=1.6",
     "pytest>=9.1",

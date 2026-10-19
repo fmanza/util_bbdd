@@ -170,9 +170,10 @@ manager.close()
 
 ### Comandos de desarrollo
 
-Entorno de referencia: `pip install -e ".[dev,docs]"`. Sin él, módulos de tests se saltan enteros al importarse y
-los recuentos de `pytest` y los errores de `mypy` no son comparables entre equipos; `tests/conftest.py` lo avisa en la
-cabecera y junto a los recuentos.
+Entorno de referencia (el del CI): `pip install -e ".[dev-full]"` (dev, docs, todos los drivers y `test-drivers`)
+más Graphviz del sistema (`dot` en el PATH) y, en Linux, `libmariadb-dev`. Con menos, unos 95 tests fallan por drivers
+que faltan, otros módulos se saltan enteros y los recuentos de `pytest` y los errores de `mypy` no son comparables
+entre equipos; `tests/conftest.py` avisa en la cabecera y junto a los recuentos si faltan dependencias de `dev`.
 
 ```bash
 python -m ruff check src tests
@@ -392,4 +393,4 @@ especializaciones afectadas (`CLAUDE.md`, `.github/copilot-instructions.md`, `GE
 
 ---
 
-*Actualizado: 2026-10-17*
+*Actualizado: 2026-10-20*
