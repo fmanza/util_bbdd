@@ -197,7 +197,7 @@ sirve para Engines propios `postgresql+psycopg2://` (p. ej. la estrategia `execu
 
 **Instalación:**
 ```bash
-pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v3.3.0"  # psycopg[binary], psycopg-pool y asyncpg
+pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v3.4.1"  # psycopg[binary], psycopg-pool y asyncpg
 ```
 
 **Configuración:**
@@ -225,7 +225,7 @@ Desde v0.19.0 son dos motores distintos, con las mismas claves de `conn_params`:
 | `mariadb` | `mariadb` (MariaDB Connector/Python) | `aiomysql` | extra `mariadb` |
 | `mysql` | `pymysql` | `aiomysql` | extra `mysql` |
 
-Instalación de un extra: `pip install "util_bbdd[mariadb] @ git+https://github.com/fmanza/util_bbdd.git@v3.3.0"`.
+Instalación de un extra: `pip install "util_bbdd[mariadb] @ git+https://github.com/fmanza/util_bbdd.git@v3.4.1"`.
 
 **Limitación del driver (MariaDB):** MariaDB Connector/Python no tiene `ssl_verify_identity`. Con `ssl_ca` verifica
 la CA y el hostname a la vez, sin forma de verificar solo la CA: el nombre o la IP con que conectas debe figurar en el

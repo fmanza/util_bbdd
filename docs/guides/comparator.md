@@ -6,7 +6,7 @@ Configurar `SchemaComparator` para detectar diferencias de esquema entre dos bas
 
 ## 2. Requisitos Previos
 
-- `util_bbdd` instalado desde el repositorio: `pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v3.3.0"` (ver [Instalación](../installation.md))
+- `util_bbdd` instalado desde el repositorio: `pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v3.4.1"` (ver [Instalación](../installation.md))
 - Dos conexiones activas a las bases de datos a comparar (origen y destino) con permisos de lectura sobre metadatos del esquema
 - Para exportar reportes: dependencias adicionales según formato:
   - Word: `python-docx`

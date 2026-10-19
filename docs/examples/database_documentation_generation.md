@@ -111,7 +111,7 @@ with SyncDatabaseManager("sqlite", {"database": ":memory:"}) as mgr:
 
 ```bash
 # Grafos de relaciones (opcional): extra analysis + binarios de Graphviz
-pip install "util_bbdd[analysis] @ git+https://github.com/fmanza/util_bbdd.git@v3.3.0"
+pip install "util_bbdd[analysis] @ git+https://github.com/fmanza/util_bbdd.git@v3.4.1"
 
 # Validación sintáctica
 python -m py_compile docs/examples/database_documentation_generation.py
