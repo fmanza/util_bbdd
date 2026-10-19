@@ -32,6 +32,7 @@ from ._core.exceptions import (
     DumpConstraintError,
     DumpError,
     DumpReportError,
+    IndexRebuildError,
     InvalidConnectionConfig,
     InvalidDatabaseType,
     InvalidQueryParameters,
@@ -104,4 +105,5 @@ __all__: list[str] = [
     "AuditValidationError",
     # Carga masiva paralela
     "ParallelLoadError",
+    "IndexRebuildError",
 ]

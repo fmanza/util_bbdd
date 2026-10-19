@@ -1578,6 +1578,7 @@ class BulkCrud:
         disable_constraints: bool = True,
         disable_indexes: bool | IndexMode = False,
         require_optimization: bool = False,
+        validate_fks_after: bool = False,
     ) -> Generator[MaintenanceScopeResult, None, None]:
         """Context manager que prepara la tabla para una carga de alto volumen (>1M).
 
@@ -1609,6 +1610,17 @@ class BulkCrud:
         confirmaría lo pendiente. Un índice que no se puede desactivar o reconstruir se avisa y no detiene al resto.
         Medido en serie a 3,5M filas con 2 secundarios: entre −9 % (MariaDB) y −88 % (Oracle) de tiempo total.
 
+        ``disable_indexes="all"`` (v3.3.0): además, los índices únicos y PK/UNIQUE (nunca el clustered, la PK de InnoDB
+        ni la de una IOT de Oracle), con las FK de otras tablas que los referencian: SQL Server y Oracle las reactivan
+        (``WITH CHECK CHECK CONSTRAINT``/``ENABLE VALIDATE``) y PostgreSQL las borra y recrea (``NOT VALID`` +
+        ``VALIDATE``). **La unicidad no se comprueba durante la carga**: solo para datos ya validados (la carga final
+        de un proceso con iteraciones de calidad). Exige ``disable_constraints=True`` y no admite
+        ``RejectOptions(on_error="isolate")``; avisa si la tabla ya tiene filas. Si un único no se puede reconstruir
+        (duplicados), al salir lanza :exc:`~util_bbdd.exceptions.IndexRebuildError` con las claves repetidas, después
+        de restaurar todo lo demás: en PostgreSQL y SQL Server la sesión deshace también la carga; en Oracle y
+        MariaDB/MySQL las filas quedan cargadas. En Oracle, una UNIQUE que ya desactivó ``disable_constraints`` sigue a
+        cargo de esa ruta; los índices únicos sin constraint de Oracle no se tocan.
+
         Args:
             tabla_destino: Nombre de la tabla destino (acepta "esquema.tabla").
             disable_constraints: Deshabilita FKs y triggers. Por defecto True.
@@ -1617,6 +1629,10 @@ class BulkCrud:
             require_optimization: Si True y la optimización no puede aplicarse (p.ej.
                 PostgreSQL sin privilegios suficientes), lanza :exc:`RuntimeError` en lugar
                 de continuar en silencio. Por defecto False.
+            validate_fks_after: MariaDB/MySQL (v3.3.0): al reactivar ``FOREIGN_KEY_CHECKS`` comprueba con un
+                ``NOT EXISTS`` por FK que no se cargaron filas huérfanas (``constraint_results`` con ``"enabled"`` o
+                ``"failed"`` por FK en vez de ``"unverified"``). Cuesta en torno al 1 % de la carga (1M filas, 2 FK).
+                En el resto de motores la validación ya se hace al reactivar. Por defecto False.
 
         Yields:
             :class:`MaintenanceScopeResult` con ``optimization_applied``, ``constraint_results`` e ``index_results``
@@ -1634,9 +1650,20 @@ class BulkCrud:
         Raises:
             RuntimeError: Si se invoca fuera de un :meth:`bulk_session` activo, o si
                 ``require_optimization=True`` y la optimización no puede aplicarse.
-            ValueError: Si ``disable_indexes`` no es ``bool`` ni ``"secondary"``.
+            ValueError: Si ``disable_indexes`` no es ``bool``, ``"secondary"`` ni ``"all"``, o ``"all"`` sin
+                ``disable_constraints`` o con ``on_error="isolate"``.
+            IndexRebuildError: Con ``"all"``, si un índice único o PK no se puede reconstruir al salir.
         """
         index_mode = resolve_index_mode(disable_indexes, "disable_indexes")
+        if index_mode == "all":
+            # D1 y F2 del AUDIT_PLAN (sesión 2026-10-18b): sin desactivar las FK no se puede quitar una PK referenciada,
+            # y sin unicidad "isolate" no tendría duplicados que apartar.
+            if not disable_constraints:
+                raise ValueError("disable_indexes='all' exige disable_constraints=True.")
+            if self._options.rejects.on_error == "isolate":
+                raise ValueError(
+                    "disable_indexes='all' no admite RejectOptions(on_error='isolate'): los duplicados no darían error."
+                )
         tabla = self.reflect_table(tabla_destino)
         # A5 (v1.1.0): la desactivación y restauración por motor viven en TableMaintenance (_execution/maintenance.py).
         # Se crea en cada llamada para usar el engine, la sesión y el _table_snapshot vigentes.
@@ -1651,8 +1678,9 @@ class BulkCrud:
             tabla,
             tabla_destino,
             disable_constraints=disable_constraints,
-            disable_indexes=index_mode is not None,
+            index_mode=index_mode,
             require_optimization=require_optimization,
+            validate_fks_after=validate_fks_after,
         ) as result:
             yield result
 

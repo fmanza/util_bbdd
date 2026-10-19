@@ -106,6 +106,12 @@ Ver `00_REQUEST.md` (solicitud inicial y cuatro ampliaciones en la misma sesión
   `JAVA_HOME` 6879 passed, 8 skipped; `zensical build --strict` limpio.
 - **Rollback**: revertir el commit (no hay datos afectados; solo la forma de los metadatos leídos).
 
+## IMPLEMENT v3.3.0 (2026-10-19)
+
+- Mediciones pendientes de G0 completadas (`unique_checks` descartado; validar FK ≈1 % de la carga).
+- `"all"`, `IndexRebuildError`, `validate_fks_after` y eventos `index`: ver `05_IMPLEMENT_3_3_0.md` (condiciones del
+  AUDIT_PLAN, cambios por fichero, hallazgos y tests).
+
 ## Artefactos generados
 
 | Artefacto | Ruta | Estado |
@@ -115,6 +121,7 @@ Ver `00_REQUEST.md` (solicitud inicial y cuatro ampliaciones en la misma sesión
 | AUDIT_PLAN | `.ai/sessions/2026-10-18b-index-modes-bulk-dump/02_AUDIT_PLAN.md` | emitido (`GO_CONDICIONAL`) |
 | G0 | `.ai/sessions/2026-10-18b-index-modes-bulk-dump/03_G0_MEDICION.md` | emitido |
 | IMPLEMENT 3.2.0 | `.ai/sessions/2026-10-18b-index-modes-bulk-dump/04_IMPLEMENT_3_2_0.md` | completado |
+| IMPLEMENT 3.3.0 | `.ai/sessions/2026-10-18b-index-modes-bulk-dump/05_IMPLEMENT_3_3_0.md` | completado |
 | Hotfix 3.1.1 | `5f11ffcb` | commit |
 | Hotfix 3.1.2 | `274f563d` | commit |
 
@@ -138,6 +145,11 @@ Ver `00_REQUEST.md` (solicitud inicial y cuatro ampliaciones en la misma sesión
 - **[mssql/tests]**: dentro de una sesión con `ALTER INDEX … DISABLE`, consultar `sys.indexes` desde otra conexión se
   bloquea hasta el commit; usar la conexión de la sesión (`crud._session.connection`).
 - **[oracle/paralelo]**: DDL de constraints por worker falla con ORA-00054; siempre una vez antes del pool.
+- **[mssql/all]**: un `REBUILD` de un único que falla por duplicados deshace la transacción en el servidor; dentro de
+  una sesión, el rollback al savepoint da 3903 y no se pueden leer las claves duplicadas.
+- **[índices/all]**: la propiedad de una PK/UNIQUE la tiene quien la desactiva primero (solo se planifican las
+  `ENABLED`); así no hay doble gestión con la ruta de constraints de Oracle.
+- **[bash]**: heredocs con `\|` o comillas rompen; para Markdown con tablas usar Edit/Write.
 - **[banco]**: MariaDB 11.4 no tiene change buffer y MySQL 8.4 lo trae desactivado: el argumento de que InnoDB ya
   amortigua el mantenimiento de secundarios no vale sin medir.
 

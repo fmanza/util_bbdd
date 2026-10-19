@@ -355,7 +355,7 @@ class TestMaintenanceScopeIndexStrategy:
     def test_unknown_index_mode_is_rejected(self) -> None:
         crud, _ = _make_crud_for_dialect("postgresql")
         with pytest.raises(ValueError, match="disable_indexes"):
-            with crud.maintenance_scope("t", disable_indexes="all"):  # type: ignore[arg-type]
+            with crud.maintenance_scope("t", disable_indexes="todos"):  # type: ignore[arg-type]
                 pass
 
     def test_failed_disable_is_skipped_and_not_restored(self, caplog: pytest.LogCaptureFixture) -> None:
@@ -729,3 +729,84 @@ class TestMaintenanceScopePostgreSQLOrphanCheck:
         assert len(ms.constraint_results) == 1
         assert ms.constraint_results[0].status == "unverified"
         assert ms.constraint_results[0].constraint_name == "*"
+
+
+# ---------------------------------------------------------------------------
+# v3.3.0: disable_indexes="all" y validate_fks_after
+# ---------------------------------------------------------------------------
+
+_FK_USER = {
+    "name": "fk_user",
+    "constrained_columns": ["user_id"],
+    "referred_table": "users",
+    "referred_columns": ["id"],
+    "referred_schema": None,
+}
+
+
+class TestMaintenanceScopeAllMode:
+    def test_all_requires_disable_constraints(self) -> None:
+        crud, _ = _make_crud_for_dialect("mssql")
+        with pytest.raises(ValueError, match="disable_constraints"):
+            with crud.maintenance_scope("t", disable_constraints=False, disable_indexes="all"):
+                pass
+
+    def test_all_rejects_isolate(self, tmp_path: Any) -> None:
+        from util_bbdd.bulk.options import RejectOptions
+
+        crud = BulkCrud(_make_sqlite_engine(), rejects=RejectOptions(on_error="isolate", csv_path=tmp_path / "r.csv"))
+        with pytest.raises(ValueError, match="isolate"):
+            with crud.maintenance_scope("t", disable_indexes="all"):
+                pass
+
+    def test_failed_unique_rebuild_raises_after_restoring_constraints(self, caplog: pytest.LogCaptureFixture) -> None:
+        from sqlalchemy.exc import SQLAlchemyError
+
+        from util_bbdd.exceptions import IndexRebuildError
+        from util_bbdd.metadata import facts
+
+        crud, conn = _make_mssql_crud_with_secondary_indexes([])
+        duplicates = MagicMock()
+        duplicates.fetchall.return_value = [("X", 2)]
+
+        def execute(stmt: object, *args: object, **kwargs: object) -> MagicMock:
+            sql = str(stmt)
+            if 'ALTER INDEX "uq_code" ON "t" REBUILD' in sql:
+                raise SQLAlchemyError("duplicate key")
+            return duplicates if sql.startswith("SELECT TOP 5") else MagicMock()
+
+        conn.execute.side_effect = execute
+        with (
+            patch.object(
+                facts, "unique_indexes", return_value=[facts.UniqueIndexFact("uq_code", "unique_constraint", ("code",))]
+            ),
+            patch.object(facts, "inbound_foreign_keys", return_value=[]),
+            pytest.raises(IndexRebuildError) as info,
+        ):
+            with caplog.at_level(logging.WARNING), crud.maintenance_scope("t", disable_indexes="all") as ms:
+                pass
+        sqls = _sql_calls(conn)
+        assert 'ALTER TABLE "t" WITH CHECK CHECK CONSTRAINT ALL' in sqls  # constraints restauradas antes del error
+        assert info.value.duplicates == {"t.uq_code": ["X → 2"]}
+        assert [r.action for r in ms.index_results] == ["failed"]
+        assert any("disable_indexes='all'" in msg for msg in caplog.messages)
+
+
+class TestMaintenanceScopeValidateFksAfter:
+    @pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
+    def test_reports_each_fk_instead_of_unverified(self, dialect: str) -> None:
+        crud, conn = _make_crud_for_dialect(dialect)
+        crud.engine.dialect.identifier_preparer.quote.side_effect = lambda x: f"`{x}`"
+        crud.engine.dialect.identifier_preparer.quote_identifier.side_effect = lambda x: f"`{x}`"
+        conn.execute.return_value.first.return_value = MagicMock(name="orphan")
+        with patch.object(BulkCrud, "_table_snapshot", return_value=_make_pg_inspector_mock(fks=[_FK_USER])):
+            with crud.maintenance_scope("t", validate_fks_after=True) as ms:
+                pass
+        assert [(r.constraint_name, r.status) for r in ms.constraint_results] == [("fk_user", "failed")]
+        assert any("LIMIT 1" in sql and "NOT EXISTS" in sql for sql in _sql_calls(conn))
+
+    def test_default_keeps_unverified(self) -> None:
+        crud, _ = _make_crud_for_dialect("mysql")
+        with crud.maintenance_scope("t") as ms:
+            pass
+        assert [r.status for r in ms.constraint_results] == ["unverified"]

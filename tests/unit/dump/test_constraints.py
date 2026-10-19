@@ -232,6 +232,35 @@ class TestConstraintManagerMariaDB:
         assert len(results) == 1
         assert results[0].status == "unverified"
 
+    def test_validate_fks_after_checks_orphans_per_fk(self) -> None:
+        """v3.3.0: ``DumpConfig.validate_fks_after`` cambia ``unverified`` por un resultado por FK."""
+        engine = _make_engine("mysql")
+        engine.dialect.identifier_preparer.quote_identifier.side_effect = lambda name: name
+        conn = engine.connect.return_value
+        conn.execute.return_value.first.side_effect = [MagicMock(name="orphan"), None]
+        fks = {
+            "orders": [
+                SimpleNamespace(
+                    name="fk_cust", columns=["cust_id"], ref_schema=None, ref_table="customers", ref_columns=["id"]
+                ),
+                SimpleNamespace(
+                    name="fk_prod", columns=["prod_id"], ref_schema=None, ref_table="products", ref_columns=["id"]
+                ),
+            ]
+        }
+        snapshot = SimpleNamespace(foreign_keys=lambda table: fks.get(table, []))
+        with (
+            patch("util_bbdd.dump._constraints.event"),
+            patch.object(ConstraintManager, "_snapshot", return_value=snapshot),
+        ):
+            mgr = ConstraintManager(engine, validate_fks_after=True)
+            mgr.disable_all(tables=["orders"])
+            results = mgr.enable_all()
+        assert [(r.constraint_name, r.status) for r in results] == [("fk_cust", "failed"), ("fk_prod", "enabled")]
+        sql = str(conn.execute.call_args_list[0].args[0])
+        assert "NOT EXISTS" in sql
+        assert sql.endswith("LIMIT 1")
+
     def test_enable_without_prior_disable_returns_empty(self):
         engine = _make_engine("mariadb")
         with patch("util_bbdd.dump._constraints.event"):

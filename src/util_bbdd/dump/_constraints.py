@@ -16,6 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from .._core.exceptions import DumpConstraintError
 from ..bulk._support.dialect import MYSQL_FAMILY, disable_table_integrity_sql, enable_table_integrity_sql
+from ..bulk._support.fk_orphans import orphan_check_sql
 from ..metadata import facts
 from ..metadata.model import Kind, SchemaSnapshot
 from ..metadata.source import CatalogSource
@@ -43,10 +44,13 @@ class ConstraintManager:
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__name__)
 
-    def __init__(self, engine: Engine, schema: str | None = None) -> None:
+    def __init__(self, engine: Engine, schema: str | None = None, *, validate_fks_after: bool = False) -> None:
         self._engine = engine
         self._schema = schema
         self._dialect = engine.dialect.name
+        # MariaDB/MySQL (v3.3.0, DumpConfig.validate_fks_after): comprobar huérfanos al reactivar FOREIGN_KEY_CHECKS
+        self._validate_fks_after = validate_fks_after
+        self._tables: list[str] = []
         # Oracle / PostgreSQL: (tabla, nombre_constraint) desactivadas
         self._disabled: list[tuple[str, str]] = []
         # PostgreSQL: tablas con triggers desactivados (para re-activar solo las afectadas)
@@ -103,6 +107,7 @@ class ConstraintManager:
             )
             return
 
+        self._tables = list(tables)
         try:
             if dialect in MYSQL_FAMILY:
                 self._disable_mariadb()
@@ -187,6 +192,8 @@ class ConstraintManager:
             event.remove(self._engine, "checkin", self._mariadb_checkin)
         self._mariadb_checkout = None
         self._mariadb_checkin = None
+        if self._validate_fks_after:
+            return self._validate_fks_mariadb()
         # MariaDB no valida integridad retroactiva al reactivar FK checks
         return [
             ConstraintResult(
@@ -419,6 +426,41 @@ class ConstraintManager:
                             error_msg=str(exc),
                         ),
                     )
+        return results
+
+    def _validate_fks_mariadb(self) -> list[ConstraintResult]:
+        """``validate_fks_after``: un ``NOT EXISTS`` por FK de las tablas volcadas (``bulk/_support/fk_orphans.py``)."""
+        snapshot = self._snapshot({Kind.FOREIGN_KEYS}, self._tables)
+        if snapshot is None:
+            return [
+                ConstraintResult("*", "FOREIGN_KEY_CHECKS", self._dialect, "unverified", "No se pudieron leer las FK.")
+            ]
+        prep = self._engine.dialect.identifier_preparer
+        results: list[ConstraintResult] = []
+        with self._engine.connect() as conn:
+            for table in self._tables:
+                for fk in snapshot.foreign_keys(table):
+                    spec = {
+                        "constrained_columns": list(fk.columns),
+                        "referred_schema": fk.ref_schema,
+                        "referred_table": fk.ref_table,
+                        "referred_columns": list(fk.ref_columns),
+                    }
+                    sql = orphan_check_sql(self._dialect, prep, self._qt(table), spec)
+                    if sql is None:
+                        continue
+                    name = fk.name or "?"
+                    try:
+                        orphan = conn.execute(text(sql)).first()
+                    except SQLAlchemyError as exc:
+                        results.append(ConstraintResult(table, name, self._dialect, "unverified", str(exc)))
+                        continue
+                    if orphan is None:
+                        results.append(ConstraintResult(table, name, self._dialect, "enabled"))
+                        continue
+                    msg = f"Hay filas en '{table}' sin fila referenciada en '{fk.ref_table}' (FK '{name}')."
+                    self.logger.warning(msg)
+                    results.append(ConstraintResult(table, name, self._dialect, "failed", msg))
         return results
 
     # ------------------------------------------------------------------

@@ -13,19 +13,27 @@ from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import Any
 
-from sqlalchemy import Engine, Table, text
+from sqlalchemy import Engine, Table, literal, select, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from ...metadata import facts
 from ...metadata.model import Kind
-from .._models import IndexActionResult, MaintenanceScopeConstraintResult, MaintenanceScopeResult
+from .._models import MaintenanceScopeConstraintResult, MaintenanceScopeResult
 from .._support.dialect import (
     MYSQL_FAMILY,
     can_disable_pg_triggers,
     disable_table_integrity_sql,
     enable_table_integrity_sql,
 )
-from .._support.secondary_indexes import SUPPORTED_DIALECTS, IndexDdlRunner, IndexStep, SecondaryIndexPlanner
+from .._support.fk_orphans import orphan_check_sql
+from .._support.secondary_indexes import (
+    SUPPORTED_DIALECTS,
+    IndexDdlRunner,
+    IndexMode,
+    IndexStep,
+    SecondaryIndexPlanner,
+    rebuild_error,
+)
 from .session import CommitCadence, SessionScope
 
 
@@ -57,6 +65,8 @@ class TableMaintenance:
         self._cadence: CommitCadence = cadence
         self._table_snapshot: Callable[[Table, set[Kind]], Any] = table_snapshot
         self.logger: logging.Logger = logger
+        #: MariaDB/MySQL: comprobar huérfanos al reactivar ``FOREIGN_KEY_CHECKS`` (v3.3.0, ``validate_fks_after``).
+        self.validate_fks_after: bool = False
 
     @contextmanager
     def scope(
@@ -65,12 +75,14 @@ class TableMaintenance:
         tabla_destino: str,
         *,
         disable_constraints: bool,
-        disable_indexes: bool,
+        index_mode: IndexMode | None,
         require_optimization: bool,
+        validate_fks_after: bool = False,
     ) -> Generator[MaintenanceScopeResult, None, None]:
         """Ver :meth:`BulkCrud.maintenance_scope` (``tabla`` ya reflejada)."""
         dialect: str = self.engine.dialect.name
         quoted_name = self.engine.dialect.identifier_preparer.format_table(tabla)
+        self.validate_fks_after = validate_fks_after
 
         conn = self._session.connection
         if conn is None:
@@ -85,10 +97,15 @@ class TableMaintenance:
         indexes_disabled: list[IndexStep] = []
         oracle_disabled: list[str] = []
         result = MaintenanceScopeResult()
+        rebuild_failure: list[Exception] = []
 
         def restore(on: Any = conn) -> list[MaintenanceScopeConstraintResult]:
-            if disable_indexes:
-                result.index_results = self._enable_indexes(on, dialect, indexes_disabled)
+            if index_mode is not None and indexes_disabled:
+                runner = self._index_runner(dialect)
+                result.index_results = runner.restore(on, indexes_disabled)
+                error = rebuild_error(runner, result.index_results, f"maintenance_scope('{tabla_destino}')")
+                if error is not None:
+                    rebuild_failure.append(error)
             if disable_constraints:
                 return self._enable_constraints(
                     on, dialect, quoted_name, tabla, pg_disabled, mssql_constraints_disabled, oracle_disabled
@@ -106,8 +123,10 @@ class TableMaintenance:
                 result.optimization_applied = (
                     pg_disabled or mssql_constraints_disabled or bool(oracle_disabled) or dialect in MYSQL_FAMILY
                 )
-            if disable_indexes:
-                indexes_disabled = self._disable_indexes(conn, dialect, quoted_name, tabla, tabla_destino)
+            if index_mode is not None:
+                if index_mode == "all":
+                    self._warn_all_mode(conn, tabla, tabla_destino)
+                indexes_disabled = self._disable_indexes(conn, dialect, quoted_name, tabla, tabla_destino, index_mode)
             self.logger.info(f"🛠️ Modo mantenimiento activado: {tabla_destino} ({dialect})")
             yield result
         except BaseException:
@@ -118,6 +137,26 @@ class TableMaintenance:
             if not failed:
                 result.constraint_results = restore()
                 self.logger.debug(f"🛠️ Modo mantenimiento finalizado: {tabla_destino}")
+                if rebuild_failure:
+                    # Tras restaurar todo (índices, FK entrantes y constraints): en PostgreSQL y SQL Server la sesión
+                    # deshace la carga entera; en Oracle y MariaDB/MySQL el DDL ya confirmó.
+                    raise rebuild_failure[0]
+
+    def _warn_all_mode(self, conn: Any, tabla: Table, tabla_destino: str) -> None:
+        """Aviso de ``disable_indexes="all"`` y, si la tabla ya tiene filas, de que sus duplicados no se detectarán."""
+        self.logger.warning(
+            f"⚠️ disable_indexes='all' en {tabla_destino}: PK/UNIQUE desactivadas durante la carga, sin control de "
+            "duplicados. Solo para datos ya validados; si la reconstrucción falla se lanza IndexRebuildError."
+        )
+        try:
+            has_rows = conn.execute(select(literal(1)).select_from(tabla).limit(1)).first() is not None
+        except SQLAlchemyError:
+            return
+        if has_rows:
+            self.logger.warning(
+                f"⚠️ {tabla_destino} ya tiene filas: con disable_indexes='all' los duplicados contra ellas solo "
+                "aparecerán al reconstruir los índices únicos."
+            )
 
     def _restore_after_error(
         self, conn: Any, restore: Callable[..., list[MaintenanceScopeConstraintResult]], tabla_destino: str
@@ -218,8 +257,9 @@ class TableMaintenance:
         quoted_name: str,
         tabla: Table,
         tabla_destino: str,
+        mode: IndexMode = "secondary",
     ) -> list[IndexStep]:
-        """Deshabilita los índices secundarios no únicos (estrategia común con ``dump``); devuelve los que hay que restaurar.
+        """Deshabilita los índices de ``mode`` (estrategia común con ``dump``); devuelve los que hay que restaurar.
 
         En la conexión de la sesión. SQL Server y PostgreSQL: DDL transaccional, cada sentencia en un savepoint (un fallo
         no aborta la sesión y su rollback deshace la desactivación). Oracle: el DDL confirma la transacción (como sus
@@ -239,18 +279,12 @@ class TableMaintenance:
         if dialect not in SUPPORTED_DIALECTS:
             return []
         planner = SecondaryIndexPlanner(dialect, self.engine.dialect.identifier_preparer)
-        steps = planner.plan(conn, table=tabla.name, schema=tabla.schema, quoted_table=quoted_name)
+        steps = planner.plan(conn, table=tabla.name, schema=tabla.schema, quoted_table=quoted_name, mode=mode)
         if dialect in MYSQL_FAMILY and any(step.grouped for step in steps):
             self.logger.warning(
                 f"⚠️ {tabla_destino}: DROP INDEX en InnoDB confirma lo pendiente de la sesión (commit implícito)."
             )
         return self._index_runner(dialect).disable(conn, steps)
-
-    def _enable_indexes(self, conn: Any, dialect: str, disabled: list[IndexStep]) -> list[IndexActionResult]:
-        """Restaura los índices deshabilitados por ``_disable_indexes``; un resultado por índice."""
-        if not disabled:
-            return []
-        return self._index_runner(dialect).restore(conn, disabled)
 
     def _index_runner(self, dialect: str) -> IndexDdlRunner:
         return IndexDdlRunner(dialect, self.logger, commit=False, savepoint=dialect in ("mssql", "postgresql"))
@@ -268,6 +302,8 @@ class TableMaintenance:
         """Restaura constraints deshabilitadas por motor; retorna resultado por constraint."""
         if dialect in MYSQL_FAMILY:
             conn.execute(text("SET SESSION FOREIGN_KEY_CHECKS=1"))
+            if self.validate_fks_after:
+                return self._check_fk_orphans(conn, tabla, quoted_name)
             return [
                 MaintenanceScopeConstraintResult(
                     constraint_name="FOREIGN_KEY_CHECKS",
@@ -277,7 +313,7 @@ class TableMaintenance:
             ]
         if dialect == "postgresql" and pg_disabled:
             conn.execute(text(enable_table_integrity_sql(dialect, quoted_name)))
-            return self._pg_check_fk_orphans(conn, tabla, quoted_name)
+            return self._check_fk_orphans(conn, tabla, quoted_name)
         if dialect == "mssql" and mssql_disabled:
             conn.execute(text(enable_table_integrity_sql(dialect, quoted_name)))
             return [MaintenanceScopeConstraintResult(constraint_name="ALL", status="enabled")]
@@ -298,8 +334,12 @@ class TableMaintenance:
             return results
         return []
 
-    def _pg_check_fk_orphans(self, conn: Any, tabla: Table, quoted_name: str) -> list[MaintenanceScopeConstraintResult]:
-        """Audit H-01 (2026-09-27): DISABLE TRIGGER no marca FK como NOT VALID; verifica huérfanos explícitamente."""
+    def _check_fk_orphans(self, conn: Any, tabla: Table, quoted_name: str) -> list[MaintenanceScopeConstraintResult]:
+        """Filas huérfanas de cada FK de la tabla (``bulk/_support/fk_orphans.py``).
+
+        PostgreSQL siempre (audit H-01, 2026-09-27: ``DISABLE TRIGGER`` no marca la FK como ``NOT VALID``); MariaDB/MySQL
+        con ``validate_fks_after`` (v3.3.0: ``FOREIGN_KEY_CHECKS=1`` no valida lo ya cargado).
+        """
         try:
             fks = [
                 {
@@ -323,39 +363,18 @@ class TableMaintenance:
         results: list[MaintenanceScopeConstraintResult] = []
         prep = self.engine.dialect.identifier_preparer
         for fk in fks:
-            child_cols: list[str] = fk.get("constrained_columns", [])
-            parent_table: str = fk.get("referred_table", "")
-            parent_cols: list[str] = fk.get("referred_columns", [])
-            if not child_cols or not parent_cols or not parent_table:
-                continue
-            if len(child_cols) != len(parent_cols):
+            sql = orphan_check_sql(self.engine.dialect.name, prep, quoted_name, fk)
+            if sql is None:
                 continue  # metadata FK malformada
-            # MATCH SIMPLE: NULL en alguna columna FK exime la fila de la comprobación
-            not_null = " AND ".join(f"c.{prep.quote(col)} IS NOT NULL" for col in child_cols)
-            match_cond = " AND ".join(
-                f"p.{prep.quote(pc)} = c.{prep.quote(cc)}" for cc, pc in zip(child_cols, parent_cols, strict=True)
-            )
-            parent_schema: str | None = fk.get("referred_schema")
-            parent_ref = (
-                f"{prep.quote_identifier(parent_schema)}.{prep.quote_identifier(parent_table)}"
-                if parent_schema
-                else prep.quote_identifier(parent_table)
-            )
             fk_name = fk.get("name") or "?"
             try:
-                orphan = conn.execute(
-                    text(
-                        f"SELECT 1 FROM {quoted_name} c "
-                        f"WHERE {not_null} "
-                        f"AND NOT EXISTS (SELECT 1 FROM {parent_ref} p WHERE {match_cond}) LIMIT 1"
-                    )
-                ).first()
+                orphan = conn.execute(text(sql)).first()
             except SQLAlchemyError:
                 continue
             if orphan is not None:
                 msg = (
                     f"FK '{fk_name}' en '{tabla.name}': hay filas sin fila referenciada "
-                    f"en '{parent_table}'. La FK está marcada como válida pero contiene violaciones. "
+                    f"en '{fk.get('referred_table')}'. La FK está marcada como válida pero contiene violaciones. "
                     "Verificar integridad manualmente o hacer rollback."
                 )
                 self.logger.warning(f"⚠️ {msg}")

@@ -434,6 +434,32 @@ class ParallelLoadError(DatabaseOperationError):
         self.result: Any = result
 
 
+class IndexRebuildError(DatabaseOperationError):
+    """No se pudo reconstruir un índice único o una PK desactivados con ``disable_indexes="all"`` (v3.3.0).
+
+    Casi siempre porque la carga trajo claves duplicadas: con ``"all"`` la unicidad no se comprueba durante la carga y
+    la reconstrucción es la última comprobación. Se lanza después de intentar restaurar **todo** (los demás índices,
+    las FK entrantes y las constraints). En PostgreSQL y SQL Server, dentro de ``bulk_session``, la excepción deshace la
+    sesión entera (carga y DDL); en Oracle y MariaDB/MySQL el DDL ya confirmó y las filas quedan cargadas.
+
+    Attributes:
+        results: ``IndexActionResult`` de todos los índices (``action="failed"`` en los que no se reconstruyeron).
+        duplicates: Por índice que falló, hasta 5 claves duplicadas encontradas (texto ``"valores → repeticiones"``).
+
+    Examples:
+        >>> try:
+        ...     with crud.bulk_session(), crud.maintenance_scope("ventas", disable_indexes="all"):
+        ...         crud.bulk_insert_from_df(df, "ventas", generar_sql=False)
+        ... except IndexRebuildError as exc:
+        ...     print(exc.duplicates)
+    """
+
+    def __init__(self, message: str, *, results: Any = None, duplicates: dict[str, list[str]] | None = None) -> None:
+        super().__init__(message)
+        self.results: Any = results
+        self.duplicates: dict[str, list[str]] = duplicates or {}
+
+
 # Las clases se definen aquí, pero su ruta pública es util_bbdd.exceptions (API 1.0): es la que muestran trazas, repr y
 # logs, y la que guarda pickle. Los pickles con la ruta antigua (util_bbdd._core.exceptions.X) se siguen cargando.
 _PUBLIC_MODULE = "util_bbdd.exceptions"
@@ -501,4 +527,5 @@ __all__ = [
     "AuditValidationError",
     # Carga masiva paralela
     "ParallelLoadError",
+    "IndexRebuildError",
 ]

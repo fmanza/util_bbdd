@@ -963,6 +963,168 @@ def test_maintenance_scope_disable_indexes_rolls_back_with_the_session(engine: E
         metadata.drop_all(engine)
 
 
+def _unique_parent_child(engine: Engine, *, child_fk: bool = True) -> tuple[MetaData, Table, Table]:
+    """Padre con PK, UNIQUE ``code`` e índice no único ``a``; hija con FK hacia ``code`` (v3.3.0, ``"all"``).
+
+    ``child_fk=False``: la hija sin FK (en MariaDB/MySQL un índice referenciado por una FK no se toca nunca)."""
+    from sqlalchemy import ForeignKeyConstraint, Index, UniqueConstraint
+
+    n = partial(_name, engine=engine)
+    suffix = uuid.uuid4().hex[:8]
+    metadata = MetaData()
+    parent = Table(
+        n(f"zz_util_bbdd_it_up{suffix}"),
+        metadata,
+        Column(n("id"), Integer, primary_key=True, autoincrement=False),
+        Column(n("code"), String(20), nullable=False),
+        Column(n("a"), Integer),
+        UniqueConstraint(n("code"), name=f"uq_zz_up_{suffix}"),
+        Index(f"ix_zz_up_{suffix}", n("a")),
+    )
+    child = Table(
+        n(f"zz_util_bbdd_it_uc{suffix}"),
+        metadata,
+        Column(n("id"), Integer, primary_key=True, autoincrement=False),
+        Column(n("code"), String(20)),
+        *([ForeignKeyConstraint([n("code")], [parent.c[n("code")]], name=f"fk_zz_uc_{suffix}")] if child_fk else []),
+    )
+    metadata.create_all(engine)
+    with engine.begin() as conn:
+        conn.execute(parent.insert(), [{n("id"): 1, n("code"): "c1", n("a"): 1}])
+        conn.execute(child.insert(), [{n("id"): 1, n("code"): "c1"}])
+    return metadata, parent, child
+
+
+def _full_index_state(engine: Engine, parent: Table, child: Table) -> tuple[Any, ...]:
+    """PK, índices (únicos o no) y FK de la hija, más objetos deshabilitados, no válidos o FK no validadas."""
+    from sqlalchemy import inspect
+
+    insp = inspect(engine)
+    pk = tuple(sorted(str(c).lower() for c in insp.get_pk_constraint(parent.name).get("constrained_columns") or []))
+    indexes = sorted((str(i["name"]).lower(), bool(i["unique"])) for i in insp.get_indexes(parent.name))
+    fks = sorted(str(f["name"]).lower() for f in insp.get_foreign_keys(child.name))
+    bad = _index_state(engine, parent)[1] + _fk_disabled_count(engine, child)
+    if engine.dialect.name == "postgresql":
+        with engine.connect() as conn:
+            bad += int(
+                conn.execute(
+                    text("SELECT count(*) FROM pg_constraint WHERE conrelid = to_regclass(:t) AND NOT convalidated"),
+                    {"t": child.name},
+                ).scalar_one()
+            )
+    return pk, tuple(indexes), tuple(fks), bad
+
+
+def _unique_frame(engine: Engine, rows: int, *, duplicate: bool = False) -> pd.DataFrame:
+    codes = [f"k{i}" for i in range(rows)]
+    if duplicate:
+        codes[-1] = codes[0]
+    return pd.DataFrame(
+        {_name("id", engine): np.arange(2, rows + 2), _name("code", engine): codes, _name("a", engine): np.arange(rows)}
+    )
+
+
+@pytest.mark.parametrize("engine", _engine_params(exclude=frozenset({"sqlite", MARIADB_CONNECTOR})), indirect=True)
+def test_maintenance_scope_all_restores_uniques_and_inbound_fks(engine: Engine) -> None:
+    """v3.3.0: con ``"all"`` se desactivan también UNIQUE/PK (no el clustered) y se restaura todo, FK entrantes incluidas.
+
+    Con ``commit_every_n_chunks`` para que InnoDB también lo aplique (en la sesión atómica se omite)."""
+    metadata, parent, child = _unique_parent_child(engine)
+    try:
+        before = _full_index_state(engine, parent, child)
+        assert before[-1] == 0
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False), batch=BatchOptions(commit_every_n_chunks=1))
+        with crud.bulk_session(), crud.maintenance_scope(parent.name, disable_indexes="all") as ms:
+            crud.bulk_insert_from_df(_unique_frame(engine, 500), parent.name, generar_sql=False)
+        assert _count(engine, parent) == 501
+        assert _full_index_state(engine, parent, child) == before
+        assert ms.index_results
+        assert all(r.action in ("rebuilt", "recreated") for r in ms.index_results), ms.index_results
+    finally:
+        metadata.drop_all(engine)
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"postgresql", "mssql"})), indirect=True)
+def test_maintenance_scope_all_duplicates_raise_and_roll_back(engine: Engine) -> None:
+    """PostgreSQL y SQL Server: los duplicados hacen fallar la reconstrucción; la sesión deshace carga y DDL.
+
+    En SQL Server el propio servidor deshace la transacción al fallar el ``REBUILD`` (las filas ya no existen), así que
+    no se pueden listar las claves duplicadas; en PostgreSQL el savepoint lo permite."""
+    from util_bbdd.exceptions import IndexRebuildError
+
+    metadata, parent, child = _unique_parent_child(engine)
+    try:
+        before = _full_index_state(engine, parent, child)
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False))
+        with pytest.raises(IndexRebuildError) as info, crud.bulk_session():
+            with crud.maintenance_scope(parent.name, disable_indexes="all"):
+                crud.bulk_insert_from_df(_unique_frame(engine, 50, duplicate=True), parent.name, generar_sql=False)
+        if engine.dialect.name == "postgresql":
+            assert any("k0" in dup for dups in info.value.duplicates.values() for dup in dups)
+        assert info.value.results
+        assert _count(engine, parent) == 1
+        assert _full_index_state(engine, parent, child) == before
+    finally:
+        metadata.drop_all(engine)
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"oracle", "mysql", "mariadb"})), indirect=True)
+def test_maintenance_scope_all_duplicates_raise_with_keys_when_ddl_committed(engine: Engine) -> None:
+    """Oracle y MariaDB/MySQL: el DDL ya confirmó la carga; ``IndexRebuildError`` lista las claves y las filas quedan."""
+    from util_bbdd.exceptions import IndexRebuildError
+
+    metadata, parent, child = _unique_parent_child(engine, child_fk=engine.dialect.name == "oracle")
+    try:
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False), batch=BatchOptions(commit_every_n_chunks=1))
+        with pytest.raises(IndexRebuildError) as info, crud.bulk_session():
+            with crud.maintenance_scope(parent.name, disable_indexes="all"):
+                crud.bulk_insert_from_df(_unique_frame(engine, 50, duplicate=True), parent.name, generar_sql=False)
+        assert any("k0" in dup for dups in info.value.duplicates.values() for dup in dups), info.value.duplicates
+        assert _count(engine, parent) == 51
+    finally:
+        with engine.begin() as conn:
+            conn.execute(child.delete())
+        metadata.drop_all(engine)
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"mssql", "oracle", "postgresql"})), indirect=True)
+def test_parallel_all_restores_uniques_and_inbound_fks(engine: Engine) -> None:
+    metadata, parent, child = _unique_parent_child(engine)
+    try:
+        before = _full_index_state(engine, parent, child)
+        loader = ParallelBulkLoader(
+            engine,
+            audit=AuditOptions(warn_if_disabled=False),
+            parallel=ParallelOptions(mode="manual", max_workers=2, disable_constraints=True, disable_indexes="all"),
+        )
+        frame = _unique_frame(engine, 2_000)
+        result = loader.load(parent.name, [lambda: iter([frame.iloc[:1000]]), lambda: iter([frame.iloc[1000:]])])
+        assert result.partition_errors == []
+        assert _count(engine, parent) == 2_001
+        assert _full_index_state(engine, parent, child) == before
+        assert all(r.action in ("rebuilt", "recreated") for r in result.index_results), result.index_results
+    finally:
+        metadata.drop_all(engine)
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=MYSQL_FAMILY - {MARIADB_CONNECTOR}), indirect=True)
+def test_maintenance_scope_validate_fks_after_detects_orphans(engine: Engine) -> None:
+    """v3.3.0: con FOREIGN_KEY_CHECKS=0 entra un huérfano; ``validate_fks_after`` lo detecta al reactivarlas."""
+    metadata, parent, child = _unique_parent_child(engine)
+    try:
+        crud = BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False))
+        orphan = pd.DataFrame({_name("id", engine): [2], _name("code", engine): ["no-existe"]})
+        with crud.bulk_session(), crud.maintenance_scope(child.name, validate_fks_after=True) as ms:
+            crud.bulk_insert_from_df(orphan, child.name, generar_sql=False)
+        assert [(r.constraint_name.lower(), r.status) for r in ms.constraint_results] == [
+            (f"fk_zz_uc_{child.name[-8:]}", "failed")
+        ]
+    finally:
+        with engine.begin() as conn:
+            conn.execute(child.delete())
+        metadata.drop_all(engine)
+
+
 @pytest.mark.parametrize("engine", _engine_params(exclude=frozenset({"sqlite"})), indirect=True)
 def test_parallel_disable_indexes_restores_them(engine: Engine) -> None:
     metadata, table = _indexed_table(engine)

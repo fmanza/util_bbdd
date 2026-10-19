@@ -70,6 +70,25 @@ def fetch_nonunique_index_columns_sql() -> str:
     )
 
 
+def fetch_unique_index_columns_sql() -> str:
+    """SQL con las columnas de los índices únicos de una tabla MariaDB/MySQL, sin la PK (``disable_indexes="all"``).
+
+    Mismas reglas de lectura que :func:`fetch_nonunique_index_columns_sql` (``SELECT *`` por las columnas de cada
+    motor). La PK no: en InnoDB es el índice clustered.
+
+    Parámetros: ``:schema`` (``None`` = ``DATABASE()``) y ``:tbl``.
+
+    Returns:
+        str: SQL de ``information_schema.STATISTICS`` ordenado por índice y posición.
+    """
+    return (
+        "SELECT * FROM information_schema.STATISTICS "
+        "WHERE TABLE_SCHEMA = COALESCE(:schema, DATABASE()) AND TABLE_NAME = :tbl AND NON_UNIQUE = 0 "
+        "AND INDEX_NAME <> 'PRIMARY' "
+        "ORDER BY INDEX_NAME, SEQ_IN_INDEX"
+    )
+
+
 def fetch_table_fk_columns_sql() -> str:
     """SQL con las columnas de las FK en las que participa una tabla MariaDB/MySQL, como hija o como referenciada.
 

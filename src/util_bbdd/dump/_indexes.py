@@ -12,8 +12,10 @@ de ``bulk`` (``bulk/_support/secondary_indexes.py``), la misma que ``BulkCrud.ma
   - MariaDB / MySQL (desde 3.2.0): InnoDB, ``DROP INDEX`` y un ``ALTER TABLE … ADD INDEX …`` por tabla, sin los
     índices que necesita una FK (el DDL se loguea antes); MyISAM/Aria, ``DISABLE KEYS`` → ``ENABLE KEYS``.
 
-Solo se gestionan índices **no únicos**: los que respaldan PK / UNIQUE constraints o son unique indexes quedan
-intactos, preservando la integridad durante la carga. Cada índice va en su propia transacción: un fallo no detiene
+Con ``mode="secondary"`` (por defecto) solo se gestionan índices **no únicos**: los que respaldan PK / UNIQUE
+constraints o son unique indexes quedan intactos, preservando la integridad durante la carga. Con ``mode="all"``
+(3.3.0, ``DumpConfig.manage_indexes="all"``) también los únicos y PK/UNIQUE, con sus FK entrantes; un único que no se
+reconstruye queda ``"failed"`` con sus claves duplicadas en ``error_msg``. Cada índice va en su propia transacción: un fallo no detiene
 al resto.
 """
 
@@ -25,7 +27,13 @@ from typing import ClassVar
 
 from sqlalchemy import Engine
 
-from ..bulk._support.secondary_indexes import SUPPORTED_DIALECTS, IndexDdlRunner, IndexStep, SecondaryIndexPlanner
+from ..bulk._support.secondary_indexes import (
+    SUPPORTED_DIALECTS,
+    IndexDdlRunner,
+    IndexMode,
+    IndexStep,
+    SecondaryIndexPlanner,
+)
 from ._models import IndexActionResult
 from ._sql_utils import quote_table
 
@@ -51,10 +59,11 @@ class IndexManager:
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__name__)
 
-    def __init__(self, engine: Engine, schema: str | None = None) -> None:
+    def __init__(self, engine: Engine, schema: str | None = None, mode: IndexMode = "secondary") -> None:
         self._engine = engine
         self._schema = schema
         self._dialect = engine.dialect.name
+        self._mode: IndexMode = mode
         # Índices desactivados (con su restauración), en orden
         self._disabled: list[IndexStep] = []
         # Resultados accesibles tras __exit__
@@ -93,7 +102,11 @@ class IndexManager:
         with self._engine.connect() as conn:
             for table in tables:
                 steps = planner.plan(
-                    conn, table=table, schema=self._schema, quoted_table=quote_table(table, self._schema, self._engine)
+                    conn,
+                    table=table,
+                    schema=self._schema,
+                    quoted_table=quote_table(table, self._schema, self._engine),
+                    mode=self._mode,
                 )
                 self._disabled.extend(self._runner().disable(conn, steps))
 

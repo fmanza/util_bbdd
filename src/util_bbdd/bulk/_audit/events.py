@@ -8,13 +8,14 @@ transacción; con ``audit_strict``, antes del commit), así que siguen las misma
 from __future__ import annotations
 
 from datetime import UTC
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from ...audit.events import AuditEvent, AuditStatus
 from ...audit.legacy_csv import AuditRecord
 
 if TYPE_CHECKING:
     from .._execution.parallel_loader import ParallelLoadResult, PartitionResult
+    from .._models import IndexActionResult
 
 
 class BulkAuditEvents:
@@ -84,6 +85,28 @@ class BulkAuditEvents:
                 "audited_rows": result.audited_rows,
                 "audit_failures": result.audit_failures,
             },
+        )
+
+    #: Estado del evento ``index`` según ``IndexActionResult.action`` (el mismo que en ``dump``).
+    INDEX_STATUS: ClassVar[dict[str, AuditStatus]] = {
+        "rebuilt": "ok",
+        "recreated": "ok",
+        "failed": "failed",
+        "unsupported": "skipped",
+    }
+
+    @staticmethod
+    def index(result: IndexActionResult, *, engine: str, run_id: str | None) -> AuditEvent:
+        """Evento ``index`` al reconstruir un índice desactivado con ``ParallelOptions.disable_indexes`` (v3.3.0)."""
+        return AuditEvent.now(
+            source="bulk",
+            kind="index",
+            status=BulkAuditEvents.INDEX_STATUS.get(result.action, "warning"),
+            engine=engine,
+            target=f"{result.table_name}.{result.index_name}",
+            operation=result.action.upper(),
+            message=result.error_msg or None,
+            run_id=run_id,
         )
 
 

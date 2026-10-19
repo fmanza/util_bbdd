@@ -103,7 +103,14 @@ afectado (`ConstraintManager` desactiva una vez). Pendiente de RCA → candidato
 | G5b (`validate_fks_after`) | Coste no medido todavía |
 | `unique_checks` | Pendiente de medir con `sec2u` |
 
-## 6. Pendientes de G0
+## 6. Mediciones completadas el 2026-10-19 (tras 3.2.1)
+
+- `unique_checks=0` (`sec2u`): no compensa (MySQL +7 % sin índices y −1,5 % con `"secondary"`; MariaDB +3 % y +2,7 %).
+  No se implementa.
+- Validar FK tras la carga (1M filas, 2 FK): `NOT EXISTS` 0,0–0,23 s (≤ 1,1 % de la carga); revalidación nativa
+  0,06–0,15 s. Detalle en `05_IMPLEMENT_3_3_0.md`.
+
+## 7. Pendientes de G0 (estado inicial, resueltos en el apartado 6 salvo el último)
 
 - `unique_checks=0` con `sec2u` (MySQL/MariaDB).
 - Coste de `validate_fks_after` (orphan-check) y de `WITH CHECK CHECK CONSTRAINT` en SQL Server (T2).

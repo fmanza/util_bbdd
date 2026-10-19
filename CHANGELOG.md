@@ -7,6 +7,41 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-10-19
+
+Sesión `.ai/sessions/2026-10-18b-index-modes-bulk-dump/` (entrega 3.3.0: G5, G5b y G7 del PLAN). SemVer: MINOR (valores
+y parámetros nuevos; sin cambios para quien no los usa).
+
+### Added
+
+- **bulk/dump (`disable_indexes="all"`, `ParallelOptions(disable_indexes="all")`, `DumpConfig(manage_indexes="all")`)**:
+  además de los secundarios, desactiva los índices únicos y las PK/UNIQUE (nunca el clustered de SQL Server, la PK de
+  InnoDB ni la de una IOT de Oracle) y gestiona las FK que los referencian: SQL Server las reactiva con
+  `WITH CHECK CHECK CONSTRAINT`, Oracle con `ENABLE VALIDATE` tras `DISABLE CONSTRAINT … CASCADE`, PostgreSQL las borra y
+  las recrea `NOT VALID` + `VALIDATE CONSTRAINT`; en MariaDB/MySQL solo los únicos que no usa ni referencia una FK.
+  Restauración por prioridad (únicos, secundarios, PK/UNIQUE, FK, validación). Medido en serie a 3,5M filas: entre −15 %
+  (MariaDB) y −89 % (Oracle) de tiempo total, 3–13 puntos más que `"secondary"`. Salvaguardas: exige
+  `disable_constraints=True` (`bulk`) o `truncate_target=True` (`dump`), no admite `on_error="isolate"`, avisa si la
+  tabla ya tiene filas. En Oracle, los índices únicos sin constraint no se tocan.
+- **exceptions**: `IndexRebuildError` (`util_bbdd.exceptions`, bajo `DatabaseOperationError`): un índice único o PK no
+  se pudo reconstruir (duplicados); `results` y `duplicates` (hasta 5 claves por índice). La lanzan `maintenance_scope` y
+  `ParallelBulkLoader.load` tras restaurar todo lo demás; `dump` deja el índice `"failed"` con las claves en `error_msg`.
+- **bulk (`maintenance_scope(validate_fks_after=True)`) y dump (`DumpConfig.validate_fks_after`)**: en MariaDB/MySQL,
+  comprobación de filas huérfanas por FK al reactivar `FOREIGN_KEY_CHECKS` (`"enabled"`/`"failed"` por FK en vez de
+  `"unverified"`); ≈1 % de la carga con 1M filas y 2 FK. SQL compartido en `bulk/_support/fk_orphans.py` (también para el
+  orphan-check de PostgreSQL de `maintenance_scope`).
+- **bulk (auditoría)**: `ParallelBulkLoader` escribe un evento `index` por índice desactivado en `audit.sink`
+  (`BulkAuditEvents.index`, mismo estado que en `dump`).
+- **metadata.facts**: `unique_indexes` / `UniqueIndexFact` e `inbound_foreign_keys` / `InboundForeignKeyFact` (consultas
+  de catálogo nuevas en `metadata/{sqlserver,oracle,postgresql,mariadb}`).
+- **scripts**: `bench_index_modes.py --fk-validation` (coste de validar FK tras la carga).
+
+### Changed
+
+- **bulk/dump**: `IndexMode` acepta `"all"`; `resolve_index_mode` lo valida (otro valor: `ValueError`).
+- **docs**: `performance_audit_constraints_guide.md` con `"all"`, el patrón para cargas con iteraciones de calidad,
+  `validate_fks_after` y las mediciones nuevas (`unique_checks=0` no compensa y no se ofrece).
+
 ## [3.2.1] - 2026-10-19
 
 Hotfix de compatibilidad con SQLAlchemy 2.1 (sesión `.ai/sessions/2026-10-18b-index-modes-bulk-dump/`). SemVer: PATCH.

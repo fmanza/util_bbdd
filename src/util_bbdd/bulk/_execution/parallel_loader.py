@@ -44,7 +44,14 @@ from .._models import IndexActionResult
 from .._support.dialect import can_disable_pg_triggers, disable_table_integrity_sql, enable_table_integrity_sql
 from .._support.iterables import closing_iterable, skip_rows as skip_leading_rows
 from .._support.pool import pool_capacity
-from .._support.secondary_indexes import SUPPORTED_DIALECTS, IndexDdlRunner, SecondaryIndexPlanner, resolve_index_mode
+from .._support.secondary_indexes import (
+    SUPPORTED_DIALECTS,
+    IndexDdlRunner,
+    IndexMode,
+    SecondaryIndexPlanner,
+    rebuild_error,
+    resolve_index_mode,
+)
 from ..audit import AuditManager
 from ..crud import BulkCrud
 from ..options import (
@@ -453,9 +460,11 @@ class ParallelBulkLoader:
             if self._parallel.disable_constraints and operation == "insert"
             else contextlib.nullcontext(False)
         )
+        index_mode = resolve_index_mode(self._parallel.disable_indexes, "disable_indexes")
+        index_errors: list[Exception] = []
         index_ctx = (
-            self._hoist_indexes_for_workers(tabla_destino, result, workers)
-            if resolve_index_mode(self._parallel.disable_indexes, "disable_indexes") and operation == "insert"
+            self._hoist_indexes_for_workers(tabla_destino, result, workers, index_mode, index_errors)
+            if index_mode is not None and operation == "insert"
             else contextlib.nullcontext()
         )
         # Constraints fuera e índices dentro: se reconstruyen los índices antes de reactivar las constraints (su validación
@@ -485,6 +494,9 @@ class ParallelBulkLoader:
 
         result.elapsed_seconds = time.perf_counter() - t_start
         self._write_load_events(result, tabla_destino, operation)
+        if index_errors:
+            # IndexRebuildError ("all"): tras reactivar las constraints y escribir la auditoría de la carga.
+            raise index_errors[0]
         return result
 
     def _write_load_events(self, result: ParallelLoadResult, tabla_destino: str, operation: str) -> None:
@@ -501,6 +513,9 @@ class ParallelBulkLoader:
                 )
                 for pr in sorted(result.partition_results, key=lambda pr: pr.index)
             ]
+            events.extend(
+                BulkAuditEvents.index(r, engine=engine, run_id=result.audit_run_id) for r in result.index_results
+            )
             events.append(
                 BulkAuditEvents.load(
                     result, table=tabla_destino, operation=operation, engine=engine, run_id=result.audit_run_id
@@ -955,16 +970,24 @@ class ParallelBulkLoader:
                 with self._engine.begin() as conn:
                     conn.execute(text(enable_table_integrity_sql(dialect, quoted)))
 
-    #: Motores donde, con varios hilos, desactivar los índices secundarios fue más lento en el banco (G0, 4 hilos,
-    #: 1M filas): tiempo total frente a no tocarlos.
-    _INDEXES_SLOWER_IN_PARALLEL: ClassVar[dict[str, str]] = {
-        "postgresql": "+3 % a +4 %",
-        "mariadb": "+11 %",
+    #: Motores y modos donde, con varios hilos, desactivar índices fue más lento en el banco (G0, 4 hilos, 1M filas):
+    #: tiempo total frente a no tocarlos.
+    _INDEXES_SLOWER_IN_PARALLEL: ClassVar[dict[tuple[str, str], str]] = {
+        ("postgresql", "secondary"): "+3 % a +4 %",
+        ("mariadb", "secondary"): "+11 %",
+        ("postgresql", "all"): "+38 % a +41 %",
+        ("mysql", "all"): "+4 % a +10 %",
+        ("mariadb", "all"): "+15 % a +18 %",
     }
 
     @contextmanager
     def _hoist_indexes_for_workers(
-        self, tabla_destino: str, result: ParallelLoadResult, workers: int
+        self,
+        tabla_destino: str,
+        result: ParallelLoadResult,
+        workers: int,
+        mode: IndexMode = "secondary",
+        errors: list[Exception] | None = None,
     ) -> Generator[None, None, None]:
         """``ParallelOptions.disable_indexes``: desactiva una vez, antes del pool, los índices secundarios no únicos.
 
@@ -972,7 +995,8 @@ class ParallelBulkLoader:
         un commit por sentencia (sin bloqueos largos; en SQL Server, el SCH-M de ``ALTER INDEX`` por worker serializaba
         la carga). Los reconstruye al terminar, también si falla una partición, y deja un resultado por índice en
         ``result.index_results``. Con varios hilos, en PostgreSQL y MariaDB fue más lento (la carga ya reparte el coste
-        de los índices y la reconstrucción es en serie): se aplica igualmente y se avisa.
+        de los índices y la reconstrucción es en serie): se aplica igualmente y se avisa. Con ``mode="all"``, si un
+        único no se reconstruye lanza ``IndexRebuildError`` al salir (las constraints se reactivan antes, fuera).
         """
         dialect = self._engine.dialect.name
         if dialect not in SUPPORTED_DIALECTS:
@@ -983,11 +1007,12 @@ class ParallelBulkLoader:
             )
             yield
             return
-        slower = self._INDEXES_SLOWER_IN_PARALLEL.get(dialect)
+        slower = self._INDEXES_SLOWER_IN_PARALLEL.get((dialect, mode))
         if slower is not None and workers > 1:
             self.logger.warning(
-                "disable_indexes en '%s' con %d hilos: en %s fue más lento en el banco (4 hilos, 1M filas: %s de tiempo "
-                "total); en SQL Server y Oracle sí compensa. Se aplica igualmente.",
+                "disable_indexes='%s' en '%s' con %d hilos: en %s fue más lento en el banco (4 hilos, 1M filas: %s de "
+                "tiempo total); en SQL Server y Oracle sí compensa. Se aplica igualmente.",
+                mode,
                 tabla_destino,
                 workers,
                 dialect,
@@ -998,15 +1023,19 @@ class ParallelBulkLoader:
         runner = IndexDdlRunner(dialect, self.logger, commit=True, savepoint=False)
         quoted = self._engine.dialect.identifier_preparer.format_table(tabla)
         with self._engine.connect() as conn:
-            disabled = runner.disable(
-                conn, planner.plan(conn, table=tabla.name, schema=tabla.schema, quoted_table=quoted)
-            )
+            steps = planner.plan(conn, table=tabla.name, schema=tabla.schema, quoted_table=quoted, mode=mode)
+            disabled = runner.disable(conn, steps)
         try:
             yield
         finally:
             if disabled:
                 with self._engine.connect() as conn:
                     result.index_results = runner.restore(conn, disabled)
+        error = rebuild_error(runner, result.index_results, f"ParallelBulkLoader.load('{tabla_destino}')")
+        if error is not None:
+            if errors is None:
+                raise error
+            errors.append(error)  # load() la lanza después de escribir la auditoría
 
     @contextmanager
     def _hoist_oracle_constraints(self, tabla_destino: str) -> Generator[None, None, None]:

@@ -145,3 +145,30 @@ def test_runs_against_sqlite(
     assert all(line.split("|")[15].strip() == "sí" for line in rows)  # índices restaurados
     assert out_md.read_text(encoding="utf-8").splitlines()[2:] == rows
     assert len(out_csv.read_text(encoding="utf-8").splitlines()) == 4  # cabecera + 3 tandas
+
+
+@pytest.mark.parametrize(
+    ("dialect", "prefix", "suffix"),
+    [
+        ("mssql", "SELECT TOP 1 1 ", ""),
+        ("oracle", "SELECT 1 ", " FETCH FIRST 1 ROWS ONLY"),
+        ("postgresql", "SELECT 1 ", " LIMIT 1"),
+    ],
+)
+def test_orphan_check_sql(bench: ModuleType, dialect: str, prefix: str, suffix: str) -> None:
+    assert bench.orphan_check_sql(dialect, "c", "p", "a", "id") == (
+        f"{prefix}FROM c c WHERE c.a IS NOT NULL AND NOT EXISTS (SELECT 1 FROM p p WHERE p.id = c.a){suffix}"
+    )
+
+
+def test_fk_validation_runs_against_sqlite(
+    bench: ModuleType, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("UTIL_BBDD_BENCH_SQLITE_URL", raising=False)
+    monkeypatch.delenv("UTIL_BBDD_TEST_SQLITE_URL", raising=False)
+    library_logger = logging.getLogger("util_bbdd")
+    monkeypatch.setattr(library_logger, "level", library_logger.level)
+    code = bench.main(["--engines", "sqlite", "--fk-validation", "--rows", "50", "--repeat", "1"])
+    rows = [line for line in capsys.readouterr().out.splitlines() if line.startswith("| sqlite |")]
+    assert code == 0
+    assert [line.split("|")[3].strip() for line in rows] == ["comprobar huérfanos (2 FK, NOT EXISTS)"]

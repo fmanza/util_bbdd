@@ -654,9 +654,57 @@ class TestParallelBulkLoaderIndexHoist:
                 loader.update("orders", [lambda: iter([])])
         hoist.assert_not_called()
 
+    def test_index_results_are_audited_and_rebuild_error_comes_after(self) -> None:
+        """v3.3.0 (G7): un evento ``index`` por índice; con ``"all"`` el error de reconstrucción sale tras la auditoría."""
+        from util_bbdd.bulk.options import AuditOptions
+        from util_bbdd.exceptions import IndexRebuildError
+
+        executed: list[str] = []
+        engine = self._engine("mssql", executed)
+        conn = engine.connect.return_value.__enter__.return_value
+
+        def execute(stmt: object, *args: object, **kwargs: object) -> MagicMock:
+            sql = str(stmt)
+            executed.append(sql)
+            if sql == "ALTER INDEX [uq_a] ON dbo.orders REBUILD":
+                from sqlalchemy.exc import SQLAlchemyError
+
+                raise SQLAlchemyError("duplicate key")
+            return MagicMock()
+
+        conn.execute.side_effect = execute
+        sink = MagicMock()
+        with (
+            patch.object(pl_mod, "BulkCrud") as crud_cls,
+            patch("util_bbdd.bulk._support.secondary_indexes.facts") as facts,
+        ):
+            from util_bbdd.metadata.facts import UniqueIndexFact
+
+            facts.unique_indexes.return_value = [UniqueIndexFact("uq_a", "unique_index", ("a",))]
+            facts.inbound_foreign_keys.return_value = []
+            facts.secondary_nonunique_indexes.return_value = [("ix_b", None)]
+            crud_cls.return_value.bulk_insert_from_chunks.return_value = 0
+            crud_cls.return_value.reflect_table.return_value.name = "orders"
+            crud_cls.return_value.reflect_table.return_value.schema = None
+            loader = ParallelBulkLoader(
+                engine,
+                audit=AuditOptions(sink=sink, warn_if_disabled=False),
+                parallel=ParallelOptions(max_workers=1, disable_constraints=True, disable_indexes="all"),
+            )
+            with pytest.raises(IndexRebuildError):
+                loader.load("orders", [lambda: iter([])])
+
+        events = sink.write.call_args.args[0]
+        index_events = [e for e in events if e.kind == "index"]
+        assert [(e.target, e.status) for e in index_events] == [
+            ("orders.uq_a", "failed"),
+            ("orders.ix_b", "ok"),
+        ]
+        assert any("WITH CHECK" in sql for sql in executed)  # constraints reactivadas antes del error
+
     def test_invalid_mode_is_rejected(self) -> None:
         with pytest.raises(ValueError, match="disable_indexes"):
-            ParallelOptions(disable_indexes="all")  # type: ignore[arg-type]
+            ParallelOptions(disable_indexes="todos")  # type: ignore[arg-type]
 
 
 class TestParallelBulkLoaderPartitionRanges:

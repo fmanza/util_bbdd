@@ -89,6 +89,17 @@ class DumpConfig:
             −14 % (reconstrucción 2,7 s), SQL Server −8 %, PostgreSQL sin ganancia; en una carga directa con
             ``bulk`` la ganancia es mayor (sesión 2026-10-18b, G0). Compensa más cuantos más índices secundarios
             tenga el destino; no se activa automáticamente.
+            ``"all"`` (3.3.0): además, índices únicos y PK/UNIQUE (nunca el índice clustered ni la PK de InnoDB o de
+            una IOT), con las FK que los referencian (SQL Server y Oracle las reactivan; PostgreSQL las borra y
+            recrea ``NOT VALID`` + ``VALIDATE``). La unicidad **no se comprueba** durante la carga: solo para datos
+            ya validados (p. ej. la carga final de un proceso con iteraciones de calidad). Exige
+            ``truncate_target=True`` y no admite ``on_error="isolate"`` (los duplicados no darían error que apartar).
+            Si un único no se puede reconstruir (duplicados), el resultado del índice es ``"failed"`` con las claves
+            repetidas en ``error_msg``.
+        validate_fks_after: MariaDB/MySQL (3.3.0): tras reactivar ``FOREIGN_KEY_CHECKS``, comprueba con un
+            ``NOT EXISTS`` por FK que no se cargaron filas huérfanas (``constraint_results`` pasa de
+            ``"unverified"`` a ``"enabled"``/``"failed"``). En el resto de motores la validación ya se hace al
+            reactivar. ``False`` (default).
         max_parallel_tables: Número máximo de tablas a cargar concurrentemente dentro de
             un mismo nivel topológico FK (tablas mutuamente independientes). ``1`` (default)
             = carga secuencial. Valores > 1 usan un ``ThreadPoolExecutor`` con una instancia
@@ -172,6 +183,7 @@ class DumpConfig:
     rejects_csv_path: OptionalPathField = OptionalPathField()
     max_rejects: int | None = None
     audit_sink: AuditSink | None = None
+    validate_fks_after: bool = False
 
     def __post_init__(self) -> None:
         # Validar aquí y no en la primera BulkCrud: run() la crea después de vaciar el destino (truncate_target), así que
@@ -183,7 +195,13 @@ class DumpConfig:
         # DumpResult; bulk_audit_path como str fallaba antes de cargar. Las rutas ya llegan aquí como Path: las
         # normalizan y validan sus descriptores (PathField/OptionalPathField) al asignarse en __init__.
         validate_isolation(self.on_error, self.rejects_csv_path, self.max_rejects)
-        resolve_index_mode(self.manage_indexes, "manage_indexes")
+        if resolve_index_mode(self.manage_indexes, "manage_indexes") == "all":
+            # AUDIT_PLAN F2/F3 (sesión 2026-10-18b): sin unicidad durante la carga, los duplicados contra filas ya
+            # existentes o los que "isolate" debería apartar solo aparecerían al reconstruir.
+            if not self.truncate_target:
+                raise ValueError("manage_indexes='all' exige truncate_target=True (el destino debe empezar vacío).")
+            if self.on_error == "isolate":
+                raise ValueError("manage_indexes='all' no admite on_error='isolate': los duplicados no darían error.")
         ranges = self.parallel_pk_ranges
         if ranges != "auto" and (isinstance(ranges, bool) or not isinstance(ranges, int)):
             raise ValueError(f"parallel_pk_ranges debe ser un entero o 'auto', recibido: {ranges!r}")

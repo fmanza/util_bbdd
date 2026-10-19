@@ -196,9 +196,12 @@ def test_dump_copies_values_exactly(setup: Setup, request: pytest.FixtureRequest
     assert got == VALUES
 
 
+@pytest.mark.parametrize("mode", [True, "all"])
 @pytest.mark.parametrize("setup", _target_params(), indirect=True)
-def test_manage_indexes_restores_secondary_indexes(setup: Setup, request: pytest.FixtureRequest) -> None:
-    """3.2.0: estrategia común con ``BulkCrud``; MariaDB/MySQL (InnoDB) pasa de «unsupported» a recrear sus índices."""
+def test_manage_indexes_restores_indexes(setup: Setup, request: pytest.FixtureRequest, mode: bool | str) -> None:
+    """3.2.0: estrategia común con ``BulkCrud``; MariaDB/MySQL (InnoDB) pasa de «unsupported» a recrear sus índices.
+
+    3.3.0, ``"all"``: también el índice único ``big`` y la PK (salvo clustered de SQL Server y PK de InnoDB)."""
     from sqlalchemy import Index
 
     source_table = _values_table(setup.name("ix"), schema=setup.source_schema)
@@ -209,22 +212,26 @@ def test_manage_indexes_restores_secondary_indexes(setup: Setup, request: pytest
         )
     target_table = _values_table(setup.name("ix"))
     Index(f"{setup.prefix}_ix_s", target_table.c.s)
-    Index(f"{setup.prefix}_ix_big", target_table.c.big)
+    Index(f"{setup.prefix}_ux_big", target_table.c.big, unique=True)
     _create(request, setup.target, target_table)
 
-    def indexes() -> list[str]:
-        return sorted(
-            str(i["name"]).lower() for i in inspect(setup.target).get_indexes(target_table.name) if not i["unique"]
-        )
+    def state() -> tuple[Any, ...]:
+        insp = inspect(setup.target)
+        pk = insp.get_pk_constraint(target_table.name).get("constrained_columns")
+        names = sorted((str(i["name"]).lower(), bool(i["unique"])) for i in insp.get_indexes(target_table.name))
+        return tuple(pk or ()), tuple(names)
 
-    before = indexes()
-    result = setup.run(["ix"], manage_indexes=True)
+    before = state()
+    result = setup.run(["ix"], manage_indexes=mode)
 
     assert [r.status for r in result.table_results] == ["success"], [r.error_msg for r in result.table_results]
-    assert indexes() == before
+    assert state() == before
     assert result.index_results is not None
-    assert sorted(r.index_name.lower() for r in result.index_results) == before
-    assert {r.action for r in result.index_results} <= {"rebuilt", "recreated"}
+    touched = {r.index_name.lower() for r in result.index_results}
+    assert f"{setup.prefix}_ix_s" in touched
+    # Oracle: "all" desactiva PK/UNIQUE constraints, no índices únicos sin constraint (como ux_big).
+    assert (f"{setup.prefix}_ux_big" in touched) is (mode == "all" and setup.target.dialect.name != "oracle")
+    assert {r.action for r in result.index_results} <= {"rebuilt", "recreated"}, result.index_results
 
 
 def _parent_child(

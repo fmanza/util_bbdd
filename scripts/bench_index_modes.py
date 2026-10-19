@@ -43,6 +43,7 @@ Uso:
     python scripts/bench_index_modes.py --engines oracle,mssql --rows 1000000 --profiles sec2u --repeat 3
     python scripts/bench_index_modes.py --engines mysql,mariadb --profiles fk2 --constraints on,off --unique-checks on,off
     python scripts/bench_index_modes.py --engines mssql,mysql,mariadb --probes-only
+    python scripts/bench_index_modes.py --fk-validation --rows 1000000 --repeat 3   # coste de validar FK tras cargar
     python scripts/bench_index_modes.py --out build/logs/bench_index_modes.md --csv build/logs/bench_index_modes.csv
 """
 
@@ -778,6 +779,113 @@ def run_probes(key: str, url: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Coste de validar FK tras la carga (--fk-validation)
+# ---------------------------------------------------------------------------
+
+
+def orphan_check_sql(dialect: str, child: str, parent: str, column: str, parent_column: str) -> str:
+    """Primera fila de ``child`` sin fila en ``parent`` (``NOT EXISTS``), con el límite de cada motor."""
+    body = (
+        f"FROM {child} c WHERE c.{column} IS NOT NULL "
+        f"AND NOT EXISTS (SELECT 1 FROM {parent} p WHERE p.{parent_column} = c.{column})"
+    )
+    if dialect == "mssql":
+        return f"SELECT TOP 1 1 {body}"
+    if dialect == "oracle":
+        return f"SELECT 1 {body} FETCH FIRST 1 ROWS ONLY"
+    return f"SELECT 1 {body} LIMIT 1"
+
+
+def _revalidate_statements(
+    dialect: str, child: str, fks: Sequence[tuple[str, str, str]]
+) -> tuple[list[str], list[str]]:
+    """``(preparar, medir)``: DDL que deja las FK sin validar y DDL nativo que las revalida (``[]`` si no hay)."""
+    if dialect == "mssql":
+        return [f"ALTER TABLE {child} NOCHECK CONSTRAINT ALL"], [f"ALTER TABLE {child} WITH CHECK CHECK CONSTRAINT ALL"]
+    if dialect == "oracle":
+        return (
+            [f"ALTER TABLE {child} DISABLE CONSTRAINT {name}" for name, _, _ in fks],
+            [f"ALTER TABLE {child} ENABLE VALIDATE CONSTRAINT {name}" for name, _, _ in fks],
+        )
+    if dialect == "postgresql":
+        prepare: list[str] = []
+        for name, column, references in fks:
+            prepare.append(f"ALTER TABLE {child} DROP CONSTRAINT {name}")
+            prepare.append(
+                f"ALTER TABLE {child} ADD CONSTRAINT {name} FOREIGN KEY ({column}) REFERENCES {references} NOT VALID"
+            )
+        return prepare, [f"ALTER TABLE {child} VALIDATE CONSTRAINT {name}" for name, _, _ in fks]
+    return [], []
+
+
+def measure_fk_validation(key: str, url: str, rows: int, repeat: int) -> list[str]:
+    """Tabla hija ``fk2`` cargada con ``rows`` filas: coste de la comprobación de huérfanos y de la revalidación nativa."""
+    engine = create_engine(url)
+    dialect = engine.dialect.name
+    prep = engine.dialect.identifier_preparer
+    lines: list[str] = []
+    try:
+        table, parent = build_tables(dialect, PROFILES["fk2"], "innodb")
+        assert parent is not None
+        child_sql, parent_sql = prep.format_table(table), prep.format_table(parent)
+        pk = prep.quote(bench_bulk.physical_column("id", dialect))
+        fk_columns = [prep.quote(bench_bulk.physical_column(c, dialect)) for c in SECONDARY_COLUMNS[:2]]
+        fks = [
+            (prep.quote(f"fk_zz_bench_ix_{c}"), q, f"{parent_sql} ({pk})")
+            for c, q in zip(SECONDARY_COLUMNS[:2], fk_columns, strict=True)
+        ]
+        reset_tables(engine, table, parent)
+        start = time.perf_counter()
+        BulkCrud(engine, audit=AuditOptions(warn_if_disabled=False)).bulk_insert_from_df(
+            bench_bulk.make_dataframe(rows, dialect), table.name, generar_sql=False
+        )
+        load = time.perf_counter() - start
+        checks = [orphan_check_sql(dialect, child_sql, parent_sql, column, pk) for column in fk_columns]
+        orphan_times: list[float] = []
+        for _ in range(repeat):
+            with engine.connect() as conn:
+                start = time.perf_counter()
+                for sql in checks:
+                    conn.execute(text(sql)).first()
+                orphan_times.append(time.perf_counter() - start)
+        stats = bench_parallel.Stats.of(orphan_times)
+        lines.append(
+            f"| {key} | {rows} | comprobar huérfanos ({len(checks)} FK, NOT EXISTS) | {stats.median:.2f} "
+            f"({stats.p25:.2f}–{stats.p75:.2f}) | {load:.2f} | {stats.median / load * 100:.1f} % |"
+        )
+        prepare, revalidate = _revalidate_statements(dialect, child_sql, fks)
+        if revalidate:
+            times: list[float] = []
+            for _ in range(repeat):
+                with engine.begin() as conn:
+                    for sql in prepare:
+                        conn.execute(text(sql))
+                with engine.begin() as conn:
+                    start = time.perf_counter()
+                    for sql in revalidate:
+                        conn.execute(text(sql))
+                    times.append(time.perf_counter() - start)
+            stats = bench_parallel.Stats.of(times)
+            lines.append(
+                f"| {key} | {rows} | revalidar FK nativo ({revalidate[0].split()[3]} …) | {stats.median:.2f} "
+                f"({stats.p25:.2f}–{stats.p75:.2f}) | {load:.2f} | {stats.median / load * 100:.1f} % |"
+            )
+        for line in lines:
+            print(line, flush=True)
+    finally:
+        drop_tables(engine)
+        engine.dispose()
+    return lines
+
+
+FK_VALIDATION_HEADER: tuple[str, ...] = (
+    "",
+    "| Motor | Filas | Medida | Mediana (p25–p75) s | Carga de referencia s | Respecto a la carga |",
+    "|---|---|---|---|---|---|",
+)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -805,6 +913,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warmup", type=int, default=1, help="Tandas de calentamiento descartadas por motor y filas")
     parser.add_argument("--probes", action="store_true", help="Ejecuta también las comprobaciones de corrección")
     parser.add_argument("--probes-only", action="store_true", help="Solo las comprobaciones de corrección")
+    parser.add_argument(
+        "--fk-validation", action="store_true", help="Solo el coste de validar FK tras la carga (perfil fk2, --rows)"
+    )
     parser.add_argument("--mssql-driver", choices=("pyodbc", "url"), default="pyodbc")
     parser.add_argument("--out", type=Path, default=None, help="Fichero Markdown con las tablas de resultados")
     parser.add_argument("--csv", type=Path, default=None, help="Fichero CSV con una fila por tanda")
@@ -832,7 +943,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         urls[key] = bench_parallel.to_pyodbc_url(url) if key == "mssql" and args.mssql_driver == "pyodbc" else url
     output: list[str] = []
     csv_rows: list[dict[str, Any]] = []
-    if not args.probes_only:
+    if args.fk_validation:
+        print("\n".join(FK_VALIDATION_HEADER))
+        output.extend(FK_VALIDATION_HEADER)
+        for key, url in urls.items():
+            for rows in args.rows:
+                output.extend(measure_fk_validation(key, url, rows, args.repeat))
+    elif not args.probes_only:
         print("\n".join(HEADER))
         output.extend(HEADER)
         for key, url in urls.items():

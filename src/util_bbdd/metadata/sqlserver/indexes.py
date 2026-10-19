@@ -29,6 +29,51 @@ def fetch_secondary_nonunique_indexes_sql() -> str:
     )
 
 
+def fetch_unique_nonclustered_index_columns_sql() -> str:
+    """SQL con los índices NONCLUSTERED **únicos** habilitados de una tabla (PK, UNIQUE o unique index) y sus columnas.
+
+    Para ``disable_indexes="all"`` (v3.3.0): se deshabilitan y reconstruyen; el clustered (la tabla) nunca.
+
+    Parámetros: ``:tbl`` y ``:schema`` (``None`` = ``SCHEMA_NAME()``).
+
+    Returns:
+        str: SQL para (index_name, is_primary_key, is_unique_constraint, column_name), por índice y orden de clave.
+    """
+    return (
+        "SELECT i.name, i.is_primary_key, i.is_unique_constraint, c.name FROM sys.indexes i "
+        "JOIN sys.tables t ON t.object_id = i.object_id "
+        "JOIN sys.schemas s ON s.schema_id = t.schema_id "
+        "JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id "
+        "  AND ic.is_included_column = 0 "
+        "JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id "
+        "WHERE t.name = :tbl AND s.name = COALESCE(:schema, SCHEMA_NAME()) "
+        "  AND i.type_desc = 'NONCLUSTERED' AND i.is_unique = 1 AND i.is_disabled = 0 AND i.name IS NOT NULL "
+        "ORDER BY i.name, ic.key_ordinal"
+    )
+
+
+def fetch_inbound_foreign_keys_sql() -> str:
+    """SQL con las FK que referencian un índice de la tabla: al deshabilitarlo, SQL Server las deshabilita (v3.3.0).
+
+    ``ALTER INDEX … REBUILD`` no las reactiva: se hace con ``ALTER TABLE <hija> WITH CHECK CHECK CONSTRAINT``.
+
+    Parámetros: ``:tbl`` y ``:schema`` (``None`` = ``SCHEMA_NAME()``).
+
+    Returns:
+        str: SQL para (index_name, child_schema, child_table, fk_name, is_disabled, is_not_trusted).
+    """
+    return (
+        "SELECT i.name, SCHEMA_NAME(ct.schema_id), ct.name, fk.name, fk.is_disabled, fk.is_not_trusted "
+        "FROM sys.foreign_keys fk "
+        "JOIN sys.tables pt ON pt.object_id = fk.referenced_object_id "
+        "JOIN sys.schemas ps ON ps.schema_id = pt.schema_id "
+        "JOIN sys.indexes i ON i.object_id = fk.referenced_object_id AND i.index_id = fk.key_index_id "
+        "JOIN sys.tables ct ON ct.object_id = fk.parent_object_id "
+        "WHERE pt.name = :tbl AND ps.name = COALESCE(:schema, SCHEMA_NAME()) "
+        "ORDER BY i.name, fk.name"
+    )
+
+
 def fetch_clustered_index_count_sql() -> str:
     """SQL que cuenta los índices clustered de una tabla (0 = heap).
 

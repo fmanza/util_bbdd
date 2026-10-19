@@ -497,7 +497,47 @@ python scripts/bench_index_modes.py --engines postgresql,mssql --rows 1000000 --
     --out build/logs/bench_index_modes.md
 python scripts/bench_index_modes.py --engines mysql,mariadb --profiles fk2 --constraints on,off --unique-checks on,off
 python scripts/bench_index_modes.py --engines mssql,mysql,mariadb --probes-only   # comprobaciones de corrección
+python scripts/bench_index_modes.py --fk-validation --rows 1000000 --repeat 3     # coste de validar FK tras cargar
 ```
+
+### Todos los índices: `disable_indexes="all"` (v3.3.0)
+
+`"all"` desactiva además los índices únicos y las PK/UNIQUE, salvo lo que el motor no permite quitar sin rehacer la
+tabla (índice clustered de SQL Server, PK de InnoDB, PK de una IOT de Oracle), y gestiona las FK que los referencian:
+
+| Motor | Únicos y PK/UNIQUE | FK de otras tablas que los referencian |
+|---|---|---|
+| SQL Server | NONCLUSTERED: `DISABLE` → `REBUILD` | El motor las deshabilita; se reactivan con `WITH CHECK CHECK CONSTRAINT` |
+| Oracle | `DISABLE CONSTRAINT … CASCADE` → `ENABLE VALIDATE` (índices únicos sin constraint: no se tocan) | `ENABLE VALIDATE` después de la PK/UNIQUE |
+| PostgreSQL | `DROP CONSTRAINT`/`DROP INDEX` → recreación con su DDL | Se borran antes y se recrean con `NOT VALID` + `VALIDATE CONSTRAINT` |
+| MariaDB/MySQL | Únicos secundarios: `DROP INDEX` → `ADD UNIQUE INDEX` (en el mismo `ALTER` que los secundarios) | Los índices referenciados por una FK no se tocan |
+
+En serie gana entre un 3 % y un 13 % más que `"secondary"` (3,5M filas, 2 secundarios + 1 UNIQUE: PostgreSQL −43 %,
+MySQL −24 %, MariaDB −15 %, SQL Server −31 %, Oracle −89 %). **La unicidad no se comprueba durante la carga**, así que:
+
+- exige `disable_constraints=True` (`ParallelOptions` y `maintenance_scope`) y no admite `on_error="isolate"`;
+- en `dump` exige `truncate_target=True`; en `bulk` avisa si la tabla ya tiene filas;
+- si un único no se puede reconstruir (duplicados), se restaura todo lo demás y se lanza `IndexRebuildError` con
+  hasta 5 claves repetidas (`dump` no lanza: el índice queda `"failed"` con las claves en `error_msg`). En PostgreSQL
+  y SQL Server, dentro de `bulk_session`, la sesión deshace también la carga (en SQL Server el propio servidor la
+  deshace al fallar el `REBUILD`, y las claves no se pueden listar); en Oracle y MariaDB/MySQL las filas quedan.
+
+Patrón recomendado para procesos de carga con iteraciones de calidad:
+
+| Iteración | `disable_indexes` | Motivo |
+|---|---|---|
+| De validación (1…n−1) | `False` o `"secondary"` | PK y UNIQUE activas: un duplicado falla en el momento |
+| Carga final, datos ya validados | `"all"` | Máximo rendimiento; la reconstrucción de los únicos es la última comprobación |
+
+### Validar FK tras cargar sin FK checks: `validate_fks_after` (v3.3.0)
+
+En MariaDB/MySQL, `FOREIGN_KEY_CHECKS=1` no revisa lo ya cargado (resultado `"unverified"`).
+`maintenance_scope(validate_fks_after=True)` y `DumpConfig(validate_fks_after=True)` lanzan al reactivar un `NOT EXISTS`
+por FK y devuelven `"enabled"` o `"failed"` por FK. Coste medido con 1M filas y 2 FK: 0,2–0,23 s (≈1 % de la carga); la
+revalidación nativa de los otros motores cuesta lo mismo (`WITH CHECK CHECK CONSTRAINT` 0,06 s en SQL Server,
+`VALIDATE CONSTRAINT` 0,15 s en PostgreSQL, `ENABLE VALIDATE` 0,15 s en Oracle). `unique_checks=0` en MariaDB/MySQL
+**no compensa** (sin índices desactivados fue un 3–7 % más lento; con `"secondary"`, como mucho un 1,5 % más rápido) y
+no se ofrece.
 
 ---
 

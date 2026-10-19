@@ -77,6 +77,60 @@ def fetch_secondary_nonunique_indexes_sql() -> str:
     )
 
 
+def fetch_unique_indexes_sql() -> str:
+    """SQL con los índices únicos válidos de una tabla, su constraint (PK/UNIQUE) si la respaldan y su DDL (v3.3.0).
+
+    Para ``disable_indexes="all"``: los que respaldan una constraint se borran y recrean con
+    ``pg_get_constraintdef``; el resto, con ``pg_get_indexdef``. Excluye los índices de otras constraints (exclusión).
+
+    Parámetros: ``:tbl`` y ``:schema`` (``None`` = ``current_schema()``).
+
+    Returns:
+        str: SQL para (index_name, constraint_name, contype, indexdef, constraintdef, columns[]).
+    """
+    return (
+        "SELECT ic.relname, con.conname, con.contype, pg_get_indexdef(i.indexrelid), "
+        "  CASE WHEN con.oid IS NULL THEN NULL ELSE pg_get_constraintdef(con.oid) END, "
+        "  ARRAY(SELECT a.attname FROM unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord) "
+        "        JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum ORDER BY k.ord) "
+        "FROM pg_index i "
+        "JOIN pg_class ic ON ic.oid = i.indexrelid "
+        "JOIN pg_class tc ON tc.oid = i.indrelid "
+        "JOIN pg_namespace n ON n.oid = tc.relnamespace "
+        "LEFT JOIN pg_constraint con ON con.conindid = i.indexrelid AND con.conrelid = i.indrelid "
+        "  AND con.contype IN ('p', 'u') "
+        "WHERE tc.relname = :tbl AND n.nspname = COALESCE(:schema, current_schema()) "
+        "  AND i.indisunique AND i.indisvalid "
+        "  AND NOT EXISTS (SELECT 1 FROM pg_constraint x WHERE x.conindid = i.indexrelid AND x.contype NOT IN ('p', 'u') "
+        "                  AND x.conrelid = i.indrelid) "
+        "ORDER BY ic.relname"
+    )
+
+
+def fetch_inbound_foreign_keys_sql() -> str:
+    """SQL con las FK (de otras tablas o de la misma) que referencian una tabla, con su DDL (v3.3.0).
+
+    Para ``disable_indexes="all"``: PostgreSQL no deja borrar la PK/UNIQUE de la que dependen; se borran antes y se
+    recrean después (``NOT VALID`` + ``VALIDATE CONSTRAINT`` si estaban validadas). Sin los clones de particiones.
+
+    Parámetros: ``:tbl`` y ``:schema`` (``None`` = ``current_schema()``).
+
+    Returns:
+        str: SQL para (constraint_name, child_schema, child_table, constraintdef, convalidated).
+    """
+    return (
+        "SELECT con.conname, cn.nspname, ct.relname, pg_get_constraintdef(con.oid), con.convalidated "
+        "FROM pg_constraint con "
+        "JOIN pg_class ct ON ct.oid = con.conrelid "
+        "JOIN pg_namespace cn ON cn.oid = ct.relnamespace "
+        "JOIN pg_class tc ON tc.oid = con.confrelid "
+        "JOIN pg_namespace n ON n.oid = tc.relnamespace "
+        "WHERE con.contype = 'f' AND con.conparentid = 0 "
+        "  AND tc.relname = :tbl AND n.nspname = COALESCE(:schema, current_schema()) "
+        "ORDER BY cn.nspname, ct.relname, con.conname"
+    )
+
+
 def fetch_fk_definition_sql() -> str:
     """SQL con la definición de una FK desde el catálogo: tabla referenciada y columnas de la hija y de la referenciada.
 

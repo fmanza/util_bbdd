@@ -61,6 +61,7 @@ from util_bbdd.bulk.options import (
 )
 
 from .._core.exceptions import AuditError, DumpError, DumpReportError
+from ..bulk._support.secondary_indexes import resolve_index_mode
 from ..connection.performance_advisor import EngineReadinessAdvisor
 from ..metadata.reflection import (
     MetadataKind,
@@ -261,7 +262,9 @@ class DumpOrchestrator:
         """Ejecuta Fases 2-4: constraints, cleanup y carga."""
         cfg = self._cfg
         table_results: list[TableDumpResult] = []
-        constraint_mgr = ConstraintManager(cfg.target_engine, cfg.target_schema)
+        constraint_mgr = ConstraintManager(
+            cfg.target_engine, cfg.target_schema, validate_fks_after=cfg.validate_fks_after
+        )
         index_mgr: IndexManager | None = None
 
         # Fases 2-4 dentro del ConstraintManager (enable_all garantizado en __exit__)
@@ -274,7 +277,8 @@ class DumpOrchestrator:
             # de la rehabilitación de constraints, que se beneficia de índices presentes.
             with ExitStack() as index_stack:
                 if cfg.manage_indexes:
-                    index_mgr = index_stack.enter_context(IndexManager(cfg.target_engine, cfg.target_schema))
+                    mode = resolve_index_mode(cfg.manage_indexes, "manage_indexes") or "secondary"
+                    index_mgr = index_stack.enter_context(IndexManager(cfg.target_engine, cfg.target_schema, mode))
                     index_mgr.disable_all(tables=effective_dst_order)
 
                 # FASE 3: Limpieza del destino (usando nombres canónicos del destino)

@@ -214,11 +214,15 @@ class ParallelOptions:
             (misma estrategia que ``DumpConfig.manage_indexes``; resultados en ``ParallelLoadResult.index_results``).
             Medido con 4 hilos y 1M filas: SQL Server −33 %, Oracle −82 % y MySQL −4 % a −6 % de tiempo total; en
             PostgreSQL (+3 %) y MariaDB (+11 %) fue **más lento** (se aplica igualmente y se avisa). Requiere permisos DDL.
+            ``"all"`` (v3.3.0): además, índices únicos y PK/UNIQUE con sus FK entrantes (ver
+            ``BulkCrud.maintenance_scope``); exige ``disable_constraints=True`` y lanza ``IndexRebuildError`` si un
+            único no se reconstruye. Con 4 hilos solo compensa en SQL Server y Oracle.
         retry: Reintentos por partición (:class:`RetryOptions`).
 
     Raises:
         ValueError: Si ``mode`` no es ``"off"``, ``"manual"`` ni ``"auto"``, ``max_workers`` no es un entero ≥ 1 o
-            ``min_rows`` no es ``None`` ni un entero ≥ 1, o ``disable_indexes`` no es ``bool`` ni ``"secondary"``.
+            ``min_rows`` no es ``None`` ni un entero ≥ 1, o ``disable_indexes`` no es ``bool``, ``"secondary"`` ni
+            ``"all"`` (o es ``"all"`` sin ``disable_constraints``).
     """
 
     mode: ParallelMode = "manual"
@@ -235,7 +239,8 @@ class ParallelOptions:
         _positive_int(self.max_workers, "max_workers")
         if self.min_rows is not None:
             _positive_int(self.min_rows, "min_rows")
-        resolve_index_mode(self.disable_indexes, "disable_indexes")
+        if resolve_index_mode(self.disable_indexes, "disable_indexes") == "all" and not self.disable_constraints:
+            raise ValueError("ParallelOptions(disable_indexes='all') exige disable_constraints=True.")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -252,6 +257,11 @@ class BulkOptions:
     rejects: RejectOptions = field(default_factory=lambda: RejectOptions())
     execution: ExecutionOptions = field(default_factory=ExecutionOptions)
     parallel: ParallelOptions | None = None
+
+    def __post_init__(self) -> None:
+        # F2 del AUDIT_PLAN (sesión 2026-10-18b): con disable_indexes="all" los duplicados no dan error que apartar.
+        if self.parallel is not None and self.parallel.disable_indexes == "all" and self.rejects.on_error == "isolate":
+            raise ValueError("ParallelOptions(disable_indexes='all') no admite RejectOptions(on_error='isolate').")
 
     @classmethod
     def of(

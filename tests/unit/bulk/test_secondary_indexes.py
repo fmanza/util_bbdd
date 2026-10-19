@@ -38,7 +38,7 @@ def test_resolve_index_mode(value: object, expected: object) -> None:
     assert resolve_index_mode(value, "x") == expected  # type: ignore[arg-type]
 
 
-@pytest.mark.parametrize("value", ["all", "SECONDARY", 1, 0])
+@pytest.mark.parametrize("value", ["todos", "SECONDARY", "ALL", 1, 0])
 def test_resolve_index_mode_rejects_other_values(value: object) -> None:
     with pytest.raises(ValueError, match="campo"):
         resolve_index_mode(value, "campo")  # type: ignore[arg-type]
