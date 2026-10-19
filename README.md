@@ -4,7 +4,7 @@ Librería Python para **operaciones de base de datos** en MariaDB, MySQL, Oracle
 async) y HSQLDB (sync): conexiones con pool, carga masiva desde DataFrames, volcado entre motores, migración DDL,
 comparación de esquemas y documentación de la base de datos.
 
-**Version:** 3.4.1 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 4.0.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -346,7 +346,7 @@ pruebas (`scripts/bench_env.example.sh`). Flujo con asistentes de IA (Claude Cod
 [Semantic Versioning](https://semver.org/): desde 1.0.0, la API pública (la raíz y los submódulos públicos listados
 arriba) solo cambia de forma incompatible en una versión MAJOR.
 
-**Current Version: v3.4.1** (`elapsed_ms` monotónico y restauración de `"all"` en PostgreSQL sin falsos fallos; `validate_fks_after` activado por defecto en MariaDB/MySQL; `disable_indexes="all"` con `IndexRebuildError`; compatible con SQLAlchemy 2.1; índices secundarios desactivables durante la carga con la misma estrategia en `maintenance_scope`, la carga paralela y `dump`, también en MySQL/MariaDB; sin dependencias privadas: `util` retirada en v3.1.0; paquetes de opciones de `BulkCrud`/`ParallelBulkLoader` y carga paralela con `ParallelPlanner` desde v3.0.0; ver [Migración a la API 3.0](docs/guides/api_3_0_migration.md))
+**Current Version: v4.0.0** (`oracledb` pasa al extra `oracle` (BREAKING: `pip install "util_bbdd[oracle]"`) y mínimos de dependencias al día; en `disable_indexes="all"`, índices únicos sin constraint de Oracle con `DROP` + `DBMS_METADATA.GET_DDL` o `"skipped"` e `IndexRebuildError.recovery_ddl`; `elapsed_ms` monotónico y restauración de `"all"` en PostgreSQL sin falsos fallos; `validate_fks_after` activado por defecto en MariaDB/MySQL; `disable_indexes="all"` con `IndexRebuildError`; compatible con SQLAlchemy 2.1; índices secundarios desactivables durante la carga con la misma estrategia en `maintenance_scope`, la carga paralela y `dump`, también en MySQL/MariaDB; sin dependencias privadas: `util` retirada en v3.1.0; paquetes de opciones de `BulkCrud`/`ParallelBulkLoader` y carga paralela con `ParallelPlanner` desde v3.0.0; ver [Migración a la API 3.0](docs/guides/api_3_0_migration.md))
 
 Historial completo: [CHANGELOG.md](CHANGELOG.md) · Hoja de ruta: [docs/roadmap.md](docs/roadmap.md).
 

@@ -5,7 +5,7 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [4.0.0] - 2026-10-19
 
 SemVer: MAJOR (`oracledb` deja de instalarse con la librería).
 
@@ -30,6 +30,11 @@ SemVer: MAJOR (`oracledb` deja de instalarse con la librería).
   puede obtener (p. ej. índice de otro esquema sin privilegios de catálogo), no se tocan y salen en `index_results`
   como `"skipped"` con el motivo, más un warning. Con duplicados ya no falla el INSERT sino la recreación
   (`IndexRebuildError`) y el índice **queda borrado**: su DDL va en `error_msg` y en `IndexRebuildError.recovery_ddl`.
+- **docs**: `Args:` en 28 métodos de módulos sin página autodoc (`ParallelPlanner`, `RangePartitioner`,
+  `BulkOptions`/`RetryOptions`, `SnapshotCache`, `CatalogSource`/`AsyncCatalogSource`, `catalog_registry`, charset de
+  `migrate` y `metadata`, emisores de Oracle y MySQL, `metadata.facts`); `guides/drivers.md` explica los nombres sin
+  versión de `libclntsh` que exige el modo thick de `oracledb>=26`; en `api/bulk_parallel.md`, `"skipped"` es un
+  índice cuyo DDL no se pudo obtener (no uno que no se pudo recrear).
 - **ruff**: `[tool.ruff.lint]` usa `select` en vez de `extend-select` para mantener las mismas reglas con ruff 0.17,
   que amplió las reglas por defecto.
 
