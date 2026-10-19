@@ -12,7 +12,12 @@ import zipfile
 
 from pathlib import Path
 
-from util_bbdd.docs_build_plugin import DocumentationZipPlugin
+import pytest
+
+# El plugin hereda de mkdocs.plugins.BasePlugin (extra docs); el CI instala solo .[dev].
+pytest.importorskip("mkdocs")
+
+from util_bbdd.docs_build_plugin import DocumentationZipPlugin  # noqa: E402
 
 
 def _make_fake_site(tmp_path: Path) -> Path:

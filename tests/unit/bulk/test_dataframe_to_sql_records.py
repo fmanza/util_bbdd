@@ -11,6 +11,7 @@ import datetime
 import decimal
 import warnings
 
+from importlib.util import find_spec
 from typing import Any
 
 import numpy as np
@@ -72,7 +73,6 @@ DTYPE_MATRIX: dict[str, Any] = {
     "boolean": pd.array([True, None, False, True, False], dtype="boolean"),
     "str": pd.array([" a ", None, "", "x", "ñ"], dtype="str"),
     "string_python": pd.array([" a ", None, "", "x", "ñ"], dtype="string[python]"),
-    "string_pyarrow": pd.array([" a ", None, "", "x", "ñ"], dtype="string[pyarrow]"),
     "category": pd.Categorical(["a", None, "b", "a", "c"]),
     # P-33: vía rápida de texto (solo str exacto y nulos) y salidas al camino general.
     "object_str_only": [" a ", None, "", "x ", np.nan],
@@ -98,6 +98,10 @@ DTYPE_MATRIX: dict[str, Any] = {
         pd.NaT,
     ],
 }
+
+# string[pyarrow] exige pyarrow, que no es dependencia de la librería (el CI instala solo .[dev]).
+if find_spec("pyarrow") is not None:
+    DTYPE_MATRIX["string_pyarrow"] = pd.array([" a ", None, "", "x", "ñ"], dtype="string[pyarrow]")
 
 
 @pytest.mark.parametrize("column", sorted(DTYPE_MATRIX))
