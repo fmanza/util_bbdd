@@ -117,6 +117,9 @@ Ver `00_REQUEST.md` (solicitud inicial y cuatro ampliaciones en la misma sesión
 - R6: instrucciones de instalación a `@v3.3.0` (`bcc331f9`, 18 en `README.md` y `docs/`).
 - R7 → v3.4.0: `validate_fks_after=True` por defecto en `maintenance_scope`, `DumpConfig` y `ConstraintManager`
   (decisión del usuario tras ver el coste medido, ≈1 %); CHANGELOG con el cambio de forma de `constraint_results`.
+- v3.4.1: restauración de `"all"` en PostgreSQL sin falsos fallos tras un rollback (comprueba `pg_constraint` con
+  `facts.constraint_exists` antes de `ADD CONSTRAINT`; el SQL va en `metadata/`: la regla 1 lo exige y un test la vigila)
+  y T1 (`elapsed_ms` monotónico en ejecutores y `QueryResolver`). R5 comprobado por el usuario.
 
 ## Artefactos generados
 

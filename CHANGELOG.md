@@ -7,6 +7,20 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.4.1] - 2026-10-19
+
+Correcciones tras el cierre de la sesión `.ai/sessions/2026-10-18b-index-modes-bulk-dump/`. SemVer: PATCH.
+
+### Fixed
+
+- **bulk (`maintenance_scope(disable_indexes="all")`, PostgreSQL)**: con `commit_every_n_chunks`, si la carga fallaba
+  antes del primer commit periódico, el rollback ya devolvía las PK/UNIQUE y FK borradas, pero la restauración
+  intentaba recrearlas y avisaba de un fallo («ya existe») que no lo era. Ahora cada paso que recrea una constraint
+  comprueba antes en `pg_constraint` si ya existe y, si es así, la da por restaurada. El estado final no cambia.
+- **executors, query (`SyncQueryExecutor`, `AsyncQueryExecutor`, `QueryResolver`)**: `elapsed_ms` (logs de los
+  ejecutores y `ResolvedQuery.metadata["elapsed_ms"]`) se mide con `time.perf_counter()` en vez de `time.time()`: con
+  un ajuste del reloj del sistema durante la consulta podía salir negativo (T1 de `.ai/CURRENT_STATE.md`).
+
 ## [3.4.0] - 2026-10-19
 
 Decisión R7 de `.ai/CURRENT_STATE.md` tras medir el coste en la sesión `.ai/sessions/2026-10-18b-index-modes-bulk-dump/`.
