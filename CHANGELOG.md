@@ -7,6 +7,20 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+SemVer: MAJOR (`oracledb` deja de instalarse con la librería).
+
+### Changed
+
+- **BREAKING — dependencias**: `oracledb` pasa de las dependencias base al extra `oracle`. Quien se conecte a Oracle
+  debe instalar `pip install "util_bbdd[oracle]"` (o `oracledb` aparte); sin él, el manager de Oracle lanza
+  `DriverError` con esa indicación. El resto de motores no cambia: el código ya importaba `oracledb` de forma diferida.
+- **dependencias**: mínimos al día con las versiones publicadas: `sqlalchemy>=2.1`, `oracledb>=26` (numeración por
+  año; en modo thick y Linux/macOS exige los nombres `libclntsh.so`/`libclntsh.dylib` sin versión), `jinja2>=3.1`,
+  drivers (`pymysql>=1.2`, `aiomysql>=0.3`, `psycopg>=3.3`, `psycopg-pool>=3.3`, `asyncpg>=0.32`), extras de análisis
+  y SVG, y herramientas de `dev`/`docs` (`ruff>=0.17`, `mypy>=2.4`, `pytest>=9.1`, …).
+- **ruff**: `[tool.ruff.lint]` usa `select` en vez de `extend-select` para mantener las mismas reglas con ruff 0.17,
+  que amplió las reglas por defecto.
+
 ## [3.4.1] - 2026-10-19
 
 Correcciones tras el cierre de la sesión `.ai/sessions/2026-10-18b-index-modes-bulk-dump/`. SemVer: PATCH.

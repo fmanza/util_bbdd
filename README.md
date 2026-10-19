@@ -31,11 +31,12 @@ comparación de esquemas y documentación de la base de datos.
 ```bash
 pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v3.4.1"
 
-# Con los drivers de un motor (extras: postgresql, mariadb, mysql; se combinan con comas)
+# Con los drivers de un motor (extras: postgresql, mariadb, mysql, oracle; se combinan con comas)
 pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v3.4.1"
 ```
 
-Oracle (`oracledb`), la documentación de BD (`openpyxl`, `python-docx`, `jinja2`) y pandas van en la instalación base.
+La documentación de BD (`openpyxl`, `python-docx`, `jinja2`) y pandas van en la instalación base; los drivers de
+cada motor, incluido Oracle (`oracledb`, extra `oracle`), no.
 Extras, drivers por motor y solución de problemas: [docs/installation.md](docs/installation.md).
 
 ---

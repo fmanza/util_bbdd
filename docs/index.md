@@ -82,7 +82,7 @@ La matriz de soporte por motor (sync/async, pool y driver) está en la tabla de 
 
 - **Todos los motores** soportan conexión síncrona vía `SyncDatabaseManager`.
 - **Todos excepto HSQLDB** soportan conexión y pool asíncronos vía `AsyncDatabaseManager`.
-- Salvo `oracledb`, los **drivers no se incluyen** en la instalación básica: se instalan con el extra del motor o a mano (ver [Instalación](installation.md#3-drivers-por-motor)).
+- Los **drivers no se incluyen** en la instalación básica: se instalan con el extra del motor o a mano (ver [Instalación](installation.md#3-drivers-por-motor)).
 
 Más detalle:
 

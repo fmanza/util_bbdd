@@ -10,7 +10,7 @@ Configurar `AsyncDatabaseManager` y usar patrones de concurrencia async/await en
 - Driver async instalado para el motor objetivo:
   - PostgreSQL: `asyncpg` (extra `postgresql`)
   - MariaDB (`db_type="mariadb"`) y MySQL (`db_type="mysql"`): `aiomysql` (extras `mariadb` / `mysql`)
-  - Oracle: `oracledb` (instalación base)
+  - Oracle: `oracledb` (extra `oracle`)
   - SQL Server: `aioodbc` (y un driver ODBC de Microsoft)
   - SQLite: `aiosqlite`
   - HSQLDB no tiene driver async: `AsyncDatabaseManager("hsqldb", ...)` falla con `NotImplementedError`

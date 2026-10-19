@@ -115,7 +115,7 @@ class DriverValidator:
             raise DriverError(
                 "Oracle driver no disponible",
                 "oracledb",
-                "pip install oracledb",
+                'pip install "util_bbdd[oracle]"',
                 "oracle",
             )
         DriverValidator.logger.debug("✅ Driver Oracle disponible")

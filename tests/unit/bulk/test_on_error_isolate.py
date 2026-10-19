@@ -521,6 +521,7 @@ def _batch_errors_send(bad: set[int], calls: list[int]) -> Any:
 
 
 def test_batch_errors_rejects_rows_with_one_send() -> None:
+    pytest.importorskip("oracledb")
     rejected: list[tuple[int, Any, str]] = []
     isolator = Isolator(
         on_reject=lambda position, values, error: rejected.append((position, dict(values), str(error))),
@@ -539,6 +540,7 @@ def test_batch_errors_rejects_rows_with_one_send() -> None:
 
 
 def test_batch_errors_with_frames() -> None:
+    pytest.importorskip("oracledb")
     rejected: list[tuple[int, Any]] = []
     isolator = Isolator(on_reject=lambda p, v, _e: rejected.append((p, v)), batch_errors=True)
 
@@ -548,6 +550,7 @@ def test_batch_errors_with_frames() -> None:
 
 
 def test_batch_errors_over_max_rejects_resends_to_raise_the_driver_error() -> None:
+    pytest.importorskip("oracledb")
     rejected: list[int] = []
     isolator = Isolator(on_reject=lambda p, _v, _e: rejected.append(p), max_rejects=1, batch_errors=True)
     calls: list[int] = []
@@ -757,6 +760,7 @@ def test_rejects_scope_counts_every_row_an_operation_received_even_if_it_fails(
 
 def test_batch_errors_budget_is_shared_with_previous_operations() -> None:
     """Presupuesto común de rejects_scope en el modo batcherrors: con 1 rechazo previo y max_rejects=2 cabe 1 más."""
+    pytest.importorskip("oracledb")
     rejected: list[int] = []
     isolator = Isolator(
         on_reject=lambda p, _v, _e: rejected.append(p), max_rejects=2, batch_errors=True, already_rejected=1

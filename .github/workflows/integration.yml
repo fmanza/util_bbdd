@@ -74,7 +74,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip setuptools wheel
-        python -m pip install -e ".[dev,postgresql,mysql,mariadb]"
+        python -m pip install -e ".[dev,postgresql,mysql,mariadb,oracle]"
 
     - name: Integration tests (PostgreSQL, MySQL, MariaDB)
       run: python -m pytest tests/integration -m integration -q -rs

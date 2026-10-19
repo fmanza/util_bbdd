@@ -148,7 +148,7 @@ los managers costaba 2503 consultas: 70 s en PostgreSQL, 121 s en SQL Server y 3
 | Dependencia | Propósito | Requerida | Comportamiento sin ella |
 |---|---|---|---|
 | `sqlalchemy` | `Engine`/`Connection` sobre los que `SqlAlchemyCatalogExecutor` ejecuta el SQL de catálogo; `Inspector` en `metadata.reflection` | Sí | El módulo no funciona |
-| Driver del motor (extras `mariadb`, `mysql`, `postgresql`; `oracledb` va en las dependencias base) | Conexión al catálogo de cada motor | Solo para ese motor | No se puede conectar a ese motor; el resto funciona |
+| Driver del motor (extras `mariadb`, `mysql`, `postgresql`, `oracle`) | Conexión al catálogo de cada motor | Solo para ese motor | No se puede conectar a ese motor; el resto funciona |
 | `jaydebeapi` y un JDK | HSQLDB por JDBC (`DbapiCatalogExecutor`) | Solo para HSQLDB | No se pueden leer metadatos de HSQLDB |
 | `util_bbdd._core.exceptions` | `MetadataError` (`KindNotLoadedError`, su subclase, está en `metadata.model`) | Sí (interna) | — |
 

@@ -10,7 +10,7 @@ Esta guía cubre la selección y configuración de drivers para cada base de dat
 
 ### Introducción
 
-Oracle se conecta con `python-oracledb` (dependencia base, `oracledb>=3.4`). util_bbdd soporta sus dos modos:
+Oracle se conecta con `python-oracledb` (extra `oracle`, `oracledb>=26`). util_bbdd soporta sus dos modos:
 
 - **Thin Mode** (predeterminado): Python puro, sin Oracle Instant Client; managers **sync y async**; Oracle 12.1 en adelante
 - **Thick Mode** (`oracle_thick_mode=True`): requiere Oracle Instant Client; solo managers **sync**; necesario para Oracle 11g
@@ -56,7 +56,7 @@ Con `SyncDatabaseManager` es igual (sin `await`): thin es el modo por defecto ta
 **Requisitos:**
 1. **Oracle Instant Client** compatible con la versión de la base de datos (para 11g, un cliente que conecte con 11.2;
    consultar la matriz de interoperabilidad cliente/servidor de Oracle)
-2. **python-oracledb** (dependencia base)
+2. **python-oracledb** (extra `oracle`)
 3. **Solo código sincrónico**: con thick mode inicializado en el proceso, las conexiones async de Oracle fallan con
    `ConnectionError`
 
@@ -82,7 +82,8 @@ Con `SyncDatabaseManager` es igual (sin `await`): thin es el modo por defecto ta
    export LD_LIBRARY_PATH=$HOME/oracle/instantclient_19_x:$LD_LIBRARY_PATH
    ```
 
-4. **python-oracledb** ya viene con util_bbdd (dependencia base); no hace falta instalarlo aparte.
+4. **python-oracledb**: instálalo con el extra `oracle` (`pip install "util_bbdd[oracle] @ git+https://github.com/fmanza/util_bbdd.git@v3.4.1"`)
+   o con `pip install oracledb`.
 
 #### Configuración
 

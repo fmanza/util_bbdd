@@ -69,13 +69,13 @@ El flag `-e` instala en modo editable: los cambios en `src/` se reflejan sin rei
 
 | Extra | Comando | Incluye |
 |---|---|---|
-| Desarrollo | `pip install -e ".[dev]"` | pytest, pytest-cov, pytest-asyncio, aiosqlite, ruff, mypy, build, stubs de tipos (pandas, networkx, PyMySQL, openpyxl), sqlglot, psycopg2-binary, black, isort |
+| Desarrollo | `pip install -e ".[dev]"` | pytest, pytest-cov, pytest-asyncio, aiosqlite, ruff, mypy, build, stubs de tipos (pandas, networkx, PyMySQL, openpyxl), sqlglot, psycopg2-binary, oracledb, black, isort |
 | Documentación | `pip install -e ".[docs]"` | zensical, mkdocs-material, mkdocstrings |
-| Drivers por motor | `pip install -e ".[postgresql]"` / `".[mariadb]"` / `".[mysql]"` | psycopg 3 + psycopg-pool + asyncpg / mariadb + aiomysql / pymysql + aiomysql |
+| Drivers por motor | `pip install -e ".[postgresql]"` / `".[mariadb]"` / `".[mysql]"` / `".[oracle]"` | psycopg 3 + psycopg-pool + asyncpg / mariadb + aiomysql / pymysql + aiomysql / oracledb |
 | Migración DDL (vistas) | `pip install -e ".[migrate]"` | sqlglot |
-| Grafos (Graphviz) | `pip install -e ".[analysis]"` | graphviz >= 0.20 |
+| Grafos (Graphviz) | `pip install -e ".[analysis]"` | graphviz >= 0.21 |
 | Grafos (Matplotlib) | `pip install -e ".[analysis-matplotlib]"` | matplotlib, networkx |
-| SVG→PNG en Word | `pip install -e ".[doc-svg]"` | cairosvg >= 2.7 |
+| SVG→PNG en Word | `pip install -e ".[doc-svg]"` | cairosvg >= 2.9 |
 | Entorno de referencia | `pip install -e ".[dev,docs]"` | El que usan los recuentos de tests y mypy (`SHARED_INSTRUCTIONS.md`) |
 
 **Errores frecuentes en la instalación**:

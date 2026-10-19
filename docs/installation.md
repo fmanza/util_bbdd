@@ -75,7 +75,7 @@ pip install -e ".[docs]"
 
 ## 3. Drivers por Motor
 
-Salvo `oracledb`, los drivers **no se incluyen** en la instalación básica; instálalos con el extra del motor o a mano:
+Los drivers **no se incluyen** en la instalación básica; instálalos con el extra del motor o a mano:
 
 | Motor | Driver sync | Driver async | Comando de instalación |
 |---|---|---|---|
@@ -83,7 +83,7 @@ Salvo `oracledb`, los drivers **no se incluyen** en la instalación básica; ins
 | MariaDB (`db_type="mariadb"`) | `mariadb` (MariaDB Connector/Python) | `aiomysql` | extra `mariadb` (o `pip install mariadb aiomysql`) |
 | MySQL (`db_type="mysql"`) | `pymysql` | `aiomysql` | extra `mysql` (o `pip install "pymysql[rsa]" aiomysql`) |
 | SQLite | `sqlite3` (stdlib) | `aiosqlite` | `pip install aiosqlite` (sync incluido en Python) |
-| Oracle | `oracledb` (incluido) | `oracledb` (incluido) | — (incluido en las dependencias base) |
+| Oracle | `oracledb` | `oracledb` | extra `oracle` (o `pip install oracledb`) |
 | SQL Server | `pyodbc` | `aioodbc` | `pip install pyodbc aioodbc` + ODBC driver nativo del SO |
 | HSQLDB | `jaydebeapi` | N/A (sin async) | `pip install jaydebeapi` + Java |
 

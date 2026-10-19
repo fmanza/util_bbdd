@@ -76,7 +76,7 @@ flowchart TD
 | Dependencia | Propósito | Requerida | Comportamiento sin ella |
 |---|---|---|---|
 | `SyncDatabaseManager` con engine Oracle | Acceso a catálogos `ALL_*` | Sí | Extracción imposible |
-| `oracledb` (dependencia base) | Driver del manager sync de Oracle | Sí | — |
+| `oracledb` (extra `util_bbdd[oracle]`) | Driver del manager sync de Oracle | Sí | `DriverError` al crear el manager |
 
 ## 5. Ejemplos Relacionados
 

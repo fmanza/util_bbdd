@@ -143,7 +143,7 @@ def test_oracle_dsn_defaults_to_tcp() -> None:
 
 
 def test_oracle_connect_honours_protocol(monkeypatch: pytest.MonkeyPatch) -> None:
-    import oracledb
+    oracledb = pytest.importorskip("oracledb")
 
     received: dict[str, Any] = {}
     monkeypatch.setattr(oracledb, "connect", lambda **kwargs: received.update(kwargs) or "conn")

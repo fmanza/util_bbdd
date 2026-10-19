@@ -42,8 +42,8 @@ status: "CERRADA: FASES 1-6 ejecutadas (2026-10-08/09); FASE 4 en v0.35.9-v0.39.
   - Clases de conexión: `connection_<motor>.py`, `async_connection_<motor>.py`, `pool_connection_<motor>.py`,
     `async_pool_connection_<motor>.py` (HSQLDB solo tiene `connection_hsqldb.py`)
   - Parámetros de conexión específicos (charset, encoding, TLS, etc.)
-  - Drivers PyPI: `pyproject.toml` solo declara extras para `mariadb` y `mysql`; `oracledb` es dependencia base; el
-    resto (psycopg, psycopg_pool, asyncpg, pymssql, pyodbc, aioodbc, jaydebeapi) no tiene extra
+  - Drivers PyPI: `pyproject.toml` declara extras para `mariadb`, `mysql`, `postgresql` y `oracle`; el resto (pymssql,
+    pyodbc, aioodbc, jaydebeapi) no tiene extra
   - Catálogo en `metadata/<motor>/catalog.py`, registrado en `metadata/catalog_registry.py` (`_BUILTIN`)
   - **No** usar `validators/<motor>_validator.py` como validadores de conexión: validan parámetros de queries
     (`QueryRegistry`). La validación de `conn_params` está en `connection/builder.py`,
@@ -57,7 +57,7 @@ status: "CERRADA: FASES 1-6 ejecutadas (2026-10-08/09); FASE 4 en v0.35.9-v0.39.
 | **MariaDB** | mariadb | aiomysql | mariadb.ConnectionPool | aiomysql | mariadb/ (catalog, _show_create, common, tables) + adaptativo (solo sync) | mariadb / aiomysql | [mariadb] | charset, encoding_errors, init_command |
 | **MySQL**   | pymysql | aiomysql | QueuePool SQLAlchemy | hereda AsyncMariaDBPool | `MySQLCatalog(MariaDBCatalog)` en mariadb/catalog.py (MySQL 8.0.16+) | pymysql / aiomysql | [mysql] | ssl_ca/cert/key/verify_* |
 | PostgreSQL | psycopg (v3) | asyncpg | psycopg_pool | asyncpg | postgresql/ (catalog, tables) | psycopg3 / asyncpg (el JSON dice psycopg2: desfase) | — | sslmode, schema→search_path, options |
-| Oracle     | oracledb (thin) | connect_async | create_pool | create_pool_async | oracle/ (catalog, indexes, tables) | oracledb | dependencia base | dsn/service_name/sid, oracle_client_path, oracle_thick_mode |
+| Oracle     | oracledb (thin) | connect_async | create_pool | create_pool_async | oracle/ (catalog, indexes, tables) | oracledb | extra `oracle` | dsn/service_name/sid, oracle_client_path, oracle_thick_mode |
 | SQL Server | pymssql (def.) / pyodbc | aioodbc | pool propio (Queue + lock) | aioodbc | sqlserver/ (catalog, common, constraints, indexes, tables) | pymssql / pyodbc / aioodbc | — | encryption, trust_cert, driver_name |
 | SQLite     | sqlite3 | aiosqlite | conexión única | aiosqlite | sqlite/catalog.py | stdlib / aiosqlite | — (aiosqlite en dev) | — |
 | HSQLDB     | jaydebeapi | — | — | — | hsqldb/catalog.py | jaydebeapi | — | jdbc_url, jdbc_jar, connection_properties |

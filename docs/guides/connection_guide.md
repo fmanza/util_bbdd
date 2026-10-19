@@ -27,7 +27,7 @@ HSQLDB**. HSQLDB solo dispone de modo **síncrono** (sus factorías async lanzan
 | `postgresql` | `psycopg` (v3) + `psycopg-pool` | `asyncpg` | extra `postgresql` |
 | `mariadb` | `mariadb` (MariaDB Connector/Python) | `aiomysql` | extra `mariadb` |
 | `mysql` | `pymysql` | `aiomysql` | extra `mysql` |
-| `oracle` | `oracledb` (incluido) | `oracledb` (incluido) | — (dependencia base) |
+| `oracle` | `oracledb` | `oracledb` | extra `oracle` |
 | `sqlserver` | `pymssql` (por defecto) / `pyodbc` | `aioodbc` | `pip install pymssql` o `pip install pyodbc`; async: `pip install aioodbc`. `pyodbc` y `aioodbc` necesitan el ODBC Driver de Microsoft |
 | `sqlite` | `sqlite3` (stdlib) | `aiosqlite` | `pip install aiosqlite` |
 | `hsqldb` | `jaydebeapi` | N/A (sin async) | `pip install jaydebeapi` + Java |

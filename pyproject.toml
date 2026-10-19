@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68.0", "wheel"]
+requires = ["setuptools>=80", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -25,69 +25,73 @@ classifiers = [
 ]
 
 dependencies = [
-    "sqlalchemy>=2.0.46",
-    "pandas>=3.0.0",
+    "sqlalchemy>=2.1",
+    "pandas>=3.0",
     "openpyxl>=3.1.5",
     "python-docx>=1.2.0",
-    "oracledb>=3.4.0",
-    "jinja2>=3.0.0",
+    "jinja2>=3.1",
 ]
 
 [project.optional-dependencies]
 # Drivers de base de datos: opcionales, se instalan solo los de los motores que se usen.
+oracle = [
+    "oracledb>=26",  # sync y async (modo thin; thick con Oracle Instant Client)
+]
 mariadb = [
     "mariadb>=1.1",   # MariaDB Connector/Python (sync)
-    "aiomysql>=0.2",  # async
+    "aiomysql>=0.3",  # async
 ]
 mysql = [
-    "pymysql[rsa]>=1.1",  # sync; [rsa] = cryptography, necesario para caching_sha2_password sin TLS
-    "aiomysql>=0.2",      # async
+    "pymysql[rsa]>=1.2",  # sync; [rsa] = cryptography, necesario para caching_sha2_password sin TLS
+    "aiomysql>=0.3",      # async
 ]
 postgresql = [
-    "psycopg[binary]>=3.1",  # sync (psycopg 3: conexión directa y Engine postgresql+psycopg)
-    "psycopg-pool>=3.2",     # pool sync
-    "asyncpg>=0.29",         # async
+    "psycopg[binary]>=3.3",  # sync (psycopg 3: conexión directa y Engine postgresql+psycopg)
+    "psycopg-pool>=3.3",     # pool sync
+    "asyncpg>=0.32",         # async
 ]
 # migrate: reescribe el SQL de las vistas al dialecto destino (MigrationPlanner(view_strategy="auto"|"transpile")).
 migrate = [
     "sqlglot>=30,<31",
 ]
 analysis = [
-    "graphviz>=0.20",
+    "graphviz>=0.21",
 ]
 # MatplotlibRelationshipGraph (analysis/matplotlib_graph.py); sin estos paquetes el resto de la librería funciona igual.
 analysis-matplotlib = [
-    "matplotlib>=3.7",
-    "networkx>=3.0",
+    "matplotlib>=3.11",
+    "networkx>=3.7",
 ]
 doc-svg = [
-    "cairosvg>=2.7",
+    "cairosvg>=2.9",
 ]
 dev = [
-    "build>=1.2",
-    "pytest>=9.0",
-    "pytest-cov>=7.0",
-    "pytest-asyncio>=0.23",
+    "build>=1.6",
+    "pytest>=9.1",
+    "pytest-cov>=7.1",
+    "pytest-asyncio>=1.4",
     "aiosqlite>=0.22",
-    "ruff>=0.1.0",
-    "mypy>=1.0",
-    "black>=23.0",
-    "isort>=5.12",
-    "pandas-stubs",
+    "ruff>=0.17",
+    "mypy>=2.4",
+    "black>=26.10",
+    "isort>=9.0",
+    "pandas-stubs>=3.0",
     "types-networkx",
     "types-PyMySQL",
     "types-openpyxl",
     "sqlglot>=30,<31",
     # Tests de la estrategia execute_values (postgresql+psycopg2): sin él se saltan 3 módulos y 20 tests.
-    "psycopg2-binary",
+    "psycopg2-binary>=2.9",
+    # Tests de conexión, bulk y metadata de Oracle (con mocks del driver): sin él se saltan.
+    "oracledb>=26",
 ]
 docs = [
     # Generadores compatibles (ambos leen el mismo mkdocs.yml):
     #   - zensical: generador por defecto (CI usa `zensical build`)
     #   - mkdocs-material: generador clásico, compatibilidad recíproca (`mkdocs build`)
-    "zensical>=0.0.44",
-    "mkdocs-material>=9.5",
-    "mkdocstrings[python]>=0.25",
+    "zensical>=0.0.71",
+    "mkdocs-material>=9.7",
+    "mkdocstrings[python]>=1.0",
 ]
 
 [project.urls]
@@ -123,7 +127,8 @@ target-version = "py312"
 #combine-as-imports = true
 
 [tool.ruff.lint]
-extend-select = [
+# `select` (no `extend-select`): ruff 0.17 amplió las reglas por defecto y `extend-select` las sumaría todas.
+select = [
     "E",
     "W",
     "F",

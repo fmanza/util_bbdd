@@ -30,7 +30,7 @@ def test_sanitize_for_connection_keeps_oracle_thick_mode() -> None:
 
 
 def test_connect_initializes_thick_mode(monkeypatch: pytest.MonkeyPatch) -> None:
-    import oracledb
+    oracledb = pytest.importorskip("oracledb")
 
     initialized: list[str] = []
     monkeypatch.setattr(connection_oracle, "init_oracle_thick_mode", initialized.append)
@@ -41,6 +41,7 @@ def test_connect_initializes_thick_mode(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_pool_initializes_thick_mode_through_single_init_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("oracledb")
     initialized: list[str] = []
 
     def _unexpected_direct_init(*_args: Any, **_kwargs: Any) -> None:

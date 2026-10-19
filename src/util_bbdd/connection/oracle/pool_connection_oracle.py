@@ -64,7 +64,7 @@ class PoolConnection(SyncPoolCloseMixin):
             ```
         """
         if not HAS_ORACLEDB:
-            raise ImportError("Módulo 'oracledb' no está instalado. Instale con: pip install oracledb")
+            raise ImportError("Módulo 'oracledb' no está instalado. Instale con: pip install \"util_bbdd[oracle]\"")
 
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.pool: oracledb.ConnectionPool | None = None

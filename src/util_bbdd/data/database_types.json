@@ -399,7 +399,7 @@
       "driver_info": {
         "pip_package": "oracledb",
         "import_name": "oracledb",
-        "install_command": "pip install oracledb",
+        "install_command": "pip install \"util_bbdd[oracle]\"  (o: pip install oracledb)",
         "system_requirements": [
           "Oracle Instant Client",
           "Oracle Client Libraries",
