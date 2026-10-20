@@ -1,0 +1,8437 @@
+
+<!doctype html>
+<html lang="es" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Librería Python para operaciones con múltiples motores de BD (sync/async): CRUD en lote, migración DDL, comparación de esquemas, documentación automática — MariaDB, MySQL, Oracle, PostgreSQL, SQLite, SQL Server, HSQLDB">
+      
+      
+        <meta name="author" content="Paco Manzano">
+      
+      
+        <link rel="canonical" href="https://fmanza.github.io/util_bbdd/guides/benchmarks/">
+      
+      
+      
+        <link rel="prev" href="../ddl_migration_guide/">
+      
+      
+        <link rel="next" href="../performance_readiness_guide/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.71">
+    
+    
+      
+        <title>Performance & Benchmarks - util_bbdd</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.e442bf79.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/css/mermaid.css">
+    
+      <link rel="stylesheet" href="../../assets/css/nav.css">
+    
+      <link rel="stylesheet" href="../../assets/css/arquitectura-capas.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Saltar a contenido
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Cabecera">
+    <a href="../.." title="util_bbdd" class="md-header__button md-logo" aria-label="util_bbdd" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navegación">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            util_bbdd
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Performance & Benchmarks
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="blue"  aria-label="Cambiar a modo oscuro"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Cambiar a modo oscuro" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="blue"  aria-label="Cambiar a modo claro"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Cambiar a modo claro" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Buscar">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Buscar">
+  <button type="button" class="md-search__button">
+    Buscar
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/fmanza/util_bbdd" title="Ir al repositorio" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fmanza/util_bbdd
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Pestañas" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  Inicio
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../installation/" class="md-tabs__link">
+        
+  
+  Instalación
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../downloads/" class="md-tabs__link">
+        
+  
+  📥 Descargas
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../functional/managers_sync/" class="md-tabs__link">
+          
+  
+  Documentación Funcional
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/intro/" class="md-tabs__link">
+          
+  
+  Referencia Técnica
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../onboarding_dev/" class="md-tabs__link">
+          
+  
+  Guías
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../examples/example_connect_introspect/" class="md-tabs__link">
+          
+  
+  Ejemplos
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../ai-config/claude/" class="md-tabs__link">
+          
+  
+  Config IA
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/" class="md-tabs__link">
+          
+  
+  Arquitectura
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../roadmap/" class="md-tabs__link">
+          
+  
+  Historia y Planes
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navegación" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="util_bbdd" class="md-nav__button md-logo" aria-label="util_bbdd" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    util_bbdd
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fmanza/util_bbdd" title="Ir al repositorio" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fmanza/util_bbdd
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Inicio
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Instalación
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../downloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  📥 Descargas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Documentación Funcional
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Documentación Funcional
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Managers
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4_1">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Managers
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/managers_sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Gestión de Conexiones (Sync)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/managers_async/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Gestión de Conexiones (Async)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/connection_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Conexiones y Pools
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/engine_readiness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Condiciones del Motor
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Metadatos e Introspección
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4_2">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Metadatos e Introspección
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/metadata_extraction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Extracción de Metadatos
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/drivers_selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Selección de Driver
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Operaciones de Datos
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4_3">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Operaciones de Datos
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/bulk_operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Operaciones Bulk (CRUD)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/bulk_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Auditoría de Operaciones Bulk
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Auditoría centralizada
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/bulk_parallel_loading/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Carga Masiva Paralela
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Queries y Validación
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4_4">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Queries y Validación
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/query_registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Registro de Queries
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/query_execution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Ejecución de Consultas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/validators_pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Patrón de Validadores
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_5" id="__nav_4_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Comparación de Esquemas
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_5_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4_5">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Comparación de Esquemas
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/schema_comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Comparador de Esquemas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_6" id="__nav_4_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Volcado de Datos
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_6_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4_6">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Volcado de Datos
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/dump_data_export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Volcado entre esquemas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_7" id="__nav_4_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración de Esquemas
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_7_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4_7">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Migración de Esquemas
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/migrate_oracle_mariadb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración Oracle (origen)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/migrate_mariadb_source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración MariaDB (origen)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/migrate_sqlserver_source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración SQL Server (origen)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/migrate_postgresql_source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración PostgreSQL (origen)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/migrate_mysql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración MySQL (origen y destino)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/migrate_views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración de vistas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_8" id="__nav_4_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Análisis de Relaciones
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_8_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4_8">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Análisis de Relaciones
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/graph_analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Visualización de Grafos
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Documentación de BD
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4_9">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Documentación de BD
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../functional/database_documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Generación de Documentación
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Referencia Técnica
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Referencia Técnica
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/intro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Índice de Referencia
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Managers
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5_2">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Managers
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/managers_sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Manager Síncrono
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/managers_async/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Manager Asíncrono
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/managers_lifecycle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Ciclo de Vida de Conexión
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Metadatos e Introspección
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5_3">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Metadatos e Introspección
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/metadata_manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Lectura de Metadatos
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Conexiones
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5_4">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Conexiones
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/connection_factory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Factory de Conexiones
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/engine_readiness_advisor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Condiciones del Motor (EngineReadinessAdvisor)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_5" id="__nav_5_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Utilidades
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_5_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5_5">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Utilidades
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/async_utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Utilidades Async (maybe_await)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Operaciones Bulk
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5_6">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Operaciones Bulk
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/bulk_crud/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  CRUD Masivo
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/mysql_variables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MySQL Variables Validator
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/update_auto_increment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reajuste de AUTO_INCREMENT (MariaDB)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/bulk_parallel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Carga Masiva Paralela
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/bulk_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Auditoría Bulk
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Auditoría centralizada
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/normalize/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Normalización de Datos
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_7" id="__nav_5_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Sistema de Queries
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_7_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5_7">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Sistema de Queries
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/query_system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Registry y Resolver
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/query_execution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Ejecución de Consultas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/validators_system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Sistema de Validadores
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_8" id="__nav_5_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Comparación de Esquemas
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_8_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5_8">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Comparación de Esquemas
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/schema_comparator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Comparador y Reporters
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_9" id="__nav_5_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Volcado de Datos
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_9_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5_9">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Volcado de Datos
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/dump/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Orquestador
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/dump_reporter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Generador de Reportes
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_10" id="__nav_5_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración de Esquemas
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_10_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5_10">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Migración de Esquemas
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/migrate_oracle_mariadb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API Oracle (origen)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/migrate_mariadb_source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API MariaDB (origen)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/migrate_sqlserver_source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API SQL Server (origen)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/migrate_postgresql_source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API PostgreSQL (origen)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/migrate_mysql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API MySQL (origen y destino)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/migrate_views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API Vistas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_11" id="__nav_5_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Análisis de Relaciones
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_11_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5_11">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Análisis de Relaciones
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Grafos de Relaciones
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_12" id="__nav_5_12_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Documentación de BD
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_12_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5_12">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Documentación de BD
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/database_documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Generador de Documentación
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_13" id="__nav_5_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Autodoc (mkdocstrings)
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_13_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5_13">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Autodoc (mkdocstrings)
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Índice
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/managers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Managers
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/comparator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Comparador
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/reporters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Comparador Diff Reporters
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Bulk Operations
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/dump_autodoc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Dump
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/migrate_autodoc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración DDL
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/doc_autodoc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Documentación de BD
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/metadata_autodoc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Metadatos
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/audit_autodoc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Auditoría
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/connection_autodoc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Conexiones
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/query_autodoc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Sistema de Queries
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/analysis_autodoc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Análisis de Relaciones
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/exceptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Excepciones
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Guías
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+            <label class="md-nav__title" for="__nav_6">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Guías
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../onboarding_dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Incorporación para Desarrolladores
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_2" id="__nav_6_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Conexión y Drivers
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_2_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_6_2">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Conexión y Drivers
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../connection_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Conexión y Drivers por Motor
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mariadb_v0.35.0_charset_handling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MariaDB v0.35.0 (Charset Handling)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../async_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Programación Asíncrona
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../postgresql_driver_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Drivers PostgreSQL
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3" id="__nav_6_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Errores y Diagnóstico
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_3_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_6_3">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Errores y Diagnóstico
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../exceptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Excepciones
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Troubleshooting
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Comparación de Esquemas
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_6_4">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Comparación de Esquemas
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../comparator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Comparador de Esquemas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Volcado de Datos
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_6_5">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Volcado de Datos
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dump_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Volcado de Datos entre Motores
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_6" id="__nav_6_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración de Esquemas
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_6_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_6_6">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Migración de Esquemas
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ddl_migration_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración DDL entre Motores
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_7" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6_7" id="__nav_6_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Rendimiento
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_7_label" aria-expanded="true">
+            <label class="md-nav__title" for="__nav_6_7">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Rendimiento
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Performance & Benchmarks
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Performance & Benchmarks
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="Tabla de contenidos">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Tabla de contenidos
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-objetivo" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. Objetivo
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-requisitos-previos" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. Requisitos Previos
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-pasos" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3. Pasos
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Pasos">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tamano-del-pool-de-los-managers" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Tamaño del pool de los managers
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tuning-de-carga-masiva-bulk" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Tuning de carga masiva (bulk)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tuning de carga masiva (bulk)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#estrategia-insert-por-motor-automatica" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Estrategia INSERT por motor (automática)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#carga-paralela-por-particiones" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Carga paralela por particiones
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update-y-delete-en-paralelo-1m-filas" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        UPDATE y DELETE en paralelo (1M filas)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hilos-automaticos-modeauto-v300" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Hilos automáticos (<code>mode="auto"</code>, v3.0.0)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#checkpoints-reanudacion-y-reintentos" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Checkpoints, reanudación y reintentos
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#banco-de-pruebas-contra-motores-reales" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Banco de pruebas contra motores reales
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#banco-de-la-carga-paralela-scriptsbench_parallelpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Banco de la carga paralela (<code>scripts/bench_parallel.py</code>)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#banco-de-comparacion-de-esquemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Banco de comparación de esquemas
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#banco-de-extraccion-de-metadatos" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Banco de extracción de metadatos
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-verificacion" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4. Verificación
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-variantes-y-solucion-de-problemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5. Variantes y Solución de Problemas
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance_readiness_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Validación de Parámetros (EngineReadinessAdvisor)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance_audit_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Performance Audit (General)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance_audit_constraints_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Performance Audit (Constraints)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../code_reusability_analysis_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reutilización de Código
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../drivers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Drivers por Motor
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_10" id="__nav_6_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración de Versión
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_10_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_6_10">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Migración de Versión
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api_3_0_migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración a la API 3.0 (v3.0.0)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api_1_0_migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración a la API 1.0 (v0.43.0)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migration_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Guía de Migración (v0.6.3)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migration_guide_v0.6.7/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración v0.6.6→v0.6.7
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_11" id="__nav_6_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Herramientas IA
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_11_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_6_11">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Herramientas IA
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../doc_generation_vscode_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Guía completa (VS Code)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../github_copilot_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Copilot Chat (.github)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../claude_code_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Claude Code
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../codex_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Codex (OpenAI)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../doc_verification_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Verificación de docs (--verify-tools / --verify-build)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs_offline_zip_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Distribución offline (ZIP)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture_diagram_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Diagrama de arquitectura (regenerar)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../engine_readiness_usage_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Integración de EngineReadinessAdvisor en prompts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Ejemplos
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Ejemplos
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_1" id="__nav_7_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Metadatos e Introspección
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_1_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7_1">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Metadatos e Introspección
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/example_connect_introspect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Conectar e Introspeccionar Base de Datos
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_2" id="__nav_7_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Conexiones
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_2_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7_2">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Conexiones
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/connection_factory_example/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Conexiones Nativas (ConnectionFactory)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/engine_readiness_advisor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Condiciones del Motor
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_3" id="__nav_7_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Operaciones Bulk
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_3_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7_3">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Operaciones Bulk
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/bulk_insert_csv/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Bulk Insert desde CSV
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/parallel_bulk_insert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Carga Masiva Paralela
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/benchmark_commit_cadence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Benchmark: Commit Cadence
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/mysql_variables_example/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Validación de Variables MySQL/MariaDB
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/update_auto_increment_example/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reajuste de AUTO_INCREMENT (MariaDB)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/normalize_records/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Normalización de Registros
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/audit_events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Auditoría Común de Carga y Volcado
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_4" id="__nav_7_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Sistema de Queries
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_4_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7_4">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Sistema de Queries
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/query_execution_example/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Ejecución de Consultas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/async_concurrent_queries/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Queries Concurrentes (Async)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/validators_pattern/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Patrón de Validadores
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_5" id="__nav_7_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Comparación de Esquemas
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_5_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7_5">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Comparación de Esquemas
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/schema_comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Comparación de Esquemas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/diff_reporters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Diff Reporters
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_6" id="__nav_7_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Volcado de Datos
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_6_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7_6">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Volcado de Datos
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/dump_data_export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Volcado de Datos entre Motores
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_7" id="__nav_7_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración de Esquemas
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_7_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7_7">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Migración de Esquemas
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/migrate_oracle_mariadb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración Oracle (origen)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/migrate_mariadb_source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración MariaDB (origen)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/migrate_sqlserver_source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración SQL Server (origen)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/migrate_postgresql_source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración PostgreSQL (origen)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/migrate_mysql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración MySQL (origen)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/migrate_views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migración de vistas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_8" id="__nav_7_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Análisis de Relaciones
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_8_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7_8">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Análisis de Relaciones
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/graph_generation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Generación de Grafos
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_9" id="__nav_7_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Documentación de BD
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_9_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7_9">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Documentación de BD
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/database_documentation_generation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Generación de Documentación
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_10" id="__nav_7_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Manejo de Excepciones
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_10_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_7_10">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Manejo de Excepciones
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/exception_handling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Manejo de Excepciones
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Config IA
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_8">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Config IA
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ai-config/claude/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Claude Code
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Arquitectura
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_9">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Arquitectura
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Arquitectura del Sistema
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_2" id="__nav_9_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Decisiones Arquitectónicas (ADRs)
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_9_2_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_9_2">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Decisiones Arquitectónicas (ADRs)
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/ADR-001-STRUCTURE-REFACTORING/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  ADR-001 Refactoring
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/ADR-002-modulo-auditoria/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  ADR-002 Módulo de auditoría
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/ADR-003-metadata-centralizada/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  ADR-003 Metadatos centralizados
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/ADR-004-lazy-oracle-version-resolution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  ADR-004 Versión perezosa de Oracle
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/ADR-005-conexiones-multimotor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  ADR-005 Conexiones multimotor
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/ADR-TEMPLATE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plantilla ADR
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Historia y Planes
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_10">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Historia y Planes
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Roadmap
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../legacy_versions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Versiones Históricas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan v0.8.0 — Sistema de Tipos Avanzado (entregado)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="Tabla de contenidos">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Tabla de contenidos
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-objetivo" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. Objetivo
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-requisitos-previos" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. Requisitos Previos
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-pasos" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3. Pasos
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Pasos">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tamano-del-pool-de-los-managers" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Tamaño del pool de los managers
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tuning-de-carga-masiva-bulk" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Tuning de carga masiva (bulk)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tuning de carga masiva (bulk)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#estrategia-insert-por-motor-automatica" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Estrategia INSERT por motor (automática)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#carga-paralela-por-particiones" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Carga paralela por particiones
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update-y-delete-en-paralelo-1m-filas" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        UPDATE y DELETE en paralelo (1M filas)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hilos-automaticos-modeauto-v300" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Hilos automáticos (<code>mode="auto"</code>, v3.0.0)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#checkpoints-reanudacion-y-reintentos" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Checkpoints, reanudación y reintentos
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#banco-de-pruebas-contra-motores-reales" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Banco de pruebas contra motores reales
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#banco-de-la-carga-paralela-scriptsbench_parallelpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Banco de la carga paralela (<code>scripts/bench_parallel.py</code>)
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#banco-de-comparacion-de-esquemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Banco de comparación de esquemas
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#banco-de-extraccion-de-metadatos" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Banco de extracción de metadatos
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-verificacion" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4. Verificación
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-variantes-y-solucion-de-problemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5. Variantes y Solución de Problemas
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+  
+  
+
+
+<h1 id="performance-y-benchmarks">Performance y Benchmarks<a class="headerlink" href="#performance-y-benchmarks" title="Permanent link">&para;</a></h1>
+<h2 id="1-objetivo">1. Objetivo<a class="headerlink" href="#1-objetivo" title="Permanent link">&para;</a></h2>
+<p>Configurar el pool de conexiones y las opciones de bulk insert para obtener el rendimiento óptimo según el motor de base de datos y el volumen de datos.</p>
+<h2 id="2-requisitos-previos">2. Requisitos Previos<a class="headerlink" href="#2-requisitos-previos" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>util_bbdd</code> instalado con el motor a benchmarkear configurado</li>
+<li>Para benchmarks de bulk insert: <code>pandas</code> instalado</li>
+<li>Para benchmarks de concurrencia async: <code>asyncpg</code> o driver async del motor objetivo</li>
+<li>Las mediciones de esta página se hicieron con los contenedores del banco (Docker local, ver «Banco de pruebas contra
+  motores reales»); cada tabla indica su versión y su sesión</li>
+</ul>
+<h2 id="3-pasos">3. Pasos<a class="headerlink" href="#3-pasos" title="Permanent link">&para;</a></h2>
+<h3 id="tamano-del-pool-de-los-managers">Tamaño del pool de los managers<a class="headerlink" href="#tamano-del-pool-de-los-managers" title="Permanent link">&para;</a></h3>
+<p>El repositorio no tiene un banco de throughput del pool: no hay cifras medidas que recomendar. Qué parámetros acepta
+cada motor (<code>pool_size</code>, y <code>max_overflow</code>/<code>pool_timeout</code> solo en MySQL y SQL Server) y qué significa <code>pool_size</code> en
+cada pool nativo está en la <a href="../connection_guide/#7-pools-pool_size-close_timeout-y-el-pool-del-engine">guía de conexiones</a>.
+Mide con tu carga (ver el ejemplo de «Verificación») antes de subir <code>pool_size</code> por encima del default (5): cada
+conexión del pool es una sesión abierta en el servidor.</p>
+<h3 id="tuning-de-carga-masiva-bulk">Tuning de carga masiva (bulk)<a class="headerlink" href="#tuning-de-carga-masiva-bulk" title="Permanent link">&para;</a></h3>
+<p>Punto único de referencia para acelerar inserciones masivas. Las palancas se combinan; empieza por
+<code>chunk_size</code> y <code>commit_every_n_chunks</code>, y recurre a la carga paralela solo si una sola tabla domina
+el tiempo total.</p>
+<table>
+<thead>
+<tr>
+<th>Palanca</th>
+<th>Dónde</th>
+<th>Efecto</th>
+<th>Cuándo usarla</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>batch.chunk_size</code></td>
+<td><code>BulkCrud</code> / <code>ParallelBulkLoader</code></td>
+<td>Filas por lote. Por defecto, por motor y operación: 20 000 en INSERT/DELETE de PostgreSQL y DELETE de SQL Server (−10 % a −20 % con 1M filas), 5000 en el resto; con <code>commit_every_n_chunks</code>, 5000</td>
+<td>Fijarlo solo si hace falta: bajar a ≤500 si el destino MariaDB tiene <code>TEXT</code>/<code>JSON</code> (<code>max_allowed_packet</code>); lotes de 1000 son más lentos en todos los motores. El <code>DELETE … IN</code> de MySQL/MariaDB envía como mucho 5000 filas por sentencia aunque el lote sea mayor</td>
+</tr>
+<tr>
+<td><code>batch.commit_every_n_chunks</code></td>
+<td><code>BulkCrud</code> / <code>ParallelBulkLoader</code></td>
+<td>Commit cada N lotes; acota el undo log</td>
+<td><strong>Crítico</strong> en MariaDB/MySQL con millones de filas (evita degradación exponencial)</td>
+</tr>
+<tr>
+<td><code>execution.update_via_staging</code></td>
+<td><code>BulkCrud</code> / <code>ParallelBulkLoader</code></td>
+<td>UPDATE vía tabla temporal + un <code>UPDATE</code> con join por lote en lugar de un UPDATE por fila (MySQL/MariaDB ~12,5×, PostgreSQL 2,35×)</td>
+<td>Activo por defecto en MySQL/MariaDB y PostgreSQL; requiere <code>CREATE TEMPORARY TABLES</code> o <code>TEMP</code> (sin él, vuelve al UPDATE fila a fila con un WARNING)</td>
+</tr>
+<tr>
+<td><code>batch.prefetch_blocks</code></td>
+<td><code>BulkCrud</code></td>
+<td>Prepara el lote siguiente en un hilo mientras se envía el actual (cola de 2)</td>
+<td>SQL Server (INSERT −10,6 %, UPDATE −6,2 %) y, menos, MySQL/MariaDB (−2 % a −6 %); sin efecto en Oracle, PostgreSQL y SQLite. En <code>ParallelBulkLoader</code> llega a cada worker y añade un hilo por partición (sin medir en paralelo)</td>
+</tr>
+<tr>
+<td><code>rejects.on_error="isolate"</code></td>
+<td><code>BulkCrud</code> / <code>ParallelBulkLoader</code></td>
+<td>No es una palanca de velocidad: aparta las filas con errores de datos a un CSV en lugar de deshacer la carga. Coste medido (INSERT de 1M filas): sin filas malas, 1,00–1,02× (Oracle: 1,00× y 1,27× en dos repeticiones); con 10 filas malas, 1,13–1,23× (PostgreSQL 1,65×: lotes de 20 000 con COPY, cada fila mala reenvía más; Oracle, con <code>batcherrors</code> desde la sesión <code>2026-10-01s</code>, 1,04× sin filas malas y 1,08× con 10). Para cargas con muchas filas malas en PostgreSQL, un <code>chunk_size</code> menor reduce lo reenviado</td>
+<td>Cuando unas pocas filas malas no deben deshacer la carga; con muchas filas malas, <code>max_rejects</code></td>
+</tr>
+<tr>
+<td><code>execution.fast_executemany</code></td>
+<td><code>BulkCrud</code> / <code>ParallelBulkLoader</code></td>
+<td>Activa <code>fast_executemany</code> en el dialecto pyodbc (como <code>create_engine(..., fast_executemany=True)</code>)</td>
+<td>SQL Server + ODBC 17/18: INSERT ~12× más rápido</td>
+</tr>
+<tr>
+<td>Vía nativa por motor</td>
+<td>Automática</td>
+<td>COPY / multi-row / fast_executemany (tabla abajo)</td>
+<td>Siempre activa con <code>ExecutionOptions(insert_resolver=None)</code> (default)</td>
+</tr>
+<tr>
+<td>Carga paralela</td>
+<td><code>ParallelBulkLoader</code> o <code>BulkCrud(parallel=ParallelOptions(...))</code></td>
+<td>Inserta, actualiza o borra particiones disjuntas en paralelo, una <code>BulkCrud</code> por hilo; con <code>mode="auto"</code> los hilos los decide <code>ParallelPlanner</code> con las mediciones de abajo</td>
+<td>Tablas muy grandes en SQL Server (≈ 2,7× con 4 hilos), MySQL y MariaDB (≈ 1,7×); no en PostgreSQL con psycopg 3, Oracle ni SQLite (≤ 1,2×). El pool debe tener capacidad ≥ <code>max_workers</code></td>
+</tr>
+</tbody>
+</table>
+<p>Configuración base con <code>BulkCrud</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">util_bbdd.bulk</span><span class="w"> </span><span class="kn">import</span> <span class="n">BatchOptions</span><span class="p">,</span> <span class="n">BulkCrud</span><span class="p">,</span> <span class="n">ExecutionOptions</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">bulk</span> <span class="o">=</span> <span class="n">BulkCrud</span><span class="p">(</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">engine</span><span class="o">=</span><span class="n">engine</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="c1"># chunk_size: por defecto, el lote por motor y operación</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">batch</span><span class="o">=</span><span class="n">BatchOptions</span><span class="p">(</span><span class="n">commit_every_n_chunks</span><span class="o">=</span><span class="mi">20</span><span class="p">),</span>  <span class="c1"># commit cada 100K filas (MariaDB)</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">execution</span><span class="o">=</span><span class="n">ExecutionOptions</span><span class="p">(</span><span class="n">fast_executemany</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>  <span class="c1"># SQL Server + pyodbc: INSERT ~12× más rápido</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span>
+</span></code></pre></div>
+<h4 id="estrategia-insert-por-motor-automatica">Estrategia INSERT por motor (automática)<a class="headerlink" href="#estrategia-insert-por-motor-automatica" title="Permanent link">&para;</a></h4>
+<p><code>BulkCrud</code> elige la vía nativa más rápida por motor sin configuración (<code>ExecutionOptions(insert_resolver=None)</code>, default):</p>
+<table>
+<thead>
+<tr>
+<th>Motor</th>
+<th>Estrategia</th>
+<th>Ganancia típica</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PostgreSQL + psycopg3</td>
+<td><code>COPY ... FROM STDIN</code></td>
+<td>La más rápida</td>
+</tr>
+<tr>
+<td>PostgreSQL + psycopg2</td>
+<td><code>execute_values</code> multi-row</td>
+<td>3–5× sobre <code>executemany</code></td>
+</tr>
+<tr>
+<td>MySQL / MariaDB + PyMySQL</td>
+<td><code>executemany</code> del driver (multi-fila en el cliente)</td>
+<td>~2× sobre la vía multi-fila anterior (medido en MySQL 8.4 y MariaDB 11.4)</td>
+</tr>
+<tr>
+<td>MySQL / MariaDB + <code>mariadbconnector</code></td>
+<td><code>executemany</code> del driver si los tipos del lote son uniformes; si no, multi-fila</td>
+<td>3,7× sobre la vía multi-fila (500K filas, MariaDB 11.4)</td>
+</tr>
+<tr>
+<td>MySQL / MariaDB + otro driver</td>
+<td>INSERT multi-fila sub-loteado</td>
+<td>—</td>
+</tr>
+<tr>
+<td>SQL Server + pyodbc</td>
+<td><code>fast_executemany=True</code> (con ODBC Driver 17/18)</td>
+<td>~12× medido en SQL Server 2022 + ODBC Driver 18</td>
+</tr>
+<tr>
+<td>SQL Server + pymssql</td>
+<td><code>executemany</code> estándar (insertmanyvalues)</td>
+<td>— (~2.700 filas/s en INSERT; usa pyodbc para cargas masivas)</td>
+</tr>
+<tr>
+<td>Oracle, SQLite, HSQLDB</td>
+<td><code>executemany</code> estándar</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">MySQL/MariaDB con el conector <code>mariadb</code></p>
+<p>Con PyMySQL, <code>BulkCrud</code> usa el <code>executemany</code> del driver (P-02: unas 2 veces más rápido que la vía multi-fila
+anterior). Con el conector <code>mariadb</code> (<code>mariadbconnector</code>), el envío masivo del driver exige un tipo Python
+compatible en cada columna para todas las filas (falla con <code>bytes</code> y <code>str</code>, <code>int</code> y <code>float</code> o <code>datetime</code> y <code>date</code>).
+<code>BulkCrud</code> lo usa lote a lote solo si cada columna tiene un único tipo (sin contar <code>None</code>) y, si no, la vía
+multi-fila (PF-09: 3,7 veces más rápido con tipos uniformes).</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">SQL Server + pyodbc: versiones anteriores a la corrección de P-18</p>
+<p>Antes de la 0.12.0, <code>enable_fast_executemany=True</code> activaba <code>fast_executemany</code> solo en el cursor, a espaldas de
+SQLAlchemy: el INSERT no se aceleraba y <code>bulk_update_from_df</code> fallaba con columnas <code>DATETIME</code>. En esas versiones,
+crea el engine con <code>create_engine(..., fast_executemany=True)</code>.</p>
+</div>
+<h4 id="carga-paralela-por-particiones">Carga paralela por particiones<a class="headerlink" href="#carga-paralela-por-particiones" title="Permanent link">&para;</a></h4>
+<p>Cuando una sola tabla domina el tiempo, <code>ParallelBulkLoader</code> inserta particiones <strong>disjuntas</strong> en
+paralelo (una <code>BulkCrud</code> por hilo). El pool del engine debe tener capacidad ≥ <code>parallel.max_workers</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">util_bbdd.bulk</span><span class="w"> </span><span class="kn">import</span> <span class="n">BatchOptions</span><span class="p">,</span> <span class="n">ParallelBulkLoader</span><span class="p">,</span> <span class="n">ParallelOptions</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">loader</span> <span class="o">=</span> <span class="n">ParallelBulkLoader</span><span class="p">(</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">engine</span><span class="p">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">batch</span><span class="o">=</span><span class="n">BatchOptions</span><span class="p">(</span><span class="n">chunk_size</span><span class="o">=</span><span class="mi">5_000</span><span class="p">,</span> <span class="n">commit_every_n_chunks</span><span class="o">=</span><span class="mi">20</span><span class="p">),</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">parallel</span><span class="o">=</span><span class="n">ParallelOptions</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="mi">4</span><span class="p">),</span>  <span class="c1"># o mode="auto": los hilos según las mediciones de abajo</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="p">)</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">result</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">"ventas"</span><span class="p">,</span> <span class="n">partition_readers</span><span class="p">)</span>   <span class="c1"># un callable por partición disjunta</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">total_rows</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">partition_errors</span><span class="p">)</span>
+</span></code></pre></div>
+<p>Escalado de <code>load()</code> con 4 particiones, 1 hilo frente a 4 (tabla de 10 columnas, servidores en Docker local; v0.26.0,
+lote por motor; mediana de 2–3 repeticiones; <code>.ai/sessions/2026-10-01q-docs-parallel-pg/</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Motor (driver)</th>
+<th>200K: 1 hilo</th>
+<th>200K: 4 hilos</th>
+<th>Aceleración</th>
+<th>1M: 1 hilo</th>
+<th>1M: 4 hilos</th>
+<th>Aceleración</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PostgreSQL 17 (psycopg 3)</td>
+<td>0,77 s</td>
+<td>0,66 s</td>
+<td>1,18×</td>
+<td>3,42 s</td>
+<td>3,26 s</td>
+<td>1,05×</td>
+</tr>
+<tr>
+<td>MySQL 8.4 (PyMySQL)</td>
+<td>3,39 s</td>
+<td>1,86 s</td>
+<td>1,82×</td>
+<td>15,74 s</td>
+<td>9,14 s</td>
+<td>1,72×</td>
+</tr>
+<tr>
+<td>MariaDB 11.4 (PyMySQL)</td>
+<td>3,01 s</td>
+<td>1,83 s</td>
+<td>1,64×</td>
+<td>14,98 s</td>
+<td>9,13 s</td>
+<td>1,64×</td>
+</tr>
+<tr>
+<td>SQL Server 2022 (pyodbc)</td>
+<td>3,12 s</td>
+<td>1,14 s</td>
+<td>2,76×</td>
+<td>14,64 s</td>
+<td>5,38 s</td>
+<td>2,72×</td>
+</tr>
+<tr>
+<td>Oracle 23 Free (oracledb)</td>
+<td>1,88 s</td>
+<td>1,62 s</td>
+<td>1,16×</td>
+<td>10,46 s</td>
+<td>9,18 s</td>
+<td>1,14×</td>
+</tr>
+<tr>
+<td>SQLite</td>
+<td>1,43 s</td>
+<td>1,65 s</td>
+<td>0,87×</td>
+<td>6,93 s</td>
+<td>7,08 s</td>
+<td>0,98×</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>PostgreSQL con psycopg 3 no gana con hilos</strong>: el cuello de botella es el cliente (psycopg2 y PyMySQL sí escalan por la
+  misma red; en el UPDATE fila a fila, 4 hilos fueron 2,2× más lentos que 1). Mecanismo probable, sin confirmar:
+  contención del GIL en el bucle de E/S de psycopg 3 (spikes S-1 y S-3 de <code>.ai/sessions/2026-10-01l-plan-bulk-pending/</code>). Usa <code>ParallelOptions(max_workers=1)</code> o <code>bulk_insert_from_df</code>; con <code>mode="auto"</code>, el INSERT de PostgreSQL va en serie. Con procesos la fase de
+  inserción sí escala (1M: 1,25 s con 4 procesos), pero a 1M filas el arranque de cada proceso (1,3–1,8 s en Windows) se
+  come la ganancia; <code>ParallelBulkLoader</code> no usa procesos.</li>
+<li><strong>Oracle</strong> apenas gana (≈ 1,15×); la causa no se ha medido.</li>
+<li>Hasta v0.25.x esta tabla (medida el 2026-09-24, antes del INSERT por tuplas y los lotes por motor) daba 2,6× en
+  PostgreSQL: lo que escalaba era un envío más lento con un hilo (2,65 s con 200K frente a 0,77 s hoy).</li>
+</ul>
+<p>SQLite admite un solo escritor a la vez: en paralelo no gana nada. Desde v3.0.0 <code>ParallelBulkLoader</code> usa un solo hilo con SQLite (con un WARNING si se pidieron más); hasta v2.x varios hilos daban <code>database is locked</code>.
+El coste de arranque de cada partición (su <code>BulkCrud</code> y la lectura de la estructura de la tabla) es de 1 a 66 ms
+según el motor, menos del 2% de la carga medida.</p>
+<h4 id="update-y-delete-en-paralelo-1m-filas">UPDATE y DELETE en paralelo (1M filas)<a class="headerlink" href="#update-y-delete-en-paralelo-1m-filas" title="Permanent link">&para;</a></h4>
+<p><code>ParallelBulkLoader.update()</code> y <code>.delete()</code> siguen el mismo modelo que <code>load()</code>: un lector por partición (disjuntas por
+PK) y una <code>BulkCrud</code> por hilo. Media de 2 repeticiones con 1M filas, tabla de 10 columnas y lotes de 5000 (servidores en
+Docker local, 2026-10-01):</p>
+<table>
+<thead>
+<tr>
+<th>Motor</th>
+<th>Operación</th>
+<th>1 hilo</th>
+<th>2 hilos</th>
+<th>4 hilos</th>
+<th>Mejor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PostgreSQL 17</td>
+<td>INSERT</td>
+<td>4,3 s</td>
+<td>3,7 s</td>
+<td>3,8 s</td>
+<td>1,2×</td>
+</tr>
+<tr>
+<td>PostgreSQL 17</td>
+<td>UPDATE</td>
+<td>10,8 s</td>
+<td>7,0 s</td>
+<td>6,9 s</td>
+<td>1,6×</td>
+</tr>
+<tr>
+<td>PostgreSQL 17</td>
+<td>DELETE</td>
+<td>1,8 s</td>
+<td>1,0 s</td>
+<td>0,9 s</td>
+<td>2,0×</td>
+</tr>
+<tr>
+<td>MySQL 8.4</td>
+<td>INSERT</td>
+<td>17,5 s</td>
+<td>10,6 s</td>
+<td>9,7 s</td>
+<td>1,8×</td>
+</tr>
+<tr>
+<td>MySQL 8.4</td>
+<td>UPDATE</td>
+<td>24,1 s</td>
+<td>16,1 s</td>
+<td>12,9 s</td>
+<td>1,9×</td>
+</tr>
+<tr>
+<td>MySQL 8.4</td>
+<td>DELETE</td>
+<td>7,2 s</td>
+<td>4,3 s</td>
+<td>4,3 s</td>
+<td>1,7×</td>
+</tr>
+<tr>
+<td>MariaDB 11.4</td>
+<td>INSERT</td>
+<td>16,4 s</td>
+<td>10,1 s</td>
+<td>9,6 s</td>
+<td>1,7×</td>
+</tr>
+<tr>
+<td>MariaDB 11.4</td>
+<td>UPDATE</td>
+<td>22,2 s</td>
+<td>14,0 s</td>
+<td>12,6 s</td>
+<td>1,8×</td>
+</tr>
+<tr>
+<td>MariaDB 11.4</td>
+<td>DELETE</td>
+<td>6,9 s</td>
+<td>4,5 s</td>
+<td>4,6 s</td>
+<td>1,5×</td>
+</tr>
+<tr>
+<td>SQL Server 2022 (pyodbc)</td>
+<td>INSERT</td>
+<td>15,4 s</td>
+<td>8,1 s</td>
+<td>5,9 s</td>
+<td>2,6×</td>
+</tr>
+<tr>
+<td>SQL Server 2022 (pyodbc)</td>
+<td>UPDATE</td>
+<td>22,8 s</td>
+<td>11,5 s</td>
+<td>8,2 s</td>
+<td>2,8×</td>
+</tr>
+<tr>
+<td>SQL Server 2022 (pyodbc)</td>
+<td>DELETE</td>
+<td>3,0 s</td>
+<td>1,8 s</td>
+<td>1,2 s</td>
+<td>2,5×</td>
+</tr>
+<tr>
+<td>Oracle 23 Free</td>
+<td>INSERT / UPDATE / DELETE</td>
+<td>10,3 / 16,2 / 18,1 s</td>
+<td>11,6 / 15,3 / 15,8 s</td>
+<td>11,1 / 17,4 / 19,5 s</td>
+<td>~1×</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>MySQL, MariaDB y PostgreSQL se saturan en 2 hilos; SQL Server, en 4. Oracle 23 Free usa como máximo 2 hilos de CPU:
+  no sirve para juzgar el paralelismo en Oracle.</li>
+<li>PostgreSQL sin privilegio <code>TEMP</code>: el UPDATE paralelo iría fila a fila y <strong>empeora</strong> con cada hilo (1M: 25,7 s con 1,
+  56,8 s con 4), así que <code>update()</code> usa un solo hilo y avisa.</li>
+<li>En <code>dump</code>, <code>parallel_pk_ranges</code> en MySQL/MariaDB casi duplicó el tiempo (cada hilo lee además del origen); aquí los
+  datos ya están en memoria.</li>
+<li>InnoDB puede dar deadlock (1213) entre particiones contiguas aunque sean disjuntas (medido: DELETE de 1M con 2 hilos).
+  UPDATE y DELETE por PK son idempotentes, así que <code>update()</code> y <code>delete()</code> reintentan los errores transitorios al menos 2
+  veces aunque <code>parallel.retry.max_retries</code> sea 0.</li>
+</ul>
+<h4 id="hilos-automaticos-modeauto-v300">Hilos automáticos (<code>mode="auto"</code>, v3.0.0)<a class="headerlink" href="#hilos-automaticos-modeauto-v300" title="Permanent link">&para;</a></h4>
+<p><code>ParallelPlanner</code> decide los hilos con las tablas anteriores (ver <a href="../../api/bulk_parallel/#planificador-parallelplanner-v300">API</a>).
+Validación de <code>BulkCrud(parallel=ParallelOptions(...))</code> en el banco (v3.0.0, sesión <code>2026-10-16f</code>; mediana de 2
+repeticiones; tabla de 10 columnas de <code>scripts/bench_bulk.py</code>; SQL Server con pyodbc + ODBC Driver 18):</p>
+<table>
+<thead>
+<tr>
+<th>Motor</th>
+<th>INSERT 50K: 1 → 4 hilos</th>
+<th>INSERT 200K: 1 → 4 hilos</th>
+<th><code>"auto"</code> con 1M: INSERT / UPDATE / DELETE</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PostgreSQL 17</td>
+<td>0,22 → 0,21 s (1,08×)</td>
+<td>0,80 → 0,69 s (1,16×)</td>
+<td>en serie / 1,59× (4) / 1,63× (4)</td>
+</tr>
+<tr>
+<td>MySQL 8.4</td>
+<td>1,11 → 0,61 s (1,82×)</td>
+<td>3,47 → 2,05 s (1,69×)</td>
+<td>1,77× (4) / 1,86× (4) / 1,95× (2)</td>
+</tr>
+<tr>
+<td>MariaDB 11.4</td>
+<td>0,95 → 0,56 s (1,68×)</td>
+<td>3,90 → 1,94 s (2,01×)</td>
+<td>1,64× (4) / 1,78× (4) / 1,55× (2)</td>
+</tr>
+<tr>
+<td>SQL Server 2022</td>
+<td>1,02 → 0,40 s (2,57×)</td>
+<td>2,93 → 1,21 s (2,42×)</td>
+<td>2,58× (4) / 2,82× (4) / 1,91× (4)</td>
+</tr>
+<tr>
+<td>Oracle 23 Free</td>
+<td>1,47 → 1,06 s (1,39×)</td>
+<td>6,24 → 3,29 s (1,89×)</td>
+<td>en serie / en serie / en serie</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Desde 50K filas el INSERT ya gana en MySQL, MariaDB y SQL Server: es el umbral de <code>"auto"</code> (antes de esta medición, 200K).</li>
+<li>
+<p>Oracle con el protocolo de <code>scripts/bench_parallel.py</code> (calentamiento y 5 tandas alternas; sesión <code>2026-10-16g</code>), mediana
+  y p25–p75 en segundos:</p>
+<table>
+<thead>
+<tr>
+<th>Filas</th>
+<th>Operación</th>
+<th>1 hilo</th>
+<th>2 hilos</th>
+<th>4 hilos</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200K</td>
+<td>INSERT</td>
+<td>1,90 (1,83–1,91)</td>
+<td>1,83 (1,78–2,10) · 1,04×</td>
+<td>2,03 (1,94–2,08) · 0,94×</td>
+</tr>
+<tr>
+<td>200K</td>
+<td>UPDATE</td>
+<td>2,93 (2,91–3,02)</td>
+<td>2,83 (2,83–2,96) · 1,03×</td>
+<td>2,81 (2,75–2,92) · 1,04×</td>
+</tr>
+<tr>
+<td>200K</td>
+<td>DELETE</td>
+<td>3,07 (3,01–3,09)</td>
+<td>2,67 (2,51–2,80) · 1,15×</td>
+<td>3,34 (3,23–3,46) · 0,92×</td>
+</tr>
+<tr>
+<td>1M</td>
+<td>INSERT</td>
+<td>10,55 (10,48–13,29)</td>
+<td>10,72 (10,46–11,08) · 0,98×</td>
+<td>10,55 (10,50–11,82) · 1,00×</td>
+</tr>
+<tr>
+<td>1M</td>
+<td>UPDATE</td>
+<td>16,40 (16,19–19,27)</td>
+<td>16,07 (15,91–17,05) · 1,02×</td>
+<td>17,21 (16,45–17,58) · 0,95×</td>
+</tr>
+<tr>
+<td>1M</td>
+<td>DELETE</td>
+<td>18,23 (17,47–19,91)</td>
+<td>16,19 (14,43–17,76) · 1,13×</td>
+<td>18,70 (17,29–21,19) · 0,97×</td>
+</tr>
+</tbody>
+</table>
+</li>
+</ul>
+<p>Oracle 23 Free (2 hilos de CPU como máximo) no gana en paralelo: <code>"auto"</code> lo deja en serie. Las ganancias de la tabla de
+  arriba (1,39× y 1,89× con 4 hilos) y un INSERT de 1M en serie de 27,3 s salieron de tandas sin calentamiento.</p>
+<h4 id="checkpoints-reanudacion-y-reintentos">Checkpoints, reanudación y reintentos<a class="headerlink" href="#checkpoints-reanudacion-y-reintentos" title="Permanent link">&para;</a></h4>
+<p>Con <code>commit_every_n_chunks</code> los lotes se confirman en orden: tras un fallo, <code>BulkCrud.last_operation_rows_committed</code> dice
+cuántas filas de la entrada quedaron confirmadas, y basta con reanudar desde ahí. En <code>ParallelBulkLoader</code>, cadencia y
+<code>parallel.retry.max_retries</code> se combinan: el reintento de una partición salta sus filas ya confirmadas (el lector debe devolver las
+filas en el mismo orden en cada llamada).</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">util_bbdd.bulk.options</span><span class="w"> </span><span class="kn">import</span> <span class="n">BatchOptions</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">crud</span> <span class="o">=</span> <span class="n">BulkCrud</span><span class="p">(</span><span class="n">engine</span><span class="p">,</span> <span class="n">batch</span><span class="o">=</span><span class="n">BatchOptions</span><span class="p">(</span><span class="n">commit_every_n_chunks</span><span class="o">=</span><span class="mi">20</span><span class="p">))</span>          <span class="c1"># commit cada 100K filas</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">try</span><span class="p">:</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">crud</span><span class="o">.</span><span class="n">bulk_insert_from_df</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">"ventas"</span><span class="p">,</span> <span class="n">generar_sql</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="k">except</span> <span class="n">SQLAlchemyError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">exc</span><span class="o">.</span><span class="n">__notes__</span><span class="p">)</span>                                   <span class="c1"># lote y filas donde falló</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">hechas</span> <span class="o">=</span> <span class="n">crud</span><span class="o">.</span><span class="n">last_operation_rows_committed</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="c1"># ...corregir la causa y reanudar sin duplicar:</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="n">crud</span><span class="o">.</span><span class="n">bulk_insert_from_df</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">hechas</span><span class="p">:],</span> <span class="s2">"ventas"</span><span class="p">,</span> <span class="n">generar_sql</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span></code></pre></div>
+<p>Medido con 1M filas y un fallo al 60 %: reanudar cuesta 0,94–1,07× la carga limpia; repetir la carga atómica, 1,6×.
+El precio del checkpoint es la cadencia:</p>
+<table>
+<thead>
+<tr>
+<th>INSERT 1M</th>
+<th>atómico</th>
+<th>commit cada 20 lotes</th>
+<th>cada 5 lotes</th>
+<th>rollback de 1M (atómico)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQLite</td>
+<td>6,9 s</td>
+<td>+14 %</td>
+<td>+31 %</td>
+<td>0,06 s</td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td>5,4 s</td>
+<td>±5 %</td>
+<td>±5 %</td>
+<td>0,001 s</td>
+</tr>
+<tr>
+<td>MySQL</td>
+<td>17,4 s</td>
+<td>±5 %</td>
+<td>+7 %</td>
+<td>2,35 s</td>
+</tr>
+<tr>
+<td>MariaDB</td>
+<td>16,3 s</td>
+<td>+12 %</td>
+<td>+22 %</td>
+<td>2,41 s</td>
+</tr>
+<tr>
+<td>SQL Server</td>
+<td>14,3 s</td>
+<td>±5 %</td>
+<td>+3 %</td>
+<td>1,58 s</td>
+</tr>
+<tr>
+<td>Oracle</td>
+<td>10,0 s</td>
+<td>±5 %</td>
+<td>+4 %</td>
+<td>0,48 s</td>
+</tr>
+</tbody>
+</table>
+<p>100K filas por commit (20 lotes de 5000) es un buen punto de partida para cargas reanudables; en SQLite cada commit es un
+<code>fsync</code>, así que conviene cadencias largas. El rollback se midió con el buffer pool caliente: bajo presión, MySQL advierte
+que deshacer una transacción grande puede tardar varias veces lo que la operación original.</p>
+<p>Reintentos de <code>ParallelBulkLoader</code>: solo errores transitorios, decididos por el código del error (desconexiones,
+deadlocks, lock wait timeout, serialización, timeouts), con espera exponencial y jitter (<code>parallel.retry.backoff</code>, por defecto
+<code>(0.5, 30.0)</code>). Los errores de datos, integridad, sintaxis o permisos no se reintentan.</p>
+<p>Detalle y políticas de particionado: <a href="../../functional/bulk_parallel_loading/">Carga Masiva Paralela (funcional)</a>,
+<a href="../../api/bulk_parallel/">API ParallelBulkLoader</a> y el ejemplo <a href="../../examples/parallel_bulk_insert/">Carga Masiva Paralela</a>.
+Para medir el impacto de la cadencia de commit, ver el ejemplo <a href="../../examples/benchmark_commit_cadence/">Commit Cadence</a>.</p>
+<h3 id="banco-de-pruebas-contra-motores-reales">Banco de pruebas contra motores reales<a class="headerlink" href="#banco-de-pruebas-contra-motores-reales" title="Permanent link">&para;</a></h3>
+<p><code>scripts/bench_bulk.py</code> mide <code>bulk_insert_from_df</code>, <code>bulk_update_from_df</code> y <code>bulk_delete_from_df</code> (con
+<code>generar_sql=False</code>) por motor × variante × tamaño × repetición. Después de cada operación comprueba el resultado con
+SQL (número de filas y suma de una columna), así que una variante más rápida pero incorrecta aparece como error.
+Una operación que falla se registra y el banco continúa.</p>
+<p><strong>Apunta siempre a una base de datos de pruebas.</strong> El banco solo crea y elimina tablas <code>zz_util_bbdd_*</code>, pero lo hace
+en la base de la URL.</p>
+<p>Los servidores de <code>docker-compose.bench.yml</code> son independientes de cualquier otro de la máquina.
+<code>docker-compose.yml</code> lo incluye con el mismo proyecto, así que desde la raíz del repositorio basta con
+<code>docker compose up -d --wait postgres</code> (o sin nombre de servicio, para los 5 motores).</p>
+<ul>
+<li><strong>Proyecto propio</strong>: <code>util_bbdd_bench</code>. Un PostgreSQL de desarrollo que ya tengas en el 5432 (p.ej. el <code>postgres_db</code>
+  que definía el antiguo <code>docker-compose.yml</code>, en el proyecto <code>util_bbdd</code>) queda fuera: compose no lo ve ni lo toca.</li>
+<li><strong>Contenedores y datos propios</strong>: volúmenes anónimos, que se borran con <code>down -v</code>.</li>
+<li><strong>Puertos no estándar</strong>: solo accesibles desde esta máquina (<code>127.0.0.1</code>).</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Motor</th>
+<th>Contenedor</th>
+<th>Puerto (variable para cambiarlo)</th>
+<th>Base de datos</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PostgreSQL 17</td>
+<td><code>util_bbdd_bench_postgres</code></td>
+<td>55432 (<code>UTIL_BBDD_BENCH_POSTGRES_PORT</code>)</td>
+<td><code>bench</code></td>
+</tr>
+<tr>
+<td>MySQL 8.4</td>
+<td><code>util_bbdd_bench_mysql</code></td>
+<td>53306 (<code>UTIL_BBDD_BENCH_MYSQL_PORT</code>)</td>
+<td><code>bench</code></td>
+</tr>
+<tr>
+<td>MariaDB 11.4</td>
+<td><code>util_bbdd_bench_mariadb</code></td>
+<td>53307 (<code>UTIL_BBDD_BENCH_MARIADB_PORT</code>)</td>
+<td><code>bench</code>; además, <code>bench</code> puede crear y borrar bases <code>zz_util_bbdd_*</code> (lo necesita <code>test_update_auto_increment_mariadb.py</code>)</td>
+</tr>
+<tr>
+<td>SQL Server 2022</td>
+<td><code>util_bbdd_bench_mssql</code></td>
+<td>51433 (<code>UTIL_BBDD_BENCH_MSSQL_PORT</code>)</td>
+<td><code>bench</code> (la crea el healthcheck)</td>
+</tr>
+<tr>
+<td>Oracle 23 Free</td>
+<td><code>util_bbdd_bench_oracle</code></td>
+<td>51521 (<code>UTIL_BBDD_BENCH_ORACLE_PORT</code>)</td>
+<td>PDB <code>FREEPDB1</code>, usuario <code>bench</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>scripts/bench_bulk.py</code> avisa en el log si la URL de un motor usa su puerto estándar (5432, 3306, 1433, 1521), porque
+entonces suele apuntar a otro servidor.</p>
+<ol>
+<li>
+<p>Levanta los motores que necesites. <code>docker-compose.bench.yml</code> no guarda ninguna contraseña: la lee de
+   <code>UTIL_BBDD_BENCH_PASSWORD</code>.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">UTIL_BBDD_BENCH_PASSWORD</span><span class="o">=</span>...<span class="w">          </span><span class="c1"># PowerShell: $env:UTIL_BBDD_BENCH_PASSWORD="..."</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.bench.yml<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>--wait<span class="w"> </span>postgres<span class="w"> </span>mysql<span class="w"> </span>mariadb<span class="w"> </span>mssql<span class="w"> </span>oracle
+</span></code></pre></div>
+</li>
+<li>
+<p>Define una URL por motor en <code>UTIL_BBDD_BENCH_&lt;MOTOR&gt;_URL</code>. Si no existe, se usa <code>UTIL_BBDD_TEST_&lt;MOTOR&gt;_URL</code>,
+   la misma de los tests de integración. SQLite no necesita URL. Las plantillas del repositorio definen las dos series
+   para los contenedores anteriores (y respetan los puertos cambiados), sin guardar la contraseña:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">source</span><span class="w"> </span>scripts/bench_env.example.sh<span class="w">          </span><span class="c1"># PowerShell: . scripts\bench_env.example.ps1</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Motor</th>
+<th>Variable</th>
+<th>URL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PostgreSQL</td>
+<td><code>UTIL_BBDD_BENCH_POSTGRESQL_URL</code></td>
+<td><code>postgresql+psycopg://bench:&lt;clave&gt;@127.0.0.1:55432/bench</code></td>
+</tr>
+<tr>
+<td>MySQL</td>
+<td><code>UTIL_BBDD_BENCH_MYSQL_URL</code></td>
+<td><code>mysql+pymysql://bench:&lt;clave&gt;@127.0.0.1:53306/bench</code></td>
+</tr>
+<tr>
+<td>MariaDB</td>
+<td><code>UTIL_BBDD_BENCH_MARIADB_URL</code></td>
+<td><code>mariadb+pymysql://bench:&lt;clave&gt;@127.0.0.1:53307/bench</code></td>
+</tr>
+<tr>
+<td>SQL Server</td>
+<td><code>UTIL_BBDD_BENCH_MSSQL_URL</code></td>
+<td><code>mssql+pymssql://sa:&lt;clave&gt;@127.0.0.1:51433/bench</code></td>
+</tr>
+<tr>
+<td>Oracle</td>
+<td><code>UTIL_BBDD_BENCH_ORACLE_URL</code></td>
+<td><code>oracle+oracledb://bench:&lt;clave&gt;@127.0.0.1:51521/?service_name=FREEPDB1</code></td>
+</tr>
+</tbody>
+</table>
+<p>Usa <code>127.0.0.1</code> y no <code>localhost</code>: los puertos solo escuchan en IPv4 y en Windows <code>localhost</code> puede resolverse
+primero a <code>::1</code>. Para SQL Server con pyodbc (necesario para <code>fast_executemany</code>, con el <strong>ODBC Driver 17 o 18 de
+Microsoft</strong>; con el driver antiguo <code>SQL Server</code> de Windows no hay aceleración):
+<code>mssql+pyodbc://sa:&lt;clave&gt;@127.0.0.1:51433/bench?driver=ODBC+Driver+18+for+SQL+Server&amp;TrustServerCertificate=yes</code>.</p>
+</li>
+<li>
+<p>Ejecuta el banco:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python<span class="w"> </span>scripts/bench_bulk.py<span class="w">                                             </span><span class="c1"># motores con URL, 1K–1M, 3 repeticiones</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>python<span class="w"> </span>scripts/bench_bulk.py<span class="w"> </span>--engines<span class="w"> </span>postgresql,mysql<span class="w"> </span>--sizes<span class="w"> </span><span class="m">1000</span>,100000<span class="w"> </span>--repeat<span class="w"> </span><span class="m">1</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>python<span class="w"> </span>scripts/bench_bulk.py<span class="w"> </span>--ops<span class="w"> </span>insert<span class="w"> </span>--memory<span class="w">                       </span><span class="c1"># pico de memoria (tracemalloc, más lento)</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>python<span class="w"> </span>scripts/bench_bulk.py<span class="w"> </span>--list-variants
+</span></code></pre></div>
+</li>
+</ol>
+<p>Cada ejecución escribe en <code>bench_results/&lt;fecha&gt;/</code> (ignorado por git):</p>
+<table>
+<thead>
+<tr>
+<th>Fichero</th>
+<th>Contenido</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>summary.md</code></td>
+<td>Mediana por motor × operación × filas × variante, filas/s y aceleración frente a <code>baseline</code></td>
+</tr>
+<tr>
+<td><code>results.csv</code></td>
+<td>Una fila por medición, con el error si la operación falló</td>
+</tr>
+<tr>
+<td><code>environment.json</code></td>
+<td>Versiones de Python, pandas, SQLAlchemy, driver y servidor; URLs sin contraseña</td>
+</tr>
+<tr>
+<td><code>audit.csv</code></td>
+<td>CSV de la auditoría integrada de <code>BulkCrud</code></td>
+</tr>
+</tbody>
+</table>
+<p>Variantes A/B disponibles (cada una se aplica solo a los motores indicados):</p>
+<table>
+<thead>
+<tr>
+<th>Variante</th>
+<th>Motores</th>
+<th>Qué cambia</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>baseline</code></td>
+<td>todos</td>
+<td><code>BulkCrud</code> por defecto</td>
+</tr>
+<tr>
+<td><code>mysql-multirow-legacy</code></td>
+<td>MySQL, MariaDB</td>
+<td><code>insert_resolver</code> con la vía multi-fila anterior a P-02 (control)</td>
+</tr>
+<tr>
+<td><code>mysql-update-executemany-legacy</code></td>
+<td>MySQL, MariaDB</td>
+<td><code>ExecutionOptions(update_via_staging=False)</code>: UPDATE fila a fila anterior a P-04 (control)</td>
+</tr>
+<tr>
+<td><code>p01-mssql-engine-fast-executemany</code></td>
+<td>SQL Server + pyodbc</td>
+<td><code>create_engine(..., fast_executemany=True)</code></td>
+</tr>
+</tbody>
+</table>
+<p>La reflexión de la tabla queda fuera de la medición. Los nombres de tabla y columnas siguen la convención de
+<code>BulkCrud</code> para cada motor: mayúsculas en SQL Server y minúsculas en el resto.</p>
+<h3 id="banco-de-la-carga-paralela-scriptsbench_parallelpy">Banco de la carga paralela (<code>scripts/bench_parallel.py</code>)<a class="headerlink" href="#banco-de-la-carga-paralela-scriptsbench_parallelpy" title="Permanent link">&para;</a></h3>
+<p>Mide <code>BulkCrud</code> en serie frente a <code>ParallelOptions(mode="manual", max_workers=N)</code> (INSERT → UPDATE → DELETE) para validar
+o actualizar las reglas de <code>ParallelPlanner.RULES</code>. Mismas URLs que <code>scripts/bench_bulk.py</code>; SQL Server con pyodbc +
+ODBC Driver 18 salvo <code>--mssql-driver url</code>. Protocolo: una tanda de calentamiento descartada, las configuraciones de hilos
+<strong>alternadas</strong> en cada repetición (1, 2, 4 y luego 4, 2, 1) y, por configuración, mediana y rango intercuartílico. La
+columna «Gana» aplica el criterio del planificador: mediana ≥ 1,5× y sin solape de los rangos intercuartílicos.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">source</span><span class="w"> </span>scripts/bench_env.example.sh
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>python<span class="w"> </span>scripts/bench_parallel.py<span class="w"> </span>--engines<span class="w"> </span>oracle<span class="w"> </span>--rows<span class="w"> </span><span class="m">200000</span>,1000000<span class="w"> </span>--workers<span class="w"> </span><span class="m">2</span>,4<span class="w"> </span>--repeat<span class="w"> </span><span class="m">5</span><span class="w"> </span>--out<span class="w"> </span>build/logs/bench_parallel.md
+</span></code></pre></div>
+<p>Al cambiar una regla, actualiza su <code>evidence</code> en <code>parallel_planner.py</code>, la tabla de
+<a href="../../api/bulk_parallel/#planificador-parallelplanner-v300"><code>ParallelPlanner</code></a> y esta guía.</p>
+<h3 id="banco-de-comparacion-de-esquemas">Banco de comparación de esquemas<a class="headerlink" href="#banco-de-comparacion-de-esquemas" title="Permanent link">&para;</a></h3>
+<p><code>scripts/bench_compare.py</code> mide <code>SchemaComparator.compare()</code> entre dos esquemas del mismo servidor (<code>cmp_src</code> y
+<code>cmp_tgt</code>), con todas las opciones, sin y con <code>include_routines</code>. Para cada motor da el mejor tiempo de <code>--repeat</code>
+ejecuciones, el número de sentencias que llegan al driver y el número de diferencias encontradas: una optimización que
+cambie el resultado se ve en la misma tabla. Usa los contenedores de arriba y <code>UTIL_BBDD_BENCH_PASSWORD</code>, sin URLs.</p>
+<p><strong><code>setup</code> y <code>teardown</code> borran <code>cmp_src</code>/<code>cmp_tgt</code> con todo su contenido</strong> (esquemas en PostgreSQL y SQL Server, bases en
+MySQL/MariaDB, usuarios en Oracle).</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>python<span class="w"> </span>scripts/bench_compare.py<span class="w"> </span>setup<span class="w"> </span>--tables<span class="w"> </span><span class="m">200</span><span class="w">                     </span><span class="c1"># los 5 motores; --engines para elegir</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>python<span class="w"> </span>scripts/bench_compare.py<span class="w"> </span>run<span class="w"> </span>--repeat<span class="w"> </span><span class="m">3</span><span class="w"> </span>--out<span class="w"> </span>bench_results/compare
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>python<span class="w"> </span>scripts/bench_compare.py<span class="w"> </span>run<span class="w"> </span>--engines<span class="w"> </span>mssql<span class="w"> </span>--mssql-driver<span class="w"> </span>pyodbc
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>python<span class="w"> </span>scripts/bench_compare.py<span class="w"> </span>teardown
+</span></code></pre></div>
+<p>Con 200 tablas, 20 vistas y 20 funciones por esquema, el resultado esperado es 20 tablas con diferencias (columna
+<code>extra</code> en el 10 %), 20 vistas y, con routines, las funciones cambiadas. Referencia (auditoría de <code>comparar</code>,
+2026-10-02, con routines):</p>
+<table>
+<thead>
+<tr>
+<th>Motor</th>
+<th>Antes</th>
+<th>Después</th>
+<th>Sentencias</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PostgreSQL 17</td>
+<td>4,23 s</td>
+<td>0,18 s</td>
+<td>2.450 → 62</td>
+</tr>
+<tr>
+<td>Oracle 23 Free</td>
+<td>5,18 s</td>
+<td>0,26 s</td>
+<td>2.086 → 58</td>
+</tr>
+<tr>
+<td>SQL Server 2022 (pymssql)</td>
+<td>12,23 s</td>
+<td>0,88 s</td>
+<td>2.852 → 456</td>
+</tr>
+<tr>
+<td>MariaDB 11.4</td>
+<td>1,24 s</td>
+<td>0,35 s</td>
+<td>488</td>
+</tr>
+<tr>
+<td>MySQL 8.4</td>
+<td>1,37 s</td>
+<td>0,43 s</td>
+<td>488</td>
+</tr>
+</tbody>
+</table>
+<h3 id="banco-de-extraccion-de-metadatos">Banco de extracción de metadatos<a class="headerlink" href="#banco-de-extraccion-de-metadatos" title="Permanent link">&para;</a></h3>
+<p><code>scripts/bench_metadata.py</code> mide cuánto le cuesta a cada flujo leer el catálogo (managers, <code>doc</code>, <code>comparar</code>,
+<code>migrate</code>, <code>dump</code>, <code>bulk</code>) con schemas de 50, 500 y 5000 tablas. Cuenta las sentencias de catálogo en los dos caminos
+de ejecución de la librería (el driver nativo de los managers y SQLAlchemy) y guarda, por medición, tiempos, memoria y
+las consultas más frecuentes y más lentas. Usa los contenedores de arriba y <code>UTIL_BBDD_BENCH_PASSWORD</code>, sin URLs.</p>
+<p><strong><code>setup</code> y <code>teardown</code> crean y borran <code>zz_md_&lt;N&gt;</code> (PostgreSQL), las bases <code>zz_util_bbdd_md_&lt;N&gt;</code> (MySQL, MariaDB, SQL
+Server) y los usuarios <code>ZZ_MD_&lt;N&gt;</code> (Oracle).</strong></p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>python<span class="w"> </span>scripts/bench_metadata.py<span class="w"> </span>setup<span class="w"> </span>--engines<span class="w"> </span>all<span class="w"> </span>--volumes<span class="w"> </span><span class="m">50</span>,500
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>python<span class="w"> </span>scripts/bench_metadata.py<span class="w"> </span>run<span class="w"> </span>--engines<span class="w"> </span>postgresql,sqlserver<span class="w"> </span>--volumes<span class="w"> </span><span class="m">50</span>,500<span class="w"> </span>--repeat<span class="w"> </span><span class="m">3</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>python<span class="w"> </span>scripts/bench_metadata.py<span class="w"> </span>run<span class="w"> </span>--engines<span class="w"> </span>oracle<span class="w"> </span>--volumes<span class="w"> </span><span class="m">5000</span><span class="w"> </span>--flows<span class="w"> </span>manager_scan<span class="w"> </span>--limit<span class="w"> </span><span class="m">20</span><span class="w"> </span>--repeat<span class="w"> </span><span class="m">1</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>python<span class="w"> </span>scripts/bench_metadata.py<span class="w"> </span>report<span class="w">        </span><span class="c1"># tablas Markdown desde bench_results/metadata/*.json</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>python<span class="w"> </span>scripts/bench_metadata.py<span class="w"> </span>teardown<span class="w"> </span>--engines<span class="w"> </span>all<span class="w"> </span>--volumes<span class="w"> </span><span class="m">50</span>,500
+</span></code></pre></div>
+<p>Referencia (baseline de v0.30.0, 2026-10-03, 500 tablas, tiempo de catálogo): leer columnas, índices, PK, FK y UK
+tabla a tabla con los managers cuesta 70 s en PostgreSQL 17, 121 s en SQL Server 2022 y 365 s en Oracle 23 Free; la
+lectura por schema de <code>migrate</code> (9 consultas, incluye vistas y routines), 0,16 s, 0,22 s y 0,27 s. Detalle y causas en
+la sesión <code>2026-10-03-metadata-centralization</code> (ADR-003).</p>
+<h2 id="4-verificacion">4. Verificación<a class="headerlink" href="#4-verificacion" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Ejecutar benchmark de commit cadence incluido en docs/examples/</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>python<span class="w"> </span>docs/examples/benchmark_commit_cadence.py<span class="w"> </span>--size<span class="w"> </span>small
+</span></code></pre></div>
+<p>Output esperado (SQLite in-memory):</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Test 1: SIN cadencia — X.XXs
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>Test 2: CON cadencia — X.XXs
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>Speedup: ~1.07×
+</span></code></pre></div>
+<p>Con servidores reales la cadencia no acelera la carga a 1M filas (MariaDB +12 % con commit cada 20 lotes, ver
+«Checkpoints, reanudación y reintentos»): lo que aporta es acotar el undo log y poder reanudar tras un fallo.</p>
+<p>Para el pool (100 consultas concurrentes con <code>pool_size</code> de 5 y 20; <code>pool_size</code> va en <code>conn_params</code>):</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">util_bbdd</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncDatabaseManager</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="n">conn_params</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"host"</span><span class="p">:</span> <span class="s2">"127.0.0.1"</span><span class="p">,</span> <span class="s2">"port"</span><span class="p">:</span> <span class="mi">5432</span><span class="p">,</span> <span class="s2">"user"</span><span class="p">:</span> <span class="s2">"usr"</span><span class="p">,</span> <span class="s2">"password"</span><span class="p">:</span> <span class="s2">"pwd"</span><span class="p">,</span> <span class="s2">"database"</span><span class="p">:</span> <span class="s2">"mydb"</span><span class="p">}</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">benchmark_pool</span><span class="p">(</span><span class="n">pool_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>    <span class="k">async</span> <span class="k">with</span> <span class="n">AsyncDatabaseManager</span><span class="p">(</span><span class="s2">"postgresql"</span><span class="p">,</span> <span class="p">{</span><span class="o">**</span><span class="n">conn_params</span><span class="p">,</span> <span class="s2">"pool_size"</span><span class="p">:</span> <span class="n">pool_size</span><span class="p">})</span> <span class="k">as</span> <span class="n">mgr</span><span class="p">:</span>
+</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>        <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">mgr</span><span class="o">.</span><span class="n">execute_custom_one</span><span class="p">(</span><span class="s2">"SELECT 1"</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">100</span><span class="p">)))</span>
+</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>        <span class="n">elapsed</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">t0</span>
+</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"pool_size=</span><span class="si">{</span><span class="n">pool_size</span><span class="si">}</span><span class="s2">: 100 consultas en </span><span class="si">{</span><span class="n">elapsed</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> s (</span><span class="si">{</span><span class="mi">100</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">elapsed</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> consultas/s)"</span><span class="p">)</span>
+</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>
+</span><span id="__span-11-16"><a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>
+</span><span id="__span-11-17"><a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a><span class="k">for</span> <span class="n">size</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">20</span><span class="p">):</span>
+</span><span id="__span-11-18"><a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a>    <span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">benchmark_pool</span><span class="p">(</span><span class="n">size</span><span class="p">))</span>
+</span></code></pre></div>
+<p>Para el banco de pruebas de bulk, una ejecución corta solo con SQLite (no necesita servidor):</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>python<span class="w"> </span>scripts/bench_bulk.py<span class="w"> </span>--engines<span class="w"> </span>sqlite<span class="w"> </span>--sizes<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--repeat<span class="w"> </span><span class="m">1</span>
+</span></code></pre></div>
+<p>La columna <code>OK/Error</code> del resumen debe mostrar <code>1/0</code> en <code>insert</code>, <code>update</code> y <code>delete</code>. Los tests de integración de
+<code>BulkCrud</code> usan las mismas variables <code>UTIL_BBDD_TEST_&lt;MOTOR&gt;_URL</code> y se saltan los motores sin URL:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>tests/integration/test_bulk_engines.py
+</span></code></pre></div>
+<p><strong>MariaDB con sus dos drivers.</strong> La librería usa el conector original de MariaDB (MariaDB Connector/Python,
+<code>mariadb+mariadbconnector</code>) para <code>db_type="mariadb"</code>, y el banco define la URL de MariaDB con PyMySQL. Si el paquete
+<code>mariadb</code> está instalado, la integración ejecuta los tests de MariaDB con <strong>los dos</strong>: el motor <code>mariadb_connector</code> de
+<code>test_bulk_engines.py</code> y <code>test_bulk_audit_20261001.py</code> reutiliza <code>UTIL_BBDD_TEST_MARIADB_URL</code> cambiando el driver, y
+<code>test_mariadb_engine_e2e.py</code> (managers sync con el conector y async con aiomysql) y
+<code>test_update_auto_increment_mariadb.py</code> también lo cubren. Sin el paquete, esos casos se saltan con el motivo. No hay
+nada que configurar.</p>
+<p><code>bench_bulk.py</code> admite el motor <code>mariadb_connector</code> con la misma regla (o <code>UTIL_BBDD_BENCH_MARIADB_CONNECTOR_URL</code>).
+Medido con 1M filas (MariaDB 11.4.13, 3 repeticiones, <code>chunk_size</code> automático; sesión <code>2026-10-01x</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Operación</th>
+<th>PyMySQL</th>
+<th>MariaDB Connector/Python</th>
+<th>Diferencia</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>INSERT</td>
+<td>15,18 s</td>
+<td>7,97 s</td>
+<td>1,9× más rápido</td>
+</tr>
+<tr>
+<td>UPDATE (staging)</td>
+<td>21,49 s</td>
+<td>12,89 s</td>
+<td>1,67× más rápido</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td>6,76 s</td>
+<td>6,85 s</td>
+<td>igual</td>
+</tr>
+</tbody>
+</table>
+<p>Para cargas masivas en MariaDB, el conector original es la opción más rápida (y el que usa la librería para
+<code>db_type="mariadb"</code>).</p>
+<h2 id="5-variantes-y-solucion-de-problemas">5. Variantes y Solución de Problemas<a class="headerlink" href="#5-variantes-y-solucion-de-problemas" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Síntoma</th>
+<th>Causa probable</th>
+<th>Solución</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Latencia crece exponencialmente en bulk insert &gt; 1M filas</td>
+<td>Undo log de MariaDB/MySQL saturado</td>
+<td>Activar <code>commit_every_n_chunks=20</code> en <code>BulkCrud</code></td>
+</tr>
+<tr>
+<td>Error 1419 (<code>You do not have the SUPER privilege and binary logging is enabled</code>) al crear funciones en el MySQL del banco</td>
+<td>Contenedor creado antes de 0.23.1, sin <code>--log-bin-trust-function-creators=1</code> (el usuario <code>bench</code> no tiene <code>SUPER</code>)</td>
+<td><code>docker compose -f docker-compose.bench.yml up -d --wait mysql</code> lo recrea con la opción y conserva sus datos (sin <code>-V</code>)</td>
+</tr>
+<tr>
+<td><code>fast_executemany</code> no acelera en SQL Server</td>
+<td>pyodbc &lt; 4.0.28 o columnas <code>NVARCHAR(MAX)</code></td>
+<td>Actualizar pyodbc o desactivar con <code>ExecutionOptions(fast_executemany=False)</code></td>
+</tr>
+<tr>
+<td>Pool agotado bajo carga concurrente</td>
+<td><code>pool_size</code> insuficiente</td>
+<td>Aumentar <code>pool_size</code> en <code>conn_params</code> y medirlo con el ejemplo de «Verificación» (ver «Tamaño del pool de los managers»)</td>
+</tr>
+<tr>
+<td>PostgreSQL: <code>COPY</code> más lento que esperado</td>
+<td>psycopg3 no instalado (usa psycopg2)</td>
+<td><code>pip install psycopg[binary]</code> para instalar psycopg3</td>
+</tr>
+<tr>
+<td><code>bench_bulk.py</code> salta un motor con <code>SKIP ... sin URL</code></td>
+<td>Falta <code>UTIL_BBDD_BENCH_&lt;MOTOR&gt;_URL</code> (y <code>UTIL_BBDD_TEST_&lt;MOTOR&gt;_URL</code>)</td>
+<td>Definir la URL del servidor de pruebas</td>
+</tr>
+<tr>
+<td><code>bench_bulk.py</code> informa <code>no se pudo preparar el motor</code></td>
+<td>Driver no instalado, servidor caído o sin permiso de CREATE/DROP TABLE</td>
+<td>Revisar <code>environment.json</code>; el resto de motores se mide igualmente</td>
+</tr>
+<tr>
+<td><code>bulk_update_from_df</code> falla en SQL Server + pyodbc con <code>HY104 Invalid precision value</code></td>
+<td>Versión anterior a la corrección de P-18: tabla con columna <code>DATETIME</code> y <code>fast_executemany</code> activado a espaldas de SQLAlchemy</td>
+<td>Actualizar; en versiones anteriores, crear el engine con <code>create_engine(..., fast_executemany=True)</code> o usar <code>BulkCrud(..., enable_fast_executemany=False)</code></td>
+</tr>
+<tr>
+<td>WARNING <code>update_via_staging: el servidor deniega TEMP</code> y UPDATE lento en PostgreSQL</td>
+<td>El usuario no tiene el privilegio <code>TEMP</code> sobre la base de datos; <code>BulkCrud</code> ha vuelto al UPDATE fila a fila</td>
+<td><code>GRANT TEMP ON DATABASE &lt;bd&gt; TO &lt;usuario&gt;</code> para recuperar el UPDATE rápido, o <code>BulkCrud(..., execution=ExecutionOptions(update_via_staging=False))</code> para no intentarlo</td>
+</tr>
+<tr>
+<td>WARNING <code>update_via_staging: el servidor deniega CREATE TEMPORARY TABLES</code> y UPDATE lento en MySQL/MariaDB</td>
+<td>El usuario no tiene el privilegio <code>CREATE TEMPORARY TABLES</code>; <code>BulkCrud</code> ha vuelto al UPDATE fila a fila</td>
+<td><code>GRANT CREATE TEMPORARY TABLES ON &lt;bd&gt;.* TO &lt;usuario&gt;</code> para recuperar el UPDATE rápido (~12,5×), o <code>BulkCrud(..., execution=ExecutionOptions(update_via_staging=False))</code> para no intentarlo</td>
+</tr>
+<tr>
+<td>INSERT/UPDATE masivos lentos en SQL Server con <code>mssql+pymssql</code> (INFO en el log al crear <code>BulkCrud</code>)</td>
+<td>pymssql no tiene una vía masiva equivalente: ~2.700 filas/s en INSERT y ~1.800 en UPDATE</td>
+<td>Usar <code>mssql+pyodbc</code> con ODBC Driver 17/18 (~49.000 y ~33.500 filas/s). No usar <code>bulk_copy</code> de pymssql: no aplica CHECK ni claves foráneas y las marca como no confiables</td>
+</tr>
+<tr>
+<td>DELETE lento en SQL Server con lotes pequeños (1K–10K filas en décimas de segundo)</td>
+<td>Versión anterior a B-02: <code>DELETE … IN</code> con hasta 2000 parámetros, cuyo plan compila SQL Server por cada forma de sentencia. Desde B-02 el lote viaja en un parámetro JSON (<code>OPENJSON</code>): 10K filas 0,81 → 0,04 s</td>
+<td>Actualizar. Requiere nivel de compatibilidad ≥ 130 (SQL Server 2016); con uno menor se usa la vía anterior (INFO en el log). También se usa la vía anterior si alguna clave no cabe exactamente en el tipo de la PK (cadena más larga, no ASCII en <code>VARCHAR</code>, decimales de más, entero fuera de rango): en la 0.24.0 esas claves borraban otras filas</td>
+</tr>
+<tr>
+<td>DELETE falla en SQL Server con <code>07002 COUNT field incorrect</code> o error de sintaxis</td>
+<td>Versión anterior a la corrección de P-05: más de 2100 parámetros por lote (pyodbc) o PK compuesta</td>
+<td>Actualizar; en versiones anteriores, <code>BulkCrud(..., chunk_size=2000)</code> evita el límite de parámetros con PK simple</td>
+</tr>
+<tr>
+<td>INSERT o DELETE falla en MariaDB/MySQL con <code>Prepared statement contains too many placeholders</code></td>
+<td>Versión anterior a la corrección de P-13: conector <code>mariadb</code> y más de 65.535 parámetros por sentencia (INSERT con 66 columnas o más, o DELETE con lotes grandes)</td>
+<td>Actualizar; en versiones anteriores, usar <code>mariadb+pymysql</code> o reducir <code>chunk_size</code></td>
+</tr>
+<tr>
+<td>Tabla vacía o incompleta en PostgreSQL tras una carga con <code>commit_every_n_chunks</code>, sin ningún error</td>
+<td>Versión anterior a la corrección de P-27: el INSERT por el cursor del driver no iniciaba la transacción y el commit no hacía nada</td>
+<td>Actualizar y repetir la carga; en versiones anteriores, no usar <code>commit_every_n_chunks</code> con PostgreSQL</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Volver al principio
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Pie" >
+        
+          
+          <a href="../ddl_migration_guide/" class="md-footer__link md-footer__link--prev" aria-label="Anterior: Migración DDL entre Motores">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Anterior
+              </span>
+              <div class="md-ellipsis">
+                Migración DDL entre Motores
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../performance_readiness_guide/" class="md-footer__link md-footer__link--next" aria-label="Siguiente: Validación de Parámetros (EngineReadinessAdvisor)">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Siguiente
+              </span>
+              <div class="md-ellipsis">
+                Validación de Parámetros (EngineReadinessAdvisor)
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/fmanza/util_bbdd" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://pypi.org/project/util-bbdd/" target="_blank" rel="noopener" title="pypi.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["navigation.tabs","navigation.tabs.sticky","navigation.top","navigation.footer","content.code.copy","content.code.annotate","content.tabs.link","search.highlight","search.suggest","toc.follow"],"redirect":null,"search":"../../assets/javascripts/workers/search.c47bb847.min.js","tags":null,"translations":{"clipboard.copied":"Copiado al portapapeles","clipboard.copy":"Copiar al portapapeles","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 más en esta página","search.result.more.other":"# más en esta página","search.result.none":"No se encontraron documentos","search.result.one":"1 documento encontrado","search.result.other":"# documentos encontrados","search.result.placeholder":"Teclee para comenzar búsqueda","search.result.term.missing":"Falta","select.version":"Seleccionar versión"},"version":null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a2388154.min.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      
+        <script src="../../assets/js/mermaid.js"></script>
+      
+        <script src="../../assets/js/sidebar-toggle.js"></script>
+      
+    
+  </body>
+</html>

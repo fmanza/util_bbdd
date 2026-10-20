@@ -1,0 +1,22 @@
+/* Navegación lateral — rótulos de grupo de área (colapsables) con recuadro de fondo muy tenue.
+   Afecta a los grupos de área de Documentación Funcional, Referencia Técnica y Ejemplos
+   (p. ej. "Operaciones Bulk", "Sistema de Queries"), que por defecto Material pinta en
+   gris tenue de baja opacidad y costaba distinguir. Con navigation.sections desactivado,
+   estos grupos son plegables (clic en la flecha) y se marcan como --nested. */
+.md-nav__item--nested > .md-nav__link {
+  font-weight: 700;
+  color: var(--md-primary-fg-color);
+  background-color: color-mix(in srgb, var(--md-primary-fg-color) 12%, transparent);
+  border-radius: 4px;
+  padding: 0.25rem 0.55rem;
+  margin: 0.25rem 0 0.15rem;
+  opacity: 1;
+  line-height: 1.3;
+}
+
+/* En modo oscuro (slate) subimos algo el tinte y usamos texto claro para que el
+   título mantenga contraste sobre el fondo oscuro. */
+[data-md-color-scheme="slate"] .md-nav__item--nested > .md-nav__link {
+  background-color: color-mix(in srgb, var(--md-primary-fg-color) 28%, transparent);
+  color: #fff;
+}
