@@ -33,7 +33,7 @@ HSQLDB**. HSQLDB solo dispone de modo **síncrono** (sus factorías async lanzan
 | `hsqldb` | `jaydebeapi` | N/A (sin async) | `pip install jaydebeapi` + Java |
 
 Un extra se instala desde el repositorio (no está en PyPI):
-`pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v4.0.0"`.
+`pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v4.0.1"`.
 
 ### 3.2 Construir `conn_params` del motor
 
