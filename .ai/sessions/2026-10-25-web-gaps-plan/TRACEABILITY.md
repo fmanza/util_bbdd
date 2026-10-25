@@ -30,10 +30,11 @@ por fase, AUDIT_PLAN e instrucciones de ejecución.
   `uv.lock`); una release sin wheel bloquea a la web.
 - **[semver]**: G30 (`DumpConfig.truncate_target`, `dump/_models.py`) y G35 (`generar_sql`, `bulk/crud.py`) son
   cambios de valor por defecto: en 4.x solo `FutureWarning`.
-- **[progreso]**: el contrato de progreso y cancelación (G1) se propone en `audit/progress.py` para no añadir un
-  paquete de primer nivel ni cambiar el diagrama de capas.
+- **[progreso]**: el contrato de progreso y cancelación (G1) es un paquete público nuevo `progress/` en la capa 2
+  (`LAYER` de `scripts/gen_arquitectura_capas.py`): solo importa `_core` y lo usan las capas 6 y 7 (D1 aprobada).
+- **[seguridad]**: G11 (`get_database_info` con contraseña) se publica en MINOR como `security:` (D2).
 
 ## Veredicto final
 Veredicto: GO_CONDICIONAL
 Pendientes al cierre:
-- Aprobación de las decisiones D1-D5 del plan canónico.
+- D1-D5 aprobadas (2026-10-25). Queda el bench de integración antes de 4.1.0, 4.3.0 y 4.4.0.
