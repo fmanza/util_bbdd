@@ -302,6 +302,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-10-19-oracle-unique-index-all | Oracle, `disable_indexes="all"`: índices únicos sin constraint con DROP + `DBMS_METADATA.GET_DDL` o `"skipped"`; `IndexRebuildError.recovery_ddl`; diagnóstico de duplicados con `ROWNUM` (v4.0.0, `48e18fe9`; auditoría posterior en `fdd9d3fe`) | develop | new_feature | CLOSED | `2026-10-19-oracle-unique-index-all/TRACEABILITY.md` |
 | 2026-10-19b-docs-args-d4 | **v4.0.0**: D4 (`Args:` en 28 métodos sin autodoc), revisión de docs con los últimos cambios (`drivers.md`, `bulk_parallel.md`) y cierre de versión | develop | documentation + version-closure | CLOSED | `2026-10-19b-docs-args-d4/TRACEABILITY.md` |
 | 2026-10-20-ci-recovery | **v4.0.1**: CI de GitHub recuperado (repos públicos): mypy con pandas-stubs 3.0.5, recogida sin extras, dorado de SQLite sin ruta temporal, entorno `.[dev-full]` en el CI y cierre de versión | develop | hotfix + tech_debt + version-closure | CLOSED | `2026-10-20-ci-recovery/TRACEABILITY.md` |
+| 2026-10-25-web-gaps-plan | PLAN + AUDIT_PLAN para resolver los huecos detectados por util_bbdd_web (G1-G41) en 6 olas MINOR (4.1.0-4.6.0); plan canónico en util_bbdd_web | claude/practical-ride-44fot0 | new_feature | IN_PROGRESS | `2026-10-25-web-gaps-plan/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 
