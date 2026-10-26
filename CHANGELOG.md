@@ -13,6 +13,18 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   devuelven, en orden alfabético, los motores que admiten `source_engine` y `target_engine` (cualquier par de motores
   distintos está soportado). Hasta ahora solo estaban en las constantes privadas `_SUPPORTED_SOURCE`/`_SUPPORTED_TARGET`.
 
+### Fixed
+
+- **migrate** (G28 de util_bbdd_web): una columna FK podía recibir otro tipo destino que la columna que referencia, y
+  MariaDB/MySQL rechazaban la FK a mitad de `MigrationPlan.execute()` con las tablas anteriores ya creadas. Caso
+  típico: Oracle `INT` (`NUMBER` sin precisión) en PK y FK daba `INT(11)` en la PK (autoincremental) y `DOUBLE` en la
+  FK (`number_fallback`); en SQL Server y PostgreSQL, `INT`/`FLOAT` e `INTEGER`/`DOUBLE PRECISION`. Ahora, tras
+  transformar, cada columna FK con la tabla referenciada en el plan toma el tipo destino de la columna referenciada (en
+  una cadena, el del final), pierde el comentario y los avisos `TYPE` del tipo descartado y recibe un aviso
+  `FOREIGN_KEY` `FK_TYPE_ALIGNED` (`INFO`). Si no se puede (columna referenciada inexistente u omitida, o la misma
+  columna en dos FK hacia tipos distintos), aviso `FK_TYPE_UNRESOLVED` (`ERROR`), que impide `execute()` como cualquier
+  otro `ERROR`. Las FK externas no cambian. Nuevos valores de `WarningCode`: `FK_TYPE_ALIGNED` y `FK_TYPE_UNRESOLVED`.
+
 ## [4.2.0] - 2026-10-26
 
 SemVer: MINOR (añadidos, correcciones de seguridad y un arreglo de tests; sin cambios de API). Ola 2 del plan de huecos

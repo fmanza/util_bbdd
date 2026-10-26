@@ -195,7 +195,7 @@ Cada aviso (`MigrationWarning`) indica **qué** es con `category` y, cuando trat
 | `IDENTIFIER` | Nombre truncado al límite del destino | — |
 | `IDENTIFIER_CASE_COLLISION` | Nombres que solo difieren en mayúsculas | — |
 | `AUTO_INCREMENT` | Autoincrementales, secuencias e identidades | Tipo de la PK, si aplica |
-| `FOREIGN_KEY` | Claves foráneas (acciones no soportadas, FK aplazadas) | — |
+| `FOREIGN_KEY` | Claves foráneas (acciones no soportadas, FK aplazadas, tipo alineado con la columna referenciada) | — |
 | `INDEX` | Índices (p. ej. renombrados por colisión de nombre) | — |
 | `VIEW` | Vistas (reescritura, construcciones sin traducción) | — |
 | `ROUTINE` | Procedimientos, funciones y packages | — |
@@ -213,6 +213,8 @@ Cada aviso (`MigrationWarning`) indica **qué** es con `category` y, cuando trat
 | `AUTO_INCREMENT_NO_SEQUENCE` | `AUTO_INCREMENT` | Oracle destino sin `SEQUENCE`/`TRIGGER` para el autoincremental |
 | `FK_DEFERRED` | `FOREIGN_KEY` | FK de un ciclo, añadida con `ALTER TABLE` al final |
 | `FK_ON_UPDATE_IGNORED` | `FOREIGN_KEY` | `ON UPDATE` sin equivalente en Oracle |
+| `FK_TYPE_ALIGNED` | `FOREIGN_KEY` | La columna FK toma el tipo destino de la columna que referencia (`INFO`, 4.3.0) |
+| `FK_TYPE_UNRESOLVED` | `FOREIGN_KEY` | La columna FK no puede tomar ese tipo: referenciada inexistente u omitida, o dos FK hacia tipos distintos (`ERROR`, 4.3.0) |
 | `INDEX_EXPRESSION_SKIPPED` | `INDEX` | Índice sobre expresiones que no se migra (crearlo a mano) |
 | `VIEW_PASSTHROUGH` | `VIEW` | Vista copiada sin reescribir por la estrategia `"passthrough"` (o sin sqlglot) |
 | `VIEW_NOT_REWRITTEN` | `VIEW` | Vista sin traducción fiable, copiada sin reescribir (motivo en `message`) |

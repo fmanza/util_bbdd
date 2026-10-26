@@ -51,6 +51,8 @@ WarningCode = Literal[
     "AUTO_INCREMENT_NO_SEQUENCE",
     "FK_DEFERRED",
     "FK_ON_UPDATE_IGNORED",
+    "FK_TYPE_ALIGNED",
+    "FK_TYPE_UNRESOLVED",
     "VIEW_PASSTHROUGH",
     "VIEW_NOT_REWRITTEN",
     "VIEW_REWRITTEN",
@@ -81,6 +83,10 @@ salvo los de las categorías ``TYPE``, ``DEFAULT``, ``IDENTIFIER``, ``IDENTIFIER
 - ``AUTO_INCREMENT_NO_SEQUENCE`` (``AUTO_INCREMENT``): Oracle destino sin ``SEQUENCE``/``TRIGGER`` para el autoincremental.
 - ``FK_DEFERRED`` (``FOREIGN_KEY``): FK de un ciclo, añadida con ``ALTER TABLE`` al final.
 - ``FK_ON_UPDATE_IGNORED`` (``FOREIGN_KEY``): ``ON UPDATE`` sin equivalente en Oracle.
+- ``FK_TYPE_ALIGNED`` (``FOREIGN_KEY``, ``INFO``): la columna FK toma el tipo destino de la columna que referencia
+  (``target_type`` = ese tipo; 4.3.0).
+- ``FK_TYPE_UNRESOLVED`` (``FOREIGN_KEY``, ``ERROR``): la columna FK no puede tomar el tipo de la referenciada
+  (inexistente, omitida o dos referencias de tipos distintos; 4.3.0).
 - ``VIEW_PASSTHROUGH``: vista copiada sin reescribir por la estrategia ``"passthrough"`` (o sin sqlglot).
 - ``VIEW_NOT_REWRITTEN``: vista sin traducción fiable, copiada sin reescribir (el motivo va en ``message``).
 - ``VIEW_REWRITTEN``: vista reescrita con sqlglot (``INFO``, revisar la semántica).

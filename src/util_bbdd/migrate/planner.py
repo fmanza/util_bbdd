@@ -31,6 +31,7 @@ from .extractors.oracle import OracleSchemaExtractor
 from .extractors.postgresql import PostgreSQLSchemaExtractor
 from .extractors.sqlserver import SQLServerSchemaExtractor
 from .ir.models import CanonicalTable, CanonicalView, MigrationPlan, MigrationWarning
+from .transformers._fk_types import align_fk_types
 from .transformers.mariadb_to_mysql import MariaDBToMySQLTransformer
 from .transformers.mariadb_to_oracle import MariaDBToOracleTransformer
 from .transformers.mariadb_to_postgresql import MariaDBToPostgreSQLTransformer
@@ -416,6 +417,8 @@ class MigrationPlanner:
                 column.default = normalize_default(self._source_engine, column.default)
 
         transformed = transformer.transform(raw_tables)
+        # G28 (util_bbdd_web): la FK con el tipo destino de la columna referenciada, o ERROR si no se puede.
+        align_fk_types(transformed)
         transformed_views = self._transform_views(transformer, raw_views, raw_tables, transformed, schema)
         transformed_routines = transformer.transform_routines(raw_routines)
 
