@@ -379,6 +379,10 @@ class DumpResult:
             (fallo no recuperable en ``ConstraintManager.enable_all()``). Distinto de ``constraint_results``,
             que reporta fallos por-constraint/tabla. ``None`` si la reactivación fue exitosa.
             Si presente, aparece en la hoja "Errores de Reactivación" del informe Excel (con fondo rojo).
+        constraints_journal: Ruta del diario de constraints si sigue en ``output_dir`` al terminar (4.4.0): alguna
+            constraint no se pudo reactivar (SQL Server, PostgreSQL u Oracle). Reintentar con
+            ``restore_constraints(target_engine, ruta)`` tras corregir la causa. ``None`` si todo se reactivó o el
+            destino no lleva diario.
     """
 
     table_results: list[TableDumpResult]
@@ -391,6 +395,7 @@ class DumpResult:
     index_results: list[IndexActionResult] | None = None
     audit_run_id: str | None = None
     constraint_reactivation_error: str | None = None
+    constraints_journal: Path | None = None
 
     @property
     def rows_rejected(self) -> int:

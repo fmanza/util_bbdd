@@ -32,6 +32,7 @@ flowchart TD
 | `DumpOrchestrator` | `(config: DumpConfig)` | Crea los `Inspector` de origen y destino (SQLAlchemy abre una conexión a cada uno) y emite los avisos de configuración | `DumpOrchestrator` |
 | `run` | `()` | Ejecuta las 7 fases y retorna resultado completo | `DumpResult` |
 | `plan` | `()` | Vista previa sin escribir en el destino (4.4.0): orden de carga, ciclos, tablas sin destino, columnas por tabla y avisos | `DumpPlan` |
+| `restore_constraints` (función de `util_bbdd.dump`) | `(engine, journal)` | Reactiva lo que dejó desactivado un volcado interrumpido, a partir de su diario (4.4.0; ver abajo) | `list[ConstraintResult]` |
 
 #### Dataclass `DumpConfig` (parámetros principales)
 
@@ -73,6 +74,7 @@ flowchart TD
 | `index_results` | `list[IndexActionResult] \| None` | Resultado gestión índices; `None` si desactivado |
 | `audit_run_id` | `str \| None` | Identificador de la ejecución en los eventos de `audit_sink` |
 | `constraint_reactivation_error` | `str \| None` | Mensaje de error si falló la reactivación general de constraints en el destino (fallo no recuperable en `ConstraintManager.enable_all()`). Distinto de `constraint_results` (fallos por-tabla/constraint). Si presente, aparece en la hoja «Errores de Reactivación» del informe Excel (con fondo rojo) y el evento `run` de `audit_sink` es `failed` con el atributo `constraint_reactivation_failed=True`. `None` si la reactivación fue exitosa. Lleva el mensaje completo de la excepción (texto del driver: SQL, nombres de objetos), igual que los `error_msg` por tabla, constraint e índice: revisa el informe antes de compartirlo fuera del equipo |
+| `constraints_journal` | `Path \| None` | Ruta del diario de constraints si sigue en `output_dir` al terminar (4.4.0): alguna constraint no se pudo reactivar (SQL Server, PostgreSQL u Oracle). `None` si todo se reactivó o el destino no lleva diario |
 | `rows_rejected` | `int` (propiedad) | Con `on_error="isolate"`: filas apartadas al CSV de rechazos en todo el volcado (suma de `TableDumpResult.rows_rejected`, que también sale en la columna «Filas Rechazadas» de la hoja «Auditoría Tablas»). En una tabla con estado `error` (p. ej. `max_rejects` superado) no se copió nada, aunque cuente los rechazos que llegó a escribir |
 
 `total_filas` sale del CSV filtrado por la hora de inicio, así que incluye lo que otros procesos escriban en el mismo
@@ -107,6 +109,28 @@ for warning in plan.warnings:
     print(warning.code, warning.table, warning.message)
 if not any(w.code == "REQUIRED_TARGET_COLUMNS" for w in plan.warnings):
     result = DumpOrchestrator(config).run()
+```
+
+#### Diario de constraints y `restore_constraints` (4.4.0)
+
+En SQL Server, PostgreSQL y Oracle lo que el volcado desactiva queda desactivado en el catálogo si el proceso muere a
+mitad (timeout, `kill`). Antes de desactivar nada, `run()` escribe en `output_dir` el diario
+`constraints_journal.json` (motor, schema y tablas o constraints) y lo borra cuando todas se reactivan. Si el diario
+sigue ahí, `restore_constraints(engine, ruta)` reactiva cada entrada desde otro proceso, igual que el volcado al
+terminar, y borra el diario si ninguna falla. Es idempotente: reactivar lo ya activo no hace nada y, sin diario,
+devuelve `[]`. En MariaDB/MySQL la desactivación es de la sesión (`FOREIGN_KEY_CHECKS`) y muere con ella: no hay
+diario.
+
+- Un `run()` con un diario pendiente en su `output_dir` lanza `DumpConstraintError` antes de tocar el destino.
+- Una reactivación que falla (p. ej. filas que incumplen una FK) deja el diario y su ruta en
+  `DumpResult.constraints_journal`, para reintentar tras corregir los datos.
+- `ConstraintManager(engine, schema, journal_path=ruta)` hace lo mismo fuera del volcado.
+
+```python
+from util_bbdd.dump import restore_constraints
+
+results = restore_constraints(target_engine, "salida/constraints_journal.json")
+pendientes = [r for r in results if r.status == "failed"]
 ```
 
 ### Contrato de entrada
@@ -144,7 +168,8 @@ except DumpReportError as exc:
 | `SQLAlchemyError` | Al crear el `DumpOrchestrator`, si no se puede conectar al origen o al destino |
 | `ValueError` | Al crear `DumpConfig`: `chunk_size`, `commit_every_n_chunks`, `write_batch_size` o la combinación `on_error`/`rejects_csv_path`/`max_rejects` no válidos |
 | `DumpError` | En `run()` y `plan()`, si falla la lectura de las tablas de origen o destino (con el `SQLAlchemyError` en `__cause__`) |
-| `DumpConstraintError` (subclase de `DumpError`) | En `run()`, si no se pueden desactivar las constraints del destino. Un fallo al reactivarlas no se lanza: se registra como ERROR en el log |
+| `DumpConstraintError` (subclase de `DumpError`) | En `run()`, si no se pueden desactivar las constraints del destino, si no se puede escribir el diario o si ya hay uno pendiente en `output_dir` (4.4.0). Un fallo al reactivarlas no se lanza: se registra como ERROR en el log |
+| `ValueError` en `restore_constraints` | El fichero no es un diario válido o es de otro motor que el engine |
 | `DumpReportError` | No se pudo generar el informe Excel (directorio, permisos, fichero abierto, disco lleno). La carga ya terminó: `exc.result` lleva el `DumpResult` |
 | Error capturado en `TableDumpResult.error` | Fallo en carga de una tabla individual; el resto continúa |
 | Origen SQLite (WARNING al crear el orquestador) | SQLite no tiene tipos de columna: las fechas se leen como texto y los DECIMAL como `float`. Un destino servidor convierte las fechas; con destino SQLite, las tablas con columnas de fecha terminan en `error`. Los DECIMAL pueden perder precisión |

@@ -478,3 +478,43 @@ def test_dump_isolate_narrower_target_column(setup: Setup, request: pytest.Fixtu
         r.error_msg for r in result.table_results
     ]
     assert _ids(setup) == [1, 2, 5, 6, 7, 10]
+
+
+# ------------------------------------------------------- U-V3: diario de constraints (G31 de util_bbdd_web, 4.4.0)
+
+
+def _fk_enabled(engine: Engine, table: str) -> bool:
+    """``True`` si la FK de ``table`` está activa en el catálogo del destino."""
+    sql = {
+        "mssql": "SELECT is_disabled FROM sys.foreign_keys WHERE parent_object_id = OBJECT_ID(:t)",
+        "oracle": "SELECT status FROM user_constraints WHERE table_name = UPPER(:t) AND constraint_type = 'R'",
+        "postgresql": "SELECT tgenabled FROM pg_trigger WHERE tgrelid = CAST(:t AS regclass) AND tgisinternal",
+    }[engine.dialect.name]
+    with engine.connect() as conn:
+        states = [row[0] for row in conn.execute(text(sql), {"t": table})]
+    assert states, f"sin FK en {table}"
+    enabled = {"mssql": lambda s: not s, "oracle": lambda s: s == "ENABLED", "postgresql": lambda s: s == "O"}
+    return all(enabled[engine.dialect.name](s) for s in states)
+
+
+@pytest.mark.parametrize("setup", _target_params(only=frozenset({"postgresql", "mssql", "oracle"})), indirect=True)
+def test_restore_constraints_after_an_interrupted_dump(setup: Setup, request: pytest.FixtureRequest) -> None:
+    """Proceso interrumpido simulado: se desactiva con diario y no se reactiva; ``restore_constraints`` lo deja todo."""
+    from util_bbdd.dump import ConstraintManager, restore_constraints
+
+    parent, child = _parent_child(setup.target, setup.prefix, identity=False)
+    _create(request, setup.target, parent)
+    _create(request, setup.target, child)
+    journal = setup.tmp / "constraints_journal.json"
+
+    ConstraintManager(setup.target, setup.target_schema, journal_path=journal).disable_all([parent.name, child.name])
+
+    assert journal.exists()
+    assert not _fk_enabled(setup.target, child.name)
+
+    results = restore_constraints(create_engine(setup.target.url), journal)  # otro proceso, otro engine
+
+    assert results and all(r.status == "enabled" for r in results), results
+    assert _fk_enabled(setup.target, child.name)
+    assert not journal.exists()
+    assert restore_constraints(setup.target, journal) == []

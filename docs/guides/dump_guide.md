@@ -100,6 +100,7 @@ El volcado es correcto cuando: `errores` está vacío, `result.report` apunta a 
 | Duplicados tras el volcado | `truncate_target=False` (append) sobre datos ya existentes | Usa `truncate_target=True` para un full refresh |
 | Volcado lento con millones de filas | Carga secuencial y atómica por defecto | Activa palancas opt-in (ver abajo) |
 | `DumpReportError` al terminar | No se pudo escribir el Excel (permisos, fichero abierto, disco lleno); la carga ya se hizo | Recuperar el resultado de `exc.result` y revisar `exc.output_path` |
+| `DumpConstraintError` «Hay un diario de constraints pendiente» (4.4.0) | Un volcado anterior con el mismo `output_dir` murió a mitad (SQL Server, PostgreSQL, Oracle) y pudo dejar constraints desactivadas | `restore_constraints(target_engine, "reports/constraints_journal.json")` y repetir el volcado ([detalle](../api/dump.md)) |
 
 **Palancas de rendimiento (opt-in, todas desactivadas por defecto y combinables):**
 

@@ -27,7 +27,7 @@ Ejemplo básico::
 """
 
 from .._core.exceptions import DumpConstraintError, DumpError, DumpReportError
-from ._constraints import ConstraintManager, ConstraintResult
+from ._constraints import ConstraintManager, ConstraintResult, restore_constraints
 from ._indexes import IndexManager
 from ._models import (
     DumpAuditSummary,
@@ -63,4 +63,5 @@ __all__: list[str] = [
     "IndexManager",
     "PKSyncResult",
     "TableDumpResult",
+    "restore_constraints",
 ]

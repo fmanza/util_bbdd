@@ -61,7 +61,7 @@ from util_bbdd.bulk.options import (
     RejectOptions,
 )
 
-from .._core.exceptions import AuditError, DumpError, DumpReportError
+from .._core.exceptions import AuditError, DumpConstraintError, DumpError, DumpReportError
 from ..bulk._support.secondary_indexes import resolve_index_mode
 from ..connection.performance_advisor import EngineReadinessAdvisor
 from ..metadata.reflection import (
@@ -73,7 +73,13 @@ from ..metadata.reflection import (
 )
 from . import _audit_summary, _fk_graph
 from ._audit_events import DumpAuditEvents, DumpAuditWriter
-from ._constraints import _SUPPORTED_DIALECTS as _SUPPORTED_CONSTRAINT_DIALECTS, ConstraintManager, ConstraintResult
+from ._constraints import (
+    _JOURNALED_DIALECTS,
+    _SUPPORTED_DIALECTS as _SUPPORTED_CONSTRAINT_DIALECTS,
+    JOURNAL_FILENAME,
+    ConstraintManager,
+    ConstraintResult,
+)
 from ._indexes import IndexManager
 from ._models import (
     DumpAuditSummary,
@@ -415,7 +421,10 @@ class DumpOrchestrator:
         cfg = self._cfg
         table_results: list[TableDumpResult] = []
         constraint_mgr = ConstraintManager(
-            cfg.target_engine, cfg.target_schema, validate_fks_after=cfg.validate_fks_after
+            cfg.target_engine,
+            cfg.target_schema,
+            validate_fks_after=cfg.validate_fks_after,
+            journal_path=self._constraints_journal_path(),
         )
         index_mgr: IndexManager | None = None
 
@@ -467,6 +476,24 @@ class DumpOrchestrator:
             for table in missing_in_dst
         )
         return table_results, index_mgr, crud, constraint_mgr
+
+    def _constraints_journal_path(self) -> Path | None:
+        """Ruta del diario de constraints (G31, 4.4.0) si el destino lo lleva; ``None`` si no.
+
+        Raises:
+            DumpConstraintError: Si ya hay un diario en ``output_dir``: un volcado anterior no terminó y puede haber
+                dejado constraints desactivadas. Se comprueba antes de tocar el destino.
+        """
+        if self._cfg.target_engine.dialect.name not in _JOURNALED_DIALECTS:
+            return None
+        path = self._cfg.output_dir / JOURNAL_FILENAME
+        if path.exists():
+            raise DumpConstraintError(
+                f"Hay un diario de constraints pendiente en {path}: un volcado anterior no terminó y puede haber dejado "
+                "constraints desactivadas en el destino. Reactívalas con util_bbdd.dump.restore_constraints(engine, "
+                "ruta) (o borra el diario si ya están activas) antes de volver a volcar."
+            )
+        return path
 
     def _load_sequential(
         self, effective_src_order: list[str], src_to_dst: dict[str, str], cycle_set: set[str], crud: BulkCrud
@@ -628,6 +655,11 @@ class DumpOrchestrator:
             index_results=index_results,
             audit_run_id=self._audit_run_id,
             constraint_reactivation_error=constraint_reactivation_error,
+            constraints_journal=(
+                constraint_mgr.journal_path
+                if constraint_mgr.journal_path is not None and constraint_mgr.journal_path.exists()
+                else None
+            ),
         )
         dump_result.report = self._generate_dump_report(
             dump_result,

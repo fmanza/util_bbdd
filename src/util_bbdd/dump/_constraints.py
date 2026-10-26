@@ -2,13 +2,22 @@
 
 Soporta: SQL Server (mssql), MariaDB/MySQL, PostgreSQL, Oracle.
 Otros dialectos: no-op con advertencia.
+
+Diario (G31 de util_bbdd_web, 4.4.0): en SQL Server, PostgreSQL y Oracle lo desactivado queda desactivado en el
+catálogo si el proceso muere a mitad. Con ``journal_path``, ``disable_all`` escribe antes de tocar nada qué va a
+desactivar, y :func:`restore_constraints` lo reactiva desde otro proceso. En MariaDB/MySQL la desactivación es de la
+sesión (``FOREIGN_KEY_CHECKS``) y muere con ella: no hay diario.
 """
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 
 from collections.abc import Callable, Mapping, Sequence
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, ClassVar
 
 from sqlalchemy import Engine, event, text
@@ -24,6 +33,12 @@ from ._models import ConstraintResult
 from ._sql_utils import quote_identifier, quote_table
 
 _SUPPORTED_DIALECTS = frozenset({"mssql", "mariadb", "mysql", "oracle", "postgresql"})
+#: Motores en los que lo desactivado sobrevive al proceso (catálogo) y que, por tanto, llevan diario.
+_JOURNALED_DIALECTS = frozenset({"mssql", "oracle", "postgresql"})
+JOURNAL_FORMAT = "util_bbdd.dump_constraints_journal"
+JOURNAL_FORMAT_VERSION = 1
+#: Nombre del diario en ``DumpConfig.output_dir``.
+JOURNAL_FILENAME = "constraints_journal.json"
 
 
 class ConstraintManager:
@@ -44,10 +59,19 @@ class ConstraintManager:
 
     logger: ClassVar[logging.Logger] = logging.getLogger(__name__)
 
-    def __init__(self, engine: Engine, schema: str | None = None, *, validate_fks_after: bool = True) -> None:
+    def __init__(
+        self,
+        engine: Engine,
+        schema: str | None = None,
+        *,
+        validate_fks_after: bool = True,
+        journal_path: Path | None = None,
+    ) -> None:
         self._engine = engine
         self._schema = schema
         self._dialect = engine.dialect.name
+        #: Diario de lo desactivado (4.4.0): se escribe antes de desactivar y se borra cuando todo se reactiva.
+        self.journal_path: Path | None = journal_path
         # MariaDB/MySQL (v3.3.0, DumpConfig.validate_fks_after): comprobar huérfanos al reactivar FOREIGN_KEY_CHECKS
         self._validate_fks_after = validate_fks_after
         self._tables: list[str] = []
@@ -94,11 +118,13 @@ class ConstraintManager:
         en absoluto (p.ej. conexión perdida a mitad de la operación) se relanza como
         `DumpConstraintError` en vez de propagar la excepción cruda de SQLAlchemy.
 
+        Con ``journal_path`` (SQL Server, PostgreSQL y Oracle), escribe el diario antes de desactivar la primera.
+
         Args:
             tables: Tablas del destino cuyas constraints se desactivan.
 
         Raises:
-            DumpConstraintError: Si falla la desactivación de forma no recuperable.
+            DumpConstraintError: Si falla la desactivación de forma no recuperable o no se puede escribir el diario.
         """
         dialect = self._dialect
         if dialect not in _SUPPORTED_DIALECTS:
@@ -127,6 +153,9 @@ class ConstraintManager:
         `ConstraintResult` correspondiente (status="failed"); un fallo real no
         recuperable se relanza como `DumpConstraintError`.
 
+        Con diario, lo borra si ninguna queda ``"failed"``; si alguna falla (o se lanza), el diario sigue para
+        reintentar con :func:`restore_constraints`.
+
         Raises:
             DumpConstraintError: Si falla la reactivación de forma no recuperable.
         """
@@ -136,16 +165,92 @@ class ConstraintManager:
 
         try:
             if dialect in MYSQL_FAMILY:
-                return self._enable_mariadb()
-            if dialect == "mssql":
-                return self._enable_sqlserver()
-            if dialect == "postgresql":
-                return self._enable_postgresql()
-            if dialect == "oracle":
-                return self._enable_oracle()
-            return []
+                results = self._enable_mariadb()
+            elif dialect == "mssql":
+                results = self._enable_sqlserver()
+            elif dialect == "postgresql":
+                results = self._enable_postgresql()
+            else:
+                results = self._enable_oracle()
         except SQLAlchemyError as exc:
             raise DumpConstraintError(f"Error reactivando constraints en destino ({dialect}): {exc}") from exc
+        if self.journal_path is not None and not any(r.status == "failed" for r in results):
+            self.journal_path.unlink(missing_ok=True)
+        return results
+
+    # ------------------------------------------------------------------
+    # Diario (G31, 4.4.0)
+    # ------------------------------------------------------------------
+
+    def _write_journal(self, *, tables: Sequence[str] = (), constraints: Sequence[tuple[str, str]] = ()) -> None:
+        """Escribe el diario (atómico: fichero temporal + ``os.replace``) antes de desactivar nada."""
+        path = self.journal_path
+        if path is None or self._dialect not in _JOURNALED_DIALECTS:
+            return
+        data = {
+            "format": JOURNAL_FORMAT,
+            "format_version": JOURNAL_FORMAT_VERSION,
+            "dialect": self._dialect,
+            "schema": self._schema,
+            "created_at": datetime.now(UTC).isoformat(),
+            "tables": list(tables),
+            "constraints": [list(pair) for pair in constraints],
+        }
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            partial = path.with_name(f"{path.name}.tmp")
+            partial.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            os.replace(partial, path)
+        except OSError as exc:
+            raise DumpConstraintError(f"No se pudo escribir el diario de constraints {path}: {exc}") from exc
+
+    @classmethod
+    def from_journal(cls, engine: Engine, journal: Path) -> ConstraintManager:
+        """Gestor con el estado de un diario, listo para :meth:`enable_all` (lo usa :func:`restore_constraints`).
+
+        Raises:
+            ValueError: Si el fichero no es un diario válido o es de otro motor que ``engine``.
+            OSError: Si no se puede leer.
+        """
+        try:
+            data = json.loads(journal.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{journal} no es un diario de constraints (JSON no válido): {exc}") from exc
+        dialect, schema, tables, constraints = cls._parse_journal(data, journal)
+        if dialect != engine.dialect.name:
+            raise ValueError(f"El diario {journal} es de {dialect} y el engine es {engine.dialect.name}")
+        manager = cls(engine, schema, journal_path=journal)
+        manager._tables = tables
+        manager._nocheck_tables = tables if dialect == "mssql" else []
+        manager._disabled_pg = tables if dialect == "postgresql" else []
+        manager._disabled = constraints
+        return manager
+
+    @staticmethod
+    def _parse_journal(data: Any, journal: Path) -> tuple[str, str | None, list[str], list[tuple[str, str]]]:
+        """Valida el contenido de un diario: ``(dialect, schema, tables, constraints)``; si no, ``ValueError``."""
+
+        def invalid(reason: str) -> ValueError:
+            return ValueError(f"{journal} no es un diario de constraints válido: {reason}")
+
+        if not isinstance(data, dict) or data.get("format") != JOURNAL_FORMAT:
+            raise invalid(f"falta format={JOURNAL_FORMAT!r}")
+        if data.get("format_version") != JOURNAL_FORMAT_VERSION:
+            raise invalid(f"format_version {data.get('format_version')!r} no soportado")
+        dialect, schema = data.get("dialect"), data.get("schema")
+        if dialect not in _JOURNALED_DIALECTS:
+            raise invalid(f"motor {dialect!r} sin diario")
+        if schema is not None and not isinstance(schema, str):
+            raise invalid("schema debe ser texto o null")
+        tables = data.get("tables", [])
+        if not isinstance(tables, list) or not all(isinstance(t, str) for t in tables):
+            raise invalid("tables debe ser una lista de nombres")
+        pairs = data.get("constraints", [])
+        if not isinstance(pairs, list) or not all(
+            isinstance(p, list) and len(p) == 2 and all(isinstance(x, str) for x in p) for p in pairs
+        ):
+            raise invalid("constraints debe ser una lista de [tabla, constraint]")
+        return dialect, schema, tables, [(p[0], p[1]) for p in pairs]
 
     # ------------------------------------------------------------------
     # MariaDB / MySQL  (event listener sobre el engine pool)
@@ -213,6 +318,7 @@ class ConstraintManager:
         self._nocheck_tables = list(tables)
         if not tables:
             return
+        self._write_journal(tables=tables)
         with self._engine.begin() as conn:
             for table in tables:
                 conn.execute(text(disable_table_integrity_sql("mssql", self._qt(table))))
@@ -251,6 +357,8 @@ class ConstraintManager:
 
     def _disable_postgresql(self, tables: list[str]) -> None:
         self._disabled_pg = []
+        if tables:
+            self._write_journal(tables=tables)
         with self._engine.connect() as conn:
             for table in tables:
                 try:
@@ -378,24 +486,28 @@ class ConstraintManager:
         # Nombres como los da la reflexión de SQLAlchemy (Oracle: minúsculas si no se crearon entre comillas), para que
         # quote_identifier los cite igual que antes.
         normalize = self._engine.dialect.normalize_name
+        planned: list[tuple[str, str]] = []
+        for table in tables:
+            if snapshot is None:
+                break
+            names: list[str] = [fk.name for fk in snapshot.foreign_keys(table) if fk.name]
+            names.extend(
+                c.name
+                for c in snapshot.checks(table)
+                if c.name and not c.name.upper().startswith("SYS_C")  # filtrar constraints de sistema Oracle
+            )
+            names.extend(u.name for u in snapshot.uniques(table) if u.name)
+            planned.extend((table, str(normalize(n))) for n in names)
+        if planned:
+            self._write_journal(constraints=planned)
 
         with self._engine.connect() as conn:
-            for table in tables:
-                if snapshot is None:
-                    break
-                names: list[str] = [fk.name for fk in snapshot.foreign_keys(table) if fk.name]
-                names.extend(
-                    c.name
-                    for c in snapshot.checks(table)
-                    if c.name and not c.name.upper().startswith("SYS_C")  # filtrar constraints de sistema Oracle
-                )
-                names.extend(u.name for u in snapshot.uniques(table) if u.name)
-                for name in (str(normalize(n)) for n in names):
-                    try:
-                        conn.execute(text(f"ALTER TABLE {self._qt(table)} DISABLE CONSTRAINT {self._qi(name)}"))
-                        self._disabled.append((table, name))
-                    except SQLAlchemyError as exc:
-                        self.logger.warning("No se pudo deshabilitar '%s.%s': %s", table, name, exc)
+            for table, name in planned:
+                try:
+                    conn.execute(text(f"ALTER TABLE {self._qt(table)} DISABLE CONSTRAINT {self._qi(name)}"))
+                    self._disabled.append((table, name))
+                except SQLAlchemyError as exc:
+                    self.logger.warning("No se pudo deshabilitar '%s.%s': %s", table, name, exc)
             conn.commit()
 
     def _enable_oracle(self) -> list[ConstraintResult]:
@@ -482,3 +594,35 @@ class ConstraintManager:
     def _qt(self, table: str) -> str:
         """Tabla quoted con prefijo de schema opcional."""
         return quote_table(table, self._schema, self._engine)
+
+
+def restore_constraints(engine: Engine, journal: str | os.PathLike[str]) -> list[ConstraintResult]:
+    """Reactiva lo que dejó desactivado un volcado interrumpido, a partir de su diario (G31 de util_bbdd_web, 4.4.0).
+
+    Si el proceso de ``DumpOrchestrator.run()`` muere con las constraints desactivadas (SQL Server, PostgreSQL, Oracle),
+    queda ``constraints_journal.json`` en ``DumpConfig.output_dir``. Esta función reactiva cada tabla o constraint del
+    diario como lo haría el volcado al terminar (``ConstraintManager.enable_all``) y borra el diario si ninguna falla.
+    Es idempotente: reactivar lo ya activo no hace nada, y sin diario (ya restaurado) devuelve ``[]``.
+
+    Args:
+        engine: Engine del destino del volcado (mismo motor que el diario).
+        journal: Ruta del diario.
+
+    Returns:
+        Resultado por tabla o constraint; las ``"failed"`` (p. ej. filas que incumplen una FK) dejan el diario para
+        reintentar tras corregir los datos.
+
+    Raises:
+        ValueError: Si el fichero no es un diario válido o es de otro motor.
+        DumpConstraintError: Si falla la reactivación de forma no recuperable (p. ej. conexión perdida).
+
+    Example:
+        >>> from util_bbdd.dump import restore_constraints
+        >>> results = restore_constraints(target_engine, "salida/constraints_journal.json")  # doctest: +SKIP
+        >>> [r.status for r in results]  # doctest: +SKIP
+        ['enabled', 'enabled']
+    """
+    path = Path(journal)
+    if not path.exists():
+        return []
+    return ConstraintManager.from_journal(engine, path).enable_all()

@@ -18,6 +18,18 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   su carga, no todos al final: quien lee el destino ve el avance tabla a tabla. Los de tablas sin destino,
   constraints, índices y contadores PK y el `run` de cierre siguen al final; el evento de una tabla que no se pudo
   escribir se reintenta con ellos. Si el volcado falla a mitad, los eventos de las tablas terminadas ya están escritos.
+- **dump** (G31 de util_bbdd_web): `restore_constraints(engine, journal)` en `util_bbdd.dump` y
+  `ConstraintManager(..., journal_path=)`. Ver Fixed.
+
+### Fixed
+
+- **dump** (G31 de util_bbdd_web): si el proceso de `run()` moría con las constraints desactivadas (SQL Server,
+  PostgreSQL, Oracle), quedaban así en el destino sin rastro de qué se había tocado. Ahora, antes de desactivar nada,
+  `run()` escribe `constraints_journal.json` en `output_dir` y lo borra cuando todas se reactivan; si sigue ahí,
+  `restore_constraints(engine, ruta)` las reactiva desde otro proceso (idempotente). Un `run()` con un diario pendiente
+  en su `output_dir` lanza `DumpConstraintError` antes de tocar el destino, y una reactivación que falla deja el diario
+  (`DumpResult.constraints_journal`). En MariaDB/MySQL la desactivación es de la sesión: sin diario. Verificado contra
+  el banco (PostgreSQL, SQL Server y Oracle).
 
 ## [4.3.0] - 2026-10-26
 
