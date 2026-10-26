@@ -882,7 +882,8 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
 
         Raises:
             OSError: Si el ejecutable dot no está disponible o falla durante el pipe
-            RuntimeError: Si Graphviz produce una salida vacía o inválida
+            RuntimeError: Si Graphviz produce una salida vacía o inválida, o si ``dot`` termina con error o por una
+                señal (``graphviz.CalledProcessError``, en ``__cause__``; desde 4.1.0, antes escapaba tal cual)
 
         Examples:
             >>> png_bytes = self._pipe_graph_bytes(dot, "png", "orders")
@@ -894,12 +895,28 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             self._captured[key] = dot
             return b""
         prefetched: Future[bytes] | None = self._prefetched.get(key)
-        if prefetched is not None:
-            return prefetched.result()
-        self.logger.debug(f"🎨 Pipe Graphviz para {table_name}: formato={format}")
-        result: bytes = dot.pipe(format=format)
+        try:
+            if prefetched is not None:
+                return prefetched.result()
+            self.logger.debug(f"🎨 Pipe Graphviz para {table_name}: formato={format}")
+            result: bytes = dot.pipe(format=format)
+        except subprocess.CalledProcessError as error:
+            # graphviz.CalledProcessError no es OSError ni RuntimeError: sin esto, un diagrama que hace fallar a dot
+            # (p. ej. SIGABRT de Graphviz 2.43 con splines=ortho) abortaba el documento entero (util_bbdd_web G39).
+            raise RuntimeError(self._dot_failure_message(table_name, error)) from error
         self.logger.debug(f"🎨 Pipe Graphviz completado para {table_name} ({len(result)} bytes)")
         return result
+
+    @staticmethod
+    def _dot_failure_message(table_name: str, error: subprocess.CalledProcessError) -> str:
+        """Mensaje de un ``dot`` que terminó mal: cómo terminó y la primera línea de su ``stderr``."""
+        code: int = error.returncode
+        ending: str = f"por la señal {-code}" if code < 0 else f"con código {code}"
+        stderr: Any = error.stderr
+        text: str = stderr.decode("utf-8", "replace") if isinstance(stderr, bytes) else str(stderr or "")
+        first_line: str = next((line.strip() for line in text.splitlines() if line.strip()), "")
+        detail: str = f": {first_line}" if first_line else ""
+        return f"Graphviz (dot) terminó {ending} al dibujar el diagrama de {table_name}{detail}"
 
     def pipe_single_table_graph_ext(
         self,

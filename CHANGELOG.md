@@ -28,6 +28,14 @@ SemVer: MINOR (solo añadidos y correcciones; sin cambios de valor por defecto).
   del caché lleva ahora motor, host, puerto y base de datos (nunca credenciales). La agrupación de generaciones
   seguidas de la misma base de datos, que es una función documentada, no cambia; para no agrupar, `fichero_salida`
   o `batch_window_seconds=0`.
+- **doc, analysis** (web G39): un diagrama que hacía fallar a `dot` (p. ej. Graphviz 2.43 con `splines=ortho`, que
+  aborta con `maze.c: chkSgraph` o `newtrap: Trapezoid-table overflow`) tumbaba el formato entero con
+  `DocumentationRenderError`, aunque Word y Excel ya estuvieran hechos: `dot.pipe` lanza `graphviz.CalledProcessError`,
+  que no es `OSError` ni `RuntimeError`, las que capturan por diagrama los renderers de Word y HTML. Ahora
+  `GraphvizRelationshipGraphExt` la convierte en `RuntimeError` (la excepción original en `__cause__`), como ya
+  documentaba, con un mensaje útil (cómo terminó `dot` y la primera línea de su `stderr`). El documento sigue y el
+  diagrama que falla queda con su aviso. Quien capturase `CalledProcessError` de los métodos `pipe_*`/`generate_*` del
+  grafo debe capturar `RuntimeError`.
 
 ## [4.0.1] - 2026-10-20
 
