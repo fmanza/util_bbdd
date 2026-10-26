@@ -81,7 +81,7 @@ def test_execute_fallido_registra_la_sentencia_y_el_run(tmp_path: Path) -> None:
     failed = _by_kind(sink, "statement")[1]
     assert failed.error_type == "OperationalError"
     (run,) = _by_kind(sink, "run")
-    assert (run.status, run.error_type, run.attribute("statements_ok")) == ("failed", "DatabaseOperationError", 1)
+    assert (run.status, run.error_type, run.attribute("statements_ok")) == ("failed", "MigrationStatementError", 1)
     engine.dispose()
 
 

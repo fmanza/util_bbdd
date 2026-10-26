@@ -168,17 +168,24 @@ class MigrationAuditRecorder:
             ]
         )
 
-    def finish(self, *, total: int, error: BaseException | None) -> None:
-        """Evento ``run`` de cierre: ``ok`` si se aplicaron todas las sentencias, ``failed`` si no."""
+    def finish(self, *, total: int, error: BaseException | None, failed: int = 0, dry_run: bool = False) -> None:
+        """Evento ``run`` de cierre: ``ok`` si se aplicaron todas las sentencias, ``failed`` si no.
+
+        Args:
+            total: Sentencias del plan.
+            error: Excepción que detuvo la ejecución, o ``None``.
+            failed: Sentencias fallidas con ``stop_on_error=False`` (4.3.0): con alguna, el ``run`` es ``failed``.
+            dry_run: Modo seco (4.3.0): ``operation="DRY_RUN"`` en lugar de ``"EXECUTE"``.
+        """
         elapsed_s = time.perf_counter() - self._started
         self.write(
             lambda: [
                 AuditEvent.now(
                     source="migrate",
                     kind="run",
-                    status="ok" if error is None else "failed",
+                    status="ok" if error is None and not failed else "failed",
                     engine=self.plan.target_engine,
-                    operation="EXECUTE",
+                    operation="DRY_RUN" if dry_run else "EXECUTE",
                     elapsed_s=elapsed_s,
                     error_type=None if error is None else type(error).__name__,
                     message=None if error is None else str(error),
@@ -188,6 +195,8 @@ class MigrationAuditRecorder:
                         "source_schema": self.plan.source_schema,
                         "statements_total": total,
                         "statements_ok": self._ok,
+                        "statements_failed": failed,
+                        "dry_run": dry_run,
                         "errors": self.plan.error_count,
                         "warnings": self.plan.warning_count,
                     },

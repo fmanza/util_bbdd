@@ -32,7 +32,9 @@ PICKLE_FROM_0_43 = (
 
 
 def test_all_exceptions_are_found() -> None:
-    assert len(ALL_EXCEPTIONS) == len(public.__all__) == 42  # MigrationPlanValidationError, v4.3.0
+    assert (
+        len(ALL_EXCEPTIONS) == len(public.__all__) == 43
+    )  # MigrationPlanValidationError y MigrationStatementError, v4.3.0
 
 
 @pytest.mark.parametrize("cls", ALL_EXCEPTIONS, ids=lambda cls: cls.__name__)

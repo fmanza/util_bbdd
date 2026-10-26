@@ -444,6 +444,44 @@ class ParallelLoadError(DatabaseOperationError):
         self.result: Any = result
 
 
+class MigrationStatementError(DatabaseOperationError):
+    """Una sentencia de ``MigrationPlan.execute`` falló (v4.3.0; antes se lanzaba ``DatabaseOperationError``).
+
+    El DDL no es atómico en MySQL, MariaDB ni Oracle (cada sentencia confirma): las sentencias anteriores **quedan
+    aplicadas**. El mensaje es el de siempre (``Sentencia 3/12 del plan falló (CREATE TABLE …): …``).
+
+    Attributes:
+        position: Posición de la sentencia que falló (desde 1).
+        total: Sentencias del plan.
+        statement: La sentencia completa.
+        result: ``ExecutionResult`` hasta el fallo (``applied``, ``failures``). ``Any`` porque ``_core`` no importa
+            de ``migrate``.
+
+    Examples:
+        >>> try:
+        ...     plan.execute(target_manager)
+        ... except MigrationStatementError as exc:
+        ...     print(exc.position, exc.statement)
+    """
+
+    def __init__(
+        self,
+        message: str,
+        operation: str | None = None,
+        db_type: str | None = None,
+        *,
+        position: int = 0,
+        total: int = 0,
+        statement: str = "",
+        result: Any = None,
+    ) -> None:
+        super().__init__(message, operation, db_type)
+        self.position: int = position
+        self.total: int = total
+        self.statement: str = statement
+        self.result: Any = result
+
+
 class IndexRebuildError(DatabaseOperationError):
     """No se pudo reconstruir un índice único o una PK desactivados con ``disable_indexes="all"`` (v3.3.0).
 
@@ -554,6 +592,7 @@ __all__ = [
     "InvalidConnectionConfig",
     "InvalidQueryParameters",
     "MigrationPlanValidationError",
+    "MigrationStatementError",
     # Drivers
     "DriverError",
     "DriverNotFoundError",

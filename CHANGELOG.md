@@ -18,6 +18,19 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `emit_statements()`. `from_dict` lo reconstruye listo para `execute()` y exige que vuelva a emitir las mismas
   sentencias: se ejecuta lo revisado sin replanificar contra el origen. Nueva excepción
   `util_bbdd.exceptions.MigrationPlanValidationError` (`ValidationError` y `ValueError`) para los datos que no acepta.
+- **migrate** (G27 de util_bbdd_web): `MigrationPlan.check_target(target_connection, *, schema=None,
+  validate_views=False)` devuelve un `TargetCheck` con las tablas y vistas del plan cuyo nombre ya existe en el destino
+  (`TargetConflict`) y, si se pide, las vistas que el destino rechaza (`invalid_views`), sin cambiar nada. Lee el
+  catálogo con la `MetadataSource` del destino (ADR-003), sin caché.
+- **migrate** (G27): `MigrationPlan.execute(..., dry_run=False, stop_on_error=True)` devuelve un `ExecutionResult`
+  (`statements`, `applied`, `failures`, `dry_run`); antes devolvía `None`. `dry_run=True` comprueba el plan y emite las
+  sentencias sin conectar con el destino (evento `run` de auditoría con `operation="DRY_RUN"`). `stop_on_error=False`
+  sigue tras una sentencia que falla y la deja en `failures` (`StatementFailure`); el `run` lleva `statements_failed`.
+  Una sentencia que falla con `stop_on_error=True` lanza la nueva `MigrationStatementError`, subclase de la
+  `DatabaseOperationError` de antes y con el mismo mensaje, con `position`, `total`, `statement` (completa) y `result`.
+  En el evento `run` de auditoría, `error_type` pasa a ser `MigrationStatementError`. Con un objeto que solo ofrece
+  `execute_custom_one`, el error original se relanza como hasta ahora, con una nota (`add_note`) que dice la sentencia.
+  La atomicidad no es posible (MySQL, MariaDB y Oracle confirman cada sentencia DDL): se documenta.
 
 ### Fixed
 

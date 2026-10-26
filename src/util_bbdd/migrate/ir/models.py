@@ -242,6 +242,92 @@ class CanonicalRoutine:
     package_name: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class StatementFailure:
+    """Sentencia de :meth:`MigrationPlan.execute` que falló (4.3.0).
+
+    Attributes:
+        position: Posición en el plan (desde 1).
+        statement: La sentencia completa.
+        error_type: Clase de la excepción del driver.
+        message: Mensaje de la excepción del driver.
+    """
+
+    position: int
+    statement: str
+    error_type: str
+    message: str
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionResult:
+    """Resultado de :meth:`MigrationPlan.execute` (4.3.0).
+
+    Attributes:
+        statements: Sentencias del plan en orden de envío (con ``dry_run``, las que se enviarían).
+        applied: Sentencias aplicadas con éxito (``0`` con ``dry_run``).
+        failures: Sentencias que fallaron (con ``stop_on_error=True``, como mucho una).
+        dry_run: ``True`` si no se envió nada al destino.
+    """
+
+    statements: tuple[str, ...]
+    applied: int = 0
+    failures: tuple[StatementFailure, ...] = ()
+    dry_run: bool = False
+
+    @property
+    def total(self) -> int:
+        """Número de sentencias del plan."""
+        return len(self.statements)
+
+    @property
+    def ok(self) -> bool:
+        """``True`` si no falló ninguna sentencia."""
+        return not self.failures
+
+
+@dataclass(frozen=True, slots=True)
+class TargetConflict:
+    """Objeto del plan cuyo nombre ya usa un objeto del destino (4.3.0).
+
+    Attributes:
+        name: Nombre en el plan.
+        kind: ``"table"`` o ``"view"`` (lo que crearía el plan).
+        existing_name: Nombre en el destino (puede diferir en mayúsculas).
+        existing_kind: ``"table"`` o ``"view"`` (lo que ya hay).
+    """
+
+    name: str
+    kind: Literal["table", "view"]
+    existing_name: str
+    existing_kind: Literal["table", "view"]
+
+
+@dataclass(frozen=True, slots=True)
+class TargetCheck:
+    """Resultado de :meth:`MigrationPlan.check_target` (4.3.0).
+
+    Attributes:
+        schema: Schema del destino comprobado.
+        conflicts: Tablas y vistas del plan cuyo nombre ya existe en el destino (sin distinguir mayúsculas).
+        views: Validación de las vistas del plan (``ViewValidationResult``) si se pidió ``validate_views``.
+    """
+
+    schema: str
+    conflicts: tuple[TargetConflict, ...] = ()
+    views: tuple[Any, ...] = ()
+
+    @property
+    def invalid_views(self) -> tuple[Any, ...]:
+        """Vistas del plan que el destino rechaza (``valid is False``)."""
+        return tuple(result for result in self.views if result.valid is False)
+
+    @property
+    def ok(self) -> bool:
+        """``True`` sin conflictos ni vistas inválidas."""
+        return not self.conflicts and not self.invalid_views
+
+
 @dataclass
 class MigrationPlan:
     """Plan de migración ejecutable: contiene tablas transformadas, warnings y configuración."""
@@ -363,29 +449,51 @@ class MigrationPlan:
             for col in table.columns:
                 yield from col.warnings
 
-    def execute(self, target_connection: Any, *, audit_sink: AuditSink | None = None) -> None:
+    def execute(
+        self,
+        target_connection: Any,
+        *,
+        audit_sink: AuditSink | None = None,
+        dry_run: bool = False,
+        stop_on_error: bool = True,
+    ) -> ExecutionResult:
         """Ejecuta el DDL generado contra el motor destino.
 
         Las sentencias se aplican una a una, con ``commit`` tras cada una, por **una sola** conexión (el
         ``SET search_path`` de ``pg_schema`` afecta a las siguientes). Las sentencias que solo contienen comentarios
         (rutinas sin cuerpo, miembros de PACKAGE) no se envían.
 
+        **No es atómico**: en MySQL, MariaDB y Oracle cada sentencia DDL confirma por sí misma (no hay forma de
+        deshacerla), y en PostgreSQL y SQL Server se confirma tras cada una para que el comportamiento sea el mismo.
+        Si una falla, las anteriores quedan aplicadas. Antes de ejecutar, :meth:`check_target` detecta los objetos que
+        ya existen en el destino y ``dry_run=True`` comprueba todo lo demás sin enviar nada.
+
         Args:
             target_connection: ``SyncDatabaseManager`` del motor destino (o un ``Engine`` de SQLAlchemy). Un objeto
-                que solo ofrezca ``execute_custom_one(sql, params)`` se usa sentencia a sentencia con ese método.
+                que solo ofrezca ``execute_custom_one(sql, params)`` se usa sentencia a sentencia con ese método. No se
+                usa con ``dry_run=True``.
             audit_sink: Destino opcional del rastro de auditoría (:mod:`util_bbdd.audit`): los avisos del plan, un
                 evento ``statement`` por sentencia (posición, primera línea, duración, error) y un evento ``run`` de
                 cierre, todos con el mismo ``run_id``. Si el plan está bloqueado por avisos ``ERROR`` se registran los
                 avisos y el ``run`` fallido. Un fallo al escribir en el destino no interrumpe la ejecución (se
                 registra como ERROR). ``None`` (por defecto): sin rastro, como siempre.
+            dry_run: ``True``: comprueba el plan (avisos ``ERROR``) y emite las sentencias sin conectar con el destino;
+                el resultado las lista con ``applied=0`` y el ``run`` de auditoría lleva ``operation="DRY_RUN"`` (4.3.0).
+            stop_on_error: ``True`` (por defecto): la primera sentencia que falla detiene la ejecución y lanza la
+                excepción. ``False``: se registra en ``ExecutionResult.failures`` y se sigue con la siguiente (4.3.0).
+
+        Returns:
+            ``ExecutionResult`` con las sentencias, las aplicadas y las que fallaron (4.3.0; antes ``None``).
 
         Raises:
             ValueError: Si el plan tiene uno o más warnings de severidad ``ERROR``
                 (``self.error_count > 0``). No hay flag de override: resuelve los
                 errores del plan (revisa ``self.warnings``) antes de ejecutar, o usa
                 ``emit_ddl()``/``emit_statements()`` para inspeccionar el DDL sin ejecutarlo.
-            DatabaseOperationError: Si una sentencia falla; indica su posición y su primera línea. Las anteriores
-                quedan aplicadas.
+            MigrationStatementError: Si una sentencia falla con ``stop_on_error=True`` (subclase de
+                ``DatabaseOperationError``, la que se lanzaba hasta 4.2.0): ``position``, ``statement`` y ``result``.
+                Las anteriores quedan aplicadas. Con un objeto de ``execute_custom_one`` se relanza el error original
+                con una nota (``add_note``) que dice qué sentencia falló.
 
         Examples:
             >>> from util_bbdd.audit import MemoryAuditSink
@@ -393,6 +501,8 @@ class MigrationPlan:
             >>> plan.execute(target_manager, audit_sink=sink)  # doctest: +SKIP
             >>> [e.status for e in sink.events() if e.kind == "run"]  # doctest: +SKIP
             ['ok']
+            >>> plan.execute(None, dry_run=True).total  # doctest: +SKIP
+            42
         """
         recorder = None
         if audit_sink is not None:
@@ -409,25 +519,88 @@ class MigrationPlan:
             )
             if recorder is not None:
                 recorder.warnings()
-                recorder.finish(total=0, error=blocked)
+                recorder.finish(total=0, error=blocked, dry_run=dry_run)
             raise blocked
         on_statement = None if recorder is None else recorder.statement
         statements: list[str] = []
+        failures: list[StatementFailure] = []
+        applied = 0
         # La emisión va dentro del try: si un emisor falla, también queda el run de cierre (audit-code 2026-10-02c, 2).
         try:
             statements = [stmt.strip() for stmt in self.emit_statements() if _has_sql(stmt)]
             if recorder is not None:
                 recorder.warnings()  # después de emitir: incluye los avisos que descubre la emisión
-            if hasattr(target_connection, "get_sqlalchemy_engine") or hasattr(target_connection, "raw_connection"):
-                _execute_statements(target_connection, statements, self.target_engine, on_statement)
+            if dry_run:
+                pass
+            elif hasattr(target_connection, "get_sqlalchemy_engine") or hasattr(target_connection, "raw_connection"):
+                applied = _execute_statements(
+                    target_connection, statements, self.target_engine, on_statement, stop_on_error, failures
+                )
             else:
-                _execute_with_custom_one(target_connection, statements, on_statement)
+                applied = _execute_with_custom_one(target_connection, statements, on_statement, stop_on_error, failures)
         except Exception as error:
             if recorder is not None:
-                recorder.finish(total=len(statements), error=error)
+                recorder.finish(total=len(statements), error=error, dry_run=dry_run)
             raise
         if recorder is not None:
-            recorder.finish(total=len(statements), error=None)
+            recorder.finish(total=len(statements), error=None, failed=len(failures), dry_run=dry_run)
+        return ExecutionResult(tuple(statements), applied, tuple(failures), dry_run)
+
+    def check_target(
+        self, target_connection: Any, *, schema: str | None = None, validate_views: bool = False
+    ) -> TargetCheck:
+        """Comprueba el destino antes de :meth:`execute`, sin cambiarlo (4.3.0).
+
+        Lee las tablas y vistas del destino (una consulta por tipo, con la ``MetadataSource`` del manager, ADR-003) y
+        devuelve las tablas y vistas del plan cuyo nombre ya existe: ``CREATE TABLE`` fallaría a mitad de
+        :meth:`execute`, y en MySQL/MariaDB ``CREATE OR REPLACE VIEW`` sustituiría la vista existente. Los nombres se
+        comparan sin distinguir mayúsculas (en PostgreSQL, con identificadores entrecomillados, puede avisar de un
+        conflicto que no lo es).
+
+        Args:
+            target_connection: ``SyncDatabaseManager`` del destino, una ``MetadataSource`` o un ``Engine`` de
+                SQLAlchemy.
+            schema: Schema del destino donde se crearán los objetos. ``None``: el ``pg_schema`` del plan con destino
+                PostgreSQL y, si no hay, el schema por defecto de la conexión.
+            validate_views: ``True``: también valida las vistas del plan con :meth:`validate_views`
+                (``include_tables=True``; transacción deshecha en PostgreSQL y SQL Server, solo sintaxis en el resto).
+
+        Returns:
+            ``TargetCheck`` con ``conflicts``, ``views`` e ``invalid_views``; ``ok`` si no hay ninguno.
+
+        Example:
+            >>> check = plan.check_target(target_manager)  # doctest: +SKIP
+            >>> [c.name for c in check.conflicts]  # doctest: +SKIP
+            ['CLIENTES']
+        """
+        from ...metadata.model import Kind
+        from ..extractors._snapshot import metadata_source
+
+        if hasattr(target_connection, "raw_connection") and not hasattr(target_connection, "metadata_source"):
+            from ...metadata.source import CatalogSource
+
+            source: Any = CatalogSource.from_engine(target_connection)
+        else:
+            source = metadata_source(target_connection)
+        if schema is None:
+            schema = getattr(self.emitter, "_pg_schema", None) if self.target_engine == "postgresql" else None
+        kinds = (Kind.TABLES, Kind.VIEWS)
+        source.invalidate(schema, kinds=kinds)  # el destino actual, no lo que hubiera en caché
+        snapshot = source.snapshot(schema, kinds=kinds)
+        existing: dict[str, tuple[str, Literal["table", "view"]]] = {}
+        for meta in snapshot.tables():
+            existing.setdefault(meta.name.casefold(), (meta.name, "table"))
+        for meta in snapshot.views():
+            existing.setdefault(meta.name.casefold(), (meta.name, "view"))
+        planned: list[tuple[str, Literal["table", "view"]]] = [(table.name, "table") for table in self.tables]
+        planned += [(view.name, "view") for view in self.views]
+        conflicts = tuple(
+            TargetConflict(name, kind, *existing[name.casefold()])
+            for name, kind in planned
+            if name.casefold() in existing
+        )
+        views = tuple(self.validate_views(target_connection, include_tables=True)) if validate_views else ()
+        return TargetCheck(snapshot.schema, conflicts, views)
 
     def audit_events(self) -> list[AuditEvent]:
         """Los avisos del plan como eventos de auditoría (``plan_warning``), para escribirlos en un ``AuditSink``.
@@ -507,9 +680,20 @@ def _has_sql(statement: str) -> bool:
     return any(line.strip() and not line.strip().startswith("--") for line in statement.splitlines())
 
 
-def _execute_with_custom_one(target: Any, statements: list[str], on_statement: StatementCallback | None = None) -> None:
-    """Aplica ``statements`` con ``target.execute_custom_one(sql, {})`` (objetos sin Engine ni ``raw_connection``)."""
+def _execute_with_custom_one(
+    target: Any,
+    statements: list[str],
+    on_statement: StatementCallback | None = None,
+    stop_on_error: bool = True,
+    failures: list[StatementFailure] | None = None,
+) -> int:
+    """Aplica ``statements`` con ``target.execute_custom_one(sql, {})`` (objetos sin Engine ni ``raw_connection``).
+
+    Devuelve las aplicadas. Con ``stop_on_error`` relanza el error del objeto con una nota que dice la sentencia; si no,
+    lo añade a ``failures`` y sigue.
+    """
     total = len(statements)
+    applied = 0
     for position, statement in enumerate(statements, start=1):
         started = time.perf_counter()
         try:
@@ -517,21 +701,42 @@ def _execute_with_custom_one(target: Any, statements: list[str], on_statement: S
         except Exception as err:
             if on_statement is not None:
                 on_statement(position, total, statement, time.perf_counter() - started, err)
-            raise
+            if failures is not None:
+                failures.append(StatementFailure(position, statement, type(err).__name__, str(err)))
+            if stop_on_error:
+                err.add_note(f"Sentencia {position}/{total} del plan: {_first_sql_line(statement)}")
+                raise
+            continue
+        applied += 1
         if on_statement is not None:
             on_statement(position, total, statement, time.perf_counter() - started, None)
+    return applied
+
+
+def _first_sql_line(statement: str) -> str:
+    """Primera línea que no es comentario, truncada a 120 caracteres (mensajes de error)."""
+    return next((ln for ln in statement.splitlines() if ln.strip() and not ln.strip().startswith("--")), "")[:120]
 
 
 def _execute_statements(
-    target: Any, statements: list[str], target_engine: str, on_statement: StatementCallback | None = None
-) -> None:
+    target: Any,
+    statements: list[str],
+    target_engine: str,
+    on_statement: StatementCallback | None = None,
+    stop_on_error: bool = True,
+    failures: list[StatementFailure] | None = None,
+) -> int:
     """Aplica ``statements`` por una conexión DB-API: cursor del driver sin parámetros y ``commit`` tras cada una.
 
     Sin parámetros, los drivers *pyformat* no reinterpretan los ``%`` literales del DDL (``LIKE 'a%'``). El Engine de
     ``get_sqlalchemy_engine()`` se crea para esta ejecución y se libera al terminar; uno recibido se deja abierto.
     ``on_statement`` (auditoría, opcional) se llama tras el ``commit`` de cada sentencia o al fallar, antes de relanzar.
+    Devuelve las aplicadas; con ``stop_on_error=False`` el fallo se añade a ``failures`` y se sigue con la siguiente.
     """
-    from ..._core.exceptions import DatabaseOperationError
+    from ..._core.exceptions import MigrationStatementError
+
+    failures = [] if failures is None else failures
+    applied = 0
 
     owned = hasattr(target, "get_sqlalchemy_engine")
     engine = target.get_sqlalchemy_engine() if owned else target
@@ -551,14 +756,19 @@ def _execute_statements(
                             connection.rollback()
                         if on_statement is not None:
                             on_statement(position, total, statement, time.perf_counter() - started, err)
-                        first_line = next(
-                            ln for ln in statement.splitlines() if ln.strip() and not ln.strip().startswith("--")
-                        )
-                        raise DatabaseOperationError(
-                            f"Sentencia {position}/{len(statements)} del plan falló ({first_line[:120]}): {err}",
+                        failures.append(StatementFailure(position, statement, type(err).__name__, str(err)))
+                        if not stop_on_error:
+                            continue
+                        raise MigrationStatementError(
+                            f"Sentencia {position}/{total} del plan falló ({_first_sql_line(statement)}): {err}",
                             "MIGRATE_EXECUTE",
                             db_type=target_engine,
+                            position=position,
+                            total=total,
+                            statement=statement,
+                            result=ExecutionResult(tuple(statements), applied, tuple(failures)),
                         ) from err
+                    applied += 1
                     if on_statement is not None:
                         on_statement(position, total, statement, time.perf_counter() - started, None)
             finally:
@@ -568,6 +778,7 @@ def _execute_statements(
     finally:
         if owned:
             engine.dispose()
+    return applied
 
 
 __all__: list[str] = [
@@ -581,4 +792,8 @@ __all__: list[str] = [
     "CanonicalTable",
     "CanonicalView",
     "MigrationPlan",
+    "ExecutionResult",
+    "StatementFailure",
+    "TargetCheck",
+    "TargetConflict",
 ]

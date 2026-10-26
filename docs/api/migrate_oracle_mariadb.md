@@ -30,7 +30,8 @@ flowchart TD
 | `MigrationPlanner.supported_sources` / `supported_targets` | `()` (estáticos) | Motores que admiten `source_engine` y `target_engine`, en orden alfabético (4.3.0) | `tuple[str, ...]` |
 | `MigrationPlanner.plan` | `(connection, schema: str)` | Extrae, transforma y consolida en plan ejecutable | `MigrationPlan` |
 | `MigrationPlan.emit_ddl` | `()` | Script DDL completo listo para guardar en `.sql` | `str` |
-| `MigrationPlan.execute` | `(target_connection, *, audit_sink=None)` | Ejecuta cada sentencia DDL contra el motor destino; con `audit_sink`, un evento por sentencia ([auditoría](audit.md)) | `None` |
+| `MigrationPlan.execute` | `(target_connection, *, audit_sink=None, dry_run=False, stop_on_error=True)` | Ejecuta cada sentencia DDL contra el motor destino; con `audit_sink`, un evento por sentencia ([auditoría](audit.md)); `dry_run` y `stop_on_error` desde 4.3.0 | `ExecutionResult` (4.3.0; antes `None`) |
+| `MigrationPlan.check_target` | `(target_connection, *, schema=None, validate_views=False)` | Tablas y vistas del plan que ya existen en el destino (y, si se pide, vistas que el destino rechaza), sin cambiar nada (4.3.0) | `TargetCheck` |
 | `MigrationPlan.to_dict` | `()` | Plan serializable a JSON (`format="util_bbdd.migration_plan"`, `format_version=1`, `statements_sha256`) para revisarlo y ejecutarlo después sin replanificar (4.3.0) | `dict` |
 | `MigrationPlan.from_dict` | `(data)` (de clase) | Reconstruye el plan; vuelve a emitir y exige el mismo `statements_sha256` (4.3.0) | `MigrationPlan` |
 | `MigrationPlan.statements_sha256` | `()` | SHA-256 de `emit_statements()` (sentencias separadas por NUL) (4.3.0) | `str` |
@@ -64,11 +65,24 @@ flowchart TD
   emite otro DDL: hay que volver a planificar). El hash viaja con los datos y no protege de una manipulación: si el
   fichero no es de confianza, guarda el hash aparte y compáralo con `statements_sha256()` antes de `execute()`.
 
+- **`MigrationPlan.check_target(target)`** (4.3.0) — `TargetCheck` con `conflicts` (`TargetConflict`: `name`, `kind`,
+  `existing_name`, `existing_kind`), `views`/`invalid_views` (con `validate_views=True`) y `ok`. Lee el catálogo del
+  destino con su `MetadataSource` (manager, `MetadataSource` o `Engine`), sin caché, en `schema` o, por defecto, el
+  `pg_schema` del plan (PostgreSQL) o el schema de la conexión. Compara sin distinguir mayúsculas.
+- **`MigrationPlan.execute(...)`** (4.3.0) — devuelve `ExecutionResult` (`statements`, `applied`, `failures`,
+  `dry_run`, `total`, `ok`). `dry_run=True` comprueba el plan y emite las sentencias sin conectar con el destino.
+  `stop_on_error=False` sigue tras una sentencia que falla y la deja en `failures` (`StatementFailure`: `position`,
+  `statement`, `error_type`, `message`).
+- **Atomicidad**: `execute()` **no es atómico**. MySQL, MariaDB y Oracle confirman cada sentencia DDL por sí mismas y no
+  se pueden deshacer; PostgreSQL y SQL Server confirman tras cada una para comportarse igual. Si una sentencia falla,
+  las anteriores quedan aplicadas: comprueba antes con `check_target()` y `dry_run=True`.
+
 ### Errores y casos especiales
 
 | Error | Cuándo ocurre |
 |---|---|
 | `ValueError` | Motor origen/destino no soportado, charset/collation inválidos |
+| `MigrationStatementError` | Una sentencia de `execute()` falla (`stop_on_error=True`): `position`, `total`, `statement` y `result`; subclase de `DatabaseOperationError` (4.3.0) |
 | `MetadataError` | Error al leer el catálogo del origen (envuelve el error del driver) |
 | `TypeError` | `connection` no es un manager de `util_bbdd` ni una `MetadataSource` |
 

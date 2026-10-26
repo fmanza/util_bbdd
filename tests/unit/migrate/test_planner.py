@@ -300,13 +300,14 @@ class TestMigrationPlanExecuteErrorGate:
         assert target.execute_custom_one.called
 
     def test_execute_has_no_override_flag(self) -> None:
-        """No debe existir forma de saltarse el gate: execute() solo acepta target_connection y, desde la sesión
-        2026-10-02c, el destino de auditoría opcional (keyword-only), que no cambia qué se ejecuta."""
+        """No debe existir forma de saltarse el gate: execute() solo acepta target_connection y opciones keyword-only
+        que no cambian qué se ejecuta: el destino de auditoría (sesión 2026-10-02c), ``dry_run`` (no ejecuta nada) y
+        ``stop_on_error`` (4.3.0)."""
         import inspect
 
         sig = inspect.signature(MigrationPlan.execute)
-        assert list(sig.parameters) == ["self", "target_connection", "audit_sink"]
-        assert sig.parameters["audit_sink"].kind is inspect.Parameter.KEYWORD_ONLY
+        assert list(sig.parameters) == ["self", "target_connection", "audit_sink", "dry_run", "stop_on_error"]
+        assert all(sig.parameters[name].kind is inspect.Parameter.KEYWORD_ONLY for name in list(sig.parameters)[2:])
 
 
 class TestMigrationPlanEmitSyncsFallbackWarnings:

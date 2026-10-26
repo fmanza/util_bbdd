@@ -41,6 +41,7 @@ from ._core.exceptions import (
     MetadataIntrospectionError,
     MetadataNormalizationError,
     MigrationPlanValidationError,
+    MigrationStatementError,
     OperationCancelledError,
     ParallelLoadError,
     PoolConnectionError,
@@ -80,6 +81,7 @@ __all__: list[str] = [
     "InvalidConnectionConfig",
     "InvalidQueryParameters",
     "MigrationPlanValidationError",
+    "MigrationStatementError",
     # Drivers
     "DriverError",
     "DriverNotFoundError",

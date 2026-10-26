@@ -143,8 +143,12 @@ from .ir.models import (
     CanonicalRoutine,
     CanonicalTable,
     CanonicalView,
+    ExecutionResult,
     MigrationPlan,
     MigrationWarning,
+    StatementFailure,
+    TargetCheck,
+    TargetConflict,
     WarningCategory,
     WarningCode,
 )
@@ -181,6 +185,11 @@ __all__: list[str] = [
     "CanonicalFK",
     "CanonicalView",
     "CanonicalRoutine",
+    # Comprobación del destino y ejecución (4.3.0)
+    "TargetCheck",
+    "TargetConflict",
+    "ExecutionResult",
+    "StatementFailure",
     # Capas individuales Oracle → MariaDB
     "OracleSchemaExtractor",
     "OracleToMariaDBTransformer",

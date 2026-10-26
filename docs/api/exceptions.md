@@ -34,6 +34,7 @@ DatabaseException
 │   └── DriverConfigurationError
 ├── DatabaseOperationError
 │   ├── ParallelLoadError           (v3.0.0; .result = ParallelLoadResult)
+│   ├── MigrationStatementError     (v4.3.0; .position, .total, .statement, .result = ExecutionResult)
 │   └── IndexRebuildError           (v3.3.0; .results, .duplicates, .recovery_ddl desde 4.0.0)
 ├── DatabaseConfigurationError
 ├── ComparerError
