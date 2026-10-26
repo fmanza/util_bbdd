@@ -579,6 +579,66 @@ def test_batch_errors_statement_errors_propagate() -> None:
     assert connection.log == ["savepoint", "rollback"]
 
 
+def test_batch_errors_single_row_batch_marks_the_collector() -> None:
+    """G32 (4.4.0): con una fila, SQLAlchemy usa ``execute``; el colector lo sabe y la fila se rechaza igual."""
+    pytest.importorskip("oracledb")
+    rejected: list[int] = []
+    single: list[bool] = []
+
+    def send(items: Any) -> None:
+        single.append(oracle_batch_errors._SINGLE_ROW.get())
+        sink = oracle_batch_errors._SINK.get()
+        assert sink is not None
+        sink.append(_BatchError(0))
+
+    isolator = Isolator(on_reject=lambda p, _v, _e: rejected.append(p), batch_errors=True)
+    isolator.run_records(_Savepoints(), [{"id": 1}], send, first_row=7)
+    isolator.run_records(_Savepoints(), [{"id": 1}, {"id": 2}], _batch_errors_send(set(), []), first_row=0)
+
+    assert (single, rejected) == ([True], [7])
+    assert oracle_batch_errors._SINGLE_ROW.get() is False  # se restaura al salir
+
+
+class _Cursor:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, Any, bool]] = []
+
+    def executemany(self, statement: str, parameters: Any, *, batcherrors: bool = False) -> None:
+        self.calls.append((statement, parameters, batcherrors))
+
+    def getbatcherrors(self) -> list[Any]:
+        return [_BatchError(0)]
+
+
+@pytest.mark.parametrize(
+    ("single_row", "statement", "handled"),
+    [
+        (True, "INSERT INTO t (id) VALUES (:id)", True),
+        (True, "  update t SET v = :v WHERE id = :id", True),
+        (True, "DELETE FROM t WHERE id = :id", True),
+        (True, "SELECT 1 FROM dual", False),
+        (False, "INSERT INTO t (id) VALUES (:id)", False),
+    ],
+)
+def test_execute_single_row_listener(single_row: bool, statement: str, handled: bool) -> None:
+    cursor = _Cursor()
+    with oracle_batch_errors.collect(single_row=single_row) as errors:
+        result = oracle_batch_errors.execute_single_row(cursor, statement, {"id": 1}, None)
+
+    if handled:
+        assert result is True
+        assert cursor.calls == [(statement, [{"id": 1}], True)]
+        assert [e.offset for e in errors] == [0]
+    else:
+        assert result is None and cursor.calls == [] and errors == []
+
+
+def test_execute_single_row_listener_without_collector() -> None:
+    cursor = _Cursor()
+    assert oracle_batch_errors.execute_single_row(cursor, "INSERT INTO t VALUES (1)", {}, None) is None
+    assert cursor.calls == []
+
+
 def test_batch_errors_support_and_install(tmp_path: Path) -> None:
     sqlite_engine = create_engine(f"sqlite:///{tmp_path / 'x.db'}")
 
@@ -598,6 +658,7 @@ def test_batch_errors_support_and_install(tmp_path: Path) -> None:
         assert conn.execute(text("SELECT COUNT(*) FROM t")).scalar() == 2
     listeners = sqlite_engine.dialect.dispatch.do_executemany
     assert len(list(listeners)) == 1
+    assert len(list(sqlite_engine.dialect.dispatch.do_execute)) == 1  # G32: también el de una fila
 
 
 @pytest.mark.parametrize(

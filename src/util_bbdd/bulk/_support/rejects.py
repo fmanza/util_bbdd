@@ -247,7 +247,7 @@ class Isolator:
         """
         savepoint = _savepoint(connection)
         try:
-            with oracle_batch_errors.collect() as errors:
+            with oracle_batch_errors.collect(single_row=len(items) == 1) as errors:
                 send(items)
         except BaseException:
             # Error de sentencia o de conexión (batcherrors solo recoge errores de fila): se propaga.

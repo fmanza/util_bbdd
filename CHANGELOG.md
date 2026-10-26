@@ -30,6 +30,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   en su `output_dir` lanza `DumpConstraintError` antes de tocar el destino, y una reactivación que falla deja el diario
   (`DumpResult.constraints_journal`). En MariaDB/MySQL la desactivación es de la sesión: sin diario. Verificado contra
   el banco (PostgreSQL, SQL Server y Oracle).
+- **dump/bulk** (G32 de util_bbdd_web): con destino Oracle, `on_error="isolate"` no apartaba la fila con PK duplicada
+  (ORA-00001) ni ningún otro error de fila cuando el lote tenía **una sola fila** (una tabla de una fila, o el último
+  lote de una carga): SQLAlchemy lo envía con `execute` y no con `executemany`, el `batcherrors` de oracledb no se
+  aplicaba y la tabla (o la operación de `BulkCrud`) fallaba entera. Ahora un listener de `do_execute` envía esa fila
+  con `executemany(batcherrors=True)` (`bulk/_support/oracle_batch_errors.py`). Con varias filas ya funcionaba.
+  Verificado contra el banco: volcado en append sobre una PK repetida en los 5 destinos y `BulkCrud` en Oracle.
 
 ## [4.3.0] - 2026-10-26
 

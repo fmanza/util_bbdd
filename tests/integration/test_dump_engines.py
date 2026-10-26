@@ -480,6 +480,41 @@ def test_dump_isolate_narrower_target_column(setup: Setup, request: pytest.Fixtu
     assert _ids(setup) == [1, 2, 5, 6, 7, 10]
 
 
+@pytest.mark.parametrize("setup", _target_params(), indirect=True)
+def test_dump_isolate_single_duplicated_row(setup: Setup, request: pytest.FixtureRequest) -> None:
+    """G32 (4.4.0): añadir una única fila con la PK ya presente la aparta en todos los motores (Oracle fallaba)."""
+    source = Table(
+        setup.name("dup"),
+        MetaData(),
+        Column("id", Integer, primary_key=True, autoincrement=False),
+        Column("s", String(10)),
+        schema=setup.source_schema,
+    )
+    source.create(setup.source)
+    with setup.source.begin() as conn:
+        conn.execute(source.insert(), [{"id": 1, "s": "origen"}])
+    target = _create(
+        request,
+        setup.target,
+        Table(
+            setup.name("dup"),
+            MetaData(),
+            Column("id", Integer, primary_key=True, autoincrement=False),
+            Column("s", String(10)),
+        ),
+    )
+    with setup.target.begin() as conn:
+        conn.execute(target.insert(), [{"id": 1, "s": "destino"}])
+
+    result = setup.run(["dup"], truncate_target=False, on_error="isolate", rejects_csv_path=setup.tmp / "rechazos.csv")
+
+    assert [(r.status, r.rows_rejected) for r in result.table_results] == [("success", 1)], [
+        r.error_msg for r in result.table_results
+    ]
+    with setup.target.connect() as conn:
+        assert conn.execute(select(target.c.s)).scalars().all() == ["destino"]
+
+
 # ------------------------------------------------------- U-V3: diario de constraints (G31 de util_bbdd_web, 4.4.0)
 
 

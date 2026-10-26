@@ -749,6 +749,29 @@ def test_oracle_batch_errors_over_max_rejects(engine: Engine, tmp_path: Any) -> 
         table.drop(engine, checkfirst=True)
 
 
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"oracle"})), indirect=True)
+def test_oracle_batch_errors_single_row_batch(engine: Engine, tmp_path: Any) -> None:  # noqa: F811
+    """G32 (4.4.0): un lote de una fila (``execute``, no ``executemany``) también se aísla; antes fallaba la operación."""
+    table = _oracle_errors_table(engine)
+    try:
+        BulkCrud(engine).bulk_insert_from_df(pd.DataFrame({"id": [1], "req": ["r"]}), table.name, False)
+        crud = BulkCrud(
+            engine,
+            batch=BatchOptions(chunk_size=2),
+            rejects=RejectOptions(on_error="isolate", csv_path=tmp_path / "r.csv"),
+        )
+        # 3 filas en lotes de 2: el último lote es de una fila (id=1, repetida) y el primero tiene una larga.
+        rows = pd.DataFrame({"id": [2, 3, 1], "s": ["ok", "demasiado", "ok"], "req": ["r", "r", "r"]})
+        crud.bulk_insert_from_df(rows, table.name, False)
+
+        assert [row[0] for row in _state(engine, table)] == [1, 2]
+        frame = pd.read_csv(tmp_path / "r.csv", sep="	")
+        assert frame["fila"].tolist() == [1, 2]
+        assert [error.split(":")[1].strip() for error in frame["error"]] == ["ORA-12899", "ORA-00001"]
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
 # ------------------------------------------------- Fase 3: ParallelBulkLoader(on_error="isolate") (sesión 2026-10-01t)
 
 
