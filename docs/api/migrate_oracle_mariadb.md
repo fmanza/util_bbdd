@@ -27,6 +27,7 @@ flowchart TD
 | Clase / Función | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
 | `MigrationPlanner` | `(source_engine, target_engine, ...)` | Orquestador principal; valida configuración en `__init__` | instancia |
+| `MigrationPlanner.supported_sources` / `supported_targets` | `()` (estáticos) | Motores que admiten `source_engine` y `target_engine`, en orden alfabético (4.3.0) | `tuple[str, ...]` |
 | `MigrationPlanner.plan` | `(connection, schema: str)` | Extrae, transforma y consolida en plan ejecutable | `MigrationPlan` |
 | `MigrationPlan.emit_ddl` | `()` | Script DDL completo listo para guardar en `.sql` | `str` |
 | `MigrationPlan.execute` | `(target_connection, *, audit_sink=None)` | Ejecuta cada sentencia DDL contra el motor destino; con `audit_sink`, un evento por sentencia ([auditoría](audit.md)) | `None` |

@@ -5,6 +5,14 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **migrate** (G4 de util_bbdd_web): `MigrationPlanner.supported_sources()` y `MigrationPlanner.supported_targets()`
+  devuelven, en orden alfabético, los motores que admiten `source_engine` y `target_engine` (cualquier par de motores
+  distintos está soportado). Hasta ahora solo estaban en las constantes privadas `_SUPPORTED_SOURCE`/`_SUPPORTED_TARGET`.
+
 ## [4.2.0] - 2026-10-26
 
 SemVer: MINOR (añadidos, correcciones de seguridad y un arreglo de tests; sin cambios de API). Ola 2 del plan de huecos

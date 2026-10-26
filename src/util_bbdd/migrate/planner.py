@@ -148,6 +148,35 @@ class MigrationPlanner:
             self._charset = charset
             self._collation = collation
 
+    @staticmethod
+    def supported_sources() -> tuple[str, ...]:
+        """Motores que ``source_engine`` admite, en orden alfabético.
+
+        Cualquier par de un origen y un destino distintos está soportado (el mismo motor en los dos lados lanza
+        ``ValueError``).
+
+        Returns:
+            Nombres en minúsculas, como los acepta ``source_engine``.
+
+        Example:
+            >>> MigrationPlanner.supported_sources()
+            ('mariadb', 'mysql', 'oracle', 'postgresql', 'sqlserver')
+        """
+        return tuple(sorted(_SUPPORTED_SOURCE))
+
+    @staticmethod
+    def supported_targets() -> tuple[str, ...]:
+        """Motores que ``target_engine`` admite, en orden alfabético (ver :meth:`supported_sources`).
+
+        Returns:
+            Nombres en minúsculas, como los acepta ``target_engine``.
+
+        Example:
+            >>> MigrationPlanner.supported_targets()
+            ('mariadb', 'mysql', 'oracle', 'postgresql', 'sqlserver')
+        """
+        return tuple(sorted(_SUPPORTED_TARGET))
+
     def plan(self, connection: Any, schema: str) -> MigrationPlan:
         """Extrae y transforma el esquema origen, produciendo un MigrationPlan.
 

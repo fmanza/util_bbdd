@@ -114,6 +114,8 @@ Soportado: Oracle      → MariaDB / MySQL      / SQL Server / PostgreSQL
            MySQL       → Oracle  / MariaDB    / SQL Server / PostgreSQL
            SQL Server  → Oracle  / MariaDB    / MySQL      / PostgreSQL
            PostgreSQL  → Oracle  / MariaDB    / MySQL      / SQL Server
+
+Consulta en código: ``MigrationPlanner.supported_sources()`` y ``MigrationPlanner.supported_targets()``.
 """
 
 from .charset import (

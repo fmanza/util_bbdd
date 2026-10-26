@@ -496,3 +496,28 @@ def test_every_planner_engine_has_a_sqlglot_dialect_for_views() -> None:
 
     assert planner._SUPPORTED_SOURCE <= set(SQLGLOT_DIALECT)
     assert planner._SUPPORTED_TARGET <= set(SQLGLOT_DIALECT)
+
+
+class TestSupportedEngines:
+    """U-M1 (G4 de util_bbdd_web): motores de migración consultables sin leer constantes privadas."""
+
+    def test_match_private_constants(self) -> None:
+        from util_bbdd.migrate import planner
+
+        assert set(MigrationPlanner.supported_sources()) == planner._SUPPORTED_SOURCE
+        assert set(MigrationPlanner.supported_targets()) == planner._SUPPORTED_TARGET
+
+    def test_sorted_tuples(self) -> None:
+        sources = MigrationPlanner.supported_sources()
+        targets = MigrationPlanner.supported_targets()
+        assert isinstance(sources, tuple) and list(sources) == sorted(sources)
+        assert isinstance(targets, tuple) and list(targets) == sorted(targets)
+
+    def test_every_distinct_pair_builds_a_planner(self) -> None:
+        for source in MigrationPlanner.supported_sources():
+            for target in MigrationPlanner.supported_targets():
+                if source != target:
+                    MigrationPlanner(source_engine=source, target_engine=target)
+
+    def test_available_on_instances(self) -> None:
+        assert MigrationPlanner().supported_targets() == MigrationPlanner.supported_targets()
