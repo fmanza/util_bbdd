@@ -18,6 +18,12 @@ token = CancellationToken()
 - **Cancelación**: cooperativa. `cancel()` no interrumpe nada; la operación lo comprueba entre unidades de trabajo,
   deja el destino coherente y lanza `OperationCancelledError` (en `util_bbdd.exceptions`).
 
+| Operación (`ProgressEvent.operation`) | Dónde | Fases | Desde |
+|---|---|---|---|
+| `"documentation"` | `DatabaseDocumentation(on_progress=, cancel_token=)` | `metadata`, `word`, `excel`, `html` | 4.1.0 |
+| `"graph"` | `generate_all_tables_graphs_ext(on_progress=, cancel_token=)` | `tables` | 4.1.0 |
+| `"compare"` | `SchemaComparator.compare(on_progress=, cancel_token=)` | `metadata`, `tables`, `views`, `routines` | 4.2.0 |
+
 ---
 
 ## ProgressEvent

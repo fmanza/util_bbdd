@@ -14,6 +14,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   (`SchemaDiff.from_dict(diff.to_dict()) == diff`), para guardar un diff y releerlo (visor, evolución entre
   ejecuciones) sin generar informes. Un `format` o `format_version` desconocidos, un campo obligatorio ausente o un
   valor de otro tipo lanzan `SchemaDiffValidationError` con la ruta del valor; las claves que no son campos se ignoran.
+- **comparar** (G1 de util_bbdd_web): `SchemaComparator.compare(..., on_progress=None, cancel_token=None)` con el
+  contrato de `util_bbdd.progress` (operación `"compare"`). Fases `"metadata"` (lectura por lotes de cada lado),
+  `"tables"` (un evento por tabla común, con su nombre), `"views"` y `"routines"`; la cancelación se comprueba al
+  empezar cada fase, entre los dos lados y entre tablas y lanza `OperationCancelledError` sin `SchemaDiff` parcial.
 
 ### Security
 

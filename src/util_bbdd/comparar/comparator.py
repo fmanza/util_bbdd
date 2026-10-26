@@ -14,6 +14,7 @@ from sqlalchemy.exc import ArgumentError
 from util_bbdd._core.exceptions import MetadataIntrospectionError
 
 from ..metadata.reflection import prefetch_table_metadata, schema_routines, view_definitions
+from ..progress import CancellationToken, ProgressCallback, ProgressReporter
 from ._ddl import DdlNormalizer
 from .models import (
     ColumnDiff,
@@ -106,6 +107,8 @@ class SchemaComparator:
         include_routines: bool = False,
         source_label: str | None = None,
         target_label: str | None = None,
+        on_progress: ProgressCallback | None = None,
+        cancel_token: CancellationToken | None = None,
     ) -> SchemaDiff:
         """Compara dos esquemas y devuelve las diferencias encontradas.
 
@@ -128,9 +131,17 @@ class SchemaComparator:
             source_label: Etiqueta del origen en el ``SchemaDiff``, el log, los informes y el nombre de sus ficheros.
                 ``None`` usa ``motor [schema]`` (p. ej. ``oracle [ESQ_ORIGEN]``), sin host, puerto, usuario ni ruta.
             target_label: Etiqueta del destino; mismas reglas que ``source_label``.
+            on_progress: Recibe los ``ProgressEvent`` de la operación ``"compare"``: fase ``"metadata"`` (lectura por
+                lotes de las tablas comunes: 0, 1 y 2 de 2 lados), ``"tables"`` (``0`` de N al empezar y uno por tabla
+                común, con su nombre), ``"views"`` y ``"routines"`` (``0`` y ``1`` de 1). Solo las fases incluidas.
+            cancel_token: Parada cooperativa: se comprueba al empezar cada fase, entre los dos lados de la lectura y
+                entre tablas. Lanza ``OperationCancelledError`` (no hay ``SchemaDiff`` parcial).
 
         Returns:
             ``SchemaDiff`` con todas las diferencias encontradas.
+
+        Raises:
+            OperationCancelledError: ``cancel_token`` cancelado.
 
         Rendimiento:
             Los metadatos de las tablas comunes (columnas, PK, índices, FKs y comentarios) se leen con
@@ -148,6 +159,7 @@ class SchemaComparator:
         source_label = source_label or self._build_label(source, source_schema)
         target_label = target_label or self._build_label(target, target_schema)
         self.logger.info("Iniciando comparación: %s ↔ %s", source_label, target_label)
+        progress = ProgressReporter("compare", on_progress, cancel_token, self.logger)
 
         table_diffs: tuple[TableDiff, ...] = ()
         view_diffs: tuple[ViewDiff, ...] = ()
@@ -162,13 +174,20 @@ class SchemaComparator:
                 include_indices=include_indices,
                 include_foreign_keys=include_foreign_keys,
                 include_comments=include_comments,
+                progress=progress,
             )
 
         if include_views:
+            progress.check("views")
+            progress.emit("views", 0, 1)
             view_diffs = self._compare_views(source, target, source_schema, target_schema)
+            progress.emit("views", 1, 1)
 
         if include_routines:
+            progress.check("routines")
+            progress.emit("routines", 0, 1)
             routine_diffs = self._compare_routines(source, target, source_schema, target_schema)
+            progress.emit("routines", 1, 1)
 
         summary = self._build_summary(table_diffs, view_diffs, routine_diffs)
         self.logger.info("Comparación finalizada: %s", summary)
@@ -198,7 +217,10 @@ class SchemaComparator:
         include_indices: bool,
         include_foreign_keys: bool,
         include_comments: bool,
+        progress: ProgressReporter | None = None,
     ) -> tuple[TableDiff, ...]:
+        progress = progress or ProgressReporter("compare")
+        progress.check("metadata")
         # Índices normalizados: lower(name) → canonical_name para comparación cross-engine
         source_tables_lower: dict[str, str] = {t.lower(): t for t in source.get_table_names(schema=source_schema)}
         target_tables_lower: dict[str, str] = {t.lower(): t for t in target.get_table_names(schema=target_schema)}
@@ -224,10 +246,16 @@ class SchemaComparator:
             kinds.append("fks")
         if include_comments:
             kinds.append("comments")
+        progress.emit("metadata", 0, 2, "origen")
         src_meta = prefetch_table_metadata(source, source_schema, [source_tables_lower[k] for k in common], kinds=kinds)
+        progress.check("metadata")
+        progress.emit("metadata", 1, 2, "destino")
         tgt_meta = prefetch_table_metadata(target, target_schema, [target_tables_lower[k] for k in common], kinds=kinds)
+        progress.emit("metadata", 2, 2)
 
-        for key in common:
+        progress.emit("tables", 0, len(common))
+        for done, key in enumerate(common, start=1):
+            progress.check("tables")
             src_table = source_tables_lower[key]
             tgt_table = target_tables_lower[key]
 
@@ -273,6 +301,7 @@ class SchemaComparator:
                         comment_diffs=comment_diffs,
                     ),
                 )
+            progress.emit("tables", done, len(common), src_table)
 
         return tuple(diffs)
 

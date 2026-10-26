@@ -17,7 +17,9 @@ from sqlalchemy import Column, ForeignKey, Index, Integer, MetaData, String, Tab
 from util_bbdd.comparar.comparator import SchemaComparator
 from util_bbdd.comparar.contracts import SchemaComparatorProtocol
 from util_bbdd.comparar.reporters._base import DdlNormalizer, build_output_stem
+from util_bbdd.exceptions import OperationCancelledError
 from util_bbdd.metadata.reflection import view_definitions
+from util_bbdd.progress import CancellationToken, ProgressEvent
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -1609,3 +1611,79 @@ class TestUnqualifyOwnSchema:
 
     def test_without_schema_nothing_changes(self) -> None:
         assert SchemaComparator._unqualify("CREATE VIEW app.v AS SELECT 1", None) == "CREATE VIEW app.v AS SELECT 1"
+
+
+class TestCompareProgress:
+    """G1: ``compare(on_progress=..., cancel_token=...)`` por fase y por tabla."""
+
+    @staticmethod
+    def _engines() -> tuple[Any, Any]:
+        engines = []
+        for extra in ("", ", extra INTEGER"):
+            engine = create_engine("sqlite:///:memory:")
+            with engine.begin() as conn:
+                for table in ("alfa", "beta", "gamma"):
+                    conn.execute(text(f"CREATE TABLE {table} (id INTEGER PRIMARY KEY{extra})"))
+                conn.execute(text("CREATE VIEW v_alfa AS SELECT id FROM alfa"))
+            engines.append(engine)
+        return engines[0], engines[1]
+
+    def test_events_per_phase_and_table(self) -> None:
+        source, target = self._engines()
+        events: list[ProgressEvent] = []
+        diff = SchemaComparator().compare(
+            inspect(source), inspect(target), include_routines=True, on_progress=events.append
+        )
+        assert len(diff.table_diffs) == 3
+        assert {e.operation for e in events} == {"compare"}
+        assert [(e.phase, e.current, e.total, e.message) for e in events] == [
+            ("metadata", 0, 2, "origen"),
+            ("metadata", 1, 2, "destino"),
+            ("metadata", 2, 2, ""),
+            ("tables", 0, 3, ""),
+            ("tables", 1, 3, "alfa"),
+            ("tables", 2, 3, "beta"),
+            ("tables", 3, 3, "gamma"),
+            ("views", 0, 1, ""),
+            ("views", 1, 1, ""),
+            ("routines", 0, 1, ""),
+            ("routines", 1, 1, ""),
+        ]
+
+    def test_excluded_phases_emit_nothing(self) -> None:
+        source, target = self._engines()
+        events: list[ProgressEvent] = []
+        SchemaComparator().compare(inspect(source), inspect(target), include_tables=False, on_progress=events.append)
+        assert [e.phase for e in events] == ["views", "views"]
+
+    def test_cancelled_before_start(self) -> None:
+        source, target = self._engines()
+        token = CancellationToken()
+        token.cancel()
+        with pytest.raises(OperationCancelledError) as info:
+            SchemaComparator().compare(inspect(source), inspect(target), cancel_token=token)
+        assert (info.value.cancelled_operation, info.value.phase) == ("compare", "metadata")
+
+    def test_cancelled_between_tables(self) -> None:
+        source, target = self._engines()
+        token = CancellationToken()
+        seen: list[str] = []
+
+        def on_progress(event: ProgressEvent) -> None:
+            seen.append(event.message)
+            if event.phase == "tables" and event.current == 1:
+                token.cancel()
+
+        with pytest.raises(OperationCancelledError) as info:
+            SchemaComparator().compare(inspect(source), inspect(target), on_progress=on_progress, cancel_token=token)
+        assert info.value.phase == "tables"
+        assert "beta" not in seen
+
+    def test_failing_callback_does_not_stop_comparison(self) -> None:
+        source, target = self._engines()
+
+        def broken(_event: ProgressEvent) -> None:
+            raise RuntimeError("receptor roto")
+
+        diff = SchemaComparator().compare(inspect(source), inspect(target), on_progress=broken)
+        assert len(diff.table_diffs) == 3

@@ -28,7 +28,7 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `compare` | `(source, target, *, source_schema?, target_schema?, include_tables?, include_views?, include_indices?, include_foreign_keys?, include_comments?, include_routines?, source_label?, target_label?)` | Comparación completa configurable | `SchemaDiff` |
+| `compare` | `(source, target, *, source_schema?, target_schema?, include_tables?, include_views?, include_indices?, include_foreign_keys?, include_comments?, include_routines?, source_label?, target_label?, on_progress?, cancel_token?)` | Comparación completa configurable | `SchemaDiff` |
 
 #### Clase `SchemaDiffReporter`
 
@@ -57,6 +57,8 @@ flowchart TD
 | `source` / `target` | `Inspector` | Inspectors SQLAlchemy de las dos BDs | Ambos activos y con permisos de lectura |
 | `source_schema` / `target_schema` | `str \| None` | Schema a comparar | `None` usa el schema por defecto; Oracle requiere valor explícito para rutinas |
 | `source_label` / `target_label` | `str \| None` | Etiqueta de cada lado en el `SchemaDiff`, el log, los informes y el nombre de sus ficheros (4.2.0) | `None` usa `motor [schema]` (`oracle [ESQ_ORIGEN]`, `postgresql [public]`), sin host, puerto, usuario, ruta ni parámetros de la URL |
+| `on_progress` | `ProgressCallback \| None` | Recibe los `ProgressEvent` de la comparación ([Progreso y cancelación](progress_autodoc.md)) (4.2.0) | Operación `"compare"`: `"metadata"` (0, 1 y 2 de 2 lados), `"tables"` (`0` de N y uno por tabla común, con su nombre), `"views"` y `"routines"` (`0` y `1` de 1); solo las fases incluidas |
+| `cancel_token` | `CancellationToken \| None` | Parada cooperativa (4.2.0) | Se comprueba al empezar cada fase, entre los dos lados de la lectura y entre tablas: `OperationCancelledError`, sin `SchemaDiff` parcial |
 | `include_routines` | `bool` | Comparar procedures y funciones | Default `False`; MariaDB, MySQL, Oracle (sueltas, sin packages), PostgreSQL (sin agregados ni funciones ventana) y SQL Server; motores sin catálogo en `metadata/` (HSQLDB): se omite salvo un fetcher registrado en `SchemaComparator._ROUTINE_FETCHERS` |
 | `format` en `render` | `str` | Formato de salida | `"html"`, `"excel"`, `"word"`, `"markdown"`, `"sql"` |
 | `sql_dialect` en `SqlDiffReporter` | `str` | Dialecto para script SQL | `"generic"`, `"mariadb"`, `"mysql"`, `"postgresql"`, `"sqlserver"`, `"oracle"`, `"sqlite"` |
