@@ -31,6 +31,7 @@ flowchart TD
 |---|---|---|---|
 | `DumpOrchestrator` | `(config: DumpConfig)` | Crea los `Inspector` de origen y destino (SQLAlchemy abre una conexión a cada uno) y emite los avisos de configuración | `DumpOrchestrator` |
 | `run` | `()` | Ejecuta las 7 fases y retorna resultado completo | `DumpResult` |
+| `plan` | `()` | Vista previa sin escribir en el destino (4.4.0): orden de carga, ciclos, tablas sin destino, columnas por tabla y avisos | `DumpPlan` |
 
 #### Dataclass `DumpConfig` (parámetros principales)
 
@@ -78,6 +79,36 @@ flowchart TD
 fichero durante el volcado; `audited_rows` cuenta solo lo de este volcado. Si no coinciden se registra un WARNING con
 las dos cifras.
 
+#### Vista previa: `DumpOrchestrator.plan()` → `DumpPlan` (4.4.0)
+
+`plan()` lee lo mismo que el análisis de `run()` (tablas de origen y destino y FK del origen, con el mismo orden
+topológico) y las columnas de las tablas con destino. No desactiva constraints, no limpia ni carga, no cuenta filas y no
+escribe informe ni auditoría. `plan().load_order` es el `DumpResult.load_order` que daría `run()` con el mismo catálogo.
+Si falla la introspección lanza `DumpError`.
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `load_order` | `list[str]` | Orden de carga (también las tablas sin destino, como `DumpResult.load_order`) |
+| `cycles` | `list[list[str]]` | Grupos de tablas con FK circular |
+| `missing_target` | `list[str]` | Tablas del origen que no existen en el destino |
+| `tables` | `tuple[DumpPlanTable, ...]` | Por tabla, en el orden de carga: `table_name`, `target_table` (nombre en el destino o `None`), `load_order_position` (`-1` sin destino), `in_cycle`, `skipped_columns`, `required_target_columns` (del destino, sin nulos ni valor por defecto y que el origen no tiene) y `outside_references` (tablas que no se vuelcan y a las que apunta por FK) |
+| `warnings` | `tuple[DumpPlanWarning, ...]` | `code`, `message` y `table` (`None` si es general) |
+| `constraints_managed` | `bool` | `True` si `run()` desactiva las constraints del destino durante la carga |
+
+Códigos de `DumpPlanWarning.code` (`DumpWarningCode`): `MISSING_TARGET`, `NO_COMMON_COLUMNS`, `SKIPPED_COLUMNS`,
+`REQUIRED_TARGET_COLUMNS` (la carga de la tabla fallará), `OUTSIDE_REFERENCES`, `FK_CYCLE`, `CONSTRAINTS_NOT_MANAGED`
+y `SQLITE_SOURCE`.
+
+```python
+from util_bbdd.dump import DumpOrchestrator
+
+plan = DumpOrchestrator(config).plan()
+for warning in plan.warnings:
+    print(warning.code, warning.table, warning.message)
+if not any(w.code == "REQUIRED_TARGET_COLUMNS" for w in plan.warnings):
+    result = DumpOrchestrator(config).run()
+```
+
 ### Contrato de entrada
 
 Ver tabla de `DumpConfig` arriba. Los engines deben estar conectables antes de llamar a `run()`.
@@ -112,7 +143,7 @@ except DumpReportError as exc:
 |---|---|
 | `SQLAlchemyError` | Al crear el `DumpOrchestrator`, si no se puede conectar al origen o al destino |
 | `ValueError` | Al crear `DumpConfig`: `chunk_size`, `commit_every_n_chunks`, `write_batch_size` o la combinación `on_error`/`rejects_csv_path`/`max_rejects` no válidos |
-| `DumpError` | En `run()`, si falla la lectura de las tablas de origen o destino (con el `SQLAlchemyError` en `__cause__`) |
+| `DumpError` | En `run()` y `plan()`, si falla la lectura de las tablas de origen o destino (con el `SQLAlchemyError` en `__cause__`) |
 | `DumpConstraintError` (subclase de `DumpError`) | En `run()`, si no se pueden desactivar las constraints del destino. Un fallo al reactivarlas no se lanza: se registra como ERROR en el log |
 | `DumpReportError` | No se pudo generar el informe Excel (directorio, permisos, fichero abierto, disco lleno). La carga ya terminó: `exc.result` lleva el `DumpResult` |
 | Error capturado en `TableDumpResult.error` | Fallo en carga de una tabla individual; el resto continúa |
@@ -127,6 +158,7 @@ except DumpReportError as exc:
 | `DumpOrchestrator` | Coordinación de las 7 fases del volcado |
 | `DumpConfig` | Configuración del volcado (dataclass; normaliza las rutas a `Path` y valida al construirse) |
 | `DumpResult` | Resultado completo incluyendo ruta del informe Excel |
+| `DumpPlan` | Vista previa de `plan()` (4.4.0): orden de carga, ciclos, tablas y avisos, sin escribir |
 | `ConstraintManager` | Gestión de desactivación/rehabilitación de constraints por motor |
 | `IndexManager` | Gestión de desactivación/reconstrucción de índices secundarios |
 | `DumpReporter` | Generación del informe Excel de auditoría |

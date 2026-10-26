@@ -271,6 +271,89 @@ class DumpAuditSummary:
     audit_uncommitted_records: int = 0
 
 
+DumpWarningCode = Literal[
+    "MISSING_TARGET",
+    "NO_COMMON_COLUMNS",
+    "SKIPPED_COLUMNS",
+    "REQUIRED_TARGET_COLUMNS",
+    "OUTSIDE_REFERENCES",
+    "FK_CYCLE",
+    "CONSTRAINTS_NOT_MANAGED",
+    "SQLITE_SOURCE",
+]
+"""Códigos estables de :class:`DumpPlanWarning` (4.4.0):
+
+- ``MISSING_TARGET``: la tabla no existe en el destino; no se carga (``status="missing_target"`` en ``run()``).
+- ``NO_COMMON_COLUMNS``: ninguna columna del origen existe en el destino; no se carga (``status="skipped"``).
+- ``SKIPPED_COLUMNS``: columnas del origen que el destino no tiene; no se copian.
+- ``REQUIRED_TARGET_COLUMNS``: columnas del destino sin nulos ni valor por defecto que el origen no tiene; la carga de
+  la tabla fallará.
+- ``OUTSIDE_REFERENCES``: la tabla tiene FK hacia tablas que no se vuelcan; sus filas deben existir ya en el destino.
+- ``FK_CYCLE``: tablas con FK circular; se cargan al final, en el orden del origen.
+- ``CONSTRAINTS_NOT_MANAGED``: el destino no admite desactivar constraints; se carga con ellas activas.
+- ``SQLITE_SOURCE``: origen SQLite (sin tipos de columna); ver ``DumpOrchestrator``.
+"""
+
+
+@dataclass(frozen=True)
+class DumpPlanWarning:
+    """Aviso de :meth:`DumpOrchestrator.plan` (4.4.0).
+
+    Attributes:
+        code: Código estable (:data:`DumpWarningCode`), para que quien lo muestre no dependa del texto.
+        message: Explicación en español.
+        table: Tabla de origen a la que se refiere, o ``None`` si es general.
+    """
+
+    code: DumpWarningCode
+    message: str
+    table: str | None = None
+
+
+@dataclass(frozen=True)
+class DumpPlanTable:
+    """Una tabla de :class:`DumpPlan`, en el orden de carga (4.4.0).
+
+    Attributes:
+        table_name: Nombre en el origen (``TableDumpResult.table_name``).
+        target_table: Nombre en el destino (puede diferir en mayúsculas), o ``None`` si no existe allí.
+        load_order_position: Posición de carga, como ``TableDumpResult.load_order_position`` (``-1`` sin destino).
+        in_cycle: ``True`` si está en un ciclo de FK.
+        skipped_columns: Columnas del origen que el destino no tiene (no se copian).
+        required_target_columns: Columnas del destino sin nulos ni valor por defecto que el origen no tiene.
+        outside_references: Tablas que no se vuelcan y a las que apunta por FK.
+    """
+
+    table_name: str
+    target_table: str | None
+    load_order_position: int
+    in_cycle: bool = False
+    skipped_columns: tuple[str, ...] = ()
+    required_target_columns: tuple[str, ...] = ()
+    outside_references: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class DumpPlan:
+    """Vista previa de un volcado: lo que haría ``run()`` sin escribir nada (``DumpOrchestrator.plan()``, 4.4.0).
+
+    Attributes:
+        load_order: Orden de carga, el mismo que daría ``DumpResult.load_order`` con el mismo catálogo.
+        cycles: Grupos de tablas con FK circular (``DumpResult.cycles_detected``).
+        missing_target: Tablas del origen que no existen en el destino.
+        tables: Una entrada por tabla, en el orden de ``load_order``.
+        warnings: Avisos por tabla y generales.
+        constraints_managed: ``True`` si ``run()`` desactiva las constraints del destino durante la carga.
+    """
+
+    load_order: list[str]
+    cycles: list[list[str]]
+    missing_target: list[str]
+    tables: tuple[DumpPlanTable, ...]
+    warnings: tuple[DumpPlanWarning, ...]
+    constraints_managed: bool
+
+
 @dataclass
 class DumpResult:
     """Resultado completo de un volcado.

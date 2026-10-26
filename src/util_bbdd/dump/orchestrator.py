@@ -1,6 +1,7 @@
 """Orquestador de volcado de datos entre esquemas/bases de datos.
 
-Punto de entrada público: ``DumpOrchestrator(config).run() → DumpResult``.
+Punto de entrada público: ``DumpOrchestrator(config).run() → DumpResult``; vista previa sin escribir:
+``DumpOrchestrator(config).plan() → DumpPlan`` (4.4.0).
 
 Flujo (5 fases):
   1. Análisis: orden de carga topológico (FK), tablas y columnas faltantes.
@@ -72,9 +73,19 @@ from ..metadata.reflection import (
 )
 from . import _audit_summary, _fk_graph
 from ._audit_events import DumpAuditEvents, DumpAuditWriter
-from ._constraints import ConstraintManager, ConstraintResult
+from ._constraints import _SUPPORTED_DIALECTS as _SUPPORTED_CONSTRAINT_DIALECTS, ConstraintManager, ConstraintResult
 from ._indexes import IndexManager
-from ._models import DumpAuditSummary, DumpConfig, DumpResult, IndexActionResult, PKSyncResult, TableDumpResult
+from ._models import (
+    DumpAuditSummary,
+    DumpConfig,
+    DumpPlan,
+    DumpPlanTable,
+    DumpPlanWarning,
+    DumpResult,
+    IndexActionResult,
+    PKSyncResult,
+    TableDumpResult,
+)
 from ._source_reader import (
     _PREFETCH_SOURCE_DIALECTS,
     _execute_read as _execute_read,  # re-export (R10a): tests y llamadores previos
@@ -170,6 +181,140 @@ class DumpOrchestrator:
             raise
         self._write_dump_events(writer, result, None, time.perf_counter() - started)
         return result
+
+    def plan(self) -> DumpPlan:
+        """Vista previa del volcado sin escribir en el destino (G29 de util_bbdd_web, 4.4.0).
+
+        Lee lo mismo que el análisis de :meth:`run` (tablas de origen y destino y FK del origen, con el mismo orden
+        topológico) y las columnas de las tablas con destino. No desactiva constraints, no limpia ni carga, no cuenta
+        filas y no escribe informe ni auditoría. ``plan().load_order`` es el ``DumpResult.load_order`` que daría
+        ``run()`` con el mismo catálogo.
+
+        Returns:
+            El plan: orden de carga, ciclos, tablas sin destino, columnas por tabla y avisos.
+
+        Raises:
+            DumpError: Si falla la introspección de origen o destino.
+
+        Example:
+            >>> plan = DumpOrchestrator(config).plan()  # doctest: +SKIP
+            >>> [w.code for w in plan.warnings]  # doctest: +SKIP
+            ['MISSING_TARGET']
+        """
+        cfg = self._cfg
+        src_tables, dst_lower, missing_in_dst, load_order, cycles = self._analyze_dump_phase()
+        src_to_dst, effective_src_order, effective_dst_order = self._compute_load_order(
+            src_tables, dst_lower, load_order
+        )
+        self._prefetch_metadata(effective_src_order, effective_dst_order)
+        in_cycle = {t for group in cycles for t in group}
+        position_of = {t: i for i, t in enumerate(effective_src_order)}
+        warnings: list[DumpPlanWarning] = []
+        try:
+            referred = _fk_graph.referred_tables(src_tables, self._src_insp, cfg.source_schema)
+            inside = {t.lower() for t in src_tables}
+            tables = tuple(
+                self._plan_table(
+                    t, src_to_dst.get(t), position_of.get(t, -1), t in in_cycle, referred.get(t, []), inside, warnings
+                )
+                for t in load_order
+            )
+        except SQLAlchemyError as exc:
+            raise DumpError(f"Error analizando columnas de origen/destino para el volcado: {exc}") from exc
+        warnings.extend(
+            DumpPlanWarning("FK_CYCLE", f"Tablas con FK circular (se cargan al final): {', '.join(group)}.")
+            for group in cycles
+        )
+        dialect = cfg.target_engine.dialect.name
+        constraints_managed = dialect in _SUPPORTED_CONSTRAINT_DIALECTS
+        if not constraints_managed:
+            warnings.append(
+                DumpPlanWarning(
+                    "CONSTRAINTS_NOT_MANAGED",
+                    f"El destino {dialect} no admite desactivar constraints: se carga con ellas activas.",
+                )
+            )
+        if cfg.source_engine.dialect.name == "sqlite":
+            warnings.append(DumpPlanWarning("SQLITE_SOURCE", DumpOrchestrator._sqlite_source_message(dialect)))
+        return DumpPlan(
+            load_order=load_order,
+            cycles=cycles,
+            missing_target=missing_in_dst,
+            tables=tables,
+            warnings=tuple(warnings),
+            constraints_managed=constraints_managed,
+        )
+
+    def _plan_table(
+        self,
+        src_table: str,
+        dst_table: str | None,
+        position: int,
+        in_cycle: bool,
+        referred: list[str],
+        inside: set[str],
+        warnings: list[DumpPlanWarning],
+    ) -> DumpPlanTable:
+        """Entrada de :meth:`plan` para una tabla; añade a ``warnings`` los avisos de la tabla.
+
+        ``referred`` son las tablas a las que apunta por FK e ``inside``, las del volcado en minúsculas.
+        """
+        outside = tuple(sorted({r for r in referred if r and r.lower() not in inside}))
+        if outside:
+            warnings.append(
+                DumpPlanWarning(
+                    "OUTSIDE_REFERENCES",
+                    f"Tiene FK hacia tablas que no se vuelcan (sus filas deben existir en el destino): "
+                    f"{', '.join(outside)}.",
+                    src_table,
+                )
+            )
+        if dst_table is None:
+            warnings.append(
+                DumpPlanWarning("MISSING_TARGET", "La tabla no existe en el destino: no se carga.", src_table)
+            )
+            return DumpPlanTable(src_table, None, position, in_cycle, outside_references=outside)
+        common, skipped, _ = self._common_columns(src_table, dst_table)
+        source_lower = {c.lower() for c in common + skipped}
+        required = tuple(
+            c["name"]
+            for c in self._side_meta("dst").get("columns", dst_table)
+            if c["name"].lower() not in source_lower and DumpOrchestrator._is_required(c)
+        )
+        if not common:
+            warnings.append(
+                DumpPlanWarning(
+                    "NO_COMMON_COLUMNS", "Ninguna columna del origen existe en el destino: no se carga.", src_table
+                )
+            )
+        elif skipped:
+            warnings.append(
+                DumpPlanWarning(
+                    "SKIPPED_COLUMNS",
+                    f"Columnas del origen sin destino (no se copian): {', '.join(skipped)}.",
+                    src_table,
+                )
+            )
+        if required and common:
+            warnings.append(
+                DumpPlanWarning(
+                    "REQUIRED_TARGET_COLUMNS",
+                    f"Columnas obligatorias del destino que el origen no tiene (la carga fallará): {', '.join(required)}.",
+                    src_table,
+                )
+            )
+        return DumpPlanTable(src_table, dst_table, position, in_cycle, tuple(skipped), required, outside)
+
+    @staticmethod
+    def _is_required(column: Any) -> bool:
+        """Columna del destino que necesita un valor en cada INSERT: sin nulos, sin valor por defecto y no generada."""
+        return (
+            not column.get("nullable", True)
+            and column.get("default") is None
+            and column.get("autoincrement") is not True
+            and not column.get("identity")
+            and not column.get("computed")
+        )
 
     def _init_dump_run(self) -> tuple[Path, Path | None, datetime]:
         """Inicializa paths y auditoría para el volcado."""
@@ -1352,11 +1497,19 @@ class DumpOrchestrator:
         """
         if source.dialect.name != "sqlite":
             return
-        DumpOrchestrator.logger.warning(
-            "Origen SQLite: las fechas se leen como texto y los DECIMAL como float (SQLite no tiene tipos de columna). "
-            "Con destino SQLite, las tablas con columnas de fecha fallarán; los DECIMAL pueden perder precisión."
-            if target.dialect.name == "sqlite"
-            else "Origen SQLite: las fechas se leen como texto (el destino las convierte) y los DECIMAL como float "
+        DumpOrchestrator.logger.warning(DumpOrchestrator._sqlite_source_message(target.dialect.name))
+
+    @staticmethod
+    def _sqlite_source_message(target_dialect: str) -> str:
+        """Texto del aviso de origen SQLite (log de ``__init__`` y ``SQLITE_SOURCE`` de :meth:`plan`)."""
+        if target_dialect == "sqlite":
+            return (
+                "Origen SQLite: las fechas se leen como texto y los DECIMAL como float (SQLite no tiene tipos de "
+                "columna). Con destino SQLite, las tablas con columnas de fecha fallarán; los DECIMAL pueden perder "
+                "precisión."
+            )
+        return (
+            "Origen SQLite: las fechas se leen como texto (el destino las convierte) y los DECIMAL como float "
             "(pueden perder precisión), porque SQLite no tiene tipos de columna."
         )
 

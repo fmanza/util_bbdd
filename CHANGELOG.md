@@ -5,6 +5,16 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **dump** (G29 de util_bbdd_web): `DumpOrchestrator.plan()` devuelve un `DumpPlan` sin escribir en el destino: orden
+  de carga (el mismo `topological_sort` que `run()`: `plan().load_order == run().load_order`), ciclos de FK, tablas sin
+  destino y, por tabla (`DumpPlanTable`), nombre en el destino, posición, columnas que no se copian, columnas
+  obligatorias del destino que el origen no tiene y FK hacia tablas que no se vuelcan. Los avisos (`DumpPlanWarning`)
+  llevan un código estable (`DumpWarningCode`). No cuenta filas ni desactiva constraints.
+
 ## [4.3.0] - 2026-10-26
 
 SemVer: MINOR (añadidos y una corrección; solo parámetros opcionales nuevos, sin cambios de valor por defecto). Ola 3
