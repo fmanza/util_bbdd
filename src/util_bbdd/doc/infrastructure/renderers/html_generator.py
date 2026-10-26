@@ -1558,17 +1558,22 @@ class HtmlGenerator:
         tabs: list[dict[str, Any]] = []
         flat_paths: list[str] = []
 
-        for direction_key, direction_label in (("outgoing", "Salida"), ("incoming", "Entrada")):
+        for direction_key, direction_label in (
+            ("outgoing", "Salida"),
+            ("incoming", "Entrada"),
+            ("isolated", "Sin relaciones"),  # tabla sin FK: la tabla sola (util_bbdd_web G38)
+        ):
             items = sorted(piped.get(direction_key, []), key=lambda item: int(item.get("depth", 0)))
             tab_items: list[dict[str, Any]] = []
             for item in items:
-                depth = int(item["depth"])
+                # La tabla sola (profundidad 0) se muestra como la única pestaña de su grupo: «1/1»
+                depth = 1 if direction_key == "isolated" else int(item["depth"])
                 svg_markup: str = self._inject_links_into_svg_markup(item["bytes"], navigation_links)
                 path: Path = graph_output_dir / f"graphviz_ext_{file_stem}_{direction_key}_level{depth}.svg"
                 path.write_text(svg_markup, encoding="utf-8")
                 relative_path = html.escape(str(path.relative_to(output_dir)).replace("\\", "/"))
                 flat_paths.append(relative_path)
-                title = f"Nivel {depth}"
+                title = str(item["title"]) if direction_key == "isolated" else f"Nivel {depth}"
                 tab_items.append(
                     {
                         "tab_id": f"{table_name}-{direction_key}-level-{depth}",
@@ -1587,6 +1592,8 @@ class HtmlGenerator:
 
             hidden_levels = int(summary.get(f"hidden_{direction_key}_levels", 0))
             total_levels = int(summary.get(f"total_{direction_key}_levels", len(tab_items)))
+            if direction_key == "isolated":
+                total_levels = len(tab_items)
 
             tabs.append(
                 {

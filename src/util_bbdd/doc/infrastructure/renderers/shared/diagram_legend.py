@@ -13,6 +13,8 @@ def build_diagram_direction_help(direction_key: str) -> str:
     """Devuelve ayuda contextual por sentido del diagrama."""
     if direction_key == "outgoing":
         return "Relaciones de salida hacia tablas hijas o dependientes de la tabla actual."
+    if direction_key == "isolated":
+        return "La tabla no tiene claves foráneas de entrada ni de salida: se dibuja sola."
     return "Relaciones de entrada desde tablas padre o referenciadoras hacia la tabla actual."
 
 

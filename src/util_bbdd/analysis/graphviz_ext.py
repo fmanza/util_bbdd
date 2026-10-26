@@ -523,9 +523,9 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         )
         output_dir = Path(output_dir).resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
-        results: dict[str, Any] = {"summary": piped["summary"], "outgoing": [], "incoming": []}
+        results: dict[str, Any] = {"summary": piped["summary"], "outgoing": [], "incoming": [], "isolated": []}
         stem: str = safe_file_stem(table_name)
-        for direction_key in ("outgoing", "incoming"):
+        for direction_key in ("outgoing", "incoming", "isolated"):
             for item in piped[direction_key]:
                 output_file: Path = output_dir / f"graphviz_ext_{stem}_{direction_key}_level{item['depth']}"
                 results[direction_key].append(
@@ -1114,13 +1114,16 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
 
         Returns:
             dict[str, Any]: Misma estructura que generate_graphviz_level_graphs_ext
-                pero cada item lleva "bytes": bytes en vez de "path": Path.
+                pero cada item lleva "bytes": bytes en vez de "path": Path. Una tabla sin relaciones no tiene
+                niveles: desde 4.1.0, ``"isolated"`` trae su diagrama (la tabla sola, como en Word); con relaciones
+                es una lista vacía.
                 Ejemplo::
 
                     {
                         "summary": {"root_table": "orders", "max_depth": 2, ...},
                         "outgoing": [{"depth": 1, "bytes": b"...", "title": "Nivel 1"}],
                         "incoming": [{"depth": 1, "bytes": b"...", "title": "Nivel 1"}],
+                        "isolated": [],
                     }
 
         Raises:
@@ -1154,7 +1157,20 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             },
             "outgoing": [],
             "incoming": [],
+            "isolated": [],
         }
+        if not document.levels:
+            # Sin relaciones no hay niveles que separar: la tabla sola (util_bbdd_web G38; antes el HTML la omitía)
+            results["isolated"].append(
+                {
+                    "depth": 0,
+                    "bytes": self._pipe_graph_internal_ext(
+                        table_name=table_name, format=format, document=document, show_columns=include_columns
+                    ),
+                    "title": "Tabla sin relaciones",
+                }
+            )
+            return results
 
         for group_direction, direction_key in (
             (LevelDirection.OUTGOING, "outgoing"),

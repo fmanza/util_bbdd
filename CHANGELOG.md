@@ -45,6 +45,10 @@ SemVer: MINOR (solo añadidos y correcciones; sin cambios de valor por defecto).
   habitual en una plantilla corporativa. Ahora `DatabaseDocumentation` lo comprueba al construirse (antes de leer la
   base de datos) y lanza `DocumentationConfigError` con todos los estilos que faltan; también si el fichero no es un
   `.docx` válido. Solo cuando se pide Word.
+- **doc, analysis** (web G38): el sitio HTML omitía sin aviso la sección «Diagrama de relaciones» de una tabla sin
+  relaciones (`pipe_level_graphs_ext` no tenía niveles que devolver), mientras Word dibujaba la tabla sola. Ahora
+  `pipe_level_graphs_ext` y `generate_graphviz_level_graphs_ext` devuelven la clave nueva `"isolated"` con el
+  diagrama de la tabla sola (lista vacía si tiene relaciones) y el HTML la muestra en un grupo «Sin relaciones».
 
 ## [4.0.1] - 2026-10-20
 
