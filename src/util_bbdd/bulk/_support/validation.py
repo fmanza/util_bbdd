@@ -86,7 +86,8 @@ def align_dataframe_columns(df: pd.DataFrame, table: Table) -> None:
         if len(candidates) == 1:
             renames[column] = candidates[0]
     if renames:
-        df.rename(columns=renames, inplace=True)
+        # Sin ``rename(inplace=True)``: pandas 3.1 lo da por obsoleto (PDEP-8); mismo efecto sobre ``df``
+        df.columns = [renames.get(column, column) for column in df.columns]
 
 
 def is_identity_pk(column: Column[Any]) -> bool:

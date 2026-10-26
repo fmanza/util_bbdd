@@ -5,6 +5,16 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **tests, bulk**: el CI de 4.1.0 fallaba con pandas 3.1.0 (recién publicado) en
+  `test_edge_shapes_match[sin_columnas]`: pandas 3.1 cambia `to_dict(orient="records")` de un DataFrame con filas y
+  sin columnas (antes `[]`, ahora un `{}` por fila). `dataframe_to_sql_records` sigue devolviendo `[]` (no hay
+  columnas que enviar); el caso se comprueba aparte, sin depender de la versión de pandas. Fuera también el
+  `DataFrame.rename(inplace=True)` de `bulk/_support/validation.py`, obsoleto en pandas 3.1 (`Pandas4Warning`).
+
 ## [4.1.0] - 2026-10-26
 
 SemVer: MINOR (solo añadidos y correcciones; sin cambios de valor por defecto). Huecos de util_bbdd_web

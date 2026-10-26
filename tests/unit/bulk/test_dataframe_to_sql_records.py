@@ -123,13 +123,19 @@ def test_non_string_and_duplicate_column_names_match() -> None:
     [
         pd.DataFrame(),
         pd.DataFrame({"a": pd.Series([], dtype="int64")}),
-        pd.DataFrame(index=range(3)),
         pd.DataFrame({"a": [1, 2]}, index=[10, 10]),
     ],
-    ids=["vacío", "sin_filas", "sin_columnas", "índice_duplicado"],
+    ids=["vacío", "sin_filas", "índice_duplicado"],
 )
 def test_edge_shapes_match(df: pd.DataFrame) -> None:
     _assert_equivalent(df)
+
+
+def test_frame_without_columns_gives_no_records() -> None:
+    """Filas sin columnas: no hay nada que enviar, así que ningún registro (un ``{}`` por fila daría un INSERT sin
+    columnas). Es lo que devolvía ``to_dict(orient="records")`` hasta pandas 3.0; pandas 3.1 devuelve un ``{}`` por fila,
+    así que este caso ya no se compara con ``to_dict``."""
+    assert dataframe_to_sql_records(pd.DataFrame(index=range(3))) == []
 
 
 def test_column_slice_of_larger_frame_matches() -> None:
