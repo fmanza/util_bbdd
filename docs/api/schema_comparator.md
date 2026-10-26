@@ -42,7 +42,7 @@ flowchart TD
 
 | Modelo | Campos principales |
 |---|---|
-| `SchemaDiff` | `source_label`, `target_label`, `table_diffs`, `view_diffs`, `routine_diffs`, `summary`; propiedades `has_differences`, `total_differences`, `total_leaf_differences` |
+| `SchemaDiff` | `source_label`, `target_label`, `table_diffs`, `view_diffs`, `routine_diffs`, `summary`; propiedades `has_differences`, `total_differences`, `total_leaf_differences`; `to_dict()` / `from_dict(data)` (4.2.0) |
 | `TableDiff` | `table_name`, `status`, `column_diffs`, `index_diffs`, `fk_diffs`, `comment_diffs` |
 | `ColumnDiff` | `column_name`, `attribute`, `source_value`, `target_value` |
 | `IndexDiff` | `index_name`, `table_name`, `status`, `source_columns`, `target_columns`, `source_unique`, `target_unique` |
@@ -64,6 +64,10 @@ flowchart TD
 ### Contrato de salida
 
 - **`compare()`** — `SchemaDiff` inmutable con todos los diffs. `has_differences=False` si los esquemas son idénticos.
+- **`SchemaDiff.to_dict()`** — `dict` con tipos JSON, `format="util_bbdd.schema_diff"` y `format_version=1`;
+  `SchemaDiff.from_dict(diff.to_dict()) == diff`. `from_dict` lanza `SchemaDiffValidationError` con un `format` o
+  `format_version` desconocidos, un campo obligatorio ausente o un valor de otro tipo (indica la ruta, p. ej.
+  `table_diffs[2].status`), e ignora las claves que no son campos.
 - **`render()`** / **`render_all()`** — `Path` o `list[Path]` de ficheros generados en `output_dir`.
 - `TableDiff.status` / `ViewDiff.status` — `"added"`, `"removed"` o `"modified"`.
 - `ColumnDiff.attribute` — `"type"`, `"nullable"`, `"primary_key"`, `"default"` o `"existence"`.

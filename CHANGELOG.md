@@ -7,6 +7,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **comparar** (G24 de util_bbdd_web): `SchemaDiff.to_dict()` y `SchemaDiff.from_dict(data)`. Serialización a tipos
+  JSON con `format="util_bbdd.schema_diff"` y `format_version=1`, y reconstrucción exacta
+  (`SchemaDiff.from_dict(diff.to_dict()) == diff`), para guardar un diff y releerlo (visor, evolución entre
+  ejecuciones) sin generar informes. Un `format` o `format_version` desconocidos, un campo obligatorio ausente o un
+  valor de otro tipo lanzan `SchemaDiffValidationError` con la ruta del valor; las claves que no son campos se ignoran.
+
 ### Security
 
 - **comparar** (G23 de util_bbdd_web): las etiquetas de `SchemaComparator` ya no llevan datos de conexión. Antes
