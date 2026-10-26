@@ -81,6 +81,7 @@ Derivados de los tests del comparador de esquemas.
 | AC-05 | Comentarios distintos y `include_tables=False` | Se comparan | Los comentarios no se comparan aunque `include_comments=True` |
 | AC-06 | Una URL de conexión con usuario, contraseña y host | Se genera la etiqueta del esquema en el informe | La etiqueta es `motor [schema]`: sin usuario, contraseña, host, puerto ni ruta; `source_label`/`target_label` la sustituyen |
 | AC-07 | La lectura de columnas falla en uno de los esquemas | Se comparan | El error llega al llamante con su mensaje; no se oculta |
+| AC-08 | Informe HTML abierto sin Internet o con una CSP que bloquea jsDelivr | Se abre el informe | Pestañas, filtros y búsqueda funcionan; los diagramas se ven como texto. Con `mermaid_src` local se dibujan sin red |
 
 ## 5. Glosario y Términos
 

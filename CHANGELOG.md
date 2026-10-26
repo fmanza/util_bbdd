@@ -26,6 +26,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   en MariaDB/MySQL). Nuevo: `compare(..., source_label=None, target_label=None)` para poner etiquetas propias, que
   también nombran los ficheros. Cambia el texto de la etiqueta y el nombre de los ficheros, no la API; quien los
   analizara, debe pasar sus propias etiquetas.
+- **comparar** (G25 de util_bbdd_web): el informe HTML de comparación cargaba `mermaid@10` (versión flotante) de
+  jsDelivr y su script abortaba si no llegaba: sin Internet o con una CSP estricta se perdían pestañas, filtros y
+  búsqueda. Ahora carga `mermaid@10.9.8` con `integrity` (SRI, `MERMAID_SRI`) y `crossorigin`, y el script solo usa
+  Mermaid si cargó; si no, los diagramas se ven como texto. Nuevo `mermaid_src` en `HtmlDiffReporter` y
+  `SchemaDiffReporter`: URL `http(s)` o relativa (con `mermaid_integrity` opcional), `Path` a un `mermaid.min.js` local
+  que se incrusta (informe autocontenido) o `None`. Otro esquema de URL (`javascript:`, `data:`, `file:`) o un fichero
+  ilegible lanzan `SchemaDiffValidationError`. Verificado en Chromium sin red: controles operativos con Mermaid
+  bloqueado y diagramas dibujados con el fichero local.
 
 ### Fixed
 

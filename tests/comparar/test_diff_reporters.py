@@ -43,6 +43,7 @@ from util_bbdd.comparar.reporters._base import (
     escape_mermaid_label,
     sanitize_filename,
 )
+from util_bbdd.comparar.reporters.html_reporter import MERMAID_CDN_URL, MERMAID_SRI
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -282,8 +283,54 @@ class TestHtmlDiffReporter:
         assert "orders_archive" in content
         # DDL de vista escapado
         assert "v_active_users" in content
-        # Script Mermaid CDN
-        assert "cdn.jsdelivr.net" in content
+        # Script Mermaid CDN: versión fija con SRI (G25)
+        assert f'<script src="{MERMAID_CDN_URL}" integrity="{MERMAID_SRI}" crossorigin="anonymous">' in content
+        assert "mermaid@10/" not in content
+
+    def test_script_survives_missing_mermaid(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
+        """G25: ``mermaid.initialize`` solo se llama si Mermaid cargó; si no, los diagramas quedan como texto."""
+        output = HtmlDiffReporter().render(rich_diff, tmp_path / "diff.html")
+        content = output.read_text(encoding="utf-8")
+        guard = content.index("var hasMermaid = typeof window.mermaid !== 'undefined';")
+        assert guard < content.index("mermaid.initialize(")
+        assert "classList.add('no-mermaid')" in content
+        assert "if (!hasMermaid) return;" in content
+
+    def test_mermaid_src_none_loads_no_script(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
+        output = HtmlDiffReporter(mermaid_src=None).render(rich_diff, tmp_path / "diff.html")
+        content = output.read_text(encoding="utf-8")
+        assert "<script src=" not in content
+        assert 'class="mermaid"' in content  # el diagrama sigue en el HTML, como texto
+
+    def test_mermaid_src_relative_url_without_integrity(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
+        reporter = HtmlDiffReporter(mermaid_src="assets/mermaid.min.js")
+        content = reporter.render(rich_diff, tmp_path / "diff.html").read_text(encoding="utf-8")
+        assert '<script src="assets/mermaid.min.js"></script>' in content
+
+    def test_mermaid_src_url_with_custom_integrity(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
+        reporter = HtmlDiffReporter(mermaid_src="https://cdn.example/m.js", mermaid_integrity="sha384-abc")
+        content = reporter.render(rich_diff, tmp_path / "diff.html").read_text(encoding="utf-8")
+        assert '<script src="https://cdn.example/m.js" integrity="sha384-abc" crossorigin="anonymous">' in content
+
+    def test_mermaid_src_local_file_is_inlined_escaped(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
+        local = tmp_path / "mermaid.min.js"
+        local.write_text('window.mermaid = {s: "</SCRIPT><b>x</b>"};', encoding="utf-8")
+        content = HtmlDiffReporter(mermaid_src=local).render(rich_diff, tmp_path / "diff.html").read_text("utf-8")
+        assert '<script>window.mermaid = {s: "<\\/SCRIPT><b>x</b>"};</script>' in content
+        assert "<script src=" not in content
+
+    @pytest.mark.parametrize("src", ["javascript:alert(1)", "data:text/javascript,alert(1)", "file:///etc/m.js"])
+    def test_mermaid_src_rejects_other_schemes(self, src: str) -> None:
+        with pytest.raises(SchemaDiffValidationError, match="mermaid_src"):
+            HtmlDiffReporter(mermaid_src=src)
+
+    def test_mermaid_src_missing_file(self, tmp_path: Path) -> None:
+        with pytest.raises(SchemaDiffValidationError, match="mermaid_src"):
+            HtmlDiffReporter(mermaid_src=tmp_path / "no_existe.js")
+
+    def test_facade_passes_mermaid_src(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
+        path = SchemaDiffReporter(mermaid_src=None).render(rich_diff, tmp_path, format="html")
+        assert "<script src=" not in path.read_text(encoding="utf-8")
 
     def test_filter_toolbar_present_when_diffs_exist(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
         """El toolbar de filtros aparece con los 5 botones cuando hay diferencias."""

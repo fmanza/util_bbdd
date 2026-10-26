@@ -17,7 +17,7 @@ from util_bbdd._core.exceptions import SchemaDiffValidationError
 
 from ._base import build_output_stem
 from .excel_reporter import ExcelDiffReporter
-from .html_reporter import HtmlDiffReporter
+from .html_reporter import MERMAID_CDN_URL, HtmlDiffReporter
 from .markdown_reporter import MarkdownDiffReporter
 from .sql_reporter import SqlDiffReporter
 from .word_reporter import WordDiffReporter
@@ -79,6 +79,10 @@ class SchemaDiffReporter:
             ``-- ⚠`` con instrucciones.
         sql_source_schema: Nombre del schema origen para el Inspector.  Normalmente
             ``None`` para el schema por defecto del motor.
+        mermaid_src: Origen de Mermaid del informe HTML (URL ``http(s)`` o relativa, ``Path`` a un
+            ``mermaid.min.js`` local que se incrusta, o ``None`` sin diagramas). Por defecto jsDelivr con versión fija
+            y SRI. Ver ``HtmlDiffReporter``.
+        mermaid_integrity: SRI del ``<script src>`` de Mermaid cuando ``mermaid_src`` es otra URL.
 
     Los reporters individuales también están disponibles directamente::
 
@@ -100,10 +104,13 @@ class SchemaDiffReporter:
         sql_dialect: str = "generic",
         sql_source_inspector: Inspector | None = None,
         sql_source_schema: str | None = None,
+        *,
+        mermaid_src: str | Path | None = MERMAID_CDN_URL,
+        mermaid_integrity: str | None = None,
     ) -> None:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self._reporters: dict[str, DiffReporterProtocol] = {
-            "html": HtmlDiffReporter(),
+            "html": HtmlDiffReporter(mermaid_src=mermaid_src, mermaid_integrity=mermaid_integrity),
             "excel": ExcelDiffReporter(),
             "word": WordDiffReporter(template_path=word_template_path),
             "markdown": MarkdownDiffReporter(),

@@ -220,6 +220,23 @@
       padding: 2rem 0;
     }
 
+    /* Sin Mermaid: el diagrama se muestra como texto */
+    .no-mermaid .diagram-page .mermaid {
+      text-align: left;
+      white-space: pre;
+      overflow-x: auto;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 0.8rem;
+    }
+    .no-mermaid .diagram-page .mermaid:not(:has(svg))::after { content: none; }
+    .no-mermaid .diagram-page .mermaid::before {
+      content: "Mermaid no disponible: diagrama en texto";
+      display: block;
+      color: #9ca3af;
+      font-family: inherit;
+      padding-bottom: 0.5rem;
+    }
+
     /* ── Pagination ──────────────────────────────────────────────────────── */
     .diagram-pagination {
       display: flex;
@@ -660,13 +677,30 @@ graph LR
 </main>
 
 {# ── Scripts ───────────────────────────────────────────────────────────── #}
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+{% if mermaid and mermaid.inline %}
+<script>{{ mermaid.inline | safe }}</script>
+{% elif mermaid %}
+<script src="{{ mermaid.src }}"{% if mermaid.integrity %} integrity="{{ mermaid.integrity }}" crossorigin="anonymous"{% endif %}></script>
+{% endif %}
 <script>
 (function () {
   'use strict';
 
   // ── Mermaid: lazy init (no auto-render al cargar) ──────────────────────
-  mermaid.initialize({ startOnLoad: false, theme: 'default' });
+  // Sin Mermaid (sin red, SRI o CSP que lo bloquean, o mermaid_src=None) el resto del informe funciona igual y los
+  // diagramas se quedan como texto.
+  var hasMermaid = typeof window.mermaid !== 'undefined';
+  if (hasMermaid) {
+    try {
+      mermaid.initialize({ startOnLoad: false, theme: 'default' });
+    } catch (err) {
+      hasMermaid = false;
+      console.warn('[mermaid] initialize error:', err);
+    }
+  }
+  if (!hasMermaid) {
+    document.documentElement.classList.add('no-mermaid');
+  }
 
   /** IDs de nodos .mermaid ya renderizados (evita re-renders). */
   var renderedIds = new Set();
@@ -676,6 +710,7 @@ graph LR
    * dentro del contenedor dado.
    */
   function renderMermaidIn(container) {
+    if (!hasMermaid) return;
     var nodes = Array.from(container.querySelectorAll('.mermaid')).filter(function (el) {
       return el.id && !renderedIds.has(el.id);
     });

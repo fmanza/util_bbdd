@@ -34,7 +34,7 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `SchemaDiffReporter` | `(word_template_path=None, sql_dialect="generic", sql_source_inspector=None, sql_source_schema=None)` | Crea fachada de reportes (se importa de `util_bbdd.comparar`) | `SchemaDiffReporter` |
+| `SchemaDiffReporter` | `(word_template_path=None, sql_dialect="generic", sql_source_inspector=None, sql_source_schema=None, *, mermaid_src=MERMAID_CDN_URL, mermaid_integrity=None)` | Crea fachada de reportes (se importa de `util_bbdd.comparar`) | `SchemaDiffReporter` |
 | `render` | `(diff, output_dir, format, filename=None)` | Genera reporte en un formato | `Path` |
 | `render_all` | `(diff, output_dir, formats=None, raise_on_error=False)` | Genera reportes en múltiples formatos | `list[Path]` |
 
@@ -69,6 +69,12 @@ flowchart TD
   `format_version` desconocidos, un campo obligatorio ausente o un valor de otro tipo (indica la ruta, p. ej.
   `table_diffs[2].status`), e ignora las claves que no son campos.
 - **`render()`** / **`render_all()`** — `Path` o `list[Path]` de ficheros generados en `output_dir`.
+- **Informe HTML y Mermaid** (4.2.0) — por defecto carga `mermaid@10.9.8` de jsDelivr con `integrity` (SRI;
+  constantes `MERMAID_VERSION`, `MERMAID_CDN_URL` y `MERMAID_SRI` de `util_bbdd.comparar.reporters.html_reporter`).
+  `mermaid_src` lo cambia: URL `http(s)` o relativa (un asset propio con la CSP de la aplicación; `mermaid_integrity`
+  opcional), `Path` a un `mermaid.min.js` local que se incrusta en el HTML (informe sin red, unos 3 MB más) o `None`
+  (sin Mermaid). Otro esquema de URL o un fichero ilegible lanzan `SchemaDiffValidationError`. Si Mermaid no carga,
+  pestañas, filtros y búsqueda siguen funcionando y los diagramas se ven como texto.
 - `TableDiff.status` / `ViewDiff.status` — `"added"`, `"removed"` o `"modified"`.
 - `ColumnDiff.attribute` — `"type"`, `"nullable"`, `"primary_key"`, `"default"` o `"existence"`.
 - Los nombres de tablas, columnas, índices, FKs, vistas y routines (y las columnas de índices y FKs) se comparan sin
