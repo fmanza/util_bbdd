@@ -85,7 +85,17 @@ class DocumentationOutputRuntime(OutputPolicyPort):
         identifier: str = self.resolve_output_filename_identifier(db_type, database, normalized_conn_params)
         # Hotfix 2026-10-11: también los caracteres prohibidos en Windows (``:memory:`` daba WinError 123).
         safe_identifier: str = _UNSAFE_NAME_CHARS.sub("_", identifier)
-        cache_key: tuple[str, str] = (str(output_dir), safe_identifier)
+        # 4.1.0 (util_bbdd_web G2): la clave lleva el servidor, no solo el nombre. Antes, dos bases de datos con el
+        # mismo nombre en servidores distintos (o dos ficheros SQLite homónimos) compartían carpeta dentro de la
+        # ventana. Nunca lleva credenciales.
+        cache_key: tuple[str, ...] = (
+            str(output_dir),
+            db_type,
+            str(normalized_conn_params.get("host", "") or ""),
+            str(normalized_conn_params.get("port", "") or ""),
+            str(database or ""),
+            safe_identifier,
+        )
         now: float = current_time if current_time is not None else time.time()
         cached: tuple[float, str] | None = output_cache.get(cache_key)
         if cached is not None:

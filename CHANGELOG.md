@@ -21,6 +21,14 @@ SemVer: MINOR (solo añadidos y correcciones; sin cambios de valor por defecto).
   aioodbc; también el async de SQL Server), `hsqldb` (JayDeBeApi) y `sqlite-async` (aiosqlite). El
   `install_command` de `database_types.json` de SQL Server y HSQLDB nombra el extra. `dev-full` no cambia.
 
+### Fixed
+
+- **doc** (web G2): la ventana de agrupación de nombres automáticos (`batch_window_seconds`) agrupaba en la misma
+  carpeta dos bases de datos con el mismo nombre de servidores distintos, o dos ficheros SQLite homónimos. La clave
+  del caché lleva ahora motor, host, puerto y base de datos (nunca credenciales). La agrupación de generaciones
+  seguidas de la misma base de datos, que es una función documentada, no cambia; para no agrupar, `fichero_salida`
+  o `batch_window_seconds=0`.
+
 ## [4.0.1] - 2026-10-20
 
 SemVer: PATCH (sin cambios de API pública; extras nuevos solo de desarrollo).

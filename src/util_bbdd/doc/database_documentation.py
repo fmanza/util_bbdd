@@ -72,7 +72,7 @@ class DatabaseDocumentation:
     """
 
     _AUTO_OUTPUT_BATCH_WINDOW_SECONDS: ClassVar[int] = 90
-    # Nombres automáticos recientes por (directorio, base de datos): agrupan en una carpeta las generaciones seguidas
+    # Nombres automáticos recientes por (directorio, servidor, base de datos): agrupan las generaciones seguidas
     _LAST_AUTO_OUTPUT_BY_KEY: ClassVar[OutputCache] = {}
     _AUTO_OUTPUT_LOCK: ClassVar[threading.Lock] = threading.Lock()
 

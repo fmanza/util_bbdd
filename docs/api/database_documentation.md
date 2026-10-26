@@ -271,7 +271,11 @@ result3 = DatabaseDocumentation(manager, Path("out")).generate()
 - `batch_window_seconds=300`: Agrupa generaciones durante 5 minutos
 - `batch_window_seconds=None`: Usa el default (90 s)
 
-La cache es **global y thread-safe** (compartida entre instancias), clave por `(directorio_salida, identificador_bd)`.
+La cache es **global y thread-safe** (compartida entre instancias), con clave por directorio de salida y servidor:
+`(directorio_salida, motor, host, puerto, base de datos, identificador)`, sin credenciales. Desde 4.1.0, dos bases de
+datos con el mismo nombre en servidores distintos (o dos ficheros SQLite homónimos) ya no comparten carpeta. Para
+que cada generación tenga su propia carpeta pase `fichero_salida` o `batch_window_seconds=0`, recomendado cuando
+varios usuarios o procesos escriben en el mismo `directorio_salida`.
 
 **Verificar uso de cache (Debug)**:
 

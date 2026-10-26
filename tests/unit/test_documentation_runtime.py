@@ -74,7 +74,7 @@ def test_get_format_output_dir_creates_execution_root(tmp_path: Path) -> None:
 
 
 def test_generate_auto_output_filename_reuses_recent_name_within_batch_window(tmp_path: Path) -> None:
-    cache: dict[tuple[str, str], tuple[float, str]] = {}
+    cache: dict[tuple[str, ...], tuple[float, str]] = {}
     output_runtime = DocumentationOutputRuntime()
 
     first = output_runtime.generate_auto_output_filename(
@@ -111,6 +111,71 @@ def test_generate_auto_output_filename_reuses_recent_name_within_batch_window(tm
     assert first == Path("demo-20260401_100000")
     assert second == first
     assert third == Path("demo-20260401_100200")
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "shared"),
+    [
+        (
+            ("postgresql", "demo", {"host": "a", "port": 5432}),
+            ("postgresql", "demo", {"host": "a", "port": 5432}),
+            True,
+        ),
+        (
+            ("postgresql", "demo", {"host": "a", "port": 5432}),
+            ("postgresql", "demo", {"host": "b", "port": 5432}),
+            False,
+        ),
+        (
+            ("postgresql", "demo", {"host": "a", "port": 5432}),
+            ("postgresql", "demo", {"host": "a", "port": 5433}),
+            False,
+        ),
+        (("postgresql", "demo", {"host": "a"}), ("mysql", "demo", {"host": "a"}), False),
+        (("sqlite", "/datos/a/app.db", {}), ("sqlite", "/datos/b/app.db", {}), False),
+    ],
+    ids=["mismo_servidor", "otro_host", "otro_puerto", "otro_motor", "sqlite_homonimo"],
+)
+def test_batch_window_groups_only_the_same_database_of_the_same_server(
+    tmp_path: Path,
+    first: tuple[str, str, dict[str, Any]],
+    second: tuple[str, str, dict[str, Any]],
+    shared: bool,
+) -> None:
+    """util_bbdd_web G2 (4.1.0): dos bases de datos homónimas de servidores distintos no comparten carpeta."""
+    cache: dict[tuple[str, ...], tuple[float, str]] = {}
+    output_runtime = DocumentationOutputRuntime()
+    names = [
+        output_runtime.generate_auto_output_filename(
+            db_type=db_type,
+            database=database,
+            conn_params=conn_params,
+            output_dir=tmp_path,
+            output_cache=cache,
+            batch_window_seconds=90,
+            current_time=100.0 + index,
+            current_datetime=datetime(2026, 4, 1, 10, 0, index),
+        )
+        for index, (db_type, database, conn_params) in enumerate((first, second))
+    ]
+
+    assert (names[0] == names[1]) is shared
+
+
+def test_cache_key_never_contains_credentials(tmp_path: Path) -> None:
+    cache: dict[tuple[str, ...], tuple[float, str]] = {}
+    DocumentationOutputRuntime().generate_auto_output_filename(
+        db_type="postgresql",
+        database="demo",
+        conn_params={"host": "h", "port": 5432, "user": "usuario", "password": "secreto"},
+        output_dir=tmp_path,
+        output_cache=cache,
+        batch_window_seconds=90,
+    )
+
+    (key,) = cache
+    assert "secreto" not in key
+    assert "usuario" not in key
 
 
 @pytest.mark.parametrize(
@@ -172,7 +237,7 @@ def test_database_documentation_output_dir_error_is_documentation_render_error(t
 
 
 def test_resolve_document_output_filename_uses_manager_context_when_missing(tmp_path: Path) -> None:
-    cache: dict[tuple[str, str], tuple[float, str]] = {}
+    cache: dict[tuple[str, ...], tuple[float, str]] = {}
     output_runtime = DocumentationOutputRuntime()
 
     class _DbManagerWithoutConnParams:

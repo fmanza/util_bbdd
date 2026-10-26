@@ -15,7 +15,8 @@ if TYPE_CHECKING:
 
 HeadersConfig = dict[str, Any]
 ConnectionParams = dict[str, Any]
-OutputCache = dict[tuple[str, str], tuple[float, str]]
+#: Nombres automáticos recientes: clave (directorio, motor, host, puerto, base de datos, identificador) → (instante, nombre).
+OutputCache = dict[tuple[str, ...], tuple[float, str]]
 
 
 class LoggerProtocol(Protocol):
