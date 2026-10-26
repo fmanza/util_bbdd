@@ -63,6 +63,7 @@ class DocumentationBootstrap:
         output_policy: OutputPolicyPort,
         output_lock: AbstractContextManager[Any] | None = None,
         word_template_check: Callable[[Path], None] | None = None,
+        excel_template_check: Callable[[Path], None] | None = None,
     ) -> None:
         self._db_manager = db_manager
         self._directorio_salida = directorio_salida
@@ -77,6 +78,7 @@ class DocumentationBootstrap:
         self._output_policy = output_policy
         self._output_lock: AbstractContextManager[Any] = output_lock or nullcontext()
         self._word_template_check = word_template_check
+        self._excel_template_check = excel_template_check
 
     def settings(self) -> DocumentationSettings:
         """Valida y normaliza la configuración.
@@ -84,7 +86,8 @@ class DocumentationBootstrap:
         Raises:
             DocumentationConfigError: ``imprimir`` no es un diccionario, un formato no está soportado, el fichero de
                 cabeceras no existe o está mal formado, o la plantilla Word indicada no es un fichero (o, con
-                ``word_template_check``, no se puede abrir o le faltan estilos).
+                ``word_template_check``, no se puede abrir o le faltan estilos), o la plantilla Excel no existe o no se
+                puede usar (``excel_template_check``).
         """
         try:
             print_config = self._print_config_policy.normalize(self._imprimir)
@@ -100,6 +103,15 @@ class DocumentationBootstrap:
                 raise DocumentationConfigError(f"Plantilla Word no encontrada: {template}", operation="DOCUMENTATION")
             if self._word_template_check is not None:
                 self._word_template_check(template_path)
+        excel_template: Any = print_config.get("plantilla_excel")
+        if "excel" in formatos and excel_template is not None:
+            excel_path = Path(excel_template).expanduser()
+            if not excel_path.is_file():
+                raise DocumentationConfigError(
+                    f"Plantilla Excel no encontrada: {excel_template}", operation="DOCUMENTATION"
+                )
+            if self._excel_template_check is not None:
+                self._excel_template_check(excel_path)
         return DocumentationSettings(
             print_config=print_config,
             formatos=formatos,

@@ -19,6 +19,7 @@ from .application.use_cases.documentation_orchestrator import (
 from .domain.models import DocumentationResult, DocumentationSettings
 from .infrastructure.adapters.sync_database_manager_adapter import SyncDatabaseManagerAdapter
 from .infrastructure.renderers.excel_generator import ExcelGenerator
+from .infrastructure.renderers.excel_template import ExcelTemplate
 from .infrastructure.renderers.html_generator import HtmlGenerator
 from .infrastructure.renderers.registry import build_default_renderer_registry
 from .infrastructure.renderers.shared.generator_shared import build_graph_generator_from_options
@@ -47,6 +48,9 @@ class DatabaseDocumentation:
             ``batch_window_seconds`` para agruparlas en la misma carpeta.
         imprimir: Secciones y opciones (ver ``docs/api/database_documentation.md``), entre ellas:
             - plantilla_word: Ruta opcional a plantilla Word (.docx)
+            - plantilla_excel: Ruta opcional a plantilla Excel (.xlsx o .xltx): tema, fuentes, encabezado, pie y
+              página (desde 4.1.0)
+            - table_style_excel: Estilo de tabla del Excel (``TableStyleMedium2``…); si no se da, ``table_style``
             - tablas_por_documento: Número de tablas por documento Word (default 50)
             - table_style: Estilo de tablas para Word (default "Table Grid")
             - html_items_por_pagina: Número de elementos por página en índice HTML (default 15)
@@ -111,6 +115,7 @@ class DatabaseDocumentation:
             output_policy=self._output_policy,
             output_lock=self._AUTO_OUTPUT_LOCK,
             word_template_check=WordTemplateValidator.check,
+            excel_template_check=ExcelTemplate.check,
         )
         self._settings: DocumentationSettings = self._bootstrap.settings()
         self._source.imprimir_config = self._settings.print_config

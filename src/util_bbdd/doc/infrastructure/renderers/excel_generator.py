@@ -18,6 +18,7 @@ from ...._core.exceptions import DatabaseException
 from ...._core.export_safety import SafeWorkbook
 from ...application.ports import DocumentationManagerPort, HeadersConfig
 from ...application.use_cases.engine_conditions import EngineConditionsSectionBuilder
+from .excel_template import ExcelTemplate
 from .shared.generator_shared import (
     GeneratorDatabaseInfoRuntime,
     GeneratorInventoryRuntime,
@@ -90,6 +91,8 @@ class ExcelGenerator:
         fila = 1
 
         config = self._resolve_print_config(print_config, data_provider)
+        if config.get("table_style"):  # imprimir["table_style_excel"]: propio del Excel (4.1.0)
+            self.table_style = self._normalize_table_style(str(config["table_style"]))
         fila = self._create_main_header(ws1, fila)
         fila = self._add_inventory_summary(
             ws=ws1,
@@ -109,6 +112,11 @@ class ExcelGenerator:
         data_flat: list[list[Any]] = []
         fila = self._build_overview_sections(ws1, fila, tables, views, routines, data_provider, data_flat, config)
         self._create_supplementary_sheets(wb, data_flat, tables, routines, data_provider, config)
+
+        template_path: Any = config.get("template_path")
+        if template_path is not None:
+            self.logger.info(f"📄 Aplicando plantilla Excel: {template_path}")
+            ExcelTemplate.load(Path(template_path).expanduser()).apply(wb)
 
         wb.save(str(output_target))
         self.logger.info(f"✅ Documento Excel generado: {output_target}")

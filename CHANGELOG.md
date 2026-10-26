@@ -34,6 +34,14 @@ SemVer: MINOR (solo añadidos y correcciones; sin cambios de valor por defecto).
   los `conn_params`. Con `schema`, catálogo, DDL, diagramas y almacenamiento se leen de ese schema con la misma
   conexión. Para ello, `get_ddl` y `get_columns_charset_collation` de los managers (sync y async) aceptan
   `schema=None` opcional (por defecto, el contexto, como hasta ahora).
+- **doc** (web G40): `imprimir["plantilla_excel"]` (`.xlsx` o `.xltx`). El libro generado toma el tema de la
+  plantilla, sus colores fijos (`366092`, `4472C4`, `5B9BD5`, `2F75B5`, `4F81BD`, `D9E1F2`) pasan a ser colores del
+  tema con su tono y las fuentes sin nombre siguen la fuente del tema; cada hoja copia el encabezado, el pie y la
+  configuración de página de la primera hoja de la plantilla (sin imágenes). Se valida al construir
+  `DatabaseDocumentation` (`DocumentationConfigError`). Sin plantilla, el libro no cambia. Sin portada: openpyxl no
+  copia hojas entre libros.
+- **doc** (web G40): `imprimir["table_style_excel"]`: estilo de tabla propio del Excel; hasta ahora el Excel usaba
+  `table_style`, el mismo valor que Word, y un estilo de Word caía en `TableStyleMedium2` con un aviso.
 
 ### Fixed
 

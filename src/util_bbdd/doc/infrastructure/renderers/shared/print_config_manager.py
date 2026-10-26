@@ -214,6 +214,12 @@ class PrintConfigManager:
             "columnas_charset": columnas_charset,
             "plantilla_word": PrintConfigManager._normalize_path_value(normalized_input.get("plantilla_word")),
             "plantilla_html": PrintConfigManager._normalize_path_value(normalized_input.get("plantilla_html")),
+            # 4.1.0 (util_bbdd_web G40): plantilla y estilo de tabla propios del Excel
+            "plantilla_excel": PrintConfigManager._normalize_path_value(normalized_input.get("plantilla_excel")),
+            "table_style_excel": PrintConfigManager._normalize_non_empty_str(
+                normalized_input.get("table_style_excel"), fallback=""
+            )
+            or None,
             "tablas_por_documento": PrintConfigManager._to_positive_int(
                 normalized_input.get("tablas_por_documento", 50), fallback=50
             ),
@@ -240,6 +246,8 @@ class PrintConfigManager:
             "columnas_charset": dict(PrintConfigManager.DEFAULT_COLUMNS_CHARSET),
             "plantilla_word": None,
             "plantilla_html": None,
+            "plantilla_excel": None,
+            "table_style_excel": None,
             "tablas_por_documento": 50,
             "table_style": "Table Grid",
             "html_items_por_pagina": 15,
@@ -358,6 +366,8 @@ class PrintConfigManager:
             "table_section_flags": PrintConfigManager.get_table_section_flags(config),
             "view_section_flags": PrintConfigManager.get_view_section_flags(config),
             "database_info_flags": PrintConfigManager.get_database_info_flags(config),
+            "template_path": config.get("plantilla_excel"),
+            "table_style": config.get("table_style_excel"),
         }
 
     @staticmethod
