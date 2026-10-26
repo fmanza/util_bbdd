@@ -22,6 +22,10 @@ SemVer: MINOR (solo añadidos y correcciones; sin cambios de valor por defecto).
   empezar (`0` de N tablas) y uno por tabla terminada. La cancelación se comprueba antes de leer el catálogo, antes de
   cada formato y entre tablas, y lanza `OperationCancelledError`; los formatos terminados quedan escritos y el que
   estaba en curso puede quedar incompleto.
+- **analysis** (web G1): `GraphvizRelationshipGraphExt.generate_all_tables_graphs_ext(..., on_progress=...,
+  cancel_token=...)`: eventos de la operación `"graph"` (fase `"tables"`) al empezar y por tabla; la cancelación se
+  comprueba antes de cada tabla y lanza `OperationCancelledError` (no se guarda como error de la tabla). Los grafos ya
+  escritos quedan.
 - **dependencias** (web G3): extras nuevos `sqlserver` (pymssql, el driver por defecto), `sqlserver-odbc` (pyodbc y
   aioodbc; también el async de SQL Server), `hsqldb` (JayDeBeApi) y `sqlite-async` (aiosqlite). El
   `install_command` de `database_types.json` de SQL Server y HSQLDB nombra el extra. `dev-full` no cambia.

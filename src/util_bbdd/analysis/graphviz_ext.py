@@ -25,6 +25,7 @@ except ImportError:
 from .._core.exceptions import DatabaseException
 from .._core.filenames import safe_file_stem
 from ..metadata.model import Kind
+from ..progress import CancellationToken, ProgressCallback, ProgressReporter
 from .base import (
     CardinalityEndMarker,
     ColumnVisualizationMode,
@@ -1213,6 +1214,8 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         show_columns: bool | None = None,
         max_depth: int | None = None,
         direction: LevelDirection | str | None = None,
+        on_progress: ProgressCallback | None = None,
+        cancel_token: CancellationToken | None = None,
     ) -> dict[str, dict[str, Any]]:
         """
         Genera grafos Graphviz extendidos para todas las tablas de la base de datos
@@ -1223,9 +1226,16 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             skip_tables_without_relations: Si True, omite tablas sin relaciones
             max_subnodes: Máximo de sub-nodos por imagen
             show_columns: Si mostrar columnas en los nodos
+            on_progress: Recibe un ``ProgressEvent`` (operación ``"graph"``, fase ``"tables"``) al empezar y al terminar
+                cada tabla (4.1.0).
+            cancel_token: Se comprueba antes de cada tabla; si está cancelado, lanza ``OperationCancelledError``. Los
+                grafos ya escritos quedan (4.1.0).
 
         Returns:
             Diccionario con los resultados {tabla: {status, files, error}}
+
+        Raises:
+            OperationCancelledError: Si se cancela ``cancel_token``.
         """
         include_columns: bool = self.include_columns if show_columns is None else bool(show_columns)
         output_dir = self._resolve_graph_output_dir(output_dir)
@@ -1253,6 +1263,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             direction=direction,
             generate_for_table=_generate_for_table,
             error_prefix="Error generando gráfico extendido para tabla",
+            progress=ProgressReporter("graph", on_progress, cancel_token, self.logger),
         )
 
     def _resolve_graph_output_dir(self, output_dir: Path | None) -> Path:

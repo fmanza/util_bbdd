@@ -14,6 +14,7 @@ from typing import Any
 
 from .._core.exceptions import DatabaseException
 from ..metadata.model import ForeignKeyMeta, Kind, SchemaSnapshot
+from ..progress import ProgressReporter
 from .contracts import RelationshipGraphSource
 
 
@@ -719,9 +720,16 @@ class DatabaseRelationshipGraphBase:
         direction: LevelDirection | str | None,
         generate_for_table: Callable[[str], list[Path]],
         error_prefix: str,
+        progress: ProgressReporter | None = None,
     ) -> dict[str, dict[str, Any]]:
-        """Ejecuta la generación batch compartida de artefactos por tabla."""
+        """Ejecuta la generación batch compartida de artefactos por tabla.
+
+        Con ``progress`` (4.1.0), un evento ``"tables"`` al empezar y otro por tabla, y la cancelación se comprueba
+        antes de cada tabla (fuera del ``try``: ``OperationCancelledError`` no se guarda como error de la tabla).
+        """
+        reporter: ProgressReporter = progress or ProgressReporter("graph")
         results: dict[str, dict[str, Any]] = {}
+        reporter.check("tables")
         tables_to_process: list[str] = self._select_tables_to_process(
             table_names=table_names,
             skip_tables_without_relations=skip_tables_without_relations,
@@ -729,7 +737,9 @@ class DatabaseRelationshipGraphBase:
             direction=direction,
         )
 
+        reporter.emit("tables", 0, len(tables_to_process), "")
         for idx, table_name in enumerate(tables_to_process, 1):
+            reporter.check("tables")
             try:
                 self.logger.info(f"Progress {idx}/{len(tables_to_process)}: {table_name}")
                 generated_files: list[Path] = generate_for_table(table_name)
@@ -737,6 +747,7 @@ class DatabaseRelationshipGraphBase:
                 self.logger.debug(f"Success: {table_name} - {len(generated_files)} files generated")
             except (DatabaseException, OSError, RuntimeError, TypeError, ValueError) as error:
                 self._store_generation_error(results, table_name, error, error_prefix=error_prefix)
+            reporter.emit("tables", idx, len(tables_to_process), table_name)
 
         successful: int = sum(1 for result in results.values() if result["status"] == "success")
         self.logger.info(f"Completed: {successful}/{len(tables_to_process)} successful")

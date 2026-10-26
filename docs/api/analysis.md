@@ -51,6 +51,10 @@ la sesión `2026-10-09k-doc-architecture-audit`; CHANGELOG 0.41.0).
 `schema` (desde 4.1.0) dibuja otro schema con la misma fuente (owner en Oracle, base de datos en MySQL/MariaDB); por
 defecto, el contexto de metadatos del manager.
 
+`generate_all_tables_graphs_ext(..., on_progress=..., cancel_token=...)` (desde 4.1.0) avisa del avance tabla a tabla
+(operación `"graph"`, fase `"tables"`) y se puede parar entre tablas con `OperationCancelledError`: ver
+[Progreso y cancelación](progress_autodoc.md).
+
 ```python
 gen = GraphvizRelationshipGraphExt(manager, max_depth=2, render_workers=4)
 render = lambda tabla: gen.pipe_level_graphs_ext(table_name=tabla, format="svg")
