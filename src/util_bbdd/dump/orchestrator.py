@@ -94,10 +94,13 @@ from ._models import (
 )
 from ._source_reader import (
     _PREFETCH_SOURCE_DIALECTS,
+    TemporalParser,
     _execute_read as _execute_read,  # re-export (R10a): tests y llamadores previos
+    _parse_temporal_text,
     _prefetch,
     _read_chunks,
     _rebatch,
+    _sqlite_temporal_parsers,
 )
 from ._sql_utils import quote_identifier, quote_table
 from .reporters import DumpReporter
@@ -154,6 +157,8 @@ class DumpOrchestrator:
         #: Escritor de ``audit_sink`` del volcado en curso y tablas cuyo evento ya se escribió (G6, 4.4.0).
         self._audit_writer: DumpAuditWriter | None = None
         self._audit_tables_written: set[str] = set()
+        #: Origen SQLite: columnas de fecha u hora por tabla y su conversión desde texto ISO (G33, 4.4.0).
+        self._temporal_parsers: dict[str, dict[str, TemporalParser]] = {}
 
     # ------------------------------------------------------------------
     # Punto de entrada
@@ -625,6 +630,7 @@ class DumpOrchestrator:
             src_tables, dst_lower, load_order
         )
         self._prefetch_metadata(effective_src_order, effective_dst_order)
+        self._temporal_parsers = self._sqlite_temporal_columns(src_to_dst, effective_src_order)
         self._warn_large_batch_with_lobs(effective_dst_order)
         self.logger.info(
             "Volcado: %d tablas origen, %d en destino, %d faltantes, %d ciclos FK.",
@@ -905,7 +911,7 @@ class DumpOrchestrator:
         error_msgs: list[str] = []
         try:
             with cfg.source_engine.connect() as conn:
-                chunks = _read_chunks(conn, sql, cfg.chunk_size)
+                chunks = self._typed_chunks(src_table, _read_chunks(conn, sql, cfg.chunk_size))
                 renamed: Iterator[pd.DataFrame] = (chunk[common_cols].rename(columns=col_name_map) for chunk in chunks)
                 write_batch = self._resolve_write_batch_size()
                 if write_batch > cfg.chunk_size:
@@ -992,7 +998,9 @@ class DumpOrchestrator:
                 with cfg.source_engine.connect() as conn:
                     chunks = (
                         chunk[common_cols].rename(columns=col_name_map)
-                        for chunk in _read_chunks(conn, sql, cfg.chunk_size, {"lo": low, "hi": high})
+                        for chunk in self._typed_chunks(
+                            src_table, _read_chunks(conn, sql, cfg.chunk_size, {"lo": low, "hi": high})
+                        )
                     )
                     yield from _rebatch(chunks, write_batch) if write_batch > cfg.chunk_size else chunks
 
@@ -1493,6 +1501,35 @@ class DumpOrchestrator:
         except SQLAlchemyError as exc:
             self.logger.debug("Precarga de metadatos fallida (%s); se consultan tabla a tabla.", exc)
 
+    def _sqlite_temporal_columns(
+        self, src_to_dst: dict[str, str], src_tables: list[str]
+    ) -> dict[str, dict[str, TemporalParser]]:
+        """Con origen SQLite, columnas de fecha u hora de cada tabla y su conversión desde texto ISO (G33, 4.4.0).
+
+        Se calcula en serie tras la precarga de metadatos: la carga paralela solo lee el resultado (el ``Inspector`` no
+        es thread-safe). Una tabla cuyas columnas no se pueden leer se carga sin conversión, como antes. Qué columnas se
+        convierten depende también del tipo en el destino (:func:`_sqlite_temporal_parsers`).
+        """
+        if self._cfg.source_engine.dialect.name != "sqlite":
+            return {}
+        parsers: dict[str, dict[str, TemporalParser]] = {}
+        for table in src_tables:
+            try:
+                found = _sqlite_temporal_parsers(
+                    self._side_meta("src").get("columns", table),
+                    self._side_meta("dst").get("columns", src_to_dst[table]),
+                )
+            except SQLAlchemyError:
+                continue
+            if found:
+                parsers[table] = found
+        return parsers
+
+    def _typed_chunks(self, src_table: str, chunks: Iterator[pd.DataFrame]) -> Iterator[pd.DataFrame]:
+        """``chunks`` con las fechas en texto de un origen SQLite convertidas (:meth:`_sqlite_temporal_columns`)."""
+        parsers = getattr(self, "_temporal_parsers", {}).get(src_table)
+        return _parse_temporal_text(chunks, parsers) if parsers else chunks
+
     def _common_columns(self, src_table: str, dst_table: str) -> tuple[list[str], list[str], dict[str, str]]:
         """Retorna (columnas_comunes_origen, columnas_omitidas, mapa_origen→destino).
 
@@ -1558,6 +1595,8 @@ class DumpOrchestrator:
         PD-07 (performance-audit de dump 2026-09-25): SQLite no tiene tipos de columna, así que el driver entrega las
         fechas como texto y los DECIMAL como ``float``. Un destino servidor convierte el texto; un destino SQLite rechaza
         las fechas como texto (``SQLite DateTime type only accepts Python datetime…``) y los DECIMAL pierden precisión.
+        Desde 4.4.0 (G33) el texto ISO se convierte al leer (:meth:`_typed_chunks`); el aviso queda por los DECIMAL y
+        las fechas que no son ISO.
         """
         if source.dialect.name != "sqlite":
             return
@@ -1565,16 +1604,19 @@ class DumpOrchestrator:
 
     @staticmethod
     def _sqlite_source_message(target_dialect: str) -> str:
-        """Texto del aviso de origen SQLite (log de ``__init__`` y ``SQLITE_SOURCE`` de :meth:`plan`)."""
-        if target_dialect == "sqlite":
-            return (
-                "Origen SQLite: las fechas se leen como texto y los DECIMAL como float (SQLite no tiene tipos de "
-                "columna). Con destino SQLite, las tablas con columnas de fecha fallarán; los DECIMAL pueden perder "
-                "precisión."
-            )
+        """Texto del aviso de origen SQLite (log de ``__init__`` y ``SQLITE_SOURCE`` de :meth:`plan`).
+
+        Desde 4.4.0 (G33) el texto ISO de las columnas de fecha u hora se convierte al leer; un valor que no es ISO
+        llega como texto (un destino servidor lo intenta convertir; uno SQLite lo rechaza).
+        """
+        dates = (
+            "las fechas que no están en texto ISO llegan como texto y el destino SQLite las rechaza"
+            if target_dialect == "sqlite"
+            else "las fechas que no están en texto ISO llegan como texto y las convierte el destino"
+        )
         return (
-            "Origen SQLite: las fechas se leen como texto (el destino las convierte) y los DECIMAL como float "
-            "(pueden perder precisión), porque SQLite no tiene tipos de columna."
+            "Origen SQLite (sin tipos de columna): los DECIMAL se leen como float y pueden perder precisión; las "
+            f"columnas DATE/DATETIME/TIME en texto ISO se convierten al leer, y {dates}."
         )
 
     def _warn_large_batch_with_lobs(self, dst_tables: list[str]) -> None:

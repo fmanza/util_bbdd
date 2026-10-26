@@ -7,12 +7,14 @@ tests que parchean ``util_bbdd.dump.orchestrator._read_chunks`` o ``._prefetch``
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from datetime import date, datetime, time
 from typing import Any
 
 import pandas as pd
 
 from sqlalchemy import event, text
+from sqlalchemy.sql import sqltypes
 
 from ..bulk._support.prefetch import PREFETCH_DEPTH, prefetch
 
@@ -88,6 +90,65 @@ def _prefetch[T](items: Iterator[T], depth: int = _PREFETCH_DEPTH) -> Iterator[T
       la conexión de lectura no se cierra mientras el otro hilo la usa.
     """
     return prefetch(items, depth, thread_name="dump-prefetch")
+
+
+#: Conversión de un valor de texto ISO de SQLite a fecha, fecha y hora u hora (G33, 4.4.0).
+type TemporalParser = Callable[[str], date | datetime | time]
+
+
+def _sqlite_temporal_parsers(
+    columns: Iterable[Mapping[str, Any]], target_columns: Iterable[Mapping[str, Any]]
+) -> dict[str, TemporalParser]:
+    """Columnas ``DATE``/``DATETIME``/``TIMESTAMP``/``TIME`` de una tabla SQLite y su conversión desde texto ISO.
+
+    G33 de util_bbdd_web (4.4.0): SQLite no tiene tipos de columna y el driver entrega estas columnas como texto (la
+    lectura usa ``text()``, sin los procesadores de tipo de SQLAlchemy). Un destino servidor convertía el texto, pero
+    uno SQLite lo rechazaba (``SQLite Date type only accepts Python date objects``) y la tabla terminaba en ``error``.
+
+    Solo se convierte si la columna del destino (``target_columns``, emparejada sin distinguir mayúsculas) es de fecha
+    u hora, y ``TIME`` solo hacia ``TIME``: hacia texto, o hacia el ``DATE`` de Oracle (sin ``TIME``; oracledb rechaza
+    ``datetime.time``), el valor sigue llegando como texto, igual que antes.
+    """
+    targets = {str(c["name"]).lower(): c.get("type") for c in target_columns}
+    parsers: dict[str, TemporalParser] = {}
+    for column in columns:
+        kind, target = column.get("type"), targets.get(str(column["name"]).lower())
+        if not isinstance(target, (sqltypes.Date, sqltypes.DateTime, sqltypes.Time)):
+            continue
+        if isinstance(kind, sqltypes.DateTime):
+            parsers[column["name"]] = datetime.fromisoformat
+        elif isinstance(kind, sqltypes.Date):
+            parsers[column["name"]] = date.fromisoformat
+        elif isinstance(kind, sqltypes.Time) and isinstance(target, sqltypes.Time):
+            parsers[column["name"]] = time.fromisoformat
+    return parsers
+
+
+def _parse_temporal_text(
+    chunks: Iterator[pd.DataFrame], parsers: Mapping[str, TemporalParser]
+) -> Iterator[pd.DataFrame]:
+    """Convierte el texto ISO de las columnas de ``parsers`` en ``date``/``datetime``/``time`` (G33, 4.4.0).
+
+    Un valor que no es texto o no es ISO se deja como está: el destino lo trata como antes (lo convierte o lo rechaza, y
+    ``on_error="isolate"`` puede apartar la fila). La columna sigue siendo ``object`` (``Series.map`` la convertiría en
+    ``datetime64`` y llegarían ``Timestamp`` de pandas).
+    """
+    for chunk in chunks:
+        for name, parse in parsers.items():
+            if name in chunk.columns:
+                chunk[name] = pd.Series(
+                    [_parse_iso(value, parse) for value in chunk[name]], index=chunk.index, dtype=object
+                )
+        yield chunk
+
+
+def _parse_iso(value: Any, parse: TemporalParser) -> Any:
+    if not isinstance(value, str):
+        return value
+    try:
+        return parse(value)
+    except ValueError:
+        return value
 
 
 def _rebatch(chunks: Iterator[pd.DataFrame], size: int) -> Iterator[pd.DataFrame]:

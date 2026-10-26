@@ -36,6 +36,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   aplicaba y la tabla (o la operación de `BulkCrud`) fallaba entera. Ahora un listener de `do_execute` envía esa fila
   con `executemany(batcherrors=True)` (`bulk/_support/oracle_batch_errors.py`). Con varias filas ya funcionaba.
   Verificado contra el banco: volcado en append sobre una PK repetida en los 5 destinos y `BulkCrud` en Oracle.
+- **dump** (G33 de util_bbdd_web): SQLite → SQLite fallaba en las tablas con columnas `DATE`/`DATETIME` guardadas como
+  texto (lo normal en SQLite): `SQLite Date type only accepts Python date objects`. Con origen SQLite, el texto ISO de
+  las columnas declaradas `DATE`, `DATETIME`/`TIMESTAMP` y `TIME` se convierte al leer en `date`, `datetime` y `time`
+  (columnas `object`, no `Timestamp` de pandas) cuando la columna del destino es de fecha u hora (`TIME` solo hacia
+  `TIME`). Hacia una columna de texto, o `TIME` hacia el `DATE` de Oracle, y con un valor que no es ISO, llega texto
+  como antes. El aviso de origen SQLite del log y de `plan()` (`SQLITE_SOURCE`) lo explica. Verificado contra el banco:
+  SQLite → los 5 destinos.
 
 ## [4.3.0] - 2026-10-26
 

@@ -703,8 +703,8 @@ class TestSqliteSourceWarning:
     @pytest.mark.parametrize(
         ("src", "dst", "expected"),
         [
-            ("sqlite", "sqlite", "las tablas con columnas de fecha fallarán"),
-            ("sqlite", "postgresql", "el destino las convierte"),
+            ("sqlite", "sqlite", "el destino SQLite las rechaza"),  # G33 (4.4.0): solo las que no son ISO
+            ("sqlite", "postgresql", "las convierte el destino"),
             ("postgresql", "sqlite", None),
         ],
     )

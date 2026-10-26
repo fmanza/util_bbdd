@@ -172,7 +172,7 @@ except DumpReportError as exc:
 | `ValueError` en `restore_constraints` | El fichero no es un diario válido o es de otro motor que el engine |
 | `DumpReportError` | No se pudo generar el informe Excel (directorio, permisos, fichero abierto, disco lleno). La carga ya terminó: `exc.result` lleva el `DumpResult` |
 | Error capturado en `TableDumpResult.error` | Fallo en carga de una tabla individual; el resto continúa |
-| Origen SQLite (WARNING al crear el orquestador) | SQLite no tiene tipos de columna: las fechas se leen como texto y los DECIMAL como `float`. Un destino servidor convierte las fechas; con destino SQLite, las tablas con columnas de fecha terminan en `error`. Los DECIMAL pueden perder precisión |
+| Origen SQLite (WARNING al crear el orquestador) | SQLite no tiene tipos de columna: los DECIMAL se leen como `float` y pueden perder precisión. Desde 4.4.0 el texto ISO de las columnas declaradas `DATE`, `DATETIME`/`TIMESTAMP` y `TIME` se convierte al leer en `date`, `datetime` y `time` si la columna del destino es de fecha u hora (`TIME` solo hacia `TIME`); antes, con destino SQLite, esas tablas terminaban en `error`. Hacia una columna de texto, o con un valor que no es ISO, llega texto como antes: un destino servidor lo intenta convertir y uno SQLite lo rechaza |
 | Destino SQLite con `parallel_pk_ranges` o `max_parallel_tables` > 1 (WARNING) | SQLite admite un solo escritor: se carga sin paralelismo |
 | Destino MySQL/MariaDB con `parallel_pk_ranges` > 1 (WARNING) | La carga por rangos es más lenta que la secuencial en estos motores; se aplica igualmente |
 
