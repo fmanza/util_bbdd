@@ -40,6 +40,7 @@ from ._core.exceptions import (
     MetadataFetchError,
     MetadataIntrospectionError,
     MetadataNormalizationError,
+    MigrationPlanValidationError,
     OperationCancelledError,
     ParallelLoadError,
     PoolConnectionError,
@@ -78,6 +79,7 @@ __all__: list[str] = [
     "InvalidDatabaseType",
     "InvalidConnectionConfig",
     "InvalidQueryParameters",
+    "MigrationPlanValidationError",
     # Drivers
     "DriverError",
     "DriverNotFoundError",

@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import suppress
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 
 if TYPE_CHECKING:
     from ...audit.contracts import AuditSink
@@ -254,6 +254,70 @@ class MigrationPlan:
     emitter: DDLEmitter = field(repr=False)
     views: list[CanonicalView] = field(default_factory=list)
     routines: list[CanonicalRoutine] = field(default_factory=list)
+
+    #: Identificador y versión del formato de :meth:`to_dict`. La versión sube solo si un lector de la anterior dejaría
+    #: de entenderlo (campo renombrado o quitado, valor con otro significado); añadir un campo opcional no la sube.
+    FORMAT: ClassVar[str] = "util_bbdd.migration_plan"
+    FORMAT_VERSION: ClassVar[int] = 1
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serializa el plan a tipos JSON para guardarlo, revisarlo y ejecutarlo después sin volver a planificar.
+
+        Guarda ``format``, ``format_version``, los motores y el schema, las opciones del emitter, las tablas, vistas,
+        rutinas y avisos (también los que descubre la emisión, porque emite antes de leerlos) y ``statements_sha256``,
+        el SHA-256 de :meth:`emit_statements` (ver :meth:`statements_sha256`).
+
+        Returns:
+            Diccionario serializable con ``json.dumps``.
+
+        Raises:
+            TypeError: El emitter no es el de util_bbdd para ``target_engine`` (un plan construido a mano con otro).
+
+        Example:
+            >>> import json
+            >>> data = json.loads(json.dumps(plan.to_dict()))  # doctest: +SKIP
+            >>> MigrationPlan.from_dict(data).emit_statements() == plan.emit_statements()  # doctest: +SKIP
+            True
+        """
+        from ._serialization import dump_plan
+
+        return dump_plan(self, self.FORMAT, self.FORMAT_VERSION)
+
+    @classmethod
+    def from_dict(cls, data: Any) -> Self:
+        """Reconstruye un plan escrito por :meth:`to_dict`, listo para :meth:`execute`.
+
+        Vuelve a emitir las sentencias y comprueba que su SHA-256 es el ``statements_sha256`` guardado: el plan
+        reconstruido ejecuta exactamente lo que se revisó. Un plan guardado con otra versión de util_bbdd que emita
+        otro DDL no se acepta (hay que volver a planificar). Se ignoran las claves que no son campos.
+
+        ``statements_sha256`` viaja con los datos: detecta un cambio de versión o un error de copia, no una
+        manipulación (quien edite el fichero puede recalcularlo). Si el fichero no es de confianza, guarda el hash
+        aparte y compáralo con el de :meth:`statements_sha256` del plan reconstruido antes de ejecutar.
+
+        Args:
+            data: Diccionario de :meth:`to_dict` (p. ej. leído con ``json.load``).
+
+        Returns:
+            El plan reconstruido.
+
+        Raises:
+            MigrationPlanValidationError: ``format`` o ``format_version`` desconocidos, un campo ausente o de otro tipo
+                (con su ruta: ``tables[2].columns[0].nullable``), opciones del emitter inválidas o
+                ``statements_sha256`` distinto.
+        """
+        from ._serialization import load_plan
+
+        return load_plan(cls, data, cls.FORMAT, cls.FORMAT_VERSION)
+
+    def statements_sha256(self) -> str:
+        """SHA-256 (hex) de :meth:`emit_statements`, con las sentencias separadas por un carácter NUL.
+
+        Identifica el DDL que ejecutaría :meth:`execute`: dos planes con el mismo hash envían las mismas sentencias.
+        """
+        from ._serialization import statements_sha256
+
+        return statements_sha256(self.emit_statements())
 
     def emit_ddl(self) -> str:
         """Genera el script DDL completo para el motor destino.

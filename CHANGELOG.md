@@ -12,6 +12,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **migrate** (G4 de util_bbdd_web): `MigrationPlanner.supported_sources()` y `MigrationPlanner.supported_targets()`
   devuelven, en orden alfabético, los motores que admiten `source_engine` y `target_engine` (cualquier par de motores
   distintos está soportado). Hasta ahora solo estaban en las constantes privadas `_SUPPORTED_SOURCE`/`_SUPPORTED_TARGET`.
+- **migrate** (G26 de util_bbdd_web): `MigrationPlan.to_dict()`, `MigrationPlan.from_dict(data)` y
+  `MigrationPlan.statements_sha256()`. El plan se guarda como tipos JSON (`format="util_bbdd.migration_plan"`,
+  `format_version=1`): motores, schema, opciones del emitter, tablas, vistas, rutinas, avisos y el SHA-256 de
+  `emit_statements()`. `from_dict` lo reconstruye listo para `execute()` y exige que vuelva a emitir las mismas
+  sentencias: se ejecuta lo revisado sin replanificar contra el origen. Nueva excepción
+  `util_bbdd.exceptions.MigrationPlanValidationError` (`ValidationError` y `ValueError`) para los datos que no acepta.
 
 ### Fixed
 

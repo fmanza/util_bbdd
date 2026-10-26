@@ -27,7 +27,8 @@ DatabaseException
 ├── ValidationError
 │   ├── InvalidDatabaseType
 │   ├── InvalidConnectionConfig
-│   └── InvalidQueryParameters
+│   ├── InvalidQueryParameters
+│   └── MigrationPlanValidationError  (v4.3.0; también ValueError; MigrationPlan.from_dict)
 ├── DriverError
 │   ├── DriverNotFoundError
 │   └── DriverConfigurationError

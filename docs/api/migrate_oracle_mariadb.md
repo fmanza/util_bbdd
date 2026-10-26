@@ -31,6 +31,9 @@ flowchart TD
 | `MigrationPlanner.plan` | `(connection, schema: str)` | Extrae, transforma y consolida en plan ejecutable | `MigrationPlan` |
 | `MigrationPlan.emit_ddl` | `()` | Script DDL completo listo para guardar en `.sql` | `str` |
 | `MigrationPlan.execute` | `(target_connection, *, audit_sink=None)` | Ejecuta cada sentencia DDL contra el motor destino; con `audit_sink`, un evento por sentencia ([auditoría](audit.md)) | `None` |
+| `MigrationPlan.to_dict` | `()` | Plan serializable a JSON (`format="util_bbdd.migration_plan"`, `format_version=1`, `statements_sha256`) para revisarlo y ejecutarlo después sin replanificar (4.3.0) | `dict` |
+| `MigrationPlan.from_dict` | `(data)` (de clase) | Reconstruye el plan; vuelve a emitir y exige el mismo `statements_sha256` (4.3.0) | `MigrationPlan` |
+| `MigrationPlan.statements_sha256` | `()` | SHA-256 de `emit_statements()` (sentencias separadas por NUL) (4.3.0) | `str` |
 | `MigrationPlan.error_count` | propiedad | Número de warnings con severidad `ERROR` | `int` |
 | `format_plan_text` | `(plan: MigrationPlan)` | Reporte de texto plano con avisos agrupados por severidad | `str` |
 | `format_plan_markdown` | `(plan: MigrationPlan)` | Reporte Markdown con tabla de avisos | `str` |
@@ -54,6 +57,12 @@ flowchart TD
 - **`MigrationPlan.emit_ddl()`** — `str` con el script DDL completo, ordenado por dependencias FK.
 - **`MigrationPlan.warnings`** — `list[MigrationWarning]` con `table`, `column`, `severity` (`INFO`/`WARNING`/`ERROR`), `message` y `proposals`.
 - **`MigrationPlan.error_count`** — `int`; verificar antes de `execute()`.
+- **`MigrationPlan.to_dict()` / `from_dict()`** (4.3.0) — `MigrationPlan.from_dict(json.loads(json.dumps(plan.to_dict())))`
+  emite las mismas sentencias y se ejecuta igual. `from_dict` lanza `MigrationPlanValidationError` (también
+  `ValueError`) con un `format` o `format_version` desconocidos, un campo ausente o de otro tipo (con su ruta) o si el
+  plan reconstruido no emite las sentencias de `statements_sha256` (p. ej., guardado con otra versión de util_bbdd que
+  emite otro DDL: hay que volver a planificar). El hash viaja con los datos y no protege de una manipulación: si el
+  fichero no es de confianza, guarda el hash aparte y compáralo con `statements_sha256()` antes de `execute()`.
 
 ### Errores y casos especiales
 

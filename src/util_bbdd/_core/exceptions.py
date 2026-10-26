@@ -179,6 +179,16 @@ class InvalidQueryParameters(ValidationError):
     pass
 
 
+class MigrationPlanValidationError(ValidationError, ValueError):
+    """``MigrationPlan.from_dict`` no acepta los datos (v4.3.0).
+
+    Formato o versión desconocidos, campo ausente o de otro tipo, opciones del emitter inválidas, o el plan
+    reconstruido no emite las mismas sentencias que el guardado (``statements_sha256``). También es ``ValueError``.
+    """
+
+    pass
+
+
 # ============================================================================
 # Categoría 5: Errores de Drivers
 # ============================================================================
@@ -543,6 +553,7 @@ __all__ = [
     "InvalidDatabaseType",
     "InvalidConnectionConfig",
     "InvalidQueryParameters",
+    "MigrationPlanValidationError",
     # Drivers
     "DriverError",
     "DriverNotFoundError",
