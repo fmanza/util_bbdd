@@ -5,7 +5,14 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [4.3.0] - 2026-10-26
+
+SemVer: MINOR (añadidos y una corrección; solo parámetros opcionales nuevos, sin cambios de valor por defecto). Ola 3
+del plan de huecos de util_bbdd_web (migración DDL): G4, G28, G26, G27 y G1 en `MigrationPlan.execute()`.
+`execute()` devuelve ahora un `ExecutionResult` (antes `None`) y, si falla una sentencia, lanza
+`MigrationStatementError`, subclase de la `DatabaseOperationError` de antes y con el mismo mensaje. Un plan con una FK
+hacia una columna inexistente u omitida queda bloqueado con `FK_TYPE_UNRESOLVED` (`ERROR`); antes fallaba a mitad de
+`execute()`. G28 verificado contra el banco: Oracle `INT` en PK y FK → MariaDB, MySQL, SQL Server y PostgreSQL.
 
 ### Added
 
