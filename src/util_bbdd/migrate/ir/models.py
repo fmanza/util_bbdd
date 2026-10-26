@@ -9,9 +9,12 @@ from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 
+from ...progress import ProgressReporter
+
 if TYPE_CHECKING:
     from ...audit.contracts import AuditSink
     from ...audit.events import AuditEvent
+    from ...progress import CancellationToken, ProgressCallback
     from ..emitters.base import DDLEmitter
 
 #: ``on_statement(posición, total, sentencia, segundos, error)`` tras cada sentencia de ``execute``.
@@ -456,6 +459,8 @@ class MigrationPlan:
         audit_sink: AuditSink | None = None,
         dry_run: bool = False,
         stop_on_error: bool = True,
+        on_progress: ProgressCallback | None = None,
+        cancel_token: CancellationToken | None = None,
     ) -> ExecutionResult:
         """Ejecuta el DDL generado contra el motor destino.
 
@@ -481,6 +486,12 @@ class MigrationPlan:
                 el resultado las lista con ``applied=0`` y el ``run`` de auditoría lleva ``operation="DRY_RUN"`` (4.3.0).
             stop_on_error: ``True`` (por defecto): la primera sentencia que falla detiene la ejecución y lanza la
                 excepción. ``False``: se registra en ``ExecutionResult.failures`` y se sigue con la siguiente (4.3.0).
+            on_progress: Recibe los ``ProgressEvent`` de la operación ``"migrate"``, fase ``"statements"``: ``0`` de N
+                al empezar y uno por sentencia enviada (aplicada o fallida), con su primera línea (4.3.0). Con
+                ``dry_run`` solo el ``0`` de N.
+            cancel_token: Parada cooperativa entre sentencias (4.3.0): se comprueba antes de enviar cada una y lanza
+                ``OperationCancelledError``. Las sentencias anteriores **quedan aplicadas** (el DDL no se deshace); el
+                ``run`` de auditoría queda ``failed`` con ``error_type="OperationCancelledError"``.
 
         Returns:
             ``ExecutionResult`` con las sentencias, las aplicadas y las que fallaron (4.3.0; antes ``None``).
@@ -490,6 +501,7 @@ class MigrationPlan:
                 (``self.error_count > 0``). No hay flag de override: resuelve los
                 errores del plan (revisa ``self.warnings``) antes de ejecutar, o usa
                 ``emit_ddl()``/``emit_statements()`` para inspeccionar el DDL sin ejecutarlo.
+            OperationCancelledError: ``cancel_token`` cancelado antes de una sentencia.
             MigrationStatementError: Si una sentencia falla con ``stop_on_error=True`` (subclase de
                 ``DatabaseOperationError``, la que se lanzaba hasta 4.2.0): ``position``, ``statement`` y ``result``.
                 Las anteriores quedan aplicadas. Con un objeto de ``execute_custom_one`` se relanza el error original
@@ -521,7 +533,15 @@ class MigrationPlan:
                 recorder.warnings()
                 recorder.finish(total=0, error=blocked, dry_run=dry_run)
             raise blocked
-        on_statement = None if recorder is None else recorder.statement
+        progress = ProgressReporter("migrate", on_progress, cancel_token)
+
+        def on_statement(
+            position: int, total: int, statement: str, elapsed_s: float, error: BaseException | None
+        ) -> None:
+            if recorder is not None:
+                recorder.statement(position, total, statement, elapsed_s, error)
+            progress.emit("statements", position, total, _first_sql_line(statement))
+
         statements: list[str] = []
         failures: list[StatementFailure] = []
         applied = 0
@@ -530,14 +550,17 @@ class MigrationPlan:
             statements = [stmt.strip() for stmt in self.emit_statements() if _has_sql(stmt)]
             if recorder is not None:
                 recorder.warnings()  # después de emitir: incluye los avisos que descubre la emisión
+            progress.emit("statements", 0, len(statements))
             if dry_run:
                 pass
             elif hasattr(target_connection, "get_sqlalchemy_engine") or hasattr(target_connection, "raw_connection"):
                 applied = _execute_statements(
-                    target_connection, statements, self.target_engine, on_statement, stop_on_error, failures
+                    target_connection, statements, self.target_engine, on_statement, stop_on_error, failures, progress
                 )
             else:
-                applied = _execute_with_custom_one(target_connection, statements, on_statement, stop_on_error, failures)
+                applied = _execute_with_custom_one(
+                    target_connection, statements, on_statement, stop_on_error, failures, progress
+                )
         except Exception as error:
             if recorder is not None:
                 recorder.finish(total=len(statements), error=error, dry_run=dry_run)
@@ -686,6 +709,7 @@ def _execute_with_custom_one(
     on_statement: StatementCallback | None = None,
     stop_on_error: bool = True,
     failures: list[StatementFailure] | None = None,
+    progress: ProgressReporter | None = None,
 ) -> int:
     """Aplica ``statements`` con ``target.execute_custom_one(sql, {})`` (objetos sin Engine ni ``raw_connection``).
 
@@ -695,6 +719,8 @@ def _execute_with_custom_one(
     total = len(statements)
     applied = 0
     for position, statement in enumerate(statements, start=1):
+        if progress is not None:
+            progress.check("statements")
         started = time.perf_counter()
         try:
             target.execute_custom_one(statement, {})
@@ -725,6 +751,7 @@ def _execute_statements(
     on_statement: StatementCallback | None = None,
     stop_on_error: bool = True,
     failures: list[StatementFailure] | None = None,
+    progress: ProgressReporter | None = None,
 ) -> int:
     """Aplica ``statements`` por una conexión DB-API: cursor del driver sin parámetros y ``commit`` tras cada una.
 
@@ -747,6 +774,8 @@ def _execute_statements(
             cursor = connection.cursor()
             try:
                 for position, statement in enumerate(statements, start=1):
+                    if progress is not None:
+                        progress.check("statements")  # entre sentencias: las anteriores ya confirmaron
                     started = time.perf_counter()
                     try:
                         cursor.execute(statement)

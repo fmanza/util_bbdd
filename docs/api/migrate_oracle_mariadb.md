@@ -30,7 +30,7 @@ flowchart TD
 | `MigrationPlanner.supported_sources` / `supported_targets` | `()` (estáticos) | Motores que admiten `source_engine` y `target_engine`, en orden alfabético (4.3.0) | `tuple[str, ...]` |
 | `MigrationPlanner.plan` | `(connection, schema: str)` | Extrae, transforma y consolida en plan ejecutable | `MigrationPlan` |
 | `MigrationPlan.emit_ddl` | `()` | Script DDL completo listo para guardar en `.sql` | `str` |
-| `MigrationPlan.execute` | `(target_connection, *, audit_sink=None, dry_run=False, stop_on_error=True)` | Ejecuta cada sentencia DDL contra el motor destino; con `audit_sink`, un evento por sentencia ([auditoría](audit.md)); `dry_run` y `stop_on_error` desde 4.3.0 | `ExecutionResult` (4.3.0; antes `None`) |
+| `MigrationPlan.execute` | `(target_connection, *, audit_sink=None, dry_run=False, stop_on_error=True, on_progress=None, cancel_token=None)` | Ejecuta cada sentencia DDL contra el motor destino; con `audit_sink`, un evento por sentencia ([auditoría](audit.md)); `dry_run`, `stop_on_error`, `on_progress` y `cancel_token` desde 4.3.0 | `ExecutionResult` (4.3.0; antes `None`) |
 | `MigrationPlan.check_target` | `(target_connection, *, schema=None, validate_views=False)` | Tablas y vistas del plan que ya existen en el destino (y, si se pide, vistas que el destino rechaza), sin cambiar nada (4.3.0) | `TargetCheck` |
 | `MigrationPlan.to_dict` | `()` | Plan serializable a JSON (`format="util_bbdd.migration_plan"`, `format_version=1`, `statements_sha256`) para revisarlo y ejecutarlo después sin replanificar (4.3.0) | `dict` |
 | `MigrationPlan.from_dict` | `(data)` (de clase) | Reconstruye el plan; vuelve a emitir y exige el mismo `statements_sha256` (4.3.0) | `MigrationPlan` |
@@ -73,6 +73,10 @@ flowchart TD
   `dry_run`, `total`, `ok`). `dry_run=True` comprueba el plan y emite las sentencias sin conectar con el destino.
   `stop_on_error=False` sigue tras una sentencia que falla y la deja en `failures` (`StatementFailure`: `position`,
   `statement`, `error_type`, `message`).
+- **Progreso y cancelación** (4.3.0) — `execute(on_progress=, cancel_token=)` con el contrato de
+  [`util_bbdd.progress`](progress_autodoc.md): operación `"migrate"`, fase `"statements"`, un evento `0` de N al empezar
+  y uno por sentencia enviada (aplicada o fallida) con su primera línea; con `dry_run`, solo el `0` de N. La cancelación
+  se comprueba antes de cada sentencia y lanza `OperationCancelledError`; las sentencias anteriores quedan aplicadas.
 - **Atomicidad**: `execute()` **no es atómico**. MySQL, MariaDB y Oracle confirman cada sentencia DDL por sí mismas y no
   se pueden deshacer; PostgreSQL y SQL Server confirman tras cada una para comportarse igual. Si una sentencia falla,
   las anteriores quedan aplicadas: comprueba antes con `check_target()` y `dry_run=True`.

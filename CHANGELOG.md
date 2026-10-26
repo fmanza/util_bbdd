@@ -31,6 +31,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   En el evento `run` de auditoría, `error_type` pasa a ser `MigrationStatementError`. Con un objeto que solo ofrece
   `execute_custom_one`, el error original se relanza como hasta ahora, con una nota (`add_note`) que dice la sentencia.
   La atomicidad no es posible (MySQL, MariaDB y Oracle confirman cada sentencia DDL): se documenta.
+- **migrate** (G1 de util_bbdd_web): `MigrationPlan.execute(..., on_progress=None, cancel_token=None)` con el
+  contrato de `util_bbdd.progress` (operación `"migrate"`, fase `"statements"`): un evento `0` de N al empezar y uno por
+  sentencia enviada, aplicada o fallida, con su primera línea (con `dry_run`, solo el `0` de N). La cancelación se
+  comprueba antes de cada sentencia y lanza `OperationCancelledError`: las sentencias anteriores quedan aplicadas (el
+  DDL no se deshace) y el `run` de auditoría queda `failed`.
 
 ### Fixed
 
