@@ -27,6 +27,7 @@ from .shared.generator_shared import (
     GeneratorTabularRuntime,
 )
 from .shared.print_config_manager import PrintConfigManager
+from .shared.table_progress import TableProgress
 
 
 class ExcelGenerator:
@@ -38,6 +39,7 @@ class ExcelGenerator:
         self.headers: HeadersConfig = headers
         self.table_style: str = self._normalize_table_style(table_style)
         self._table_counter: int = 0
+        self._table_progress: TableProgress = TableProgress(None, "excel", 0)
 
     def _normalize_table_style(self, table_style: str) -> str:
         """Normaliza el estilo de tabla a un valor compatible con Excel."""
@@ -255,6 +257,7 @@ class ExcelGenerator:
             return fila
 
         self.logger.info(f"📄 Procesando {len(tables)} tabla(s) para Excel")
+        self._table_progress = TableProgress.of(data_provider, "excel", len(tables))
         ws[f"A{fila}"] = "TABLAS"
         ws[f"A{fila}"].font = Font(size=12, bold=True, color="FFFFFF")
         ws[f"A{fila}"].fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
@@ -262,6 +265,7 @@ class ExcelGenerator:
 
         for row in tables:
             tabla, comentario, charset_collation = GeneratorTableRuntime.extract_table_row_data(row)
+            self._table_progress.before(tabla)
 
             fila = self._process_table(
                 ws,
@@ -273,6 +277,7 @@ class ExcelGenerator:
                 data_flat,
                 section_flags,
             )
+            self._table_progress.done(tabla)
 
         return fila
 

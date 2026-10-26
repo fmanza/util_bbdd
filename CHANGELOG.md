@@ -17,6 +17,11 @@ SemVer: MINOR (solo añadidos y correcciones; sin cambios de valor por defecto).
   `ProgressReporter` (el ayudante que usan las operaciones). Excepción nueva `OperationCancelledError` en
   `util_bbdd.exceptions`. Capa 2 (solo importa `_core`): diagrama de capas regenerado. Todavía no lo usa ninguna
   operación; cada una lo conecta en su propio cambio.
+- **doc** (web G1): `DatabaseDocumentation(..., on_progress=..., cancel_token=...)`. Eventos de la operación
+  `"documentation"`: fase `"metadata"` (lectura del catálogo) y, por formato (`"word"`, `"excel"`, `"html"`), uno al
+  empezar (`0` de N tablas) y uno por tabla terminada. La cancelación se comprueba antes de leer el catálogo, antes de
+  cada formato y entre tablas, y lanza `OperationCancelledError`; los formatos terminados quedan escritos y el que
+  estaba en curso puede quedar incompleto.
 - **dependencias** (web G3): extras nuevos `sqlserver` (pymssql, el driver por defecto), `sqlserver-odbc` (pyodbc y
   aioodbc; también el async de SQL Server), `hsqldb` (JayDeBeApi) y `sqlite-async` (aiosqlite). El
   `install_command` de `database_types.json` de SQL Server y HSQLDB nombra el extra. `dev-full` no cambia.

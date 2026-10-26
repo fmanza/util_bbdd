@@ -42,6 +42,7 @@ from .shared.generator_shared import (
     build_graph_generator_from_options,
 )
 from .shared.print_config_manager import PrintConfigManager
+from .shared.table_progress import TableProgress
 
 
 class DocumentChunkConfig:
@@ -116,6 +117,7 @@ class WordGenerator:
         self.table_style: str = table_style
         # (documento, estilo resuelto): el estilo de tabla se resuelve una vez por documento (P-02)
         self._table_style_cache: tuple[Document, str | None] | None = None
+        self._table_progress: TableProgress = TableProgress(None, "word", 0)
 
     def generate_document(
         self,
@@ -170,6 +172,7 @@ class WordGenerator:
                 )
 
             tables_for_chunks: list[tuple[Any, ...]] = tables if include_tables else []
+            self._table_progress = TableProgress.of(data_provider, "word", len(tables_for_chunks))
             table_chunks: list[list[tuple[Any, ...]]] = self._chunk_tables(tables_for_chunks, tables_per_document)
             if not table_chunks:
                 table_chunks = [[]]
@@ -396,6 +399,7 @@ class WordGenerator:
             document.add_heading("Tablas", level=1)
             for row in table_chunk:
                 tabla, comentario, charset_collation = GeneratorTableRuntime.extract_table_row_data(row)
+                self._table_progress.before(tabla)
                 self._add_table_section(
                     document=document,
                     tabla=tabla,
@@ -408,6 +412,7 @@ class WordGenerator:
                     diagram_options=diagram_options,
                     include_columns_charset=include_columns_charset,
                 )
+                self._table_progress.done(tabla)
 
     def _add_views_content(
         self,

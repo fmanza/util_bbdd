@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from .._core.exceptions import DocumentationConfigError
+from ..progress import CancellationToken, ProgressCallback, ProgressReporter
 from .application.ports import DocumentationSourcePort, OutputCache
 from .application.use_cases.documentation_orchestrator import (
     DocumentationBootstrap,
@@ -69,6 +70,12 @@ class DatabaseDocumentation:
         schema: Schema (owner en Oracle, base de datos en MySQL/MariaDB) que documentar; por defecto, el contexto de
             metadatos del manager. Todas las lecturas (catálogo, DDL, diagramas, almacenamiento) van a ese schema
             con la misma conexión (desde 4.1.0); el usuario necesita permiso de lectura sobre sus objetos.
+        on_progress: Recibe un ``ProgressEvent`` (operación ``"documentation"``) al empezar la lectura del catálogo
+            (fase ``"metadata"``), al empezar cada formato (``"word"``, ``"excel"``, ``"html"``; ``0`` de N tablas) y
+            al terminar cada tabla de cada formato. Desde 4.1.0.
+        cancel_token: Se comprueba antes de leer el catálogo, antes de cada formato y entre tablas; si está cancelado,
+            ``generate()`` lanza ``OperationCancelledError``. Los formatos ya terminados quedan escritos; el que estaba
+            en curso puede quedar incompleto (el HTML escribe página a página). Desde 4.1.0.
 
     Raises:
         DocumentationConfigError: Configuración inválida (formato no soportado, ``imprimir`` que no es un diccionario,
@@ -96,8 +103,11 @@ class DatabaseDocumentation:
         headers_file: Path = _DEFAULT_HEADERS_FILE,
         batch_window_seconds: int | None = None,
         schema: str | None = None,
+        on_progress: ProgressCallback | None = None,
+        cancel_token: CancellationToken | None = None,
     ) -> None:
         self._logger: logging.Logger = logging.getLogger(__name__)
+        self._progress = ProgressReporter("documentation", on_progress, cancel_token, self._logger)
         self._output_policy = DocumentationOutputRuntime()
         self._source = SyncDatabaseManagerAdapter(db_manager, {}, schema=schema)
         resolved_batch_window: int = self._batch_window(batch_window_seconds)
@@ -144,13 +154,17 @@ class DatabaseDocumentation:
             DocumentationRenderError: Falló la preparación de la carpeta de salida o la escritura de un formato (la
                 causa queda en ``__cause__``).
             DatabaseException: Error leyendo el catálogo (con su propia clase, p. ej. ``DatabaseOperationError``).
+            OperationCancelledError: Se canceló ``cancel_token`` (ver el argumento).
 
         Examples:
             >>> result = DatabaseDocumentation(manager, Path("out"), formatos=["excel"]).generate()
             >>> result.outputs["excel"].suffix
             '.xlsx'
         """
+        self._progress.check("metadata")
+        self._progress.emit("metadata", 0, 1, "")
         state = self._bootstrap.build(self._settings)
+        self._progress.emit("metadata", 1, 1, "")
         session = DocumentationSession.from_state(
             state,
             db_manager=self._source,
@@ -159,6 +173,7 @@ class DatabaseDocumentation:
             metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
             storage_report_service=StorageInventoryReportService(),
         )
+        session.progress = self._progress
         renderer_registry = build_default_renderer_registry(
             word_generator_cls=WordGenerator,
             excel_generator_cls=ExcelGenerator,

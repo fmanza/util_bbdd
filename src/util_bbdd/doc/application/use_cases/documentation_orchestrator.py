@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from ....analysis.graphviz_ext import GraphvizRelationshipGraphExt
 
 from ...._core.exceptions import DatabaseException, DocumentationConfigError, DocumentationRenderError
+from ....progress import ProgressReporter
 from ...domain.models import (
     DocumentationBootstrapState,
     DocumentationFormatPlan,
@@ -169,6 +170,8 @@ class DocumentationSession:
     _columns_charset_collation_cache: dict[str, list[tuple[str, str | None, str | None]] | None] | None = None
     _storage_inventory_report_cache: dict[str, Any] | None = None
     _engine_conditions_cache: EngineConditionsSection | None = None
+    #: Progreso y cancelación de la generación (4.1.0): lo usan el orquestador y los renderers (``TableProgress``)
+    progress: ProgressReporter = field(default_factory=lambda: ProgressReporter("documentation"))
 
     @classmethod
     def from_state(
@@ -439,7 +442,11 @@ class DocumentationOrchestrator:
                 f"Error preparando la salida de la documentación: {error}", operation="DOCUMENTATION"
             ) from error
         outputs: dict[str, Path] = {}
+        progress = self._session.progress
+        total_tables: int = len(self._session.tablas)
         for plan in plans:
+            progress.check(plan.output_format)
+            progress.emit(plan.output_format, 0, total_tables, "")
             self._dispatch_plan(plan, graph_generator)
             outputs[plan.output_format] = plan.output_path
         return outputs

@@ -33,6 +33,7 @@ from .shared.generator_shared import (
     build_graph_generator_from_options,
 )
 from .shared.print_config_manager import PrintConfigManager
+from .shared.table_progress import TableProgress
 from .shared.template_engine import TemplateEngine
 
 
@@ -283,8 +284,10 @@ class HtmlGenerator:
                 [row[0] for row in tables],
             )
 
+        table_progress = TableProgress.of(data_provider, "html", len(tables))
         for row in tables:
             tabla, comentario, charset_collation = GeneratorTableRuntime.extract_table_row_data(row)
+            table_progress.before(tabla)
             table_slug: str = table_slug_map[tabla]
 
             table_payload: dict[str, Any] = self._build_table_payload(
@@ -320,6 +323,7 @@ class HtmlGenerator:
                     "path": str(table_rel_path).replace("\\", "/"),
                 }
             )
+            table_progress.done(tabla)
         return tables_index
 
     def _process_views(

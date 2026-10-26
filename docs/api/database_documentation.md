@@ -33,7 +33,7 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `DatabaseDocumentation` | `(db_manager, directorio_salida?, fichero_salida?, imprimir?, formatos?, headers_file?, batch_window_seconds?, schema?)` | Valida la configuración (no consulta la BD) | `DatabaseDocumentation` |
+| `DatabaseDocumentation` | `(db_manager, directorio_salida?, fichero_salida?, imprimir?, formatos?, headers_file?, batch_window_seconds?, schema?, on_progress?, cancel_token?)` | Valida la configuración (no consulta la BD) | `DatabaseDocumentation` |
 | `generate` | `()` | Lee el catálogo y genera todos los formatos configurados | `DocumentationResult` |
 
 Ambas se importan de `util_bbdd.doc` (`from util_bbdd.doc import DatabaseDocumentation, DocumentationResult`). Desde
@@ -52,6 +52,8 @@ con `formatos=[...]`.
 | `headers_file` | `Path` | JSON de cabeceras: `{"headers": {"COLUMNAS": {"base": [...]}, ...}}` | Desde 0.41.0 solo `base` por sección (las cabeceras son iguales en todos los motores) |
 | `batch_window_seconds` | `int \| None` | Ventana temporal en segundos para agrupar generaciones automáticas | `None` usa 90 s; solo aplica si `fichero_salida` es `None`. Generaciones lanzadas en esta ventana reutilizan el mismo nombre. Usar 0 para deshabilitar. Un valor que no sea un entero ≥ 0 (también `bool`) da `DocumentationConfigError` al construir |
 | `schema` | `str \| None` | Schema que documentar (owner en Oracle, base de datos en MySQL/MariaDB) | `None` usa el contexto de metadatos del manager. Desde 4.1.0: catálogo, DDL, diagramas y almacenamiento se leen de ese schema con la misma conexión (el usuario necesita permiso de lectura sobre sus objetos) |
+| `on_progress` | `ProgressCallback \| None` | Recibe los `ProgressEvent` de la generación ([Progreso y cancelación](progress_autodoc.md)) | Operación `"documentation"`: fase `"metadata"` y, por formato (`"word"`, `"excel"`, `"html"`), un evento al empezar (`0` de N tablas) y uno por tabla. Un callback que falla se registra una vez y deja de llamarse. Desde 4.1.0 |
+| `cancel_token` | `CancellationToken \| None` | Parada cooperativa | Se comprueba antes de leer el catálogo, antes de cada formato y entre tablas: `OperationCancelledError`. Los formatos terminados quedan; el que estaba en curso puede quedar incompleto. Desde 4.1.0 |
 
 ### Configuración de `imprimir`
 
