@@ -102,7 +102,7 @@ Las subclaves de `tablas` y `vistas` solo tienen efecto con `imprimir_tablas` / 
 
 | Clave | Por defecto | Formato | Efecto |
 |---|---|---|---|
-| `plantilla_word` | `None` | Word | Ruta (`str` o `Path`) a un `.docx` cuyos estilos, encabezados y pies se reutilizan. Si no existe, `DocumentationConfigError` al crear la instancia (solo cuando se pide Word) |
+| `plantilla_word` | `None` | Word | Ruta (`str` o `Path`) a un `.docx` cuyos estilos, encabezados y pies se reutilizan. Si no existe, no es un `.docx` válido o le falta alguno de los estilos de párrafo que usa la documentación (`Title`, `Heading 1`-`3`, `No Spacing`; desde 4.1.0), `DocumentationConfigError` al crear la instancia, con los estilos que faltan (solo cuando se pide Word). Word solo guarda los estilos usados: basta con aplicarlos una vez en la plantilla y guardarla |
 | `plantilla_html` | `None` | HTML | Plantilla Jinja2 propia para las páginas de detalle (tablas, vistas, rutinas). El índice y las páginas de colección siguen siendo las de serie |
 | `tablas_por_documento` | `50` | Word | Tablas por fichero `.docx`; con más tablas se generan varios documentos `<nombre>_parte_N.docx`. Las secciones finales (información de la BD, almacenamiento, condiciones del motor) van en el último |
 | `table_style` | `"Table Grid"` | Word, Excel | Estilo de las tablas. En Word, el nombre de un estilo de tabla del documento o de la plantilla; si no existe, se usa `"Table Grid"` o `"Normal Table"`. En Excel, un estilo `TableStyle*` o `PivotStyle*`; `"Table Grid"` y `"Medium Shading 2 Accent 1"` se traducen a `TableStyleMedium2`, y cualquier otro valor se sustituye por ese con un aviso |
@@ -146,7 +146,7 @@ from util_bbdd.doc import DatabaseDocumentation
 
 imprimir = {
     # --- Presentación ---
-    "plantilla_word": Path("plantillas/corporativa.docx"),  # debe existir si se pide Word
+    "plantilla_word": Path("plantillas/corporativa.docx"),  # debe existir y tener los estilos si se pide Word
     "plantilla_html": None,  # None: páginas de detalle de serie
     "tablas_por_documento": 40,  # Word: una parte nueva cada 40 tablas
     "table_style": "Light Grid Accent 1",  # estilo de Word; Excel usará TableStyleMedium2 con un aviso

@@ -39,6 +39,12 @@ SemVer: MINOR (solo añadidos y correcciones; sin cambios de valor por defecto).
   documentaba, con un mensaje útil (cómo terminó `dot` y la primera línea de su `stderr`). El documento sigue y el
   diagrama que falla queda con su aviso. Quien capturase `CalledProcessError` de los métodos `pipe_*`/`generate_*` del
   grafo debe capturar `RuntimeError`.
+- **doc** (web G41): `imprimir["plantilla_word"]` solo se comprobaba que existiera. Si le faltaba un estilo que
+  `WordGenerator` aplica por nombre (`Title`, `Heading 1`-`3`, `No Spacing`), python-docx lanzaba `KeyError` a mitad
+  del documento y se perdían también los formatos que faltaban; Word solo guarda los estilos usados, así que es lo
+  habitual en una plantilla corporativa. Ahora `DatabaseDocumentation` lo comprueba al construirse (antes de leer la
+  base de datos) y lanza `DocumentationConfigError` con todos los estilos que faltan; también si el fichero no es un
+  `.docx` válido. Solo cuando se pide Word.
 
 ## [4.0.1] - 2026-10-20
 

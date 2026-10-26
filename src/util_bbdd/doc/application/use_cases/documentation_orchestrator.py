@@ -62,6 +62,7 @@ class DocumentationBootstrap:
         headers_runtime: HeadersRuntimePort,
         output_policy: OutputPolicyPort,
         output_lock: AbstractContextManager[Any] | None = None,
+        word_template_check: Callable[[Path], None] | None = None,
     ) -> None:
         self._db_manager = db_manager
         self._directorio_salida = directorio_salida
@@ -75,13 +76,15 @@ class DocumentationBootstrap:
         self._headers_runtime = headers_runtime
         self._output_policy = output_policy
         self._output_lock: AbstractContextManager[Any] = output_lock or nullcontext()
+        self._word_template_check = word_template_check
 
     def settings(self) -> DocumentationSettings:
         """Valida y normaliza la configuración.
 
         Raises:
             DocumentationConfigError: ``imprimir`` no es un diccionario, un formato no está soportado, el fichero de
-                cabeceras no existe o está mal formado, o la plantilla Word indicada no es un fichero.
+                cabeceras no existe o está mal formado, o la plantilla Word indicada no es un fichero (o, con
+                ``word_template_check``, no se puede abrir o le faltan estilos).
         """
         try:
             print_config = self._print_config_policy.normalize(self._imprimir)
@@ -91,8 +94,12 @@ class DocumentationBootstrap:
         except (TypeError, ValueError, KeyError, OSError) as error:
             raise DocumentationConfigError(str(error), operation="DOCUMENTATION") from error
         template: Any = print_config.get("plantilla_word")
-        if "word" in formatos and template is not None and not Path(template).expanduser().is_file():
-            raise DocumentationConfigError(f"Plantilla Word no encontrada: {template}", operation="DOCUMENTATION")
+        if "word" in formatos and template is not None:
+            template_path = Path(template).expanduser()
+            if not template_path.is_file():
+                raise DocumentationConfigError(f"Plantilla Word no encontrada: {template}", operation="DOCUMENTATION")
+            if self._word_template_check is not None:
+                self._word_template_check(template_path)
         return DocumentationSettings(
             print_config=print_config,
             formatos=formatos,

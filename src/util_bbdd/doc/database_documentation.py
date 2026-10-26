@@ -24,6 +24,7 @@ from .infrastructure.renderers.registry import build_default_renderer_registry
 from .infrastructure.renderers.shared.generator_shared import build_graph_generator_from_options
 from .infrastructure.renderers.shared.print_config_manager import PrintConfigManager
 from .infrastructure.renderers.word_generator import WordGenerator
+from .infrastructure.renderers.word_template import WordTemplateValidator
 from .infrastructure.runtime.headers_runtime import DocumentationHeadersRuntime
 from .infrastructure.runtime.metadata_runtime import DocumentationMetadataRuntimeFactory
 from .infrastructure.runtime.output_runtime import DocumentationOutputRuntime
@@ -105,6 +106,7 @@ class DatabaseDocumentation:
             headers_runtime=DocumentationHeadersRuntime(),
             output_policy=self._output_policy,
             output_lock=self._AUTO_OUTPUT_LOCK,
+            word_template_check=WordTemplateValidator.check,
         )
         self._settings: DocumentationSettings = self._bootstrap.settings()
         self._source.imprimir_config = self._settings.print_config
