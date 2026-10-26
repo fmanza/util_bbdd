@@ -5,7 +5,15 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [4.4.0] - 2026-10-27
+
+SemVer: MINOR (añadidos, correcciones, un aviso de obsolescencia y una corrección de seguridad; solo parámetros
+opcionales nuevos, sin cambios de valor por defecto). Ola 4 del plan de huecos de util_bbdd_web (volcado): G29, G6,
+G31, G32, G33, G34, G30 y G1. Cambios que se notan al actualizar: `DumpConfig` sin `truncate_target` emite
+`FutureWarning`; `error_msg` de tablas y constraints lleva solo la primera línea saneada; con destino SQL Server,
+PostgreSQL u Oracle, `run()` escribe `constraints_journal.json` en `output_dir` durante la carga y no arranca si queda
+uno pendiente; los eventos `table` de `audit_sink` llegan al terminar cada tabla. G32 se arregla en `bulk`, así que
+también lo corrige en `BulkCrud`.
 
 ### Added
 

@@ -7,7 +7,7 @@ Introspecciona las claves foráneas de un esquema y genera grafos SVG/PNG que mu
 Resuelve la necesidad de comunicar el modelo de datos a equipos de arquitectura, auditoría o soporte sin exponer las credenciales ni requerir acceso directo a la BD.
 
 !!! note "Dependencia opcional"
-    Requiere el extra `analysis` (`pip install "util_bbdd[analysis] @ git+https://github.com/fmanza/util_bbdd.git@v4.3.0"`) y los binarios de Graphviz
+    Requiere el extra `analysis` (`pip install "util_bbdd[analysis] @ git+https://github.com/fmanza/util_bbdd.git@v4.4.0"`) y los binarios de Graphviz
     instalados en el sistema (`dot` en PATH).
 
 ## 2. Implementación de Referencia
