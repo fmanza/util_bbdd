@@ -30,7 +30,7 @@ flowchart TD
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
 | `DumpOrchestrator` | `(config: DumpConfig)` | Crea los `Inspector` de origen y destino (SQLAlchemy abre una conexión a cada uno) y emite los avisos de configuración | `DumpOrchestrator` |
-| `run` | `()` | Ejecuta las 7 fases y retorna resultado completo | `DumpResult` |
+| `run` | `(*, on_progress=None, cancel_token=None)` | Ejecuta las 7 fases y retorna resultado completo; progreso y cancelación desde 4.4.0 (ver abajo) | `DumpResult` |
 | `plan` | `()` | Vista previa sin escribir en el destino (4.4.0): orden de carga, ciclos, tablas sin destino, columnas por tabla y avisos | `DumpPlan` |
 | `restore_constraints` (función de `util_bbdd.dump`) | `(engine, journal)` | Reactiva lo que dejó desactivado un volcado interrumpido, a partir de su diario (4.4.0; ver abajo) | `list[ConstraintResult]` |
 
@@ -109,6 +109,31 @@ for warning in plan.warnings:
     print(warning.code, warning.table, warning.message)
 if not any(w.code == "REQUIRED_TARGET_COLUMNS" for w in plan.warnings):
     result = DumpOrchestrator(config).run()
+```
+
+#### Progreso y cancelación: `run(on_progress=, cancel_token=)` (4.4.0)
+
+Con el contrato de [`util_bbdd.progress`](progress_autodoc.md), operación `"dump"`:
+
+| Fase | Eventos | `current` / `total` / `message` |
+|---|---|---|
+| `"tables"` | Uno al empezar la carga y uno por tabla terminada (también con `max_parallel_tables`, desde el hilo principal) | tablas terminadas / tablas con destino / nombre de la tabla (vacío en el inicial) |
+| `"rows"` | Uno por lote escrito de cada tabla (desde el hilo que la carga) | filas escritas de la tabla / `COUNT(*)` del origen (`None` con `collect_row_counts=False`) / nombre de la tabla |
+
+La cancelación se comprueba antes de desactivar las constraints (si ya está cancelado, no se toca el destino), antes
+de cada tabla y entre lotes. `OperationCancelledError` (`phase` `"tables"` o `"rows"`) sale **después** de reconstruir
+los índices (`manage_indexes`) y reactivar las constraints, y el diario de constraints se borra si todo se reactivó.
+La tabla en curso se deshace (salvo los lotes ya confirmados con `commit_every_n_chunks`) y las terminadas quedan
+cargadas; con `truncate_target=True` las que faltaban ya están vacías. El evento `run` de `audit_sink` queda `failed`
+con `error_type="OperationCancelledError"`. Con `parallel_pk_ranges`, una tabla que se carga por rangos no se
+interrumpe a mitad ni emite `"rows"`: se comprueba antes de empezarla. Una cancelación que llega tras el último lote
+de la última tabla no interrumpe nada: el volcado termina con normalidad.
+
+```python
+from util_bbdd.progress import CancellationToken
+
+token = CancellationToken()  # token.cancel() desde otro hilo
+result = DumpOrchestrator(config).run(on_progress=lambda e: print(e.phase, e.current, e.total), cancel_token=token)
 ```
 
 #### Diario de constraints y `restore_constraints` (4.4.0)

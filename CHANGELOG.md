@@ -20,6 +20,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   escribir se reintenta con ellos. Si el volcado falla a mitad, los eventos de las tablas terminadas ya están escritos.
 - **dump** (G31 de util_bbdd_web): `restore_constraints(engine, journal)` en `util_bbdd.dump` y
   `ConstraintManager(..., journal_path=)`. Ver Fixed.
+- **dump** (G1 de util_bbdd_web): `DumpOrchestrator.run(*, on_progress=None, cancel_token=None)` con el contrato de
+  `util_bbdd.progress` (operación `"dump"`): fase `"tables"` (inicio y una por tabla terminada) y fase `"rows"` (una
+  por lote escrito, con el `COUNT(*)` del origen como total). La cancelación se comprueba antes de desactivar las
+  constraints, antes de cada tabla y entre lotes, y `OperationCancelledError` sale después de reconstruir índices y
+  reactivar constraints: la tabla en curso se deshace y las terminadas quedan cargadas. Con `parallel_pk_ranges`, la
+  carga por rangos de una tabla no se interrumpe a mitad. Verificado contra el banco (PostgreSQL, SQL Server y Oracle:
+  FK activas e índices reconstruidos tras cancelar).
 
 ### Deprecated
 

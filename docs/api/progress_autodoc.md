@@ -24,6 +24,7 @@ token = CancellationToken()
 | `"graph"` | `generate_all_tables_graphs_ext(on_progress=, cancel_token=)` | `tables` | 4.1.0 |
 | `"compare"` | `SchemaComparator.compare(on_progress=, cancel_token=)` | `metadata`, `tables`, `views`, `routines` | 4.2.0 |
 | `"migrate"` | `MigrationPlan.execute(on_progress=, cancel_token=)` | `statements` | 4.3.0 |
+| `"dump"` | `DumpOrchestrator.run(on_progress=, cancel_token=)` | `tables`, `rows` | 4.4.0 |
 
 ---
 

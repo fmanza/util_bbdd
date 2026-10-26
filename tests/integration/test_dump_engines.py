@@ -574,3 +574,57 @@ def test_restore_constraints_after_an_interrupted_dump(setup: Setup, request: py
     assert _fk_enabled(setup.target, child.name)
     assert not journal.exists()
     assert restore_constraints(setup.target, journal) == []
+
+
+# ------------------------------------------------------- U-V8: progreso y cancelación (G1 de util_bbdd_web, 4.4.0)
+
+
+@pytest.mark.parametrize("setup", _target_params(only=frozenset({"postgresql", "mssql", "oracle"})), indirect=True)
+def test_cancel_between_batches_restores_constraints_and_indexes(setup: Setup, request: pytest.FixtureRequest) -> None:
+    """Cancelar entre lotes: ``OperationCancelledError`` con las FK activas, los índices reconstruidos y sin diario."""
+    from sqlalchemy import Index
+
+    from util_bbdd.exceptions import OperationCancelledError
+    from util_bbdd.progress import CancellationToken, ProgressEvent
+
+    _load_source(setup)
+    parent, child = _parent_child(setup.target, setup.prefix, identity=False)
+    Index(f"{setup.prefix}_ix_v", child.c.v)
+    _create(request, setup.target, parent)
+    _create(request, setup.target, child)
+
+    def indexes() -> list[str]:
+        return sorted(str(i["name"]).lower() for i in inspect(setup.target).get_indexes(child.name))
+
+    before = indexes()
+    token = CancellationToken()
+    events: list[ProgressEvent] = []
+
+    def on_progress(event: ProgressEvent) -> None:
+        events.append(event)
+        if event.phase == "rows" and event.message.lower() == child.name.lower():
+            token.cancel()  # tras el primer lote de la hija
+
+    with pytest.raises(OperationCancelledError):
+        DumpOrchestrator(
+            DumpConfig(
+                source_engine=setup.source,
+                target_engine=setup.target,
+                source_schema=setup.source_schema,
+                target_schema=setup.target_schema,
+                tables=[parent.name, child.name],
+                output_dir=setup.tmp,
+                truncate_target=True,
+                chunk_size=1,
+                write_batch_size=1,  # PostgreSQL agruparía los chunks en un lote de 20 000
+                manage_indexes=True,
+            )
+        ).run(on_progress=on_progress, cancel_token=token)
+
+    assert _fk_enabled(setup.target, child.name)
+    assert indexes() == before
+    assert not (setup.tmp / "constraints_journal.json").exists()
+    with setup.target.connect() as conn:
+        assert conn.execute(select(parent.c.id).order_by(parent.c.id)).scalars().all() == [1, 2, 3]
+        assert conn.execute(select(child.c.id)).scalars().all() == []  # la tabla en curso se deshace
+    assert [e.message.lower() for e in events if e.phase == "tables" and e.current] == [parent.name.lower()]

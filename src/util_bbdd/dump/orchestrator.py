@@ -35,7 +35,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
 from datetime import datetime
 from pathlib import Path
-from typing import Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 import pandas as pd
 
@@ -71,6 +71,7 @@ from ..metadata.reflection import (
     prefetch_table_metadata,
     table_names,
 )
+from ..progress import ProgressReporter
 from . import _audit_summary, _fk_graph
 from ._audit_events import DumpAuditEvents, DumpAuditWriter
 from ._constraints import (
@@ -104,6 +105,9 @@ from ._source_reader import (
 )
 from ._sql_utils import error_message, quote_identifier, quote_table
 from .reporters import DumpReporter
+
+if TYPE_CHECKING:
+    from ..progress import CancellationToken, ProgressCallback
 
 _AuditCounters = AuditCounters  # contadores de auditoría del volcado (BulkCrud + ParallelLoadResult)
 
@@ -160,13 +164,29 @@ class DumpOrchestrator:
         self._audit_tables_written: set[str] = set()
         #: Origen SQLite: columnas de fecha u hora por tabla y su conversión desde texto ISO (G33, 4.4.0).
         self._temporal_parsers: dict[str, dict[str, TemporalParser]] = {}
+        #: Progreso y cancelación del ``run()`` en curso (G1, 4.4.0) y tablas terminadas / por cargar.
+        self._progress = ProgressReporter("dump")
+        self._tables_done = 0
+        self._tables_total = 0
 
     # ------------------------------------------------------------------
     # Punto de entrada
     # ------------------------------------------------------------------
 
-    def run(self) -> DumpResult:
+    def run(
+        self, *, on_progress: ProgressCallback | None = None, cancel_token: CancellationToken | None = None
+    ) -> DumpResult:
         """Ejecuta el volcado completo y retorna el resultado con el informe.
+
+        Progreso y cancelación (G1 de util_bbdd_web, 4.4.0), con el contrato de :mod:`util_bbdd.progress`, operación
+        ``"dump"``: fase ``"tables"`` (un evento ``0`` de N al empezar la carga y uno por tabla terminada, con su nombre)
+        y fase ``"rows"`` (uno por lote escrito de cada tabla: filas escritas de la tabla, total del ``COUNT(*)`` del
+        origen o ``None`` sin ``collect_row_counts``). La cancelación se comprueba antes de desactivar constraints,
+        antes de cada tabla y entre lotes; lanza ``OperationCancelledError`` **después** de reconstruir los índices y
+        reactivar las constraints. La tabla en curso se deshace (salvo los lotes ya confirmados con
+        ``commit_every_n_chunks``); las terminadas quedan cargadas. Con ``parallel_pk_ranges`` la carga de una tabla por
+        rangos no se interrumpe a mitad: se comprueba antes de la tabla y no emite eventos ``"rows"``. Una cancelación
+        que llega tras el último lote de la última tabla no interrumpe nada: el volcado termina con normalidad.
 
         Con ``DumpConfig.audit_sink``, escribe en él el evento de cada tabla al terminar su carga (4.4.0; antes, todos al
         final) y, al terminar (también si falla), los de las tablas sin destino, constraints, índices y contadores PK y
@@ -180,7 +200,9 @@ class DumpOrchestrator:
                 (best-effort, reflejados en ``TableDumpResult.error_msg``).
             DumpReportError: Si falla la generación del informe Excel, ya terminada la carga. ``exc.result`` lleva el
                 ``DumpResult`` completo (su ``report`` es la ruta prevista, sin crear).
+            OperationCancelledError: Si ``cancel_token`` se canceló (``phase``: ``"tables"`` o ``"rows"``).
         """
+        self._progress = ProgressReporter("dump", on_progress, cancel_token, self.logger)
         sink = self._cfg.audit_sink
         self._audit_tables_written = set()
         if sink is None:
@@ -433,6 +455,10 @@ class DumpOrchestrator:
             journal_path=self._constraints_journal_path(),
         )
         index_mgr: IndexManager | None = None
+        progress = self._reporter()
+        progress.check("tables")  # G1: cancelado antes de empezar, sin tocar el destino
+        self._tables_done, self._tables_total = 0, len(effective_src_order)
+        progress.emit("tables", 0, self._tables_total)
 
         # Fases 2-4 dentro del ConstraintManager (enable_all garantizado en __exit__)
         with constraint_mgr:
@@ -508,6 +534,7 @@ class DumpOrchestrator:
         results: list[TableDumpResult] = []
         for position, src_t in enumerate(effective_src_order):
             dst_t = src_to_dst[src_t]
+            self._reporter().check("tables")
             result = self._process_table(src_t, dst_t, position, src_t in cycle_set, crud)
             results.append(result)
             self._table_finished(result)
@@ -607,10 +634,13 @@ class DumpOrchestrator:
         writer.write(build)
 
     def _table_finished(self, result: TableDumpResult) -> None:
-        """Evento ``table`` de ``audit_sink`` al terminar la carga de la tabla (G6, 4.4.0); siempre en el hilo principal.
+        """Una tabla terminó de cargarse; siempre en el hilo principal (4.4.0).
 
-        Si no se puede escribir, la tabla no se marca y su evento va con los del final (:meth:`_write_dump_events`).
+        Emite el progreso ``"tables"`` (G1) y escribe el evento ``table`` de ``audit_sink`` (G6). Si el evento no se
+        puede escribir, la tabla no se marca y va con los del final (:meth:`_write_dump_events`).
         """
+        self._tables_done = getattr(self, "_tables_done", 0) + 1
+        self._reporter().emit("tables", self._tables_done, getattr(self, "_tables_total", None), result.table_name)
         writer: DumpAuditWriter | None = getattr(self, "_audit_writer", None)
         if writer is None:
             return
@@ -621,6 +651,25 @@ class DumpOrchestrator:
             lambda: [DumpAuditEvents.table(result, engine=engine, namespace=cfg.target_schema, run_id=run_id)]
         ):
             self._audit_tables_written.add(result.table_name)
+
+    def _reporter(self) -> ProgressReporter:
+        """Progreso y cancelación del ``run()`` en curso; uno inerte en instancias creadas sin ``__init__`` (tests)."""
+        reporter: ProgressReporter | None = getattr(self, "_progress", None)
+        return reporter if reporter is not None else ProgressReporter("dump")
+
+    def _track_batches(self, chunks: Iterator[pd.DataFrame], table: str, total: int | None) -> Iterator[pd.DataFrame]:
+        """Lotes de ``table`` hacia ``BulkCrud``: comprueba la cancelación antes de cada uno y emite ``"rows"`` (G1).
+
+        El evento de un lote sale cuando la carga pide el siguiente, es decir, cuando ya lo ha enviado. Se consume en
+        el hilo que escribe (después de ``_prefetch``), así que la cancelación interrumpe la carga, no el hilo lector.
+        """
+        progress = self._reporter()
+        written = 0
+        for chunk in chunks:
+            progress.check("rows")
+            yield chunk
+            written += len(chunk)
+            progress.emit("rows", written, total, table)
 
     def _run_dump(self) -> DumpResult:
         """Cuerpo de :meth:`run` (mismas excepciones)."""
@@ -863,7 +912,14 @@ class DumpOrchestrator:
         else:
             # La BulkCrud se reutiliza entre las tablas del hilo: sus rechazos de esta tabla, por diferencia.
             rejected_before: int = crud.rows_rejected
-            error_msgs = self._load_whole_table(src_table, common_cols, col_name_map, dest_table_logical, crud)
+            error_msgs = self._load_whole_table(
+                src_table,
+                common_cols,
+                col_name_map,
+                dest_table_logical,
+                crud,
+                rows_total=source_rows if source_rows >= 0 else None,
+            )
             rows_rejected = crud.rows_rejected - rejected_before
         if rows_rejected:
             self.logger.warning(
@@ -895,6 +951,7 @@ class DumpOrchestrator:
         col_name_map: dict[str, str],
         dest_table_logical: str,
         crud: BulkCrud,
+        rows_total: int | None = None,
     ) -> list[str]:
         """Lee la tabla origen completa y la inserta por chunks. Devuelve mensajes de error.
 
@@ -904,6 +961,9 @@ class DumpOrchestrator:
         gestiona su propia ``bulk_session`` atómica. El renombrado de columnas se
         aplica de forma perezosa por chunk mediante un generador, manteniendo el
         streaming desde el origen sin materializar la tabla completa.
+
+        ``rows_total``: filas del origen para el progreso ``"rows"`` (G1); ``None`` si no se contaron. Una cancelación
+        entre lotes (``OperationCancelledError``) no es un error de la tabla: se propaga y la carga se deshace.
         """
         cfg = self._cfg
         cols_quoted = ", ".join(quote_identifier(c, cfg.source_engine) for c in common_cols)
@@ -917,10 +977,12 @@ class DumpOrchestrator:
                 write_batch = self._resolve_write_batch_size()
                 if write_batch > cfg.chunk_size:
                     renamed = _rebatch(renamed, write_batch)
+                tracked: Iterator[pd.DataFrame] | None = None
                 try:
                     if cfg.source_engine.dialect.name in _PREFETCH_SOURCE_DIALECTS:
                         renamed = _prefetch(renamed)
-                    crud.bulk_insert_from_chunks(renamed, dest_table_logical)
+                    tracked = self._track_batches(renamed, src_table, rows_total)
+                    crud.bulk_insert_from_chunks(tracked, dest_table_logical)
                 except (SQLAlchemyError, ValueError, AuditError, OSError) as exc:
                     # AuditError/OSError: con bulk_audit_strict un fallo al escribir la auditoría deshace la tabla;
                     # queda como error de esa tabla, como cualquier otro fallo de carga, y el volcado sigue.
@@ -928,7 +990,10 @@ class DumpOrchestrator:
                 finally:
                     # A1 (audit-code 2026-09-26): si la escritura falla, el for de bulk_insert_from_chunks no cierra el
                     # generador; sin esto, el with devolvía la conexión al pool con el hilo de _prefetch aún usándola.
-                    # Cerrarlo espera al hilo lector (join) antes de salir del with.
+                    # Cerrarlo espera al hilo lector (join) antes de salir del with. Se cierran las dos capas: cerrar
+                    # el seguimiento de lotes (G1) no cierra el generador que envuelve.
+                    if tracked is not None:
+                        close_if_closable(tracked)
                     close_if_closable(renamed)
         except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:
             error_msgs.append(f"Error leyendo origen: {error_message(exc)}")
@@ -985,7 +1050,14 @@ class DumpOrchestrator:
             if n_ranges <= 1:
                 worker = crud if crud is not None else self._make_worker_crud()
                 rejected_before: int = worker.rows_rejected
-                errors = self._load_whole_table(src_table, common_cols, col_name_map, dest_table_logical, worker)
+                errors = self._load_whole_table(
+                    src_table,
+                    common_cols,
+                    col_name_map,
+                    dest_table_logical,
+                    worker,
+                    rows_total=rows_hint if rows_hint is not None and rows_hint >= 0 else None,
+                )
                 return errors, worker.rows_rejected - rejected_before
         bounds = DumpOrchestrator._compute_range_bounds(lo, hi, n_ranges)
         cols_quoted = ", ".join(quote_identifier(c, cfg.source_engine) for c in common_cols)
@@ -1170,6 +1242,7 @@ class DumpOrchestrator:
         results: list[TableDumpResult] = []
 
         for level in levels:
+            self._reporter().check("tables")
             # Precomputar columnas y PK de rango en serie (Inspector no es thread-safe)
             precomputed = {src_t: self._precompute_table_meta(src_t, src_to_dst[src_t]) for src_t in level}
             with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -1196,6 +1269,7 @@ class DumpOrchestrator:
         if cycle_tables:
             cycle_crud = self._make_worker_crud()
             for src_t in cycle_tables:
+                self._reporter().check("tables")
                 dst_t = src_to_dst[src_t]
                 common_cols, skipped_cols, col_name_map, pk_col = self._precompute_table_meta(src_t, dst_t)
                 result = self._process_table_with_columns(
@@ -1225,6 +1299,7 @@ class DumpOrchestrator:
         meta: tuple[list[str], list[str], dict[str, str], str | None],
     ) -> TableDumpResult:
         """Tarea de hilo: carga una tabla con su propia ``BulkCrud`` y metadatos precomputados."""
+        self._reporter().check("tables")  # G1: las tareas del nivel que aún no empezaron no cargan nada
         crud = self._make_worker_crud()
         common_cols, skipped_cols, col_name_map, pk_col = meta
         return self._process_table_with_columns(
