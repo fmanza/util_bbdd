@@ -623,7 +623,7 @@
       "driver_info": {
         "pip_package": "JayDeBeApi",
         "import_name": "jaydebeapi",
-        "install_command": "pip install JayDeBeApi",
+        "install_command": "pip install \"util_bbdd[hsqldb]\"  (o: pip install JayDeBeApi)",
         "system_requirements": [
           "Java Runtime Environment (JRE) 8+",
           "HSQLDB JAR file",
@@ -768,7 +768,7 @@
           "name": "pymssql",
           "pip_package": "pymssql",
           "import_name": "pymssql",
-          "install_command": "pip install pymssql",
+          "install_command": "pip install \"util_bbdd[sqlserver]\"  (o: pip install pymssql)",
           "system_requirements": [
             "FreeTDS (Ubuntu/Debian): libsybdb5, freetds-dev",
             "FreeTDS (CentOS/RHEL): freetds-devel",
@@ -790,7 +790,7 @@
           "name": "pyodbc",
           "pip_package": "pyodbc",
           "import_name": "pyodbc",
-          "install_command": "pip install pyodbc",
+          "install_command": "pip install \"util_bbdd[sqlserver-odbc]\"  (o: pip install pyodbc aioodbc)",
           "system_requirements": [
             "Windows: ODBC Driver for SQL Server (instalado por defecto)",
             "Linux: ODBC Driver for SQL Server + unixODBC",

@@ -17,6 +17,9 @@ SemVer: MINOR (solo añadidos y correcciones; sin cambios de valor por defecto).
   `ProgressReporter` (el ayudante que usan las operaciones). Excepción nueva `OperationCancelledError` en
   `util_bbdd.exceptions`. Capa 2 (solo importa `_core`): diagrama de capas regenerado. Todavía no lo usa ninguna
   operación; cada una lo conecta en su propio cambio.
+- **dependencias** (web G3): extras nuevos `sqlserver` (pymssql, el driver por defecto), `sqlserver-odbc` (pyodbc y
+  aioodbc; también el async de SQL Server), `hsqldb` (JayDeBeApi) y `sqlite-async` (aiosqlite). El
+  `install_command` de `database_types.json` de SQL Server y HSQLDB nombra el extra. `dev-full` no cambia.
 
 ## [4.0.1] - 2026-10-20
 

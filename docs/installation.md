@@ -82,10 +82,10 @@ Los drivers **no se incluyen** en la instalación básica; instálalos con el ex
 | PostgreSQL | `psycopg` 3 + `psycopg-pool` | `asyncpg` | extra `postgresql` (o `pip install "psycopg[binary]" psycopg-pool asyncpg`) |
 | MariaDB (`db_type="mariadb"`) | `mariadb` (MariaDB Connector/Python) | `aiomysql` | extra `mariadb` (o `pip install mariadb aiomysql`) |
 | MySQL (`db_type="mysql"`) | `pymysql` | `aiomysql` | extra `mysql` (o `pip install "pymysql[rsa]" aiomysql`) |
-| SQLite | `sqlite3` (stdlib) | `aiosqlite` | `pip install aiosqlite` (sync incluido en Python) |
+| SQLite | `sqlite3` (stdlib) | `aiosqlite` | extra `sqlite-async` (o `pip install aiosqlite`); sync incluido en Python |
 | Oracle | `oracledb` | `oracledb` | extra `oracle` (o `pip install oracledb`) |
-| SQL Server | `pyodbc` | `aioodbc` | `pip install pyodbc aioodbc` + ODBC driver nativo del SO |
-| HSQLDB | `jaydebeapi` | N/A (sin async) | `pip install jaydebeapi` + Java |
+| SQL Server | `pymssql` (por defecto) o `pyodbc` | `aioodbc` | extra `sqlserver` (o `pip install pymssql`); con ODBC, extra `sqlserver-odbc` (o `pip install pyodbc aioodbc`) + ODBC Driver for SQL Server del SO |
+| HSQLDB | `jaydebeapi` | N/A (sin async) | extra `hsqldb` (o `pip install JayDeBeApi`) + Java 8+ y el JAR de HSQLDB |
 
 ## 4. Verificación
 

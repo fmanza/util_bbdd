@@ -31,7 +31,8 @@ comparación de esquemas y documentación de la base de datos.
 ```bash
 pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v4.0.1"
 
-# Con los drivers de un motor (extras: postgresql, mariadb, mysql, oracle; se combinan con comas)
+# Con los drivers de un motor (extras: postgresql, mariadb, mysql, oracle, sqlserver, sqlserver-odbc, hsqldb,
+# sqlite-async; se combinan con comas)
 pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v4.0.1"
 ```
 

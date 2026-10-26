@@ -50,6 +50,23 @@ postgresql = [
     "psycopg-pool>=3.3",     # pool sync
     "asyncpg>=0.32",         # async
 ]
+# SQL Server: pymssql es el driver por defecto (wheels con FreeTDS incluido); sqlserver-odbc, el alternativo (requiere el
+# ODBC Driver for SQL Server del sistema). Desde 4.1.0 (util_bbdd_web G3).
+sqlserver = [
+    "pymssql>=2.4",
+]
+sqlserver-odbc = [
+    "pyodbc>=5.2",   # sync
+    "aioodbc>=0.5",  # async
+]
+# HSQLDB: JDBC desde Python; requiere Java 8+ y el JAR de HSQLDB. Sin async.
+hsqldb = [
+    "JayDeBeApi>=1.2",
+]
+# SQLite async (el driver sync es sqlite3, de la biblioteca estándar).
+sqlite-async = [
+    "aiosqlite>=0.22",
+]
 # migrate: reescribe el SQL de las vistas al dialecto destino (MigrationPlanner(view_strategy="auto"|"transpile")).
 migrate = [
     "sqlglot>=30,<31",
