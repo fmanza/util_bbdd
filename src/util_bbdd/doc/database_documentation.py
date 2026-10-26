@@ -54,6 +54,8 @@ class DatabaseDocumentation:
             - grafo.images_paginated / grafo.max_subnodes: Diagramas de Word partidos en varias imágenes
             - grafo.columns.mode / grafo.columns.max_items: Columnas visibles en los nodos
             - grafo.workers: Procesos ``dot`` simultáneos (por defecto, los núcleos hasta 8)
+            - grafo.orthogonal_edges: Aristas ortogonales (por defecto ``True``); ``False`` dibuja curvas, para los
+              grafos en los que el enrutado ortogonal de Graphviz falla
         formatos: Formatos a generar: 'word', 'excel', 'html' (por defecto ``["word"]``).
         headers_file: JSON con las cabeceras de cada sección (``{"headers": {"COLUMNAS": {"base": [...]}, ...}}``).
         batch_window_seconds: Ventana temporal en segundos para agrupar generaciones automáticas en la misma carpeta

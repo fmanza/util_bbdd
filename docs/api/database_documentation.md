@@ -125,6 +125,7 @@ dibujan en Word y HTML.
 | `max_subnodes` | `10` (`5` en Word) | Tablas por imagen al paginar. Word usa 5 mientras no se cambie el valor por defecto |
 | `dpi` | `150` | Resolución de las imágenes `png` |
 | `workers` | núcleos, hasta 8 | Procesos `dot` simultáneos. Los diagramas se precargan por lotes (`dot -O`, un proceso por lote): arrancar `dot` cuesta ~0,25 s y renderizar ~0,01 s por grafo |
+| `orthogonal_edges` | `True` | Aristas ortogonales (`splines=ortho`). Con `False`, curvas (`splines=true`): el enrutado ortogonal de Graphviz 2.43 aborta en algunos grafos (`maze.c: chkSgraph`, `newtrap: Trapezoid-table overflow`); desde 4.1.0 ese diagrama queda con un aviso y el documento sigue |
 | `output_dir` | Word: `./_table_diagrams`; HTML: `<HTML>/graphs` | Carpeta de los ficheros de los diagramas |
 | `columns.mode` | `"relations"` | Columnas visibles en cada nodo: `"relations"` (solo las que participan en las relaciones dibujadas), `"compact"` (esas primero y después las demás hasta completar) o `"all"` (todas, en su orden) |
 | `columns.max_items` | `8` | Máximo de columnas por nodo; las que no caben se indican como ocultas |

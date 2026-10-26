@@ -420,4 +420,5 @@ def build_graph_generator_from_options(source: Any, options: dict[str, Any]) -> 
         show_constraint_name=bool(cardinality_options.get("show_constraint_name", False)),
         render_dpi=int(options.get("dpi", 150)),
         render_workers=None if workers is None else int(workers),
+        orthogonal_edges=bool(options.get("orthogonal_edges", True)),
     )

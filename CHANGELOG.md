@@ -20,6 +20,9 @@ SemVer: MINOR (solo añadidos y correcciones; sin cambios de valor por defecto).
 - **dependencias** (web G3): extras nuevos `sqlserver` (pymssql, el driver por defecto), `sqlserver-odbc` (pyodbc y
   aioodbc; también el async de SQL Server), `hsqldb` (JayDeBeApi) y `sqlite-async` (aiosqlite). El
   `install_command` de `database_types.json` de SQL Server y HSQLDB nombra el extra. `dev-full` no cambia.
+- **doc** (web G39): `imprimir["grafo"]["orthogonal_edges"]` (por defecto `True`) llega a los diagramas de Word y
+  HTML; con `False` se dibujan con curvas (`splines=true`), para los grafos en los que el enrutado ortogonal de Graphviz aborta.
+  `GraphvizRelationshipGraphExt(orthogonal_edges=...)` ya existía; faltaba poder pasarlo desde la documentación.
 
 ### Fixed
 

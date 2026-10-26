@@ -60,6 +60,9 @@ class PrintConfigManager:
         "images_paginated": True,
         "max_subnodes": 10,
         "dpi": 150,
+        # Aristas ortogonales (splines=ortho); False = curvas (splines=true). El enrutado ortogonal de algunos Graphviz aborta en
+        # ciertos grafos (util_bbdd_web G39)
+        "orthogonal_edges": True,
         "columns": {
             "mode": "relations",
             "max_items": 8,
@@ -165,6 +168,9 @@ class PrintConfigManager:
 
         graph["enabled"] = bool(graph.get("enabled", PrintConfigManager.DEFAULT_GRAPH["enabled"]))
         graph["show_columns"] = bool(graph.get("show_columns", PrintConfigManager.DEFAULT_GRAPH["show_columns"]))
+        graph["orthogonal_edges"] = bool(
+            graph.get("orthogonal_edges", PrintConfigManager.DEFAULT_GRAPH["orthogonal_edges"])
+        )
         graph["images_paginated"] = bool(
             graph.get("images_paginated", PrintConfigManager.DEFAULT_GRAPH["images_paginated"])
         )
@@ -314,6 +320,7 @@ class PrintConfigManager:
             ),
             "dpi": PrintConfigManager._to_positive_int(graph_cfg.get("dpi", 150), fallback=150),
             "workers": graph_cfg.get("workers"),
+            "orthogonal_edges": bool(graph_cfg.get("orthogonal_edges", True)),
             "columns": dict(graph_cfg.get("columns", {})),
             "cardinality": dict(graph_cfg.get("cardinality", {})),
             "summary": dict(graph_cfg.get("summary", {})),
@@ -386,6 +393,7 @@ class PrintConfigManager:
             "max_subnodes": PrintConfigManager._to_positive_int(graph_cfg.get("max_subnodes", 10), fallback=10),
             "dpi": PrintConfigManager._to_positive_int(graph_cfg.get("dpi", 150), fallback=150),
             "workers": graph_cfg.get("workers"),
+            "orthogonal_edges": bool(graph_cfg.get("orthogonal_edges", True)),
             "columns": dict(graph_cfg.get("columns", {})),
             "cardinality": dict(graph_cfg.get("cardinality", {})),
             "summary": dict(graph_cfg.get("summary", {})),
