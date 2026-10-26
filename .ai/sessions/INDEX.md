@@ -303,6 +303,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-10-19b-docs-args-d4 | **v4.0.0**: D4 (`Args:` en 28 métodos sin autodoc), revisión de docs con los últimos cambios (`drivers.md`, `bulk_parallel.md`) y cierre de versión | develop | documentation + version-closure | CLOSED | `2026-10-19b-docs-args-d4/TRACEABILITY.md` |
 | 2026-10-20-ci-recovery | **v4.0.1**: CI de GitHub recuperado (repos públicos): mypy con pandas-stubs 3.0.5, recogida sin extras, dorado de SQLite sin ruta temporal, entorno `.[dev-full]` en el CI y cierre de versión | develop | hotfix + tech_debt + version-closure | CLOSED | `2026-10-20-ci-recovery/TRACEABILITY.md` |
 | 2026-10-25-web-gaps-plan | **v4.1.0**: plan de huecos de util_bbdd_web (6 olas) y ola 1: `util_bbdd.progress`, progreso/cancelación en documentación y grafos, `schema` explícito, plantilla Excel, validación de plantilla Word, G38/G39 y extras de drivers | claude/practical-ride-44fot0 | new_feature + version-closure | CLOSED | `2026-10-25-web-gaps-plan/TRACEABILITY.md` |
+| 2026-10-26-web-gaps-ola2 | **v4.2.0**: ola 2 del plan de huecos de util_bbdd_web (comparación): etiquetas sin datos de conexión, `SchemaDiff.to_dict`/`from_dict`, Mermaid con SRI y `mermaid_src`, progreso/cancelación en `compare()` | claude/practical-ride-44fot0 | new_feature + version-closure | CLOSED | `2026-10-26-web-gaps-ola2/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 

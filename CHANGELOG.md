@@ -5,7 +5,13 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [4.2.0] - 2026-10-26
+
+SemVer: MINOR (añadidos, correcciones de seguridad y un arreglo de tests; sin cambios de API). Ola 2 del plan de huecos
+de util_bbdd_web (comparación de esquemas): G23, G24, G25 y G1 en `compare()`. Cambia el **texto** de las etiquetas
+por defecto de la comparación y el nombre de sus ficheros de informe (G23, seguridad); quien dependa de ellos puede
+fijarlos con `source_label`/`target_label`. `SchemaComparatorProtocol` no cambia (los parámetros nuevos son
+opcionales en `SchemaComparator`).
 
 ### Added
 
