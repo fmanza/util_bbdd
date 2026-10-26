@@ -7,6 +7,18 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+
+- **comparar** (G23 de util_bbdd_web): las etiquetas de `SchemaComparator` ya no llevan datos de conexión. Antes
+  `SchemaDiff.source_label`/`target_label` (y con ellas el log, los cinco informes y el título del HTML) eran la URL
+  sin contraseña (usuario, host, puerto, parámetros y, en SQLite, la ruta del fichero), y el nombre de los ficheros de
+  informe llevaba el host. Ahora la etiqueta por defecto es `motor [schema]` (`oracle [ESQ_ORIGEN]`,
+  `postgresql [public]`) y el nombre de fichero `<motor abreviado>_<schema>_vs_…_diff`. El schema es el pedido, el
+  `default_schema_name` del inspector o, sin ellos, lo que en el motor ya es el schema (usuario en Oracle, base de datos
+  en MariaDB/MySQL). Nuevo: `compare(..., source_label=None, target_label=None)` para poner etiquetas propias, que
+  también nombran los ficheros. Cambia el texto de la etiqueta y el nombre de los ficheros, no la API; quien los
+  analizara, debe pasar sus propias etiquetas.
+
 ### Fixed
 
 - **tests, bulk**: el CI de 4.1.0 fallaba con pandas 3.1.0 (recién publicado) en

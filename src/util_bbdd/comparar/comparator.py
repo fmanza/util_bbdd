@@ -30,8 +30,6 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 type _RoutineType = Literal["PROCEDURE", "FUNCTION"]
 
-_URL_CREDENTIALS_RE: str = r"://[^@]+@"
-_URL_CREDENTIALS_MASK: str = "://***@"
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -106,6 +104,8 @@ class SchemaComparator:
         include_foreign_keys: bool = True,
         include_comments: bool = True,
         include_routines: bool = False,
+        source_label: str | None = None,
+        target_label: str | None = None,
     ) -> SchemaDiff:
         """Compara dos esquemas y devuelve las diferencias encontradas.
 
@@ -125,6 +125,9 @@ class SchemaComparator:
                 - MariaDB, MySQL, Oracle, SQL Server, PostgreSQL: ✓ Soportado
                 - HSQLDB: ✗ No soportado (DDL no portable); ``include_routines=True`` será ignorado con warning.
                 - SQLite: N/A (sin routines)
+            source_label: Etiqueta del origen en el ``SchemaDiff``, el log, los informes y el nombre de sus ficheros.
+                ``None`` usa ``motor [schema]`` (p. ej. ``oracle [ESQ_ORIGEN]``), sin host, puerto, usuario ni ruta.
+            target_label: Etiqueta del destino; mismas reglas que ``source_label``.
 
         Returns:
             ``SchemaDiff`` con todas las diferencias encontradas.
@@ -140,10 +143,10 @@ class SchemaComparator:
             ``metadata/`` (ADR-003, C4); antes una consulta por vista y lado, y un ``SHOW CREATE`` por routine en
             MariaDB/MySQL. ``include_*=False`` evita las consultas de lo que no se compara.
         """
-        source_label: str = self._build_label(source, source_schema)
-        target_label: str = self._build_label(target, target_schema)
-        source_short_label: str = self._build_short_label(source, source_schema)
-        target_short_label: str = self._build_short_label(target, target_schema)
+        source_short_label: str = source_label or self._build_short_label(source, source_schema)
+        target_short_label: str = target_label or self._build_short_label(target, target_schema)
+        source_label = source_label or self._build_label(source, source_schema)
+        target_label = target_label or self._build_label(target, target_schema)
         self.logger.info("Iniciando comparación: %s ↔ %s", source_label, target_label)
 
         table_diffs: tuple[TableDiff, ...] = ()
@@ -796,32 +799,46 @@ class SchemaComparator:
             return None
 
     @staticmethod
-    def _mask_url(s: str) -> str:
-        """Enmascara credenciales de una URL ya convertida a string."""
-        return re.sub(_URL_CREDENTIALS_RE, _URL_CREDENTIALS_MASK, s)
+    def _engine_name(inspector: Inspector, url_obj: URL | None) -> str:
+        """Nombre del motor (``postgresql``, ``oracle``…) sin driver; ``db`` si no se puede saber."""
+        if url_obj is not None and url_obj.drivername:
+            return url_obj.drivername.split("+")[0].lower()
+        dialect_name: Any = getattr(getattr(inspector, "dialect", None), "name", None)
+        return dialect_name.lower() if isinstance(dialect_name, str) and dialect_name else "db"
+
+    @staticmethod
+    def _effective_schema(inspector: Inspector, schema: str | None, url_obj: URL | None) -> str | None:
+        """Schema que identifica el lado comparado: el pedido, el ``default_schema_name`` del inspector o el de la URL.
+
+        Sin los dos primeros, la URL solo aporta lo que en el motor ya es el schema: el usuario en Oracle y la base de
+        datos en MariaDB/MySQL. Nunca host, puerto ni ruta.
+        """
+        if schema:
+            return schema
+        default_schema: Any = getattr(inspector, "default_schema_name", None)
+        if isinstance(default_schema, str) and default_schema:
+            return default_schema
+        if url_obj is None:
+            return None
+        dialect = (url_obj.drivername or "").split("+")[0].lower()
+        if dialect == "oracle":
+            return url_obj.username or None
+        if dialect in ("mariadb", "mysql"):
+            return (url_obj.database or "").split("?")[0] or None
+        return None
 
     @staticmethod
     def _build_label(inspector: Inspector, schema: str | None) -> str:
-        """Construye una etiqueta legible para el inspector: URL sin contraseña y ``[schema]`` efectivo.
+        """Etiqueta por defecto de un lado de la comparación: ``motor [schema]``.
 
-        El usuario se muestra (en Oracle es el schema); si ``schema`` es ``None`` se usa
-        ``inspector.default_schema_name``. Una URL que no se puede parsear se enmascara entera (``://***@``).
+        No lleva datos de conexión (host, puerto, usuario, ruta del fichero SQLite ni parámetros de la URL): la etiqueta
+        llega al log, al ``SchemaDiff`` y a todos los informes (G23). Para distinguir dos lados con el mismo motor y
+        schema, pasa ``source_label``/``target_label`` a :meth:`compare`.
         """
         url_obj = SchemaComparator._parse_url_safe(inspector)
-        if url_obj is not None:
-            try:
-                url: str = url_obj.render_as_string(hide_password=True)
-            except (AttributeError, ValueError):
-                url = str(url_obj)
-        else:
-            engine: Any | None = getattr(inspector, "engine", None)
-            url_raw: Any = getattr(engine, "url", None)
-            url = SchemaComparator._mask_url(str(url_raw) if url_raw is not None else "unknown")
-        default_schema: Any = getattr(inspector, "default_schema_name", None)
-        effective_schema: str | None = schema or (default_schema if isinstance(default_schema, str) else None)
-        if effective_schema:
-            return f"{url} [{effective_schema}]"
-        return url
+        engine = SchemaComparator._engine_name(inspector, url_obj)
+        effective_schema = SchemaComparator._effective_schema(inspector, schema, url_obj)
+        return f"{engine} [{effective_schema}]" if effective_schema else engine
 
     #: Nombres de FK que genera el motor cuando la FK no se nombra; cambian entre schemas con la misma FK.
     #: Ampliable: ``SchemaComparator._GENERATED_FK_NAME_PATTERNS += (re.compile(...),)``.
@@ -854,54 +871,15 @@ class SchemaComparator:
 
     @staticmethod
     def _build_short_label(inspector: Inspector, schema: str | None) -> str:
-        """Construye una etiqueta compacta para el nombre de fichero de reporte.
+        """Etiqueta compacta para el nombre de fichero de reporte: ``<motor abreviado>_<schema>``.
 
-        Selecciona el identificador más relevante según el motor:
-
-        - Oracle: usuario (el usuario es el schema en Oracle)
-        - PostgreSQL: schema si se proporciona, si no la base de datos
-        - MariaDB / MySQL: nombre de la base de datos
-        - SQLite: nombre del fichero sin ruta ni extensión
-        - SQL Server (mssql): base de datos, añade schema si se proporciona
-        - Resto: schema o base de datos o usuario, en ese orden
+        Mismo schema que :meth:`_build_label` y, como ella, sin host, puerto, usuario ni ruta (G23).
         """
         url_obj = SchemaComparator._parse_url_safe(inspector)
-        if url_obj is None:
-            return schema or "db"
-
-        dialect = (url_obj.drivername or "").split("+")[0].lower()
-        dialect_short = SchemaComparator._DIALECT_ABBREV.get(dialect, dialect[:6] if dialect else "db")
-        host = url_obj.host or ""
-        # IP → último octeto (parte más específica); nombre DNS → tal cual
-        host_short = host.rsplit(".", 1)[-1] if re.match(r"^\d+(\.\d+){3}$", host) else host
-        database = url_obj.database or ""
-        username = url_obj.username or ""
-
-        # SQLite database es una ruta de fichero; extraer solo el nombre sin extensión
-        if dialect == "sqlite":
-            last = database.replace("\\", "/").rsplit("/", 1)[-1]
-            db_short = last.rsplit(".", 1)[0].strip(":") if last else "mem"
-        else:
-            db_short = database.split("/")[-1].split("?")[0]
-
-        identifier = SchemaComparator._pick_identifier(dialect, username, db_short, schema)
-        parts = [p for p in [dialect_short, host_short, identifier] if p]
-        return "_".join(parts) or schema or "db"
-
-    @staticmethod
-    def _pick_identifier(dialect: str, username: str, db_short: str, schema: str | None) -> str:
-        """Devuelve el identificador más relevante para el fichero de reporte según el motor."""
-        if dialect == "oracle":
-            return username or schema or db_short
-        if dialect == "postgresql":
-            return schema or db_short
-        if dialect in ("mariadb", "mysql"):
-            return db_short
-        if dialect == "sqlite":
-            return db_short or "mem"
-        if dialect == "mssql":
-            return f"{db_short}_{schema}" if db_short and schema else db_short or schema or ""
-        return schema or db_short or username
+        engine = SchemaComparator._engine_name(inspector, url_obj)
+        effective_schema = SchemaComparator._effective_schema(inspector, schema, url_obj)
+        engine_short = SchemaComparator._DIALECT_ABBREV.get(engine, engine[:6])
+        return "_".join(part for part in (engine_short, effective_schema) if part)
 
     @staticmethod
     def _unqualify(definition: str, schema: str | None) -> str:

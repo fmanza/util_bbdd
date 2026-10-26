@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 from typing import Any, ClassVar
@@ -15,7 +16,7 @@ from sqlalchemy import Column, ForeignKey, Index, Integer, MetaData, String, Tab
 
 from util_bbdd.comparar.comparator import SchemaComparator
 from util_bbdd.comparar.contracts import SchemaComparatorProtocol
-from util_bbdd.comparar.reporters._base import DdlNormalizer
+from util_bbdd.comparar.reporters._base import DdlNormalizer, build_output_stem
 from util_bbdd.metadata.reflection import view_definitions
 
 # ---------------------------------------------------------------------------
@@ -292,20 +293,37 @@ class TestSchemaComparatorWithMocks:
         assert "Tablas:" in diff.summary
         assert "Vistas:" in diff.summary
 
-    def test_label_hides_password_keeps_user(self, comparator: SchemaComparator) -> None:
-        """La etiqueta oculta la contraseña; el usuario se muestra (en Oracle es el schema)."""
+    def test_label_has_no_connection_data(self, comparator: SchemaComparator) -> None:
+        """G23: la etiqueta es ``motor [schema]``; ni usuario, ni contraseña, ni host, ni puerto."""
         inspector = _make_mock_inspector(bind_url="mariadb+mariadbconnector://user:pass@host:3306/db")
         label = comparator._build_label(inspector, None)
-        assert "user:***@" in label
-        assert "pass" not in label
+        assert label == "mariadb [db]"
 
-    def test_label_hides_password_with_encoded_special_chars(self, comparator: SchemaComparator) -> None:
-        """T5: una contraseña con '%40' (@ codificado) se redacta completa."""
+    def test_label_with_encoded_password_has_no_credentials(self, comparator: SchemaComparator) -> None:
+        """T5: una contraseña con '%40' (@ codificado) no aparece, ni el usuario ni el host."""
         inspector = _make_mock_inspector(bind_url="postgresql+psycopg2://admin:p%40ss%21@host:5432/mydb")
-        label = comparator._build_label(inspector, None)
-        assert "admin:***@host" in label
-        assert "p%40ss" not in label
-        assert "ss%21" not in label
+        label = comparator._build_label(inspector, "public")
+        assert label == "postgresql [public]"
+
+    def test_custom_labels_reach_diff_and_file_stem(self, comparator: SchemaComparator) -> None:
+        """G23: ``source_label``/``target_label`` sustituyen a las etiquetas por defecto, también en el fichero."""
+        source = _make_mock_inspector(bind_url="postgresql://u:p@db.internal:5432/app")
+        target = _make_mock_inspector(bind_url="sqlite:////srv/datos/secreto.db")
+        diff = comparator.compare(source, target, source_label="Producción (pg)", target_label="Copia")
+        assert (diff.source_label, diff.target_label) == ("Producción (pg)", "Copia")
+        assert build_output_stem(diff) == "Producción__pg__vs_Copia_diff"
+
+    def test_default_labels_never_carry_connection_data(
+        self, comparator: SchemaComparator, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """G23: sin etiquetas, ni el ``SchemaDiff``, ni el nombre de fichero, ni el log llevan host, usuario o ruta."""
+        source = _make_mock_inspector(bind_url="postgresql://usr:pwd@db.internal:5432/app")
+        target = _make_mock_inspector(bind_url="sqlite:////srv/datos/secreto.db")
+        with caplog.at_level(logging.INFO, logger="util_bbdd.comparar.comparator"):
+            diff = comparator.compare(source, target, source_schema="public")
+        texts = [diff.source_label, diff.target_label, build_output_stem(diff), caplog.text]
+        for leaked in ("usr", "pwd", "db.internal", "5432", "srv", "datos", "secreto"):
+            assert not any(leaked in text for text in texts), leaked
 
     def test_anonymous_fk_detected(self, comparator: SchemaComparator) -> None:
         """T1: FKs an\u00f3nimas (name=None) deben detectarse y no descartarse silenciosamente."""
@@ -1306,118 +1324,84 @@ class TestEdgeCasesViewDefinitionNone:
 
 
 class TestEdgeCasesBuildLabel:
-    def test_url_without_credentials_unchanged(self) -> None:
-        inspector = _make_mock_inspector(bind_url="sqlite:///:memory:")
-        label = SchemaComparator._build_label(inspector, None)
-        assert "sqlite" in label
-        assert "***" not in label
+    def test_sqlite_without_schema_is_engine_only(self) -> None:
+        inspector = _make_mock_inspector(bind_url="sqlite:////srv/datos/app.db")
+        assert SchemaComparator._build_label(inspector, None) == "sqlite"
 
     def test_url_with_schema(self) -> None:
         inspector = _make_mock_inspector(bind_url="sqlite:///:memory:")
-        label = SchemaComparator._build_label(inspector, "myschema")
-        assert "[myschema]" in label
+        assert SchemaComparator._build_label(inspector, "myschema") == "sqlite [myschema]"
 
     _ORACLE_URL: ClassVar[str] = "oracle+oracledb://ESQ_ORIGEN:secret@10.20.0.237:1521/?service_name=DBTESTBIT"
 
-    def test_oracle_without_schema_shows_user_and_default_schema(self) -> None:
-        """Oracle sin ``schema``: la etiqueta identifica el schema (usuario y ``default_schema_name``)."""
+    def test_oracle_without_schema_uses_default_schema(self) -> None:
+        """Oracle sin ``schema``: la etiqueta identifica el schema por ``default_schema_name``, sin URL."""
         inspector = _make_mock_inspector(bind_url=self._ORACLE_URL)
         inspector.default_schema_name = "esq_origen"
-        label = SchemaComparator._build_label(inspector, None)
-        assert label == "oracle+oracledb://ESQ_ORIGEN:***@10.20.0.237:1521/?service_name=DBTESTBIT [esq_origen]"
-        assert "secret" not in label
+        assert SchemaComparator._build_label(inspector, None) == "oracle [esq_origen]"
 
     def test_oracle_explicit_schema_wins_over_default(self) -> None:
         inspector = _make_mock_inspector(bind_url=self._ORACLE_URL)
         inspector.default_schema_name = "esq_origen"
-        label = SchemaComparator._build_label(inspector, "OTRO")
-        assert label.endswith(" [OTRO]")
-        assert "[esq_origen]" not in label
+        assert SchemaComparator._build_label(inspector, "OTRO") == "oracle [OTRO]"
 
-    def test_default_schema_name_not_str_is_ignored(self) -> None:
-        """Un ``default_schema_name`` que no es ``str`` (p. ej. ``MagicMock``) no añade sufijo."""
+    def test_oracle_without_default_schema_uses_user_as_schema(self) -> None:
+        """Un ``default_schema_name`` que no es ``str`` se ignora; en Oracle el usuario es el schema."""
         inspector = _make_mock_inspector(bind_url=self._ORACLE_URL)
-        label = SchemaComparator._build_label(inspector, None)
-        assert label.endswith("service_name=DBTESTBIT")
+        assert SchemaComparator._build_label(inspector, None) == "oracle [ESQ_ORIGEN]"
 
     def test_same_host_different_users_get_different_labels(self) -> None:
         a = _make_mock_inspector(bind_url="oracle+oracledb://ESQ_A:x@h:1521/?service_name=S")
         b = _make_mock_inspector(bind_url="oracle+oracledb://ESQ_B:y@h:1521/?service_name=S")
         assert SchemaComparator._build_label(a, None) != SchemaComparator._build_label(b, None)
 
-    def test_unparseable_url_still_masks_credentials(self) -> None:
-        """Si la URL no se puede parsear, se mantiene el enmascarado completo de credenciales."""
+    def test_unparseable_url_uses_dialect_name(self) -> None:
+        """Si la URL no se puede parsear, el motor sale del dialect y no se muestra nada de la URL."""
         inspector = MagicMock()
         inspector.engine.url = "no-url://user:pass@host"
+        inspector.dialect.name = "postgresql"
         with patch.object(SchemaComparator, "_parse_url_safe", return_value=None):
             label = SchemaComparator._build_label(inspector, None)
-        assert "pass" not in label
-        assert "://***@host" in label
+        assert label == "postgresql"
 
 
 class TestBuildShortLabel:
-    """_build_short_label produce etiquetas compactas con el identificador correcto por motor."""
+    """_build_short_label: ``<motor abreviado>_<schema>``, sin datos de conexión (G23)."""
 
-    def test_postgresql_uses_schema_when_provided(self) -> None:
+    def test_postgresql_uses_schema(self) -> None:
         inspector = _make_mock_inspector(bind_url="postgresql://user:pass@pghost/mydb")
-        label = SchemaComparator._build_short_label(inspector, "public")
-        assert label == "pg_pghost_public"
+        assert SchemaComparator._build_short_label(inspector, "public") == "pg_public"
 
-    def test_postgresql_uses_database_when_no_schema(self) -> None:
+    def test_postgresql_without_schema_is_engine_only(self) -> None:
         inspector = _make_mock_inspector(bind_url="postgresql://user:pass@pghost/mydb")
-        label = SchemaComparator._build_short_label(inspector, None)
-        assert label == "pg_pghost_mydb"
+        assert SchemaComparator._build_short_label(inspector, None) == "pg"
 
-    def test_mariadb_uses_database(self) -> None:
+    def test_mariadb_uses_database_as_schema(self) -> None:
         inspector = _make_mock_inspector(bind_url="mariadb+mariadbconnector://user:pass@maria-host:3306/appdb")
-        label = SchemaComparator._build_short_label(inspector, None)
-        assert label == "maria_maria-host_appdb"
+        assert SchemaComparator._build_short_label(inspector, None) == "maria_appdb"
 
-    def test_oracle_uses_username(self) -> None:
+    def test_oracle_uses_username_as_schema(self) -> None:
         inspector = _make_mock_inspector(bind_url="oracle+cx_oracle://MYSCHEMA:pass@orahost/ORCL")
-        label = SchemaComparator._build_short_label(inspector, None)
-        assert label == "ora_orahost_MYSCHEMA"
+        assert SchemaComparator._build_short_label(inspector, None) == "ora_MYSCHEMA"
 
-    def test_sqlite_memory_produces_readable_stem(self) -> None:
-        inspector = _make_mock_inspector(bind_url="sqlite:///:memory:")
-        label = SchemaComparator._build_short_label(inspector, None)
-        assert label == "sqlite_memory"
-
-    def test_sqlite_file_uses_stem(self) -> None:
+    def test_sqlite_file_has_no_path(self) -> None:
         inspector = _make_mock_inspector(bind_url="sqlite:///path/to/mydb.sqlite3")
-        label = SchemaComparator._build_short_label(inspector, None)
-        assert label == "sqlite_mydb"
+        assert SchemaComparator._build_short_label(inspector, None) == "sqlite"
 
-    def test_mssql_combines_db_and_schema(self) -> None:
+    def test_mssql_uses_schema(self) -> None:
         inspector = _make_mock_inspector(bind_url="mssql+pyodbc://user:pass@sqlsrv/AdventureWorks")
-        label = SchemaComparator._build_short_label(inspector, "dbo")
-        assert label == "mssql_sqlsrv_AdventureWorks_dbo"
+        assert SchemaComparator._build_short_label(inspector, "dbo") == "mssql_dbo"
 
-    def test_mssql_without_schema_uses_database(self) -> None:
-        inspector = _make_mock_inspector(bind_url="mssql+pyodbc://user:pass@sqlsrv/AdventureWorks")
-        label = SchemaComparator._build_short_label(inspector, None)
-        assert label == "mssql_sqlsrv_AdventureWorks"
-
-    def test_label_does_not_contain_password(self) -> None:
-        inspector = _make_mock_inspector(bind_url="postgresql://user:pass@host/db")
-        label = SchemaComparator._build_short_label(inspector, None)
-        assert "pass" not in label
-
-    def test_hostname_used_as_is(self) -> None:
-        inspector = _make_mock_inspector(bind_url="postgresql://user:pass@server.company.internal/db")
-        label = SchemaComparator._build_short_label(inspector, None)
-        assert label == "pg_server.company.internal_db"
-
-    def test_ip_host_uses_last_octet(self) -> None:
+    def test_default_schema_name_from_inspector(self) -> None:
         inspector = _make_mock_inspector(bind_url="postgresql://user:pass@192.168.1.10/db")
-        label = SchemaComparator._build_short_label(inspector, None)
-        assert label == "pg_10_db"
+        inspector.default_schema_name = "public"
+        assert SchemaComparator._build_short_label(inspector, None) == "pg_public"
 
-    def test_no_engine_returns_schema_fallback(self) -> None:
+    def test_no_engine_uses_dialect_and_schema(self) -> None:
         inspector = _make_mock_inspector(bind_url="sqlite://")
         inspector.engine = None
-        label = SchemaComparator._build_short_label(inspector, "fallback")
-        assert label == "fallback"
+        inspector.dialect.name = "sqlite"
+        assert SchemaComparator._build_short_label(inspector, "fallback") == "sqlite_fallback"
 
 
 class TestGetColumnsCallCount:

@@ -79,7 +79,7 @@ Derivados de los tests del comparador de esquemas.
 | AC-03 | `include_views=False` y una vista solo en origen | Se comparan | No se informan diferencias de vistas |
 | AC-04 | Origen Oracle en mayúsculas y destino MariaDB en minúsculas con las mismas tablas y columnas | Se comparan | No se informan tablas ni columnas que falten o sobren por la capitalización |
 | AC-05 | Comentarios distintos y `include_tables=False` | Se comparan | Los comentarios no se comparan aunque `include_comments=True` |
-| AC-06 | Una URL de conexión con contraseña | Se genera la etiqueta del esquema en el informe | La contraseña aparece como `***` y el usuario se mantiene |
+| AC-06 | Una URL de conexión con usuario, contraseña y host | Se genera la etiqueta del esquema en el informe | La etiqueta es `motor [schema]`: sin usuario, contraseña, host, puerto ni ruta; `source_label`/`target_label` la sustituyen |
 | AC-07 | La lectura de columnas falla en uno de los esquemas | Se comparan | El error llega al llamante con su mensaje; no se oculta |
 
 ## 5. Glosario y Términos
