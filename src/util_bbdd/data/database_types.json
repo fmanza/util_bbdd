@@ -383,6 +383,11 @@
             "description": "Alias de service_name (se usa si no se informa dsn, service_name ni sid)"
           },
           {
+            "name": "schema",
+            "type": "string",
+            "description": "Owner por defecto de los metadatos (documentación, grafos, get_schema_metadata); sin él, el usuario. No cambia CURRENT_SCHEMA ni se envía al driver"
+          },
+          {
             "name": "oracle_thick_mode",
             "type": "boolean",
             "default": false,

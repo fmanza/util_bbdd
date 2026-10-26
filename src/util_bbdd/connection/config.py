@@ -14,7 +14,7 @@ import re
 import warnings
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 from .close import DEFAULT_CLOSE_TIMEOUT_SECONDS, parse_close_timeout
 
@@ -535,6 +535,12 @@ class OracleConnectionConfig:
     oracle_thick_mode: bool = False
     #: ``tcp`` (por defecto) o ``tcps`` (TLS); se aplica al descriptor de ``makedsn`` (ver ``oracle/_dsn.py``).
     protocol: str = "tcp"
+    #: Owner por defecto de los metadatos (``get_schema_metadata``, documentación, grafos); ``None`` = el usuario.
+    #: No se envía al driver ni cambia ``CURRENT_SCHEMA`` (util_bbdd_web G21, 4.1.0).
+    schema: str | None = None
+
+    #: Owner sin comillas (Oracle lo guarda en mayúsculas) o entre comillas dobles (se respeta tal cual).
+    _SCHEMA_PATTERN: ClassVar[re.Pattern[str]] = re.compile(r'[A-Za-z][A-Za-z0-9_$#]{0,127}|"[^"\x00]{1,128}"')
 
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> OracleConnectionConfig:
@@ -550,6 +556,12 @@ class OracleConnectionConfig:
             raise ValueError(
                 f"Parametro invalido para {db_type}: protocol debe ser 'tcp' o 'tcps'; recibido '{protocol}'"
             )
+        schema: str | None = _opt_str(params, "schema")
+        if schema is not None and not cls._SCHEMA_PATTERN.fullmatch(schema):
+            raise ValueError(
+                f"Parametro invalido para {db_type}: schema '{schema}' (identificador de Oracle: letra inicial y "
+                "letras, dígitos, _, $ o #, hasta 128; o entre comillas dobles)"
+            )
         return cls(
             user=_require_str(params, "user", db_type),
             password=_require_str(params, "password", db_type),
@@ -562,6 +574,7 @@ class OracleConnectionConfig:
             oracle_client_path=_opt_str(params, "oracle_client_path"),
             oracle_thick_mode=_to_bool(params.get("oracle_thick_mode", False), "oracle_thick_mode", db_type),
             protocol=protocol,
+            schema=schema,
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:

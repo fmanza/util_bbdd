@@ -23,6 +23,11 @@ SemVer: MINOR (solo añadidos y correcciones; sin cambios de valor por defecto).
 - **doc** (web G39): `imprimir["grafo"]["orthogonal_edges"]` (por defecto `True`) llega a los diagramas de Word y
   HTML; con `False` se dibujan con curvas (`splines=true`), para los grafos en los que el enrutado ortogonal de Graphviz aborta.
   `GraphvizRelationshipGraphExt(orthogonal_edges=...)` ya existía; faltaba poder pasarlo desde la documentación.
+- **connection, managers** (web G21): parámetro opcional `schema` en Oracle: owner por defecto de los metadatos
+  (`get_schema_metadata()` sin argumentos, documentación y grafos) para leer otro schema con la misma conexión.
+  Sin él, el usuario, como hasta ahora. Se valida como identificador de Oracle (sin comillas se pasa a mayúsculas;
+  entre comillas dobles se respeta), no se envía al driver y no cambia `CURRENT_SCHEMA`. El usuario necesita
+  permisos de lectura sobre los objetos de ese owner (`ALL_*`).
 
 ### Fixed
 

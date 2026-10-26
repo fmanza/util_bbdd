@@ -41,13 +41,14 @@ class MetadataContextResolver:
         context_database: str = str(database or "").strip()
 
         if db_type == "oracle":
-            oracle_user: str = str(conn_params.get("user", "")).strip()
+            # ``schema`` (4.1.0, util_bbdd_web G21) elige otro owner con la misma conexión; sin él, el usuario
+            oracle_owner: str = str(conn_params.get("schema") or conn_params.get("user", "")).strip()
             # Oracle guarda en mayúsculas los nombres sin comillas: «bench» y «BENCH» son el mismo owner (H-18)
-            if len(oracle_user) > 1 and oracle_user.startswith('"') and oracle_user.endswith('"'):
-                oracle_user = oracle_user[1:-1]
+            if len(oracle_owner) > 1 and oracle_owner.startswith('"') and oracle_owner.endswith('"'):
+                oracle_owner = oracle_owner[1:-1]
             else:
-                oracle_user = oracle_user.upper()
-            context_database = oracle_user or context_database
+                oracle_owner = oracle_owner.upper()
+            context_database = oracle_owner or context_database
         elif db_type in _DEFAULT_SCHEMA:
             # Sin ``schema`` explícito, el schema por defecto de ``*Config`` (no el nombre de la BD): igual en sync,
             # donde el builder ya lo inyectaba, y en async (drivers-connections-audit B1, v0.37.0).
