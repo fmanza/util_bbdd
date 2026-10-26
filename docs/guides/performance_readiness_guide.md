@@ -351,7 +351,7 @@ for partition in partitions:
 
 # DumpOrchestrator verifica origen y destino al empezar (una vez por engine en el proceso)
 # y los muestra en la hoja «Condiciones del motor» del informe Excel
-DumpOrchestrator(DumpConfig(source_engine=origen, target_engine=engine)).run()
+DumpOrchestrator(DumpConfig(source_engine=origen, target_engine=engine, truncate_target=True)).run()
 ```
 
 ---

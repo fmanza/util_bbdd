@@ -37,7 +37,13 @@ try:
 
     # 2. Volcado origen → destino con el mismo destino de eventos
     result = DumpOrchestrator(
-        DumpConfig(source_engine=origen, target_engine=destino, output_dir=Path("reports"), audit_sink=sink)
+        DumpConfig(
+            source_engine=origen,
+            target_engine=destino,
+            output_dir=Path("reports"),
+            truncate_target=True,
+            audit_sink=sink,
+        )
     ).run()
 finally:
     sink.close()

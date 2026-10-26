@@ -505,7 +505,9 @@ def flow_dump(engine: str, volume: int, limit: int | None) -> dict[str, Any]:
     out = Path(tempfile.mkdtemp(prefix="md_dump_"))
     try:
         s = inspector_schema(engine, volume)
-        cfg = DumpConfig(source_engine=src, target_engine=dst, source_schema=s, target_schema=s, output_dir=out)
+        cfg = DumpConfig(
+            source_engine=src, target_engine=dst, source_schema=s, target_schema=s, output_dir=out, truncate_target=True
+        )
         result = DumpOrchestrator(cfg).run()
         return {"tables": len(result.table_results), "constraints": len(result.constraint_results)}
     finally:

@@ -6,9 +6,11 @@ Separados en un módulo propio para romper la dependencia circular entre
 
 from __future__ import annotations
 
+import warnings
+
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, overload
 
 from sqlalchemy import Engine
 
@@ -36,6 +38,48 @@ class ConstraintResult:
     error_msg: str = ""
 
 
+class _ImplicitTrue:
+    """Valor por defecto de ``DumpConfig.truncate_target``: se lee como ``True`` y marca que no se indicó (G30)."""
+
+    def __bool__(self) -> bool:
+        return True
+
+    def __repr__(self) -> str:
+        return "True"
+
+
+_IMPLICIT_TRUE = _ImplicitTrue()
+
+
+class _TruncateTargetField:
+    """Campo ``truncate_target`` de :class:`DumpConfig`: ``True`` por defecto, sabiendo si se pasó explícito (4.4.0).
+
+    G30 de util_bbdd_web: con ``True`` por defecto, un uso descuidado vacía el destino. El valor por defecto pasará a
+    ``False`` en 5.0.0; mientras, ``DumpConfig`` avisa con ``FutureWarning`` si no se indica. Con un ``bool`` como
+    valor por defecto no se puede distinguir ``True`` explícito del implícito, así que el campo es un descriptor (como
+    ``PathField``): sin instancia devuelve un marcador que se lee como ``True``; al asignarlo, guarda ``True`` y anota
+    que no se indicó.
+    """
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self._name = name
+
+    @overload
+    def __get__(self, obj: None, owner: type | None = None) -> bool: ...
+    @overload
+    def __get__(self, obj: object, owner: type | None = None) -> bool: ...
+    def __get__(self, obj: object | None, owner: type | None = None) -> bool:
+        if obj is None:
+            return _IMPLICIT_TRUE  # type: ignore[return-value]  # marcador, se lee como True
+        value: bool = obj.__dict__[self._name]
+        return value
+
+    def __set__(self, obj: object, value: bool) -> None:
+        implicit = value is _IMPLICIT_TRUE
+        obj.__dict__[f"_{self._name}_implicit"] = implicit
+        obj.__dict__[self._name] = True if implicit else value
+
+
 @dataclass
 class DumpConfig:
     """Configuración de un volcado de datos de esquema/BD origen a destino.
@@ -61,7 +105,8 @@ class DumpConfig:
             ``max_allowed_packet`` en el servidor (``SET GLOBAL max_allowed_packet=67108864``).
         output_dir: Directorio donde guardar el informe Excel (``str`` o ``Path``; se guarda como ``Path``).
         truncate_target: ``True`` (default) = limpiar tablas destino antes de cargar.
-            Recomendado para volcados completos. ``False`` = modo append.
+            Recomendado para volcados completos. ``False`` = modo append. Desde 4.4.0 (G30), si no se indica, emite
+            ``FutureWarning``: el valor por defecto pasará a ``False`` en 5.0.0. Pásalo siempre explícito.
         bulk_audit_path: Ruta (``str`` o ``Path``) del CSV de auditoría para los inserts en destino.
             ``None`` (default) = los inserts no se registran en auditoría.
         collect_row_counts: Si ``True`` (default), se ejecutan ``COUNT(*)`` sobre origen
@@ -174,7 +219,7 @@ class DumpConfig:
     chunk_size: int = 5000
     # Rutas: aceptan str o Path (v1.1.0) y se leen siempre como Path (T-09: descriptores, antes anotadas StrPath).
     output_dir: PathField = PathField(Path())
-    truncate_target: bool = True
+    truncate_target: _TruncateTargetField = _TruncateTargetField()
     bulk_audit_path: OptionalPathField = OptionalPathField()
     collect_row_counts: bool = True
     sync_pk_sequences: bool = True
@@ -191,6 +236,14 @@ class DumpConfig:
     validate_fks_after: bool = True
 
     def __post_init__(self) -> None:
+        if self.__dict__.get("_truncate_target_implicit", False):
+            warnings.warn(
+                "DumpConfig: truncate_target no se indicó y vale True, así que run() vacía las tablas del destino "
+                "antes de cargar. En util_bbdd 5.0.0 el valor por defecto pasará a False: pásalo explícito "
+                "(truncate_target=True o truncate_target=False).",
+                FutureWarning,
+                stacklevel=3,
+            )
         # Validar aquí y no en la primera BulkCrud: run() la crea después de vaciar el destino (truncate_target), así que
         # un chunk_size o commit_every_n_chunks inválido vaciaba las tablas y luego fallaba; con chunk_size=0 y
         # write_batch_size no se leía nada y la tabla quedaba vacía con estado "success".

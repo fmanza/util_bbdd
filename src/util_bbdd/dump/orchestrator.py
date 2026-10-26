@@ -131,6 +131,7 @@ class DumpOrchestrator:
             source_schema="public",
             target_schema="dbo",
             output_dir=Path("reports"),
+            truncate_target=True,  # explícito: el valor por defecto pasará a False en 5.0.0 (FutureWarning)
         )
         result = DumpOrchestrator(config).run()
         print(result.report)

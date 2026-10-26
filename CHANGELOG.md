@@ -21,6 +21,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **dump** (G31 de util_bbdd_web): `restore_constraints(engine, journal)` en `util_bbdd.dump` y
   `ConstraintManager(..., journal_path=)`. Ver Fixed.
 
+### Deprecated
+
+- **dump** (G30 de util_bbdd_web): construir `DumpConfig` sin `truncate_target` emite `FutureWarning`. El valor por
+  defecto sigue siendo `True` (vacía las tablas del destino antes de cargar) y pasará a `False` en 5.0.0. Pásalo
+  explícito para fijar el comportamiento y quitar el aviso; con `truncate_target=True` o `False` no hay aviso. El campo
+  se lee siempre como `bool` y `dataclasses.fields()` sigue mostrando `True` como valor por defecto.
+
 ### Fixed
 
 - **dump** (G31 de util_bbdd_web): si el proceso de `run()` moría con las constraints desactivadas (SQL Server,

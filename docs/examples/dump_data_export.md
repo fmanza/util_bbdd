@@ -36,6 +36,7 @@ config = DumpConfig(
     target_engine=dst_mgr.get_sqlalchemy_engine(),  # pool_pre_ping incluido
     chunk_size=500,
     output_dir=Path("reports"),
+    truncate_target=True,  # explícito: el valor por defecto pasará a False en 5.0.0
 )
 ```
 
