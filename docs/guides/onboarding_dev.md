@@ -304,6 +304,44 @@ python -m mypy src tests/unit/test_protocol_conformance.py   # Sin errores de ti
 python -m pytest -q                # Suite completa sin fallos
 ```
 
+### Publicar una release (Git Bash en Windows)
+
+`/version-closure` deja en local el commit `release: vX.Y.Z - <resumen>` y el tag anotado `vX.Y.Z`; el propietario
+publica. El instalador de GitHub CLI añade `C:\Program Files\GitHub CLI` al PATH de Windows, pero Git Bash no siempre
+lo hereda (`gh: command not found`). Para resolverlo en la terminal actual o de forma permanente:
+
+```bash
+export PATH="$PATH:/c/Program Files/GitHub CLI"                       # solo esta terminal
+echo 'export PATH="$PATH:/c/Program Files/GitHub CLI"' >> ~/.bashrc   # permanente (terminales nuevas)
+gh auth status                                                         # sesión iniciada en github.com
+```
+
+Sin tocar el PATH también vale la ruta completa: `"/c/Program Files/GitHub CLI/gh.exe" release create …`.
+
+Pasos, desde la raíz del repositorio (sustituye `X.Y.Z`):
+
+```bash
+# 1. Construir el wheel y su checksum
+python -m build
+(cd dist && sha256sum util_bbdd-X.Y.Z-py3-none-any.whl > util_bbdd-X.Y.Z-py3-none-any.whl.sha256)
+
+# 2. Publicar develop y el tag; main avanza por fast-forward
+git push origin develop
+git push origin vX.Y.Z
+git checkout main && git merge --ff-only develop && git push origin main && git checkout develop
+
+# 3. Crear la release con las notas de la sección X.Y.Z del CHANGELOG
+awk '/^## \[X\.Y\.Z\]/{f=1;next} /^## \[/{f=0} f' CHANGELOG.md > /tmp/notas_X.Y.Z.md
+gh release create vX.Y.Z --verify-tag --title "vX.Y.Z" --notes-file /tmp/notas_X.Y.Z.md \
+  dist/util_bbdd-X.Y.Z-py3-none-any.whl \
+  dist/util_bbdd-X.Y.Z-py3-none-any.whl.sha256
+```
+
+- `--verify-tag` aborta si el tag no está en GitHub: así la release nunca se crea sobre otro commit.
+- En el `awk`, los puntos de la versión van escapados (`4\.3\.0`); el fichero de notas no puede quedar vacío.
+- Para añadir ficheros a una release ya creada: `gh release upload vX.Y.Z <ficheros>`.
+- La release de la documentación offline (tag `docs-vX.Y.Z`) es aparte: [Descarga de la documentación](docs_offline_zip_guide.md).
+
 ---
 
 ## 10. Verificación del Entorno
