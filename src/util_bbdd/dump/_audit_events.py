@@ -2,14 +2,14 @@
 
 F5 de la sesión 2026-10-02c. ``util_bbdd.audit`` no conoce los tipos de ``dump`` (Regla #6): la conversión vive aquí.
 Los eventos de las operaciones de carga los escriben las ``BulkCrud`` y los ``ParallelBulkLoader`` del volcado; aquí
-solo los del final, con el mismo ``run_id``.
+los de cada tabla (al terminar su carga, desde 4.4.0) y los del final, con el mismo ``run_id``.
 """
 
 from __future__ import annotations
 
 import logging
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Sequence, Set as AbstractSet
 from typing import TYPE_CHECKING, ClassVar
 
 from util_bbdd.audit.events import AuditEvent, AuditStatus
@@ -118,11 +118,21 @@ class DumpAuditEvents:
 
     @staticmethod
     def result_events(
-        result: DumpResult, *, engine: str, namespace: str | None, run_id: str | None
+        result: DumpResult,
+        *,
+        engine: str,
+        namespace: str | None,
+        run_id: str | None,
+        written_tables: AbstractSet[str] = frozenset(),
     ) -> list[AuditEvent]:
-        """Eventos de todos los elementos de ``result`` (tablas, constraints, índices, contadores PK)."""
+        """Eventos de todos los elementos de ``result`` (tablas, constraints, índices, contadores PK).
+
+        ``written_tables``: tablas cuyo evento ya se escribió al terminar su carga (G6, 4.4.0); no se repiten.
+        """
         events = [
-            DumpAuditEvents.table(r, engine=engine, namespace=namespace, run_id=run_id) for r in result.table_results
+            DumpAuditEvents.table(r, engine=engine, namespace=namespace, run_id=run_id)
+            for r in result.table_results
+            if r.table_name not in written_tables
         ]
         events += [DumpAuditEvents.constraint(r, namespace=namespace, run_id=run_id) for r in result.constraint_results]
         events += [DumpAuditEvents.index(r, namespace=namespace, run_id=run_id) for r in result.index_results or []]
@@ -177,17 +187,22 @@ class DumpAuditWriter:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.sink: AuditSink = sink
 
-    def write(self, build: Callable[[], Sequence[AuditEvent]]) -> None:
+    def write(self, build: Callable[[], Sequence[AuditEvent]]) -> bool:
         """Construye los eventos con ``build`` y los escribe; si algo falla (construir o escribir), ERROR en el log.
 
         La construcción va dentro del ``try`` (hipótesis 5 del audit-code 2026-10-02c): un fallo al construir un evento
         no debe hacer que ``run()`` falle tras un volcado correcto ni tapar la excepción original del volcado.
+
+        Returns:
+            ``True`` si se escribieron; ``False`` si falló (el volcado reintenta al final los eventos de tabla, G6).
         """
         try:
             events = build()
             self.sink.write(events)
         except Exception as exc:
             self.logger.error(f"❌ No se pudo escribir la auditoría del volcado en audit_sink: {exc}", exc_info=True)
+            return False
+        return True
 
 
 __all__: list[str] = ["DumpAuditEvents", "DumpAuditWriter"]

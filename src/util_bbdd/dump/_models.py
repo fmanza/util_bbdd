@@ -148,10 +148,12 @@ class DumpConfig:
             esa tabla (o partición) y queda como error de la tabla.
         audit_sink: Destino opcional de eventos de auditoría (:mod:`util_bbdd.audit`, p. ej. ``JsonLinesAuditSink``).
             Recibe los eventos ``operation`` de las ``BulkCrud`` del volcado y los ``partition``/``run`` de las cargas
-            por rangos (con ``bulk_audit_strict`` como política de fallo de los ``operation``) y, al terminar, un
-            evento por tabla, constraint, índice y contador PK, y un ``run`` de cierre. Todos llevan el mismo
-            ``run_id`` (``DumpResult.audit_run_id``). Se puede usar sin ``bulk_audit_path``. Un fallo al escribir los
-            eventos del final se registra como ERROR y no cambia el resultado. ``None`` (default): sin eventos.
+            por rangos (con ``bulk_audit_strict`` como política de fallo de los ``operation``), el evento ``table`` de
+            cada tabla al terminar su carga (4.4.0; antes, al final) y, al terminar, uno por tabla sin destino,
+            constraint, índice y contador PK, y un ``run`` de cierre. Todos llevan el mismo ``run_id``
+            (``DumpResult.audit_run_id``). Se puede usar sin ``bulk_audit_path``. Un fallo al escribir estos eventos se
+            registra como ERROR y no cambia el resultado (el evento de una tabla que falla se reintenta al final).
+            ``None`` (default): sin eventos.
 
     Raises:
         ValueError: Si ``chunk_size`` no es un entero ≥ 1, o si ``commit_every_n_chunks`` o ``write_batch_size`` no son

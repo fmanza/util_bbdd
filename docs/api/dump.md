@@ -57,7 +57,7 @@ flowchart TD
 | `on_error` | `"raise" \| "isolate"` | `"raise"` | Como en [`BulkCrud`](bulk_crud.md): con `"isolate"` las filas que el destino no admite (PK duplicada, NOT NULL, valor demasiado largo o fuera de precisión) se apartan a `rejects_csv_path` y el resto de la tabla se copia; la tabla queda `success` con `rows_rejected`. Durante la carga las constraints del destino están desactivadas: FK y CHECK no fallan aquí (una fila huérfana se copia y falla al rehabilitar la constraint). En SQL Server el valor demasiado largo no se aísla. La `fila` del CSV es la posición en la lectura del origen (`SELECT` sin `ORDER BY`, no se repite entre volcados); con `parallel_pk_ranges`, la del rango, que va en `particion` |
 | `rejects_csv_path` | `str \| Path \| None` | `None` | CSV de rechazos común a todas las tablas (desde v1.1.0 también `str`); obligatorio con `on_error="isolate"` |
 | `max_rejects` | `int \| None` | `None` | Filas que cada tabla (o cada rango) puede rechazar; la siguiente deja esa tabla en `error` y el volcado sigue |
-| `audit_sink` | `AuditSink \| None` | `None` | Destino de eventos de [auditoría](audit.md); el identificador sale en `DumpResult.audit_run_id` |
+| `audit_sink` | `AuditSink \| None` | `None` | Destino de eventos de [auditoría](audit.md); el identificador sale en `DumpResult.audit_run_id`. El evento `table` de cada tabla llega al terminar su carga (4.4.0; antes, todos al final); los de tablas sin destino, constraints, índices y contadores PK y el `run` de cierre, al terminar el volcado. Si el de una tabla no se puede escribir, se reintenta al final |
 
 #### Dataclass `DumpResult`
 

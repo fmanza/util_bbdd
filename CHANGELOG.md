@@ -14,6 +14,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   destino y, por tabla (`DumpPlanTable`), nombre en el destino, posición, columnas que no se copian, columnas
   obligatorias del destino que el origen no tiene y FK hacia tablas que no se vuelcan. Los avisos (`DumpPlanWarning`)
   llevan un código estable (`DumpWarningCode`). No cuenta filas ni desactiva constraints.
+- **dump** (G6 de util_bbdd_web): con `DumpConfig.audit_sink`, el evento `table` de cada tabla se escribe al terminar
+  su carga, no todos al final: quien lee el destino ve el avance tabla a tabla. Los de tablas sin destino,
+  constraints, índices y contadores PK y el `run` de cierre siguen al final; el evento de una tabla que no se pudo
+  escribir se reintenta con ellos. Si el volcado falla a mitad, los eventos de las tablas terminadas ya están escritos.
 
 ## [4.3.0] - 2026-10-26
 

@@ -145,6 +145,9 @@ class DumpOrchestrator:
         self._reset_audit_tracking()
         #: run_id de los eventos de ``audit_sink`` del volcado en curso (None sin destino).
         self._audit_run_id: str | None = None
+        #: Escritor de ``audit_sink`` del volcado en curso y tablas cuyo evento ya se escribió (G6, 4.4.0).
+        self._audit_writer: DumpAuditWriter | None = None
+        self._audit_tables_written: set[str] = set()
 
     # ------------------------------------------------------------------
     # Punto de entrada
@@ -153,8 +156,10 @@ class DumpOrchestrator:
     def run(self) -> DumpResult:
         """Ejecuta el volcado completo y retorna el resultado con el informe.
 
-        Con ``DumpConfig.audit_sink``, al terminar (también si falla) escribe en él un evento por tabla, constraint,
-        índice y contador PK y un ``run`` de cierre, con el ``run_id`` del volcado (``DumpResult.audit_run_id``).
+        Con ``DumpConfig.audit_sink``, escribe en él el evento de cada tabla al terminar su carga (4.4.0; antes, todos al
+        final) y, al terminar (también si falla), los de las tablas sin destino, constraints, índices y contadores PK y
+        un ``run`` de cierre, con el ``run_id`` del volcado (``DumpResult.audit_run_id``). Un evento de tabla que no se
+        pudo escribir se reintenta al final.
 
         Raises:
             DumpError: Si falla el análisis inicial de carga (introspección de tablas
@@ -165,11 +170,13 @@ class DumpOrchestrator:
                 ``DumpResult`` completo (su ``report`` es la ruta prevista, sin crear).
         """
         sink = self._cfg.audit_sink
+        self._audit_tables_written = set()
         if sink is None:
             self._audit_run_id = None
+            self._audit_writer = None
             return self._run_dump()
         self._audit_run_id = uuid.uuid4().hex
-        writer = DumpAuditWriter(sink)
+        writer = self._audit_writer = DumpAuditWriter(sink)
         started = time.perf_counter()
         try:
             result = self._run_dump()
@@ -470,6 +477,7 @@ class DumpOrchestrator:
             dst_t = src_to_dst[src_t]
             result = self._process_table(src_t, dst_t, position, src_t in cycle_set, crud)
             results.append(result)
+            self._table_finished(result)
             self.logger.info(
                 "  [%d/%d] %s → %s (%d filas)",
                 position + 1,
@@ -543,7 +551,13 @@ class DumpOrchestrator:
             events = (
                 []
                 if result is None
-                else DumpAuditEvents.result_events(result, engine=engine, namespace=cfg.target_schema, run_id=run_id)
+                else DumpAuditEvents.result_events(
+                    result,
+                    engine=engine,
+                    namespace=cfg.target_schema,
+                    run_id=run_id,
+                    written_tables=getattr(self, "_audit_tables_written", set()),
+                )
             )
             events.append(
                 DumpAuditEvents.run(
@@ -558,6 +572,22 @@ class DumpOrchestrator:
             return events
 
         writer.write(build)
+
+    def _table_finished(self, result: TableDumpResult) -> None:
+        """Evento ``table`` de ``audit_sink`` al terminar la carga de la tabla (G6, 4.4.0); siempre en el hilo principal.
+
+        Si no se puede escribir, la tabla no se marca y su evento va con los del final (:meth:`_write_dump_events`).
+        """
+        writer: DumpAuditWriter | None = getattr(self, "_audit_writer", None)
+        if writer is None:
+            return
+        cfg = self._cfg
+        engine = cfg.target_engine.dialect.name
+        run_id = self._audit_run_id
+        if writer.write(
+            lambda: [DumpAuditEvents.table(result, engine=engine, namespace=cfg.target_schema, run_id=run_id)]
+        ):
+            self._audit_tables_written.add(result.table_name)
 
     def _run_dump(self) -> DumpResult:
         """Cuerpo de :meth:`run` (mismas excepciones)."""
@@ -1116,6 +1146,7 @@ class DumpOrchestrator:
                 for future in as_completed(futures):
                     result = future.result()
                     results.append(result)
+                    self._table_finished(result)
                     self.logger.info(
                         "  (par) %s → %s (%d filas)", futures[future], result.status, result.target_rows_after
                     )
@@ -1130,6 +1161,7 @@ class DumpOrchestrator:
                     src_t, dst_t, position_of[src_t], True, cycle_crud, common_cols, skipped_cols, col_name_map, pk_col
                 )
                 results.append(result)
+                self._table_finished(result)
                 self.logger.info("  (ciclo) %s → %s (%d filas)", src_t, result.status, result.target_rows_after)
 
         results.sort(key=lambda r: r.load_order_position)
