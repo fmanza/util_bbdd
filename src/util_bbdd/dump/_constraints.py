@@ -30,7 +30,7 @@ from ..metadata import facts
 from ..metadata.model import Kind, SchemaSnapshot
 from ..metadata.source import CatalogSource
 from ._models import ConstraintResult
-from ._sql_utils import quote_identifier, quote_table
+from ._sql_utils import error_message, quote_identifier, quote_table
 
 _SUPPORTED_DIALECTS = frozenset({"mssql", "mariadb", "mysql", "oracle", "postgresql"})
 #: Motores en los que lo desactivado sobrevive al proceso (catálogo) y que, por tanto, llevan diario.
@@ -100,10 +100,9 @@ class ConstraintManager:
         try:
             self.constraint_results = self.enable_all()
         except Exception as exc:  # noqa: BLE001
-            # Mensaje completo, como los error_msg por constraint, índice y tabla del informe (decisión A-07,
-            # 2026-10-16): sirve para diagnosticar y los errores de SQLAlchemy no llevan la contraseña. El advisor
-            # guarda solo el tipo porque sus errores de conexión pueden llevar la URL.
-            self.reactivation_error = str(exc)
+            # Primera línea saneada, como los error_msg por constraint y tabla (G34, 4.4.0; hasta 4.3.0 el mensaje
+            # completo, decisión A-07 de 2026-10-16): sin la sentencia ni sus parámetros. La traza completa va al log.
+            self.reactivation_error = error_message(exc)
             self.logger.exception("Error al rehabilitar constraints — la excepción original no se enmascara")
 
     # ------------------------------------------------------------------
@@ -346,7 +345,7 @@ class ConstraintManager:
                             constraint_name="ALL",
                             dialect=self._dialect,
                             status="failed",
-                            error_msg=str(exc),
+                            error_msg=error_message(exc),
                         ),
                     )
         return results
@@ -445,7 +444,7 @@ class ConstraintManager:
                         constraint_name=fk_name,
                         dialect=self._dialect,
                         status="failed",
-                        error_msg=str(exc),
+                        error_msg=error_message(exc),
                     ),
                 )
 
@@ -535,7 +534,7 @@ class ConstraintManager:
                             constraint_name=constraint_name,
                             dialect=self._dialect,
                             status="failed",
-                            error_msg=str(exc),
+                            error_msg=error_message(exc),
                         ),
                     )
         return results
@@ -565,7 +564,7 @@ class ConstraintManager:
                     try:
                         orphan = conn.execute(text(sql)).first()
                     except SQLAlchemyError as exc:
-                        results.append(ConstraintResult(table, name, self._dialect, "unverified", str(exc)))
+                        results.append(ConstraintResult(table, name, self._dialect, "unverified", error_message(exc)))
                         continue
                     if orphan is None:
                         results.append(ConstraintResult(table, name, self._dialect, "enabled"))

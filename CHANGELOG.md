@@ -44,6 +44,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   como antes. El aviso de origen SQLite del log y de `plan()` (`SQLITE_SOURCE`) lo explica. Verificado contra el banco:
   SQLite → los 5 destinos.
 
+### Security
+
+- **dump** (G34 de util_bbdd_web): `TableDumpResult.error_msg`, `ConstraintResult.error_msg` y
+  `DumpResult.constraint_reactivation_error` llevaban el texto entero de SQLAlchemy, con `[parameters: …]` (filas del
+  origen), y MySQL/MariaDB y SQL Server ponen además el valor de la clave en la primera línea. Ahora llevan solo la
+  primera línea, sin la sentencia, sin URL y con los valores enmascarados (`Duplicate entry '…'`, `duplicate key value
+  is (…)`, `converting the varchar value '…'`, `Truncated value: '…'`, `invalid input syntax …: "…"`); el `DETAIL` de
+  PostgreSQL y el `ORA-03301` de Oracle 23ai, en líneas siguientes, ya no llegan. Lo mismo en el informe Excel y en los
+  eventos de `audit_sink`, que usan esos campos. Saneador: `dump/_sql_utils.py::error_message`. El `error_msg` de
+  `IndexActionResult` y `PKSyncResult` (de `bulk`) no cambia. Verificado contra el banco en los 5 motores.
+
 ## [4.3.0] - 2026-10-26
 
 SemVer: MINOR (añadidos y una corrección; solo parámetros opcionales nuevos, sin cambios de valor por defecto). Ola 3

@@ -480,9 +480,8 @@ def test_dump_isolate_narrower_target_column(setup: Setup, request: pytest.Fixtu
     assert _ids(setup) == [1, 2, 5, 6, 7, 10]
 
 
-@pytest.mark.parametrize("setup", _target_params(), indirect=True)
-def test_dump_isolate_single_duplicated_row(setup: Setup, request: pytest.FixtureRequest) -> None:
-    """G32 (4.4.0): añadir una única fila con la PK ya presente la aparta en todos los motores (Oracle fallaba)."""
+def _duplicated_row(setup: Setup, request: pytest.FixtureRequest) -> Table:
+    """Origen y destino con una única fila de PK 4711 (en el destino ya existe): añadirla la repite."""
     source = Table(
         setup.name("dup"),
         MetaData(),
@@ -492,7 +491,7 @@ def test_dump_isolate_single_duplicated_row(setup: Setup, request: pytest.Fixtur
     )
     source.create(setup.source)
     with setup.source.begin() as conn:
-        conn.execute(source.insert(), [{"id": 1, "s": "origen"}])
+        conn.execute(source.insert(), [{"id": 4711, "s": "origen"}])
     target = _create(
         request,
         setup.target,
@@ -504,7 +503,14 @@ def test_dump_isolate_single_duplicated_row(setup: Setup, request: pytest.Fixtur
         ),
     )
     with setup.target.begin() as conn:
-        conn.execute(target.insert(), [{"id": 1, "s": "destino"}])
+        conn.execute(target.insert(), [{"id": 4711, "s": "destino"}])
+    return target
+
+
+@pytest.mark.parametrize("setup", _target_params(), indirect=True)
+def test_dump_isolate_single_duplicated_row(setup: Setup, request: pytest.FixtureRequest) -> None:
+    """G32 (4.4.0): añadir una única fila con la PK ya presente la aparta en todos los motores (Oracle fallaba)."""
+    target = _duplicated_row(setup, request)
 
     result = setup.run(["dup"], truncate_target=False, on_error="isolate", rejects_csv_path=setup.tmp / "rechazos.csv")
 
@@ -513,6 +519,21 @@ def test_dump_isolate_single_duplicated_row(setup: Setup, request: pytest.Fixtur
     ]
     with setup.target.connect() as conn:
         assert conn.execute(select(target.c.s)).scalars().all() == ["destino"]
+
+
+@pytest.mark.parametrize("setup", _target_params(), indirect=True)
+def test_dump_error_msg_hides_the_row(setup: Setup, request: pytest.FixtureRequest) -> None:
+    """G34 (4.4.0): el error de la tabla no lleva la sentencia, los parámetros ni el valor de la clave."""
+    _duplicated_row(setup, request)
+
+    result = setup.run(["dup"], truncate_target=False)
+
+    (table,) = result.table_results
+    assert table.status == "error"
+    assert table.error_msg, table.error_msg
+    assert "\n" not in table.error_msg, table.error_msg
+    for leaked in ("[SQL:", "[parameters", "4711", "origen"):
+        assert leaked not in table.error_msg, table.error_msg
 
 
 # ------------------------------------------------------- U-V3: diario de constraints (G31 de util_bbdd_web, 4.4.0)

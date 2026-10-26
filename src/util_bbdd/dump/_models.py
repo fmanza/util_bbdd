@@ -24,7 +24,10 @@ __all__: list[str] = ["IndexActionResult", "PKSyncResult"]
 
 @dataclass
 class ConstraintResult:
-    """Resultado de rehabilitar una constraint individual en el destino."""
+    """Resultado de rehabilitar una constraint individual en el destino.
+
+    ``error_msg``: primera línea del error, sin la sentencia ni sus parámetros y con los valores enmascarados (4.4.0).
+    """
 
     table_name: str
     constraint_name: str
@@ -216,6 +219,10 @@ class TableDumpResult:
     ``rows_rejected``: filas apartadas al CSV de rechazos con ``DumpConfig(on_error="isolate")``; la tabla puede ser
     ``success`` con filas rechazadas. Con estado ``error`` (p. ej. ``max_rejects`` superado) la carga de la tabla se
     deshizo y no se copió nada, pero los rechazos escritos siguen en el CSV y aquí (B-1, audit-code 2026-10-01).
+
+    ``error_msg`` (G34, 4.4.0): primera línea de cada error, sin la sentencia ni sus parámetros (filas del origen) y con
+    los valores que MySQL/MariaDB, SQL Server y PostgreSQL ponen en ella enmascarados (``…``); varios errores, con
+    ``"; "``. El CSV de rechazos sí lleva las filas: es su función.
     """
 
     table_name: str
@@ -379,6 +386,7 @@ class DumpResult:
             (fallo no recuperable en ``ConstraintManager.enable_all()``). Distinto de ``constraint_results``,
             que reporta fallos por-constraint/tabla. ``None`` si la reactivación fue exitosa.
             Si presente, aparece en la hoja "Errores de Reactivación" del informe Excel (con fondo rojo).
+            Desde 4.4.0, primera línea saneada como ``TableDumpResult.error_msg``.
         constraints_journal: Ruta del diario de constraints si sigue en ``output_dir`` al terminar (4.4.0): alguna
             constraint no se pudo reactivar (SQL Server, PostgreSQL u Oracle). Reintentar con
             ``restore_constraints(target_engine, ruta)`` tras corregir la causa. ``None`` si todo se reactivó o el

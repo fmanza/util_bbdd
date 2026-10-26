@@ -102,7 +102,7 @@ from ._source_reader import (
     _rebatch,
     _sqlite_temporal_parsers,
 )
-from ._sql_utils import quote_identifier, quote_table
+from ._sql_utils import error_message, quote_identifier, quote_table
 from .reporters import DumpReporter
 
 _AuditCounters = AuditCounters  # contadores de auditoría del volcado (BulkCrud + ParallelLoadResult)
@@ -923,14 +923,14 @@ class DumpOrchestrator:
                 except (SQLAlchemyError, ValueError, AuditError, OSError) as exc:
                     # AuditError/OSError: con bulk_audit_strict un fallo al escribir la auditoría deshace la tabla;
                     # queda como error de esa tabla, como cualquier otro fallo de carga, y el volcado sigue.
-                    error_msgs.append(str(exc))
+                    error_msgs.append(error_message(exc))
                 finally:
                     # A1 (audit-code 2026-09-26): si la escritura falla, el for de bulk_insert_from_chunks no cierra el
                     # generador; sin esto, el with devolvía la conexión al pool con el hilo de _prefetch aún usándola.
                     # Cerrarlo espera al hilo lector (join) antes de salir del with.
                     close_if_closable(renamed)
         except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:
-            error_msgs.append(f"Error leyendo origen: {exc}")
+            error_msgs.append(f"Error leyendo origen: {error_message(exc)}")
         return error_msgs
 
     # ------------------------------------------------------------------
@@ -970,7 +970,7 @@ class DumpOrchestrator:
             with cfg.source_engine.connect() as conn:
                 row = conn.execute(text(f"SELECT MIN({pk_q}), MAX({pk_q}) FROM {table_quoted}")).one()
         except (SQLAlchemyError, ValueError) as exc:
-            return [f"Error calculando rango PK: {exc}"], 0
+            return [f"Error calculando rango PK: {error_message(exc)}"], 0
 
         if row[0] is None or row[1] is None:
             return [], 0  # tabla vacía
@@ -1019,7 +1019,7 @@ class DumpOrchestrator:
         result = loader.load(dest_table_logical, readers)
         with self._audit_lock:
             self._loader_audit = self._loader_audit + _AuditCounters.of(result)
-        return result.partition_errors, result.rows_rejected
+        return [error_message(e) for e in result.partition_errors], result.rows_rejected
 
     @staticmethod
     def _compute_range_bounds(lo: int, hi: int, n: int) -> list[tuple[int, int, bool]]:
