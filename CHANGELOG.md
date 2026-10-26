@@ -5,7 +5,7 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [4.1.0] - 2026-10-26
 
 SemVer: MINOR (solo añadidos y correcciones; sin cambios de valor por defecto). Huecos de util_bbdd_web
 (`docs/plan/UTIL_BBDD_GAPS.md` de ese repositorio) resueltos en esta versión: se citan como «web Gnn».
