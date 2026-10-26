@@ -129,8 +129,12 @@ class GraphDocument:
 class DatabaseRelationshipGraphBase:
     """Clase base para generar grafos de relaciones de bases de datos."""
 
-    def __init__(self, db_manager: RelationshipGraphSource):
+    #: Schema que se dibuja; ``None`` = el contexto de metadatos de la fuente (4.1.0, util_bbdd_web G22)
+    schema: str | None = None
+
+    def __init__(self, db_manager: RelationshipGraphSource, schema: str | None = None):
         self.db_manager: RelationshipGraphSource = db_manager
+        self.schema = schema.strip() if schema and schema.strip() else None
         self.relations: list[TableRelation] = []
         self.tables: set[str] = set()
         self.logger: Logger = logging.getLogger(__name__)
@@ -479,6 +483,8 @@ class DatabaseRelationshipGraphBase:
 
     def _get_relationship_context(self) -> str:
         """Obtiene una clave de contexto estable para cachear relaciones entrantes."""
+        if self.schema is not None:
+            return f"schema:{self.schema}"
         get_context = getattr(self.db_manager, "get_query_context_database", None)
         if callable(get_context):
             result = get_context()
@@ -494,7 +500,7 @@ class DatabaseRelationshipGraphBase:
 
     def _snapshot(self, kinds: set[Kind]) -> SchemaSnapshot:
         """Metadatos del schema por lotes (una consulta por tipo; la fuente los cachea, ADR-003)."""
-        snapshot: SchemaSnapshot = self.db_manager.get_schema_metadata(kinds=frozenset(kinds))
+        snapshot: SchemaSnapshot = self.db_manager.get_schema_metadata(self.schema, kinds=frozenset(kinds))
         return snapshot
 
     @staticmethod

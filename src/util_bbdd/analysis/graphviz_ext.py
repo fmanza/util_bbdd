@@ -83,14 +83,17 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         orthogonal_ranksep: float = 0.9,
         render_dpi: int = 300,
         render_workers: int | None = None,
+        schema: str | None = None,
     ):
         """Configura el generador.
 
         Args:
             render_workers: Procesos ``dot`` simultáneos de :meth:`prefetch` (por defecto, los núcleos hasta 8;
                 con ``1`` los lotes se renderizan de uno en uno).
+            schema: Schema que se dibuja (owner en Oracle, base de datos en MySQL/MariaDB); por defecto, el contexto
+                de metadatos de ``db_manager``. Desde 4.1.0.
         """
-        super().__init__(db_manager)
+        super().__init__(db_manager, schema=schema)
         self.logger: Logger = logging.getLogger(__name__)
 
         if not GRAPHVIZ_AVAILABLE or graphviz is None:

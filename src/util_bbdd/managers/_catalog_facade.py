@@ -81,8 +81,8 @@ class SyncCatalogFacade:
     get_schema_metadata: Callable[..., SchemaSnapshot]
     metadata_source: Any
 
-    def _snapshot(self, *kinds: Kind) -> SchemaSnapshot:
-        return self.get_schema_metadata(kinds=frozenset(kinds))
+    def _snapshot(self, *kinds: Kind, schema: str | None = None) -> SchemaSnapshot:
+        return self.get_schema_metadata(schema, kinds=frozenset(kinds))
 
     def get_tables(self) -> list[TableMeta]:
         """Tablas del schema del contexto de metadatos (nombre, comentario y, en MySQL/MariaDB, collation)."""
@@ -143,17 +143,21 @@ class SyncCatalogFacade:
         """``{"charset": …, "collation": …}`` de la base de datos (claves presentes solo si el motor las da)."""
         return _charset(self.get_database_metadata())
 
-    def get_ddl(self, tabla: str) -> str:
+    def get_ddl(self, tabla: str, *, schema: str | None = None) -> str:
         """``CREATE TABLE`` de la tabla (``""`` si no existe); cacheado hasta ``clear_cache()``.
 
         MySQL/MariaDB lo construyen desde el snapshot (columnas y PK); el resto lo lee del motor tabla a tabla
         (``metadata.ddl``).
+
+        Args:
+            tabla: Tabla.
+            schema: Schema de la tabla; por defecto el contexto de metadatos del manager (4.1.0).
         """
         if self.db_type in _MYSQL:
-            snapshot = self._snapshot(Kind.COLUMNS, Kind.PRIMARY_KEYS)
+            snapshot = self._snapshot(Kind.COLUMNS, Kind.PRIMARY_KEYS, schema=schema)
             return mysql_table_ddl(tabla, snapshot.columns(tabla), snapshot.primary_key(tabla))
         source = self.metadata_source
-        schema = source.current_schema()
+        schema = source.dialect.normalize_name(schema) if schema else source.current_schema()
         cache = _ddl_cache(self)
         if (schema, tabla) not in cache:
             sql = native_table_ddl_sql(self.db_type)
@@ -161,9 +165,16 @@ class SyncCatalogFacade:
             cache[(schema, tabla)] = native_table_ddl(rows)
         return cache[(schema, tabla)]
 
-    def get_columns_charset_collation(self, tabla: str) -> list[tuple[str, str | None, str | None]]:
-        """``(columna, charset, collation)`` de las columnas con collation distinta de la de la base de datos."""
-        return _columns_charset(self.db_type, self._snapshot(Kind.COLUMNS).columns(tabla))
+    def get_columns_charset_collation(
+        self, tabla: str, *, schema: str | None = None
+    ) -> list[tuple[str, str | None, str | None]]:
+        """``(columna, charset, collation)`` de las columnas con collation distinta de la de la base de datos.
+
+        Args:
+            tabla: Tabla.
+            schema: Schema de la tabla; por defecto el contexto de metadatos del manager (4.1.0).
+        """
+        return _columns_charset(self.db_type, self._snapshot(Kind.COLUMNS, schema=schema).columns(tabla))
 
     def get_storage_rows(self, query_name: str, **params: Any) -> list[tuple[Any, ...]]:
         """Filas de una consulta de almacenamiento de ``metadata.storage`` (``schema`` por defecto: el del contexto).
@@ -193,8 +204,8 @@ class AsyncCatalogFacade:
     get_schema_metadata: Callable[..., Awaitable[SchemaSnapshot]]
     metadata_source: Any
 
-    async def _snapshot(self, *kinds: Kind) -> SchemaSnapshot:
-        return await self.get_schema_metadata(kinds=frozenset(kinds))
+    async def _snapshot(self, *kinds: Kind, schema: str | None = None) -> SchemaSnapshot:
+        return await self.get_schema_metadata(schema, kinds=frozenset(kinds))
 
     async def get_tables(self) -> list[TableMeta]:
         """Ver :meth:`SyncCatalogFacade.get_tables`."""
@@ -255,13 +266,13 @@ class AsyncCatalogFacade:
         """Ver :meth:`SyncCatalogFacade.get_database_charset_collation`."""
         return _charset(await self.get_database_metadata())
 
-    async def get_ddl(self, tabla: str) -> str:
+    async def get_ddl(self, tabla: str, *, schema: str | None = None) -> str:
         """Ver :meth:`SyncCatalogFacade.get_ddl`."""
         if self.db_type in _MYSQL:
-            snapshot = await self._snapshot(Kind.COLUMNS, Kind.PRIMARY_KEYS)
+            snapshot = await self._snapshot(Kind.COLUMNS, Kind.PRIMARY_KEYS, schema=schema)
             return mysql_table_ddl(tabla, snapshot.columns(tabla), snapshot.primary_key(tabla))
         source = self.metadata_source
-        schema = await source.current_schema()
+        schema = source.dialect.normalize_name(schema) if schema else await source.current_schema()
         cache = _ddl_cache(self)
         if (schema, tabla) not in cache:
             sql = native_table_ddl_sql(self.db_type)
@@ -269,9 +280,11 @@ class AsyncCatalogFacade:
             cache[(schema, tabla)] = native_table_ddl(rows)
         return cache[(schema, tabla)]
 
-    async def get_columns_charset_collation(self, tabla: str) -> list[tuple[str, str | None, str | None]]:
+    async def get_columns_charset_collation(
+        self, tabla: str, *, schema: str | None = None
+    ) -> list[tuple[str, str | None, str | None]]:
         """Ver :meth:`SyncCatalogFacade.get_columns_charset_collation`."""
-        return _columns_charset(self.db_type, (await self._snapshot(Kind.COLUMNS)).columns(tabla))
+        return _columns_charset(self.db_type, (await self._snapshot(Kind.COLUMNS, schema=schema)).columns(tabla))
 
     async def get_storage_rows(self, query_name: str, **params: Any) -> list[tuple[Any, ...]]:
         """Ver :meth:`SyncCatalogFacade.get_storage_rows`."""

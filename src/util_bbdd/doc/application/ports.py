@@ -196,7 +196,12 @@ class DocumentationSourcePort(
     """Superficie del manager que consume el adaptador documental (``SyncDatabaseManagerAdapter``).
 
     La cumple estructuralmente ``SyncDatabaseManager``; ``doc/`` depende de este contrato y no del manager (Regla #6).
+    ``get_ddl`` y ``get_columns_charset_collation`` aceptan ``schema`` (4.1.0) para ``DatabaseDocumentation(schema=)``.
     """
+
+    def get_ddl(self, table_name: str, /, *, schema: str | None = None) -> str: ...
+
+    def get_columns_charset_collation(self, table_name: str, /, *, schema: str | None = None) -> Any: ...
 
 
 class DocumentRendererPort(Protocol):

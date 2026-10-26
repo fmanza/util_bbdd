@@ -28,6 +28,12 @@ SemVer: MINOR (solo añadidos y correcciones; sin cambios de valor por defecto).
   Sin él, el usuario, como hasta ahora. Se valida como identificador de Oracle (sin comillas se pasa a mayúsculas;
   entre comillas dobles se respeta), no se envía al driver y no cambia `CURRENT_SCHEMA`. El usuario necesita
   permisos de lectura sobre los objetos de ese owner (`ALL_*`).
+- **doc, analysis, managers** (web G22): argumento `schema` explícito en `DatabaseDocumentation(..., schema=...)` y
+  `GraphvizRelationshipGraphExt(..., schema=...)`. Hasta ahora los dos sacaban el schema del contexto del manager
+  (`conn_params`), y para documentar otro había que saber qué clave usa cada motor (`schema` o `database`) y copiar
+  los `conn_params`. Con `schema`, catálogo, DDL, diagramas y almacenamiento se leen de ese schema con la misma
+  conexión. Para ello, `get_ddl` y `get_columns_charset_collation` de los managers (sync y async) aceptan
+  `schema=None` opcional (por defecto, el contexto, como hasta ahora).
 
 ### Fixed
 

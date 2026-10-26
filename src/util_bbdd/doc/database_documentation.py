@@ -62,6 +62,9 @@ class DatabaseDocumentation:
         batch_window_seconds: Ventana temporal en segundos para agrupar generaciones automáticas en la misma carpeta
             (default 90; entero ≥ 0, ``0`` no agrupa). Si ``fichero_salida`` es None y se lanzan dos generaciones
             dentro de esta ventana, reutilizan el mismo nombre.
+        schema: Schema (owner en Oracle, base de datos en MySQL/MariaDB) que documentar; por defecto, el contexto de
+            metadatos del manager. Todas las lecturas (catálogo, DDL, diagramas, almacenamiento) van a ese schema
+            con la misma conexión (desde 4.1.0); el usuario necesita permiso de lectura sobre sus objetos.
 
     Raises:
         DocumentationConfigError: Configuración inválida (formato no soportado, ``imprimir`` que no es un diccionario,
@@ -88,10 +91,11 @@ class DatabaseDocumentation:
         formatos: list[str] | None = None,
         headers_file: Path = _DEFAULT_HEADERS_FILE,
         batch_window_seconds: int | None = None,
+        schema: str | None = None,
     ) -> None:
         self._logger: logging.Logger = logging.getLogger(__name__)
         self._output_policy = DocumentationOutputRuntime()
-        self._source = SyncDatabaseManagerAdapter(db_manager, {})
+        self._source = SyncDatabaseManagerAdapter(db_manager, {}, schema=schema)
         resolved_batch_window: int = self._batch_window(batch_window_seconds)
         self._bootstrap = DocumentationBootstrap(
             db_manager=self._source,

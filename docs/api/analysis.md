@@ -48,6 +48,9 @@ Constructor: además de las opciones de dibujo, `render_workers` (por defecto lo
 grafo): con 120 tablas, la documentación HTML con diagramas pasó de 75,7 s a 6,2 s al renderizar por lotes (medido en
 la sesión `2026-10-09k-doc-architecture-audit`; CHANGELOG 0.41.0).
 
+`schema` (desde 4.1.0) dibuja otro schema con la misma fuente (owner en Oracle, base de datos en MySQL/MariaDB); por
+defecto, el contexto de metadatos del manager.
+
 ```python
 gen = GraphvizRelationshipGraphExt(manager, max_depth=2, render_workers=4)
 render = lambda tabla: gen.pipe_level_graphs_ext(table_name=tabla, format="svg")
