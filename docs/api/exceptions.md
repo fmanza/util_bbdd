@@ -44,12 +44,13 @@ DatabaseException
 ├── DumpError
 │   ├── DumpConstraintError
 │   └── DumpReportError
-└── AuditError                      (desde v0.18.0; antes heredaba de Exception)
-    ├── AuditConfigError            (también ValueError)
-    ├── AuditFileError
-    ├── AuditDataError
-    │   └── AuditExportError        (también OSError)
-    └── AuditValidationError
+├── AuditError                      (desde v0.18.0; antes heredaba de Exception)
+│   ├── AuditConfigError            (también ValueError)
+│   ├── AuditFileError
+│   ├── AuditDataError
+│   │   └── AuditExportError        (también OSError)
+│   └── AuditValidationError
+└── OperationCancelledError         (v4.1.0; .cancelled_operation, .phase; util_bbdd.progress)
 ```
 
 !!! note "Auditoría de bulk (v0.18.0)"

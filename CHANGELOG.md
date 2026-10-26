@@ -5,6 +5,19 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+SemVer: MINOR (solo añadidos y correcciones; sin cambios de valor por defecto). Huecos de util_bbdd_web
+(`docs/plan/UTIL_BBDD_GAPS.md` de ese repositorio) resueltos en esta versión: se citan como «web Gnn».
+
+### Added
+
+- **progress** (web G1): submódulo público nuevo `util_bbdd.progress` con el contrato común de progreso y cancelación
+  cooperativa de las operaciones largas: `ProgressEvent`, `ProgressCallback`, `CancellationToken` y
+  `ProgressReporter` (el ayudante que usan las operaciones). Excepción nueva `OperationCancelledError` en
+  `util_bbdd.exceptions`. Capa 2 (solo importa `_core`): diagrama de capas regenerado. Todavía no lo usa ninguna
+  operación; cada una lo conecta en su propio cambio.
+
 ## [4.0.1] - 2026-10-20
 
 SemVer: PATCH (sin cambios de API pública; extras nuevos solo de desarrollo).

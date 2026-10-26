@@ -100,6 +100,7 @@ nav:
           - Documentación de BD: api/doc_autodoc.md
           - Metadatos: api/metadata_autodoc.md
           - Auditoría: api/audit_autodoc.md
+          - Progreso y cancelación: api/progress_autodoc.md
           - Conexiones: api/connection_autodoc.md
           - Sistema de Queries: api/query_autodoc.md
           - Análisis de Relaciones: api/analysis_autodoc.md

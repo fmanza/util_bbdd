@@ -40,6 +40,7 @@ from ._core.exceptions import (
     MetadataFetchError,
     MetadataIntrospectionError,
     MetadataNormalizationError,
+    OperationCancelledError,
     ParallelLoadError,
     PoolConnectionError,
     PoolTimeoutError,
@@ -106,4 +107,6 @@ __all__: list[str] = [
     # Carga masiva paralela
     "ParallelLoadError",
     "IndexRebuildError",
+    # Cancelación
+    "OperationCancelledError",
 ]

@@ -471,6 +471,39 @@ class IndexRebuildError(DatabaseOperationError):
         self.recovery_ddl: dict[str, str] = recovery_ddl or {}
 
 
+# ============================================================================
+# Cancelación de operaciones largas (progress/)
+# ============================================================================
+
+
+class OperationCancelledError(DatabaseException):
+    """Una operación larga se ha parado porque su ``CancellationToken`` se canceló (v4.1.0).
+
+    La operación la lanza en un punto seguro (entre tablas, formatos, lotes o sentencias) después de dejar el destino
+    coherente: lo que ya se confirmó queda confirmado y lo que se desactivó para trabajar (constraints, índices) se
+    restaura. Qué queda hecho lo documenta cada operación.
+
+    Attributes:
+        cancelled_operation: Operación cancelada (``"documentation"``, ``"dump"``…, como ``ProgressEvent.operation``).
+        phase: Fase en la que se detectó la cancelación (vacía si no se conoce).
+
+    Examples:
+        >>> from util_bbdd.progress import CancellationToken
+        >>> token = CancellationToken()
+        >>> token.cancel()
+        >>> try:
+        ...     token.raise_if_cancelled("dump", "tables")
+        ... except OperationCancelledError as exc:
+        ...     print(exc.cancelled_operation, exc.phase)
+        dump tables
+    """
+
+    def __init__(self, message: str, *, phase: str = "", cancelled_operation: str = "") -> None:
+        super().__init__(message)
+        self.phase: str = phase
+        self.cancelled_operation: str = cancelled_operation
+
+
 # Las clases se definen aquí, pero su ruta pública es util_bbdd.exceptions (API 1.0): es la que muestran trazas, repr y
 # logs, y la que guarda pickle. Los pickles con la ruta antigua (util_bbdd._core.exceptions.X) se siguen cargando.
 _PUBLIC_MODULE = "util_bbdd.exceptions"
@@ -539,4 +572,6 @@ __all__ = [
     # Carga masiva paralela
     "ParallelLoadError",
     "IndexRebuildError",
+    # Cancelación
+    "OperationCancelledError",
 ]

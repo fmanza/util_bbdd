@@ -33,6 +33,7 @@ Esta guía dice desde dónde se importa cada nombre. (0.43–0.44 los mantenían
 |---|---|
 | `util_bbdd.exceptions` | Jerarquía completa de excepciones (todas heredan de `DatabaseException`) |
 | `util_bbdd.audit` | `AuditEvent`, `AuditSink` y destinos (`JsonLinesAuditSink`, `MemoryAuditSink`, `NullAuditSink`) |
+| `util_bbdd.progress` | `ProgressEvent`, `ProgressCallback`, `CancellationToken`, `ProgressReporter` (desde 4.1.0) |
 | `util_bbdd.metadata` | `SchemaSnapshot`, `Kind`, contratos `SyncMetadataProvider`/`AsyncMetadataProvider` |
 | `util_bbdd.connection` | `build_conn_params`, `ConnectionFactory`, `EngineReadinessAdvisor`, `AdvisoryFinding` |
 | `util_bbdd.factory` | `ConnectionFactory`, `PoolFactory` |

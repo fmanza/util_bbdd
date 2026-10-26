@@ -11,7 +11,7 @@ Vista panorámica de cómo está organizado `util_bbdd`: una librería en capas 
 - **Orquestación** (`managers/`): punto de entrada público; gestiona ciclo de vida de conexión y expone operaciones.
 - **Infraestructura** (`factory/`, `connection/`, `executors/`): construye conexiones/pools y ejecuta SQL contra el engine de `sqlalchemy`.
 - **Operaciones** (`bulk/`, `comparar/`, `dump/`, `migrate/`, `metadata/`, `query/`, `analysis/`, `doc/`): capacidades de alto nivel.
-- **Soporte** (`results/`, `validators/`, `_core/`, `core/`, `_drivers/`, `models.py`): tipos de retorno, validación, excepciones canónicas y detección de capacidades por motor.
+- **Soporte** (`results/`, `validators/`, `_core/`, `core/`, `_drivers/`, `progress/`, `models.py`): tipos de retorno, validación, excepciones canónicas y detección de capacidades por motor.
 
 **Frontera de la librería**: usa `sqlalchemy` como abstracción (no construye SQL raw en managers) y concentra la introspección en `metadata/`. Queda **fuera de su alcance** la gestión de credenciales/secretos y la orquestación de procesos externos.
 
@@ -63,6 +63,7 @@ src/util_bbdd/
   core/          # capabilities.py (capacidades por motor)
   _core/         # exceptions.py (jerarquía canónica de excepciones)
   _drivers/      # detección de drivers, get_supported_db_types
+  progress/      # progreso y cancelación cooperativa de las operaciones largas
   models.py      # modelos de datos compartidos
   async_utils.py # maybe_await
   exceptions.py  # módulo público de excepciones (re-exporta _core/exceptions.py)
@@ -86,6 +87,7 @@ src/util_bbdd/
 | `analysis/` | Grafos de relaciones entre tablas (Graphviz) |
 | `doc/` | Documentación de BD en Word, Excel y HTML vía Jinja2 |
 | `results/` | Tipos de retorno: `Row`, `Rows`, `RowOrNone`, `QueryResult` |
+| `progress/` | Contrato común de progreso y cancelación cooperativa de las operaciones largas |
 | `_core/` | Jerarquía de excepciones canónica |
 
 ### Capas e imports reales

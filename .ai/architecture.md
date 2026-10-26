@@ -87,6 +87,12 @@
 │
 │    validators/                     ✓ Validadores de queries
 │
+│    progress/                       ⏱ Progreso y cancelación cooperativa (capa 2; solo importa _core)
+│    ├── events.py                   # ProgressEvent
+│    ├── contracts.py                # ProgressCallback
+│    ├── cancellation.py             # CancellationToken (lanza OperationCancelledError)
+│    └── reporter.py                 # ProgressReporter: emitir y comprobar la cancelación dentro de las operaciones
+│
 │    audit/                          🧾 Auditoría de bulk, dump y migrate (capa 3; solo importa _core)
 │    ├── events.py                   # AuditEvent: modelo de evento común
 │    ├── contracts.py                # AuditSink (escritura) y AuditEventSource (lectura)

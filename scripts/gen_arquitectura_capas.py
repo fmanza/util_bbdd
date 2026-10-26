@@ -42,7 +42,7 @@ PKG = "util_bbdd"
 # models.py and async_utils.py are root modules that count as Foundation: they import nothing from the library.
 LAYER = {
     "_core": 1, "core": 1, "models": 1, "async_utils": 1,
-    "_drivers": 2,
+    "_drivers": 2, "progress": 2,
     "results": 3, "validators": 3, "audit": 3,
     "connection": 4, "query": 4,
     "executors": 5, "factory": 5, "metadata": 5,
@@ -60,7 +60,7 @@ DRAWN = {
     ("dump", "bulk"), ("doc", "analysis"), ("analysis", "metadata"), ("doc", "metadata"), ("dump", "metadata"),
     ("bulk", "connection"), ("dump", "connection"), ("bulk", "metadata"), ("comparar", "metadata"), ("migrate", "metadata"),
     ("metadata", "results"), ("executors", "query"), ("executors", "results"),
-    ("query", "validators"), ("factory", "connection"), ("_drivers", "_core"),
+    ("query", "validators"), ("factory", "connection"), ("_drivers", "_core"), ("progress", "_core"),
     ("bulk", "audit"), ("doc", "audit"), ("dump", "audit"), ("migrate", "audit"),
 } | {("managers", t) for t in ("connection", "factory", "executors", "metadata", "query", "results")}  # fmt: skip
 
@@ -335,6 +335,7 @@ def render_svg(f: _Facts) -> str:
     s.edge("M210 281 H142")  # factory -> connection
     s.edge("M500 424 V476")  # levels 2 and 3 -> Foundation
     s.edge("M190 551 H162")  # _drivers -> _core
+    s.edge("M576 526 V512 H96 V526")  # progress -> _core (over the tops of _drivers and core)
     audit_users = sorted(src for src, dst in DRAWN if dst == "audit")
     if audit_users:  # level 3 band -> audit (one arrow, the importers are named in the label)
         s.edge(f"M362 138 V{Y2B}")
@@ -358,6 +359,7 @@ def render_svg(f: _Facts) -> str:
     s.node(30, Y1, "_core/", "excepciones, tipos", 132)
     s.node(190, Y1, "_drivers/", "detecta drivers", 132)
     s.node(350, Y1, "core/", "capacidades", 132)
+    s.node(510, Y1, "progress/", "progreso, cancelar", 132)
     s.node(690, Y1, "models.py", "modelos compartidos", 132, " arq-shared")
     s.node(838, Y1, "async_utils.py", "maybe_await", 132, " arq-shared")
 

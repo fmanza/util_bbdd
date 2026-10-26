@@ -5,5 +5,5 @@
 | 5 | N2 · Servicios | `executors/`, `factory/`, `metadata/` |
 | 4 | N2 · Servicios | `connection/`, `query/` |
 | 3 | N2 · Servicios | `audit/`, `results/`, `validators/` |
-| 2 | N1 · Foundation | `_drivers/` |
+| 2 | N1 · Foundation | `_drivers/`, `progress/` |
 | 1 | N1 · Foundation | `_core/`, `async_utils.py`, `core/`, `models.py` |

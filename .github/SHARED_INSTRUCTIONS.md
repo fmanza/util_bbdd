@@ -58,6 +58,7 @@ src/util_bbdd/
   query/                # QueryRegistry, QueryResolver, query execution
   validators/           # Validadores de parámetros de queries
   audit/                # Auditoría común de bulk/dump/migrate: AuditEvent, AuditSink, CSV heredado (ADR-002)
+  progress/             # Progreso y cancelación cooperativa de las operaciones largas (ProgressEvent, CancellationToken)
   analysis/             # GraphvizRelationshipGraphExt, grafos de relaciones
   executors/            # Ejecutores de queries (sync/async)
   results/              # Row, Rows, RowOrNone, QueryResult
@@ -86,6 +87,7 @@ src/util_bbdd/
 | `factory/` | Factory de conexiones y pools; abstracción de engine SQLAlchemy |
 | `query/` | Registry de queries nombradas, resolver, parámetros |
 | `validators/` | Validación de parámetros de queries antes de ejecución |
+| `progress/` | Contrato común de progreso (`on_progress`) y cancelación cooperativa (`cancel_token`) de las operaciones largas (capa 2; solo importa `_core`) |
 | `audit/` | Punto canónico de la auditoría de `bulk`, `dump` y `migrate` (capa 3; no importa a sus consumidores: cada uno tiene su adaptador a `AuditEvent`) |
 | `analysis/` | Grafos de relaciones entre tablas (Graphviz) |
 | `results/` | Tipos de retorno: `Row`, `Rows`, `RowOrNone`, `QueryResult` |
@@ -94,7 +96,7 @@ src/util_bbdd/
 ### API pública recomendada
 
 La raíz exporta solo los 13 puntos de entrada y sus resultados (API 3.x); el resto se importa desde su submódulo
-público (`exceptions`, `audit`, `metadata`, `connection`, `factory`, `async_utils`, `analysis`). Desde 1.0.0 la API
+público (`exceptions`, `audit`, `progress`, `metadata`, `connection`, `factory`, `async_utils`, `analysis`). Desde 1.0.0 la API
 pública sigue SemVer: un cambio incompatible en la raíz o en esos submódulos exige versión MAJOR. Tabla de rutas:
 `docs/guides/api_1_0_migration.md`.
 
@@ -393,4 +395,4 @@ especializaciones afectadas (`CLAUDE.md`, `.github/copilot-instructions.md`, `GE
 
 ---
 
-*Actualizado: 2026-10-20*
+*Actualizado: 2026-10-25*
