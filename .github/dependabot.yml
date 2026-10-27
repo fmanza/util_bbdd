@@ -1,18 +1,29 @@
 version: 2
+# Una vez al mes, un único PR por ecosistema (todas las actualizaciones agrupadas) contra develop. Con
+# «Automatically delete head branches» (Settings → General) su rama dependabot/* se borra al fusionar o cerrar el PR:
+# fuera de ese PR solo existen main y develop (docs/guides/release_guide.md).
 updates:
   - package-ecosystem: pip
     directory: "/"
+    target-branch: develop
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      pip:
+        patterns: ["*"]
     labels:
       - dependencies
 
   - package-ecosystem: github-actions
     directory: "/"
+    target-branch: develop
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      github-actions:
+        patterns: ["*"]
     labels:
       - dependencies
       - github-actions
