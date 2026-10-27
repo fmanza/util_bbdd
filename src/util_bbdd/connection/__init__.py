@@ -43,7 +43,7 @@ from .config import (
     SQLServerPoolConfig,
 )
 from .factory import ConnectionFactory
-from .params import ConnectionParamsManager
+from .params import ConnectionParamsManager, ParamKind
 from .protocols import (
     AsyncCloseMode,
     AsyncConnectionProtocol,
@@ -55,6 +55,7 @@ __all__: list[str] = [
     # Consolidados - Core
     "ConnectionFactory",
     "ConnectionParamsManager",
+    "ParamKind",
     "build_conn_params",
     "ConnectionPoolProtocol",
     "AsyncConnectionProtocol",

@@ -138,7 +138,32 @@
             "type": "boolean",
             "description": "Verificar el certificado del servidor (por defecto, sí si hay ssl_ca); activa TLS"
           }
-        ]
+        ],
+        "kinds": {
+          "host": "host",
+          "user": "plain",
+          "password": "secret",
+          "database": "plain",
+          "port": "port",
+          "unix_socket": "path",
+          "charset": "plain",
+          "autocommit": "plain",
+          "connect_timeout": "plain",
+          "read_timeout": "plain",
+          "write_timeout": "plain",
+          "pool_size": "plain",
+          "init_command": "blocked",
+          "encoding_errors": "plain",
+          "pool_name": "plain",
+          "close_timeout": "plain",
+          "pool_recycle": "plain",
+          "catalog_charset_mode": "plain",
+          "ssl": "plain",
+          "ssl_ca": "path",
+          "ssl_cert": "path",
+          "ssl_key": "path",
+          "ssl_verify_cert": "plain"
+        }
       },
       "driver_info": {
         "pip_package": "mariadb",
@@ -283,7 +308,31 @@
             ],
             "description": "Lectura del catálogo: 'auto' diagnostica el charset (una consulta) y elige; 'native' lee sin CONVERT; 'convert' aplica siempre CONVERT(... USING utf8mb4). 'native' y 'convert' no diagnostican"
           }
-        ]
+        ],
+        "kinds": {
+          "host": "host",
+          "user": "plain",
+          "password": "secret",
+          "database": "plain",
+          "port": "port",
+          "unix_socket": "path",
+          "charset": "plain",
+          "autocommit": "plain",
+          "connect_timeout": "plain",
+          "read_timeout": "plain",
+          "write_timeout": "plain",
+          "pool_size": "plain",
+          "max_overflow": "plain",
+          "pool_timeout": "plain",
+          "pool_recycle": "plain",
+          "ssl_ca": "path",
+          "ssl_cert": "path",
+          "ssl_key": "path",
+          "ssl_verify_cert": "plain",
+          "ssl_verify_identity": "plain",
+          "close_timeout": "plain",
+          "catalog_charset_mode": "plain"
+        }
       },
       "driver_info": {
         "pip_package": "pymysql",
@@ -398,7 +447,25 @@
             "default": 10,
             "description": "Segundos de espera al cerrar la conexión o el pool en close(); <= 0 desactiva el límite"
           }
-        ]
+        ],
+        "kinds": {
+          "user": "plain",
+          "password": "secret",
+          "dsn": "host",
+          "host": "host",
+          "port": "port",
+          "service_name": "plain",
+          "sid": "plain",
+          "protocol": "plain",
+          "encoding": "plain",
+          "oracle_client_path": "path",
+          "pool_size": "plain",
+          "max_lifetime": "plain",
+          "database": "plain",
+          "schema": "plain",
+          "oracle_thick_mode": "plain",
+          "close_timeout": "plain"
+        }
       },
       "driver_info": {
         "pip_package": "oracledb",
@@ -545,7 +612,30 @@
             "default": 10,
             "description": "Segundos de espera al cerrar la conexión o el pool en close(); <= 0 desactiva el límite"
           }
-        ]
+        ],
+        "kinds": {
+          "host": "host",
+          "user": "plain",
+          "password": "secret",
+          "database": "plain",
+          "schema": "plain",
+          "port": "port",
+          "dbname": "plain",
+          "sslmode": "plain",
+          "connect_timeout": "plain",
+          "application_name": "plain",
+          "fallback_application_name": "plain",
+          "keepalives": "plain",
+          "tcp_keepalives_idle": "plain",
+          "tcp_keepalives_interval": "plain",
+          "tcp_keepalives_count": "plain",
+          "pool_size": "plain",
+          "pool_timeout": "plain",
+          "max_idle": "plain",
+          "options": "plain",
+          "target_session_attrs": "plain",
+          "close_timeout": "plain"
+        }
       },
       "driver_info": {
         "pip_package": "psycopg[binary,pool]",
@@ -622,7 +712,17 @@
             "default": 10,
             "description": "Segundos de espera al cerrar la conexión o el pool en close(); <= 0 desactiva el límite"
           }
-        ]
+        ],
+        "kinds": {
+          "user": "plain",
+          "jdbc_url": "host",
+          "jdbc_jar": "path",
+          "password": "secret",
+          "schema": "plain",
+          "jdbc_driver": "plain",
+          "connection_properties": "plain",
+          "close_timeout": "plain"
+        }
       },
       "driver_info": {
         "pip_package": "JayDeBeApi",
@@ -765,7 +865,28 @@
             "default": 10,
             "description": "Segundos de espera al cerrar la conexión o el pool en close(); <= 0 desactiva el límite"
           }
-        ]
+        ],
+        "kinds": {
+          "host": "host",
+          "user": "plain",
+          "password": "secret",
+          "database": "plain",
+          "schema": "plain",
+          "port": "port",
+          "timeout": "plain",
+          "login_timeout": "plain",
+          "charset": "plain",
+          "as_dict": "plain",
+          "encryption": "plain",
+          "trust_cert": "plain",
+          "use_mars": "plain",
+          "sql_server_driver": "plain",
+          "driver_name": "plain",
+          "pool_size": "plain",
+          "max_overflow": "plain",
+          "pool_timeout": "plain",
+          "close_timeout": "plain"
+        }
       },
       "driver_info": [
         {
@@ -886,7 +1007,16 @@
             "default": 10,
             "description": "Segundos de espera al cerrar la conexión o el pool en close(); <= 0 desactiva el límite"
           }
-        ]
+        ],
+        "kinds": {
+          "database": "path",
+          "timeout": "plain",
+          "check_same_thread": "plain",
+          "isolation_level": "plain",
+          "cached_statements": "plain",
+          "pool_size": "plain",
+          "close_timeout": "plain"
+        }
       },
       "driver_info": {
         "pip_package": "sqlite3",

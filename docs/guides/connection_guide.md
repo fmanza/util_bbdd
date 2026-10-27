@@ -48,6 +48,17 @@ La ficha del motor (`SyncDatabaseManager.get_db_type_info_static(db_type)`) trae
 driver predeterminado con la misma forma en todos los motores (`name`, `pip_package`, `install_command`,
 `system_requirements`…). `driver_info` no cambia: en SQL Server sigue siendo la lista de opciones (`pymssql`, `pyodbc`).
 
+Cada parámetro tiene una clase (`connection_params.kinds` en la ficha; v4.6.0): `secret` (`password`), `host`,
+`port`, `path` (certificados, socket, JAR, el fichero de SQLite), `blocked` (`init_command`, que ejecuta SQL al
+conectar) o `plain`. Una aplicación que deja a sus usuarios configurar conexiones puede usarla para cifrar los
+secretos, confinar las rutas y filtrar los destinos de red:
+
+```python
+from util_bbdd.connection import ConnectionParamsManager
+
+ConnectionParamsManager.param_kinds("oracle")  # {'user': 'plain', 'password': 'secret', 'dsn': 'host', ...}
+```
+
 ### 3.2 Construir `conn_params` del motor
 
 Cada motor exige un conjunto mínimo de claves (ver referencia completa en §5):

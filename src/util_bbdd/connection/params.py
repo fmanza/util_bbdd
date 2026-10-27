@@ -5,7 +5,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from .._core.exceptions import InvalidDatabaseType
 from .._drivers import DatabaseTypeValidator, get_database_validator
@@ -36,6 +36,9 @@ _CONFIG_CLASSES: dict[str, tuple[type, type | None]] = {
     "sqlserver": (SQLServerConnectionConfig, SQLServerPoolConfig),
     "sqlite": (SQLiteConnectionConfig, SQLitePoolConfig),
 }
+
+#: Clase de un parámetro de conexión (``connection_params.kinds`` de ``database_types.json``; v4.6.0, G12).
+ParamKind = Literal["secret", "host", "port", "path", "blocked", "plain"]
 
 #: Claves aceptadas que no son campo de ninguna config: ``close_timeout`` lo usa el manager aunque no haya pool;
 #: ``encoding`` (Oracle) se acepta y se ignora (python-oracledb trabaja siempre en UTF-8).
@@ -71,6 +74,48 @@ class ConnectionParamsManager:
             if config_cls is not None:
                 keys.update(f.name for f in dataclasses.fields(config_cls) if f.name != "connection")
         return frozenset(keys)
+
+    @staticmethod
+    def param_kinds(db_type: str) -> dict[str, ParamKind]:
+        """Clase de cada parámetro de conexión de ``db_type`` (v4.6.0, G12 de util_bbdd_web).
+
+        Sale de ``connection_params.kinds`` de ``database_types.json``, que cubre todos los parámetros declarados
+        (los mismos que :meth:`allowed_keys`). Clases (:data:`ParamKind`):
+
+        - ``secret``: credencial (``password``). No debe mostrarse ni guardarse en claro.
+        - ``host``: destino de red (``host``; ``dsn`` en Oracle, ``jdbc_url`` en HSQLDB).
+        - ``port``: puerto de red.
+        - ``path``: ruta del sistema de ficheros (certificados, socket, Instant Client, JAR; ``database`` en SQLite).
+        - ``blocked``: ejecuta SQL arbitrario al conectar (``init_command``); una aplicación que deja a sus usuarios
+          configurar conexiones no debería aceptarlo.
+        - ``plain``: el resto.
+
+        Args:
+            db_type: Tipo de motor.
+
+        Raises:
+            InvalidDatabaseType: Si el motor no está soportado.
+
+        Example:
+            >>> ConnectionParamsManager.param_kinds("postgresql")["password"]
+            'secret'
+        """
+        params = get_database_validator().get_db_type_connection_params(db_type)
+        kinds: Any = params.get("kinds", {})
+        return {str(name): cast(ParamKind, kind) for name, kind in kinds.items()} if isinstance(kinds, dict) else {}
+
+    @staticmethod
+    def param_kind(db_type: str, name: str) -> ParamKind:
+        """Clase de un parámetro (:meth:`param_kinds`).
+
+        Raises:
+            InvalidDatabaseType: Si el motor no está soportado.
+            ValueError: Si ``name`` no es un parámetro de conexión de ``db_type``.
+        """
+        kinds = ConnectionParamsManager.param_kinds(db_type)
+        if name not in kinds:
+            raise ValueError(f"'{name}' no es un parámetro de conexión de {db_type}")
+        return kinds[name]
 
     @staticmethod
     def _validate_keys(db_type: str, conn_params: dict[str, Any]) -> None:

@@ -17,6 +17,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   sin importar el driver, cada módulo de la lista `drivers` del motor. **Para la web (W-T1)**: sustituye
   `EngineCapabilities`, `find_spec` y `migration_engines()` de `catalog.py`; `readiness` sale ya de la matriz (sin
   llamar a `assess`).
+- **connection** (G12 de util_bbdd_web): clase de cada parámetro de conexión. `connection_params.kinds` en
+  `database_types.json` (y en `get_db_type_info_static`) da a cada parámetro declarado un `kind`: `secret`
+  (`password`), `host` (`host`; `dsn` en Oracle, `jdbc_url` en HSQLDB), `port`, `path` (`ssl_ca`, `ssl_cert`,
+  `ssl_key`, `unix_socket`, `oracle_client_path`, `jdbc_jar`; `database` en SQLite), `blocked` (`init_command`) o
+  `plain`. `ConnectionParamsManager.param_kinds(db_type)` y `param_kind(db_type, name)`, y el tipo `ParamKind`, en
+  `util_bbdd.connection`. `required` y `optional` no cambian. **Para la web (W-T2)**: `param_kind` de `catalog.py`
+  pasa a leer `kind`; `KNOWN_PARAMS` puede quedarse como alarma de parámetros nuevos.
 
 ### Fixed
 
