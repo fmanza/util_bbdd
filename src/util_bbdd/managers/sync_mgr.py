@@ -37,6 +37,7 @@ from ..connection.factory import ConnectionFactory
 from ..connection.params import ConnectionParamsManager
 from ..connection.performance_advisor import EngineReadinessAdvisor, EngineReadinessReport
 from ..connection.protocols import ConnectionPoolProtocol
+from ..executors._read_only import validate_max_rows
 from ..executors.sync_query_executor import SyncQueryExecutor
 from ..factory.pool_factory import PoolFactory
 from ..factory.sqlalchemy_engine_factory import SQLAlchemyEngineFactory
@@ -404,13 +405,19 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         params: dict[str, Any] | None,
         timeout: float | None,
         expect_one: bool,
+        read_only: bool = False,
+        max_rows: int | None = None,
     ) -> RowOrNone | Rows:
         executor: SyncQueryExecutor = self._get_sync_query_executor()
         mode: Literal["one"] | Literal["many"] = "one" if expect_one else "many"
         self.logger.debug(f"📝 Ejecutando consulta SQL personalizada ({mode})")
+        # Solo si se piden: un ejecutor sustituido que no conozca read_only/max_rows sigue funcionando sin ellos.
+        options: dict[str, Any] = {"read_only": True, "db_type": self.db_type} if read_only else {}
+        if max_rows is not None:
+            options["max_rows"] = max_rows
         execute = executor.execute_custom_one if expect_one else executor.execute_custom_many
         result = self._run_manager_operation(
-            action=lambda: execute(sql=sql, params=params, timeout=timeout),
+            action=lambda: execute(sql=sql, params=params, timeout=timeout, **options),
             error_message="Error ejecutando consulta SQL",
             operation="EXECUTE",
         )
@@ -480,6 +487,9 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         sql: str,
         params: dict[str, Any] | None = None,
         timeout: float | None = None,
+        *,
+        read_only: bool = False,
+        max_rows: int | None = None,
     ) -> Rows:
         """
         Ejecuta una consulta SQL personalizada y retorna múltiples filas.
@@ -488,13 +498,22 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             sql: Consulta SQL a ejecutar.
             params: Diccionario de parámetros SQL (opcional).
             timeout: Timeout en segundos (opcional).
+            read_only: Si ``True`` (v4.6.0, G19 de util_bbdd_web), la consulta va en una transacción de solo lectura
+                del motor que termina siempre en ``rollback``: una escritura falla en el motor (``SET TRANSACTION READ
+                ONLY`` en PostgreSQL y Oracle, ``START TRANSACTION READ ONLY`` en MySQL/MariaDB, ``PRAGMA query_only``
+                en SQLite, ``SET SESSION CHARACTERISTICS … READ ONLY`` en HSQLDB). SQL Server no tiene transacciones de
+                solo lectura: la consulta va en una transacción explícita que se deshace al terminar.
+            max_rows: Como mucho estas filas (``fetchmany``; v4.6.0, G20): el resto no llega a memoria. Para saber si
+                había más, pide ``n + 1``. ``None`` (default): todas.
 
         Returns:
             Lista de filas resultantes.
 
         Raises:
-            DatabaseOperationError: Si falla la ejecución (el error del driver queda en ``__cause__``).
+            DatabaseOperationError: Si falla la ejecución (el error del driver queda en ``__cause__``); también una
+                escritura con ``read_only=True``.
             QueryTimeoutError: Si se supera ``timeout``.
+            ValueError: Si ``max_rows`` no es un entero ≥ 1.
 
         Examples:
             Ejecutar una query personalizada:
@@ -520,11 +539,14 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             ... )
             >>> manager.close()
         """
+        validate_max_rows(max_rows)
         result = self._execute_custom_sql(
             sql=sql,
             params=params,
             timeout=timeout,
             expect_one=False,
+            read_only=read_only,
+            max_rows=max_rows,
         )
         return cast(Rows, result)
 
@@ -533,6 +555,8 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         sql: str,
         params: dict[str, Any] | None = None,
         timeout: float | None = None,
+        *,
+        read_only: bool = False,
     ) -> RowOrNone:
         """
         Ejecuta una consulta SQL personalizada y retorna una única fila o None.
@@ -541,6 +565,7 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             sql: Consulta SQL a ejecutar.
             params: Diccionario de parámetros SQL (opcional).
             timeout: Timeout en segundos (opcional).
+            read_only: Como en :meth:`execute_custom_many` (v4.6.0, G19).
 
         Returns:
             Una tupla (fila) si encuentra resultado, None si no hay filas.
@@ -579,6 +604,7 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             params=params,
             timeout=timeout,
             expect_one=True,
+            read_only=read_only,
         )
         return cast(RowOrNone, result)
 

@@ -15,6 +15,7 @@ from .._core.exceptions import (
 from ..query.registry import QueryRegistry
 from ..query.resolver import QueryResolver
 from ..results import ResultNormalizer, RowOrNone, Rows
+from ._read_only import read_only_statements, validate_max_rows
 
 # ``%`` literales en SQL para drivers pyformat (PyMySQL/aiomysql): todo ``%`` que no sea marcador (``%s``,
 # ``%(nombre)s``) ni esté ya escapado (``%%``) se duplica.
@@ -172,6 +173,7 @@ class SyncQueryExecutor:
         expect_one: bool,
         deadline: float | None,
         timeout_msg: str,
+        max_rows: int | None = None,
     ) -> RowOrNone | Rows:
         binary_cursor = None
         saved_charset: str | None = None
@@ -205,6 +207,8 @@ class SyncQueryExecutor:
             row = binary_cursor.fetchone()
             while row is not None:
                 rows.append(row)
+                if max_rows is not None and len(rows) >= max_rows:
+                    break
                 row = binary_cursor.fetchone()
             decoded = self._decode_binary_value(rows)
             return self.result_normalizer.normalize_many(decoded)
@@ -233,13 +237,15 @@ class SyncQueryExecutor:
         db_type: str,
         deadline: float | None,
         timeout_msg: str,
+        max_rows: int | None = None,
     ) -> RowOrNone | Rows:
         try:
             if expect_one:
                 raw_one = cursor.fetchone()
                 materialized_one = self._materialize_lob_value(raw_one)
                 return self.result_normalizer.normalize_one(materialized_one)
-            raw_many = cursor.fetchall()
+            # G20 (v4.6.0): con max_rows, solo esas filas llegan a memoria (fetchmany).
+            raw_many = cursor.fetchall() if max_rows is None else cursor.fetchmany(max_rows)
             materialized_many = self._materialize_lob_value(raw_many)
             return self.result_normalizer.normalize_many(materialized_many)
         except Exception as err:
@@ -257,6 +263,7 @@ class SyncQueryExecutor:
                 expect_one=expect_one,
                 deadline=deadline,
                 timeout_msg=timeout_msg,
+                max_rows=max_rows,
             )
 
     @staticmethod
@@ -368,18 +375,26 @@ class SyncQueryExecutor:
         params: dict[str, Any] | None,
         timeout: float | None,
         expect_one: bool,
+        *,
+        read_only: bool = False,
+        max_rows: int | None = None,
+        db_type: str | None = None,
     ) -> RowOrNone | Rows:
         conn = None
         cursor = None
         start_time: float = time.perf_counter()  # monotónico (T1)
         timeout_msg = "Custom query execution exceeded timeout"
         deadline: float | None = self._build_deadline(timeout)
+        validate_max_rows(max_rows)
+        prelude, epilogue = read_only_statements(db_type) if read_only else ((), ())
 
         try:
             self._raise_if_timed_out(deadline, timeout_msg)
             conn = self.connection_provider()
             self._raise_if_timed_out(deadline, timeout_msg)
 
+            if read_only:
+                self._start_read_only(conn, prelude)
             cursor = conn.cursor()
             self._execute_sql_with_optional_params(cursor, sql, params)
             self._raise_if_timed_out(deadline, timeout_msg)
@@ -394,6 +409,7 @@ class SyncQueryExecutor:
                 db_type=db_type_hint,
                 deadline=deadline,
                 timeout_msg=timeout_msg,
+                max_rows=max_rows,
             )
             result_rows: int = self._calculate_result_rows(result, expect_one)
             self._raise_if_timed_out(deadline, timeout_msg)
@@ -411,7 +427,39 @@ class SyncQueryExecutor:
             self.logger.error(msg, exc_info=True)
             raise DatabaseOperationError(msg, "CUSTOM", db_type="unknown") from err
         finally:
+            if read_only and conn is not None:
+                self._end_read_only(conn, epilogue)
             self._cleanup_cursor_and_connection(cursor, conn)
+
+    def _start_read_only(self, conn: Any, prelude: tuple[str, ...]) -> None:
+        """Cierra la transacción abierta y pone la siguiente (o la sesión) en solo lectura (G19)."""
+        self._rollback_quietly(conn)
+        cursor = conn.cursor()
+        try:
+            for statement in prelude:
+                cursor.execute(statement)
+        finally:
+            cursor.close()
+
+    def _end_read_only(self, conn: Any, epilogue: tuple[str, ...]) -> None:
+        """``rollback()`` siempre (nada queda confirmado) y quita las marcas de sesión; un fallo aquí solo se registra."""
+        self._rollback_quietly(conn)
+        try:
+            cursor = conn.cursor()
+            try:
+                for statement in epilogue:
+                    cursor.execute(statement)
+            finally:
+                cursor.close()
+        except Exception:
+            self.logger.warning("No se pudo restaurar la sesión tras una consulta read_only", exc_info=True)
+
+    def _rollback_quietly(self, conn: Any) -> None:
+        """``conn.rollback()``; con autocommit (JDBC de HSQLDB) el driver puede rechazarlo, y no hay nada que deshacer."""
+        try:
+            conn.rollback()
+        except Exception:
+            self.logger.debug("rollback() no aplicable en esta conexión", exc_info=True)
 
     def execute_query_many(
         self,
@@ -459,18 +507,35 @@ class SyncQueryExecutor:
         sql: str,
         params: dict[str, Any] | None = None,
         timeout: float | None = None,
+        *,
+        read_only: bool = False,
+        max_rows: int | None = None,
+        db_type: str | None = None,
     ) -> Rows:
         """Ejecuta ``sql`` (parámetros ``:nombre``) y devuelve todas las filas.
+
+        Args:
+            sql: Consulta.
+            params: Parámetros de *bind*.
+            timeout: Segundos máximos.
+            read_only: Ejecuta en una transacción de solo lectura del motor que termina siempre en ``rollback``
+                (``executors._read_only``; v4.6.0, G19). Necesita ``db_type``.
+            max_rows: Como mucho estas filas (``fetchmany``; v4.6.0, G20).
+            db_type: Motor de la conexión (lo pasa el manager).
 
         Raises:
             QueryTimeoutError: Si se supera ``timeout`` (segundos).
             DatabaseOperationError: Si falla la ejecución (el error original queda en ``__cause__``).
+            ValueError: Si ``max_rows`` no es un entero ≥ 1, o ``read_only`` sin ``db_type`` válido.
         """
         result = self._execute_custom(
             sql=sql,
             params=params,
             timeout=timeout,
             expect_one=False,
+            read_only=read_only,
+            max_rows=max_rows,
+            db_type=db_type,
         )
         return self.result_normalizer.normalize_many(result)
 
@@ -479,6 +544,9 @@ class SyncQueryExecutor:
         sql: str,
         params: dict[str, Any] | None = None,
         timeout: float | None = None,
+        *,
+        read_only: bool = False,
+        db_type: str | None = None,
     ) -> RowOrNone:
         """Como :meth:`execute_custom_many`, pero devuelve la primera fila o ``None``."""
         result = self._execute_custom(
@@ -486,5 +554,7 @@ class SyncQueryExecutor:
             params=params,
             timeout=timeout,
             expect_one=True,
+            read_only=read_only,
+            db_type=db_type,
         )
         return self.result_normalizer.normalize_one(result)

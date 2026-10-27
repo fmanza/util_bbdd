@@ -35,6 +35,23 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   ganan `ping()`, `server_version()` y `schema_names()`, sin caché. Verificado en el banco (6 motores). **Para la web
   (W-T3)**: `probe.py` y `metadata.py` sustituyen `server_version_info` y el `Inspector` con `denormalize_name` por
   estos métodos; el schema por defecto sigue en `metadata_source.current_schema()`.
+- **managers** (G19 y G20 de util_bbdd_web): `execute_custom_many(..., *, read_only=False, max_rows=None)` y
+  `execute_custom_one(..., *, read_only=False)` en los dos managers (y en `SyncQueryExecutor`/`AsyncQueryExecutor`, con
+  `db_type`). Con `read_only=True`, la consulta va en una transacción de solo lectura del motor que empieza con un
+  `rollback` de la que hubiera abierta en esa conexión y termina siempre en `rollback`, así que una escritura falla en
+  el motor (`DatabaseOperationError`):
+  - PostgreSQL y Oracle: `SET TRANSACTION READ ONLY`.
+  - MySQL y MariaDB: `START TRANSACTION READ ONLY`.
+  - SQLite: `PRAGMA query_only`, que se desactiva al terminar.
+  - HSQLDB: `SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY`, que se restaura al terminar.
+  - asyncpg: `transaction(readonly=True)`.
+  - SQL Server no tiene transacciones de solo lectura: la consulta va en una transacción explícita que se deshace. Es
+    una garantía más débil: la escritura llega a ejecutarse y retiene bloqueos hasta el rollback.
+
+  En Oracle, una transacción de solo lectura no lee una tabla creada hace unos segundos (`ORA-01466`). `max_rows` usa
+  `fetchmany` y no trae más filas que esas; para saber si había más, se piden `n + 1`. Verificado en el banco con los
+  6 motores de servidor (sync). **Para la web (W-T4)**: pasa `read_only=True` y `max_rows=limit + 1` en lugar de su
+  engine propio; el guardián `sqlglot` y su validación se mantienen como defensa.
 
 ### Fixed
 

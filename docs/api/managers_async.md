@@ -39,8 +39,8 @@ flowchart TD
 | `get_ddl`, `get_columns_charset_collation`, `get_storage_inventory`, `get_storage_rows` | `async`, mismas firmas que en `SyncDatabaseManager` | DDL de tabla, collations de columnas e inventario de almacenamiento | Ver `SyncDatabaseManager` |
 | `get_database_version` | `async ()` | Versión del motor | `str` |
 | `execute_query_many` | `async (query_name, **params)` | Query registrada → varias filas | `Rows` |
-| `execute_custom_many` | `async (sql, params?)` | SQL libre → varias filas | `Rows` |
-| `execute_custom_one` | `async (sql, params?)` | SQL libre → una fila | `RowOrNone` |
+| `execute_custom_many` | `async (sql, params?, *, read_only=False, max_rows=None)` | SQL libre → varias filas. Con `read_only=True` (desde 4.6.0) va en una transacción de solo lectura del motor que termina siempre en `rollback`: una escritura falla (en SQL Server, sin transacciones de solo lectura, se deshace). `max_rows` (solo `_many`) trae como mucho esas filas (`fetchmany`); pide `n + 1` para saber si había más; con asyncpg, `conn.transaction(readonly=True)` | `Rows` |
+| `execute_custom_one` | `async (sql, params?, *, read_only=False)` | SQL libre → una fila (`read_only` como en `execute_custom_many`) | `RowOrNone` |
 | `get_sqlalchemy_engine` | `async ()` | AsyncEngine SQLAlchemy | `AsyncEngine` |
 | `get_engine_readiness` | `async ()` | Verificación de condiciones del motor (`EngineReadinessAdvisor.assess_async`): estáticos con `conn_params`, dinámicos con una conexión del `AsyncEngine` (vía `run_sync`); sin conexión, solo estáticos y el motivo en `error` | `EngineReadinessReport` |
 | `close` | `async (mode?)` | Cierra el gestor y libera recursos | `None` |

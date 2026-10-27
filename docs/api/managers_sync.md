@@ -45,7 +45,7 @@ flowchart TD
 | `get_storage_inventory` | `(tablespace=None)` | Inventario de almacenamiento (`primary`, `temp_tablespaces`, `sqlite_file_summary`); `ValueError` sin `tablespace` en Oracle y PostgreSQL | `dict[str, Any]` |
 | `get_storage_rows` | `(query_name, **params)` | Filas de una consulta de `metadata.storage` (`QueryNotFoundError` si el motor no la tiene) | `list[tuple]` |
 | `execute_query_many` / `execute_query_one` | `(query_name, timeout=None, **kwargs)` | Query registrada → varias filas / una fila | `Rows` / `RowOrNone` |
-| `execute_custom_many` / `execute_custom_one` | `(sql, params=None, timeout=None)` | SQL libre → varias filas / una fila | `Rows` / `RowOrNone` |
+| `execute_custom_many` / `execute_custom_one` | `(sql, params=None, timeout=None, *, read_only=False, max_rows=None)` | SQL libre → varias filas / una fila. Con `read_only=True` (desde 4.6.0) va en una transacción de solo lectura del motor que termina siempre en `rollback`: una escritura falla (en SQL Server, sin transacciones de solo lectura, se deshace). `max_rows` (solo `_many`) trae como mucho esas filas (`fetchmany`); pide `n + 1` para saber si había más | `Rows` / `RowOrNone` |
 | `get_connection` / `release_connection` | `()` / `(connection=None)` | Conexión nativa del pool (o la única) y su devolución | `Any` / `None` |
 | `clear_cache` | `(context_database=None, table=None, routine=None, routine_type=None)` | Invalida la caché de metadatos (toda o por schema, tabla o rutina) | `None` |
 | `get_sqlalchemy_engine` | `()` | Engine SQLAlchemy configurado | `Engine` |

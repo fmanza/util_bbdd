@@ -57,6 +57,7 @@ EXCEPTIONS: dict[str, str] = {
     "connection/sqlite/async_connection_sqlite.py": "PRAGMA foreign_keys de la conexión",
     "comparar/reporters/sql_reporter.py": "SQL emitido en el script de nivelación (lo ejecuta el destino)",
     "migrate/emitters/sqlserver.py": "DDL emitido (sp_addextendedproperty)",
+    "executors/_read_only.py": "PRAGMA query_only de la sesión (read_only de execute_custom_*, v4.6.0)",
 }
 
 # Trinquete (2026-10-03): fuera de metadata/ con SQL de catálogo o Inspector. Solo puede bajar.

@@ -19,6 +19,7 @@ from ..connection.close import AsyncCloseMode, normalize_close_mode
 from ..connection.factory import ConnectionFactory
 from ..connection.params import ConnectionParamsManager
 from ..connection.performance_advisor import EngineReadinessAdvisor, EngineReadinessReport
+from ..executors._read_only import validate_max_rows
 from ..executors.async_query_executor import AsyncQueryExecutor
 from ..factory.async_sqlalchemy_engine_factory import AsyncSQLAlchemyEngineFactory
 from ..factory.pool_factory import PoolFactory
@@ -209,11 +210,17 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         sql: str,
         params: Any | None,
         expect_one: bool,
+        read_only: bool = False,
+        max_rows: int | None = None,
     ) -> RowOrNone | Rows:
         executor: AsyncQueryExecutor = await self._get_query_executor()
+        # Solo si se piden: un ejecutor sustituido que no conozca read_only/max_rows sigue funcionando sin ellos.
+        options: dict[str, Any] = {"read_only": True, "db_type": self.db_type} if read_only else {}
+        if max_rows is not None:
+            options["max_rows"] = max_rows
         execute = executor.execute_custom_one if expect_one else executor.execute_custom_many
         result = await self._run_manager_operation_async(
-            action=lambda: execute(sql=sql, params=params),
+            action=lambda: execute(sql=sql, params=params, **options),
             error_message="Error ejecutando consulta SQL",
             operation="CUSTOM",
         )
@@ -223,6 +230,9 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         self,
         sql: str,
         params: Any | None = None,
+        *,
+        read_only: bool = False,
+        max_rows: int | None = None,
     ) -> Rows:
         """
         Ejecuta SQL custom y retorna múltiples filas.
@@ -230,13 +240,18 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         Args:
             sql: Consulta SQL a ejecutar.
             params: Diccionario de parámetros SQL (opcional).
+            read_only: Como en ``SyncDatabaseManager.execute_custom_many`` (v4.6.0, G19); con asyncpg,
+                ``conn.transaction(readonly=True)`` que se deshace al terminar.
+            max_rows: Como en ``SyncDatabaseManager.execute_custom_many`` (v4.6.0, G20).
 
         Returns:
             Lista de filas resultantes.
 
         Raises:
-            DatabaseOperationError: Si falla la ejecución (el error del driver queda en ``__cause__``).
+            DatabaseOperationError: Si falla la ejecución (el error del driver queda en ``__cause__``); también una
+                escritura con ``read_only=True``.
             QueryTimeoutError: Si se supera el plazo.
+            ValueError: Si ``max_rows`` no es un entero ≥ 1.
 
         Examples:
             Ejecutar una query personalizada (async):
@@ -260,10 +275,13 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
             ...     await manager.close()
             >>> asyncio.run(main())
         """
+        validate_max_rows(max_rows)
         result = await self._execute_custom_sql(
             sql=sql,
             params=params,
             expect_one=False,
+            read_only=read_only,
+            max_rows=max_rows,
         )
         return cast(Rows, result)
 
@@ -271,6 +289,8 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         self,
         sql: str,
         params: Any | None = None,
+        *,
+        read_only: bool = False,
     ) -> RowOrNone:
         """
         Ejecuta SQL custom y retorna una única fila o None.
@@ -278,6 +298,7 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         Args:
             sql: Consulta SQL a ejecutar.
             params: Diccionario de parámetros SQL (opcional).
+            read_only: Como en :meth:`execute_custom_many` (v4.6.0, G19).
 
         Returns:
             Una tupla (fila) si encuentra resultado, None si no hay filas.
@@ -318,6 +339,7 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
             sql=sql,
             params=params,
             expect_one=True,
+            read_only=read_only,
         )
         return cast(RowOrNone, result)
 

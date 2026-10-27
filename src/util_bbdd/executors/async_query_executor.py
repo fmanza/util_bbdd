@@ -19,6 +19,7 @@ from ..async_utils import maybe_await
 from ..query.registry import QueryRegistry
 from ..query.resolver import QueryResolver
 from ..results import ResultNormalizer, RowOrNone, Rows
+from ._read_only import read_only_statements, validate_max_rows
 
 # ``%`` literales en SQL para drivers pyformat (PyMySQL/aiomysql): todo ``%`` que no sea marcador (``%s``,
 # ``%(nombre)s``) ni esté ya escapado (``%%``) se duplica.
@@ -154,7 +155,7 @@ class AsyncQueryExecutor:
         return translated, [params[name] for name in names]
 
     async def _fetch_asyncpg(
-        self, conn: Any, sql: str, params: dict[str, Any] | None, expect_one: bool
+        self, conn: Any, sql: str, params: dict[str, Any] | None, expect_one: bool, max_rows: int | None = None
     ) -> tuple[RowOrNone | Rows, int]:
         """Ejecuta ``sql`` con asyncpg (``fetchrow``/``fetch``) y normaliza como la vía de cursor."""
         driver_sql, args = self._to_asyncpg(sql, params)
@@ -162,7 +163,12 @@ class AsyncQueryExecutor:
             record = await conn.fetchrow(driver_sql, *args)
             result_one = self.result_normalizer.normalize_one(None if record is None else tuple(record))
             return result_one, 0 if result_one is None else 1
-        records = await conn.fetch(driver_sql, *args)
+        if max_rows is not None:
+            # G20: un cursor de servidor (necesita transacción) para no traer más de max_rows filas.
+            async with conn.transaction():
+                records = await (await conn.cursor(driver_sql, *args)).fetch(max_rows)
+        else:
+            records = await conn.fetch(driver_sql, *args)
         result_many = self.result_normalizer.normalize_many([tuple(record) for record in records])
         return result_many, len(result_many)
 
@@ -178,7 +184,9 @@ class AsyncQueryExecutor:
             return
         await maybe_await(cursor.execute(sql))
 
-    async def _fetch_and_normalize(self, cursor: Any, expect_one: bool) -> tuple[RowOrNone | Rows, int]:
+    async def _fetch_and_normalize(
+        self, cursor: Any, expect_one: bool, max_rows: int | None = None
+    ) -> tuple[RowOrNone | Rows, int]:
         if expect_one:
             fetched_one = await maybe_await(cursor.fetchone())
             materialized_one = self._materialize_lob_value(fetched_one)
@@ -186,7 +194,9 @@ class AsyncQueryExecutor:
             result_rows = 1 if result_one is not None else 0
             return result_one, result_rows
 
-        fetched_many = await maybe_await(cursor.fetchall())
+        # G20 (v4.6.0): con max_rows, solo esas filas llegan a memoria (fetchmany).
+        fetch = cursor.fetchall() if max_rows is None else cursor.fetchmany(max_rows)
+        fetched_many = await maybe_await(fetch)
         materialized_many = self._materialize_lob_value(fetched_many)
         result_many = self.result_normalizer.normalize_many(materialized_many)
         return result_many, len(result_many)
@@ -253,11 +263,18 @@ class AsyncQueryExecutor:
         params: dict[str, Any] | None,
         deadline_seconds: float | None,
         expect_one: bool,
+        *,
+        read_only: bool = False,
+        max_rows: int | None = None,
+        db_type: str | None = None,
     ) -> RowOrNone | Rows:
         conn = None
         cursor = None
         owns_cursor = False
         start_time: float = time.perf_counter()  # monotónico (T1)
+        validate_max_rows(max_rows)
+        prelude, epilogue = read_only_statements(db_type) if read_only else ((), ())
+        asyncpg_transaction: Any = None
 
         try:
             async with self._timeout_context(
@@ -266,11 +283,16 @@ class AsyncQueryExecutor:
             ):
                 conn = await self.connection_provider()
                 if self._is_asyncpg(conn):
-                    result, result_rows = await self._fetch_asyncpg(conn, sql, params, expect_one)
+                    if read_only:
+                        asyncpg_transaction = conn.transaction(readonly=True)
+                        await asyncpg_transaction.start()
+                    result, result_rows = await self._fetch_asyncpg(conn, sql, params, expect_one, max_rows)
                 else:
+                    if read_only:
+                        await self._start_read_only(conn, prelude)
                     cursor, owns_cursor = await self._get_cursor(conn)
                     await self._execute_sql_with_optional_params(cursor, sql, params)
-                    result, result_rows = await self._fetch_and_normalize(cursor, expect_one)
+                    result, result_rows = await self._fetch_and_normalize(cursor, expect_one, max_rows)
 
             elapsed_ms: float = (time.perf_counter() - start_time) * 1000
             self.logger.debug(f"✅ Custom query executed: elapsed_ms={elapsed_ms:.2f}, result_rows={result_rows}")
@@ -283,7 +305,42 @@ class AsyncQueryExecutor:
             self.logger.error(msg, exc_info=True)
             raise DatabaseOperationError(msg, "CUSTOM", db_type="unknown") from err
         finally:
+            if asyncpg_transaction is not None:
+                await self._quietly(asyncpg_transaction.rollback())
+            elif read_only and conn is not None:
+                await self._end_read_only(conn, epilogue)
             await self._cleanup_cursor_and_connection(owns_cursor, cursor, conn)
+
+    async def _quietly(self, awaitable: Any) -> None:
+        """Espera ``awaitable`` y solo registra su fallo (cierre de la transacción de solo lectura)."""
+        try:
+            await maybe_await(awaitable)
+        except Exception:
+            self.logger.debug("Cierre de la transacción read_only no aplicable", exc_info=True)
+
+    async def _run_statements(self, conn: Any, statements: tuple[str, ...]) -> None:
+        cursor, owns_cursor = await self._get_cursor(conn)
+        try:
+            for statement in statements:
+                await maybe_await(cursor.execute(statement))
+        finally:
+            if owns_cursor and hasattr(cursor, "close"):
+                await maybe_await(cursor.close())
+
+    async def _start_read_only(self, conn: Any, prelude: tuple[str, ...]) -> None:
+        """Como ``SyncQueryExecutor._start_read_only`` (G19)."""
+        if hasattr(conn, "rollback"):
+            await self._quietly(conn.rollback())
+        await self._run_statements(conn, prelude)
+
+    async def _end_read_only(self, conn: Any, epilogue: tuple[str, ...]) -> None:
+        """Como ``SyncQueryExecutor._end_read_only`` (G19)."""
+        if hasattr(conn, "rollback"):
+            await self._quietly(conn.rollback())
+        try:
+            await self._run_statements(conn, epilogue)
+        except Exception:
+            self.logger.warning("No se pudo restaurar la sesión tras una consulta read_only", exc_info=True)
 
     async def execute_query_many(
         self,
@@ -331,18 +388,29 @@ class AsyncQueryExecutor:
         sql: str,
         params: dict[str, Any] | None = None,
         deadline_seconds: float | None = None,
+        *,
+        read_only: bool = False,
+        max_rows: int | None = None,
+        db_type: str | None = None,
     ) -> Rows:
         """Ejecuta ``sql`` (parámetros ``:nombre``) y devuelve todas las filas.
+
+        ``read_only``, ``max_rows`` y ``db_type`` como en ``SyncQueryExecutor.execute_custom_many`` (v4.6.0); con
+        asyncpg la transacción de solo lectura es ``conn.transaction(readonly=True)``.
 
         Raises:
             QueryTimeoutError: Si se supera ``deadline_seconds``.
             DatabaseOperationError: Si falla la ejecución (el error original queda en ``__cause__``).
+            ValueError: Si ``max_rows`` no es un entero ≥ 1, o ``read_only`` sin ``db_type`` válido.
         """
         result = await self._execute_custom(
             sql=sql,
             params=params,
             deadline_seconds=deadline_seconds,
             expect_one=False,
+            read_only=read_only,
+            max_rows=max_rows,
+            db_type=db_type,
         )
         return self.result_normalizer.normalize_many(result)
 
@@ -351,6 +419,9 @@ class AsyncQueryExecutor:
         sql: str,
         params: dict[str, Any] | None = None,
         deadline_seconds: float | None = None,
+        *,
+        read_only: bool = False,
+        db_type: str | None = None,
     ) -> RowOrNone:
         """Como :meth:`execute_custom_many`, pero devuelve la primera fila o ``None``."""
         result = await self._execute_custom(
@@ -358,5 +429,7 @@ class AsyncQueryExecutor:
             params=params,
             deadline_seconds=deadline_seconds,
             expect_one=True,
+            read_only=read_only,
+            db_type=db_type,
         )
         return self.result_normalizer.normalize_one(result)
