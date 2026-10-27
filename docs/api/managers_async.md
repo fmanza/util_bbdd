@@ -32,6 +32,9 @@ flowchart TD
 | `init` | `async ()` | Abre la conexión; idempotente; retorna `self` | `AsyncDatabaseManager` |
 | `__aenter__` / `__aexit__` | `async` | Context manager async | `AsyncDatabaseManager` / `None` |
 | `get_schema_metadata` | `async (schema=None, *, kinds=ALL_KINDS, tables=None)` | Metadatos del schema con una consulta por tipo de objeto (tablas, columnas, claves, índices, routines…) ([lectura de metadatos](metadata_manager.md)) | `SchemaSnapshot` |
+| `ping` | `async ()` | Comprueba que la conexión responde con una consulta trivial del catálogo (también HSQLDB) y devuelve el tiempo de ida y vuelta en segundos; si no responde, lanza la excepción del driver (desde 4.6.0) | `float` |
+| `get_server_version` | `async ()` | Versión del servidor tal como la informa (`16.4`, `11.4.2-MariaDB`, `19.0.0.0.0`; en SQLite, la de la biblioteca) (desde 4.6.0) | `str \| None` |
+| `get_schema_names` | `async ()` | Schemas visibles, ordenados, con el nombre del catálogo (Oracle `BENCH`, no `bench`; PostgreSQL sin `pg_*`) (desde 4.6.0) | `list[str]` |
 | `get_tables`, `get_columns`, `get_primary_keys`, `get_foreign_keys`, `get_indices`… | `async`, mismas firmas que en `SyncDatabaseManager` | Lecturas del snapshot | Modelos de `util_bbdd.metadata.model` |
 | `get_ddl`, `get_columns_charset_collation`, `get_storage_inventory`, `get_storage_rows` | `async`, mismas firmas que en `SyncDatabaseManager` | DDL de tabla, collations de columnas e inventario de almacenamiento | Ver `SyncDatabaseManager` |
 | `get_database_version` | `async ()` | Versión del motor | `str` |

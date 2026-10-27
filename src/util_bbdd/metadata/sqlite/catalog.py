@@ -101,6 +101,14 @@ class SQLiteCatalog:
     def current_schema_sql(self) -> str:
         return "SELECT 'main'"
 
+    def server_version_sql(self) -> str:
+        """Versión del servidor como texto (G13 de util_bbdd_web, v4.6.0)."""
+        return "SELECT sqlite_version()"
+
+    def schema_names_sql(self) -> str:
+        """Schemas visibles, una fila por schema con su nombre tal como lo guarda el catálogo (G17, v4.6.0)."""
+        return "SELECT name FROM pragma_database_list WHERE name <> 'temp' ORDER BY seq"
+
     def normalize_name(self, name: str) -> str:
         return name[1:-1] if len(name) > 1 and name[0] == name[-1] and name[0] in '"`' else name
 

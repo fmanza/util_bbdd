@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 
 from collections.abc import Awaitable, Callable, Collection
 from dataclasses import replace
@@ -559,6 +560,20 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
             >>> snapshot = await manager.get_schema_metadata(kinds={Kind.TABLES, Kind.COLUMNS})
         """
         return await self.metadata_source.snapshot(schema, kinds=kinds, tables=tables)
+
+    async def ping(self) -> float:
+        """Como ``SyncDatabaseManager.ping``: tiempo de ida y vuelta en segundos (v4.6.0, G13)."""
+        start: float = time.perf_counter()
+        await self.metadata_source.ping()
+        return time.perf_counter() - start
+
+    async def get_server_version(self) -> str | None:
+        """Como ``SyncDatabaseManager.get_server_version`` (v4.6.0, G13)."""
+        return await self.metadata_source.server_version()
+
+    async def get_schema_names(self) -> list[str]:
+        """Como ``SyncDatabaseManager.get_schema_names`` (v4.6.0, G17)."""
+        return await self.metadata_source.schema_names()
 
     async def get_sqlalchemy_engine(self) -> Any:
         """AsyncEngine de SQLAlchemy del manager: se crea en la primera llamada, se reutiliza y ``close()`` lo cierra."""

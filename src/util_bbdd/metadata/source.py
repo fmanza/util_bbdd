@@ -22,6 +22,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Connection, Engine
 
+from .._core.exceptions import MetadataError
 from ._paramstyle import ParamStyle, expand_lists, to_driver
 from .catalog_registry import get_catalog_dialect
 from .contracts import AsyncCatalogExecutor, CatalogDialect, CatalogExecutor
@@ -174,6 +175,21 @@ class _SourceBase:
         self.cache.invalidate(self.source_id, self.dialect.normalize_name(schema) if schema else None, kinds)
         self._assembled.clear()
 
+    def _server_info_sql(self, method: str) -> str:
+        """SQL de :class:`~util_bbdd.metadata.contracts.ServerInfoCatalogDialect` (``server_version_sql``…)."""
+        build = getattr(self.dialect, method, None)
+        if build is None:
+            raise MetadataError(f"El dialecto de catálogo '{self.dialect.name}' no implementa {method}()")
+        return str(build())
+
+    @staticmethod
+    def _first_value(rows: list[tuple[Any, ...]]) -> str | None:
+        return str(rows[0][0]).strip() if rows and rows[0] and rows[0][0] is not None else None
+
+    @staticmethod
+    def _names(rows: list[tuple[Any, ...]]) -> list[str]:
+        return sorted({str(row[0]) for row in rows if row and row[0] is not None})
+
 
 class CatalogSource(_SourceBase):
     """:class:`~util_bbdd.metadata.contracts.MetadataSource` síncrona.
@@ -261,6 +277,30 @@ class CatalogSource(_SourceBase):
             self._default_schema = str(rows[0][0])
         return self._default_schema
 
+    def ping(self) -> None:
+        """Comprueba que la conexión responde con una consulta trivial del catálogo (sin caché; v4.6.0, G13).
+
+        Raises:
+            Exception: La del ejecutor o el driver si la conexión no responde.
+        """
+        self.executor.fetch_all(self.dialect.current_schema_sql(), {})
+
+    def server_version(self) -> str | None:
+        """Versión del servidor como texto (``16.4``, ``8.0.36``, ``19.0.0.0.0``…), leída cada vez (v4.6.0, G13).
+
+        Raises:
+            MetadataError: Si el dialecto no implementa ``ServerInfoCatalogDialect``.
+        """
+        return self._first_value(self.executor.fetch_all(self._server_info_sql("server_version_sql"), {}))
+
+    def schema_names(self) -> list[str]:
+        """Schemas visibles con el nombre del catálogo (Oracle ``BENCH``, no ``bench``), ordenados (v4.6.0, G17).
+
+        Raises:
+            MetadataError: Si el dialecto no implementa ``ServerInfoCatalogDialect``.
+        """
+        return self._names(self.executor.fetch_all(self._server_info_sql("schema_names_sql"), {}))
+
     def _load(self, kind: Kind, schema: str, tables: frozenset[str] | None) -> tuple[Any, ...]:
         self._resolve_dialect()
         request = self._request(kind, schema, tables)
@@ -331,6 +371,18 @@ class AsyncCatalogSource(_SourceBase):
             rows = await self.executor.fetch_all(self.dialect.current_schema_sql(), {})
             self._default_schema = str(rows[0][0])
         return self._default_schema
+
+    async def ping(self) -> None:
+        """Como :meth:`CatalogSource.ping`."""
+        await self.executor.fetch_all(self.dialect.current_schema_sql(), {})
+
+    async def server_version(self) -> str | None:
+        """Como :meth:`CatalogSource.server_version`."""
+        return self._first_value(await self.executor.fetch_all(self._server_info_sql("server_version_sql"), {}))
+
+    async def schema_names(self) -> list[str]:
+        """Como :meth:`CatalogSource.schema_names`."""
+        return self._names(await self.executor.fetch_all(self._server_info_sql("schema_names_sql"), {}))
 
     async def _resolve_dialect(self) -> None:
         """Resuelve la variante del dialecto según la versión del servidor (p.ej. Oracle 11g vs 12c+).

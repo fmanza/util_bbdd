@@ -235,8 +235,11 @@ class OracleCatalog:
     _sql: dict[Kind, tuple[str, str | None]] = _SQL
 
     def server_version_sql(self) -> str:
-        """Versión de la base de datos (``11.2.0.4.0``, ``19.0.0.0.0``); ``PRODUCT_COMPONENT_VERSION`` es pública."""
-        return "SELECT version FROM product_component_version WHERE product LIKE 'Oracle Database%' AND ROWNUM = 1"
+        """Versión de la base de datos (``11.2.0.4.0``, ``19.0.0.0.0``); ``PRODUCT_COMPONENT_VERSION`` es pública.
+
+        ``Oracle%Database%`` y no ``Oracle Database%``: en 23.26 el producto es ``Oracle AI Database 26ai Free``.
+        """
+        return "SELECT version FROM product_component_version WHERE product LIKE 'Oracle%Database%' AND ROWNUM = 1"
 
     def for_server_version(self, version: tuple[int, ...]) -> OracleCatalog:
         """:class:`Oracle11Catalog` antes de la 12 (sin ``ALL_TAB_IDENTITY_COLS``); si no, ``self``."""
@@ -244,6 +247,10 @@ class OracleCatalog:
 
     def current_schema_sql(self) -> str:
         return "SELECT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') FROM dual"
+
+    def schema_names_sql(self) -> str:
+        """Schemas visibles, una fila por schema con su nombre tal como lo guarda el catálogo (G17, v4.6.0)."""
+        return "SELECT username FROM all_users ORDER BY username"
 
     def normalize_name(self, name: str) -> str:
         """Sin comillas, Oracle guarda los nombres en mayúsculas: ``scott`` → ``SCOTT``; ``"Mixto"`` → ``Mixto``."""

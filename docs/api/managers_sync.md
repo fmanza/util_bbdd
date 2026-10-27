@@ -29,6 +29,9 @@ flowchart TD
 | `SyncDatabaseManager` | `(db_type, conn_params, queries_file=None, use_pool=True)` | Crea el gestor y abre la conexión (también como context manager: `with SyncDatabaseManager(...) as m:`) | `SyncDatabaseManager` |
 | `init` | `()` | No hace I/O (el manager sync conecta en `__init__`); existe por simetría con `AsyncDatabaseManager.init()` | `Self` |
 | `get_schema_metadata` | `(schema=None, *, kinds=ALL_KINDS, tables=None)` | Metadatos del schema con una consulta por tipo de objeto (tablas, columnas, claves, índices, routines…) ([lectura de metadatos](metadata_manager.md)) | `SchemaSnapshot` |
+| `ping` | `()` | Comprueba que la conexión responde con una consulta trivial del catálogo (también HSQLDB) y devuelve el tiempo de ida y vuelta en segundos; si no responde, lanza la excepción del driver (desde 4.6.0) | `float` |
+| `get_server_version` | `()` | Versión del servidor tal como la informa (`16.4`, `11.4.2-MariaDB`, `19.0.0.0.0`; en SQLite, la de la biblioteca) (desde 4.6.0) | `str \| None` |
+| `get_schema_names` | `()` | Schemas visibles, ordenados, con el nombre del catálogo (Oracle `BENCH`, no `bench`; PostgreSQL sin `pg_*`) (desde 4.6.0) | `list[str]` |
 | `get_tables` / `get_views` / `get_routines` | `()` | Objetos del schema, del snapshot | `list[TableMeta]` / `list[ViewMeta]` / `list[RoutineMeta]` |
 | `get_columns` | `(tabla)` | Columnas de una tabla o vista | `list[ColumnMeta]` |
 | `get_primary_keys` | `(tabla)` | Clave primaria | `PrimaryKeyMeta \| None` |

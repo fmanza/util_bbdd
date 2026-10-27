@@ -61,7 +61,7 @@ class TestOracleVersionDetection:
 
         assert sql is not None
         assert "product_component_version" in sql.lower()
-        assert "Oracle Database" in sql
+        assert "Oracle%Database%" in sql  # también «Oracle AI Database 26ai» (23.26)
         assert "version" in sql.lower()
         assert "SELECT" in sql
 

@@ -24,6 +24,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `plain`. `ConnectionParamsManager.param_kinds(db_type)` y `param_kind(db_type, name)`, y el tipo `ParamKind`, en
   `util_bbdd.connection`. `required` y `optional` no cambian. **Para la web (W-T2)**: `param_kind` de `catalog.py`
   pasa a leer `kind`; `KNOWN_PARAMS` puede quedarse como alarma de parámetros nuevos.
+- **managers** (G13 y G17 de util_bbdd_web): `ping()`, `get_server_version()` y `get_schema_names()` en
+  `SyncDatabaseManager` y `AsyncDatabaseManager` (en este, corrutinas). `ping()` ejecuta una consulta trivial del
+  catálogo con el driver nativo (también en HSQLDB, que no tiene SQLAlchemy) y devuelve el tiempo de ida y vuelta en
+  segundos; si la base de datos no responde, lanza la excepción del driver. `get_server_version()` devuelve la versión
+  como texto, tal como la informa el servidor. `get_schema_names()` devuelve los schemas visibles, ordenados, con el
+  nombre del catálogo: Oracle `BENCH` y no `bench`; PostgreSQL sin `pg_*`, como SQLAlchemy; MySQL/MariaDB, las bases de
+  datos; SQLite, `main` y las adjuntas. El SQL vive en los dialectos de catálogo (protocolo opcional
+  `ServerInfoCatalogDialect`: `server_version_sql()`, `schema_names_sql()`), y `CatalogSource` y `AsyncCatalogSource`
+  ganan `ping()`, `server_version()` y `schema_names()`, sin caché. Verificado en el banco (6 motores). **Para la web
+  (W-T3)**: `probe.py` y `metadata.py` sustituyen `server_version_info` y el `Inspector` con `denormalize_name` por
+  estos métodos; el schema por defecto sigue en `metadata_source.current_schema()`.
 
 ### Fixed
 
@@ -35,6 +46,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `get_database_type_driver_info()` de los managers y `get_driver_requirements()` de las queries devolvían `{}` en SQL
   Server; ahora, el driver predeterminado. **Para la web (W-T1)**: `OBSOLETE_DRIVERS` y `_driver_info()` de
   `catalog.py` se sustituyen por `drivers` y `default_driver`.
+- **metadata**: la consulta de versión del dialecto Oracle no reconocía Oracle 23.26 (el producto es `Oracle AI
+  Database 26ai Free`, no `Oracle Database …`). No tenía efecto (sin versión se usa la variante 12c+, la correcta),
+  pero `get_server_version()` habría devuelto `None`.
 - **connection** (G15 de util_bbdd_web): `build_conn_params` conserva los opcionales declarados del motor
   (`connection_params.optional` de `database_types.json`) que recibe y su builder no ponía: `sslmode`,
   `application_name` u `options` en PostgreSQL, `ssl_*` en MySQL/MariaDB, `encryption` o `trust_cert` en SQL Server,

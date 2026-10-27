@@ -205,6 +205,14 @@ class SQLServerCatalog:
     def current_schema_sql(self) -> str:
         return "SELECT SCHEMA_NAME()"
 
+    def server_version_sql(self) -> str:
+        """Versión del servidor como texto (G13 de util_bbdd_web, v4.6.0)."""
+        return "SELECT CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128))"
+
+    def schema_names_sql(self) -> str:
+        """Schemas visibles, una fila por schema con su nombre tal como lo guarda el catálogo (G17, v4.6.0)."""
+        return "SELECT name FROM sys.schemas ORDER BY name"
+
     def normalize_name(self, name: str) -> str:
         """SQL Server guarda los nombres tal cual se crearon (la comparación depende de la collation)."""
         return name[1:-1] if len(name) > 1 and name[0] == "[" and name[-1] == "]" else name

@@ -119,6 +119,23 @@ class VersionedCatalogDialect(CatalogDialect, Protocol):
 
 
 @runtime_checkable
+class ServerInfoCatalogDialect(CatalogDialect, Protocol):
+    """``CatalogDialect`` que sabe leer la versión del servidor y los schemas visibles (v4.6.0, G13 y G17).
+
+    Opcional: lo implementan los siete dialectos de la librería; ``CatalogSource.server_version()`` y
+    ``schema_names()`` lanzan ``MetadataError`` con un dialecto registrado que no lo implemente.
+    """
+
+    def server_version_sql(self) -> str:
+        """SQL sin parámetros que devuelve la versión del servidor como texto (primera columna de la primera fila)."""
+        ...
+
+    def schema_names_sql(self) -> str:
+        """SQL sin parámetros que devuelve un schema por fila (primera columna), con el nombre del catálogo."""
+        ...
+
+
+@runtime_checkable
 class CatalogExecutor(Protocol):
     """Ejecuta SQL de catálogo con parámetros ``:nombre`` y devuelve todas las filas como tuplas."""
 

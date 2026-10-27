@@ -228,6 +228,15 @@ class PostgreSQLCatalog:
     def current_schema_sql(self) -> str:
         return "SELECT pg_catalog.current_schema()"
 
+    def server_version_sql(self) -> str:
+        """Versión del servidor como texto (G13 de util_bbdd_web, v4.6.0)."""
+        return "SELECT current_setting('server_version')"
+
+    def schema_names_sql(self) -> str:
+        """Schemas visibles, una fila por schema con su nombre tal como lo guarda el catálogo (G17, v4.6.0)."""
+        # Como SQLAlchemy (get_schema_names): sin pg_catalog, pg_toast ni los temporales (pg_*); sin '%' (pyformat).
+        return "SELECT nspname FROM pg_catalog.pg_namespace WHERE substr(nspname, 1, 3) <> 'pg_' ORDER BY nspname"
+
     def normalize_name(self, name: str) -> str:
         """PostgreSQL guarda en minúsculas los nombres sin comillas, pero el catálogo se consulta con el nombre exacto."""
         return name[1:-1] if len(name) > 1 and name[0] == name[-1] == '"' else name

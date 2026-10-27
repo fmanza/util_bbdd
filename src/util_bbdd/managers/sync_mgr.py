@@ -5,6 +5,7 @@ Soporta MariaDB, Oracle, PostgreSQL, SQLite, HSQLDB y SQL Server.
 
 import logging
 import sys
+import time
 
 from collections.abc import Callable, Collection
 from dataclasses import replace
@@ -772,6 +773,37 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             >>> [(fk.table, fk.ref_table) for fk in snapshot.all_foreign_keys()]
         """
         return self.metadata_source.snapshot(schema, kinds=kinds, tables=tables)
+
+    def ping(self) -> float:
+        """Comprueba que la conexión responde y devuelve el tiempo de ida y vuelta en segundos (v4.6.0, G13).
+
+        Ejecuta una consulta trivial del catálogo con el driver nativo (también en HSQLDB, sin SQLAlchemy).
+
+        Raises:
+            Exception: La del driver o el pool si la base de datos no responde.
+
+        Examples:
+            >>> manager.ping() < 1.0
+            True
+        """
+        start: float = time.perf_counter()
+        self.metadata_source.ping()
+        return time.perf_counter() - start
+
+    def get_server_version(self) -> str | None:
+        """Versión del servidor tal como la informa (``16.4``, ``11.4.2-MariaDB``, ``19.0.0.0.0``…; v4.6.0, G13).
+
+        En SQLite, la de la biblioteca SQLite; en HSQLDB, ``DATABASE_VERSION()``. ``None`` si el servidor no la da.
+        """
+        return self.metadata_source.server_version()
+
+    def get_schema_names(self) -> list[str]:
+        """Schemas visibles para el usuario, ordenados, con el nombre que guarda el catálogo (v4.6.0, G17).
+
+        En Oracle, el usuario en mayúsculas (``BENCH``; SQLAlchemy lo normaliza a ``bench``); en MySQL/MariaDB, las
+        bases de datos; en SQLite, ``main`` y las adjuntas; en PostgreSQL, sin ``pg_*`` (como SQLAlchemy).
+        """
+        return self.metadata_source.schema_names()
 
     # ==================== MÉTODO PARA SQLALCHEMY ====================
 

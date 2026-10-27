@@ -187,6 +187,14 @@ class HSQLDBCatalog:
     def current_schema_sql(self) -> str:
         return "VALUES (CURRENT_SCHEMA)"
 
+    def server_version_sql(self) -> str:
+        """Versión del servidor como texto (G13 de util_bbdd_web, v4.6.0)."""
+        return "VALUES (DATABASE_VERSION())"
+
+    def schema_names_sql(self) -> str:
+        """Schemas visibles, una fila por schema con su nombre tal como lo guarda el catálogo (G17, v4.6.0)."""
+        return "SELECT schema_name FROM information_schema.schemata ORDER BY schema_name"
+
     def normalize_name(self, name: str) -> str:
         """HSQLDB guarda en mayúsculas los nombres sin comillas (como Oracle)."""
         if len(name) > 1 and name[0] == name[-1] == '"':
