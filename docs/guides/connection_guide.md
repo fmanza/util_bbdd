@@ -35,6 +35,15 @@ HSQLDB**. HSQLDB solo dispone de modo **síncrono** (sus factorías async lanzan
 Un extra se instala desde el repositorio (no está en PyPI):
 `pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v4.5.0"`.
 
+Para saber qué drivers del motor hay en el entorno y qué operaciones admite (v4.6.0):
+
+```python
+from util_bbdd.connection import get_driver_status, get_engine_capabilities
+
+print(get_driver_status("sqlserver"))  # (DriverStatus(name='pymssql', installed=True), ...)
+print(get_engine_capabilities("hsqldb").bulk)  # False: sin dialecto de SQLAlchemy
+```
+
 ### 3.2 Construir `conn_params` del motor
 
 Cada motor exige un conjunto mínimo de claves (ver referencia completa en §5):

@@ -5,6 +5,19 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **connection** (G5 y G10 de util_bbdd_web): `get_engine_capabilities(db_type) -> EngineCapabilities | None` y
+  `get_driver_status(db_type) -> tuple[DriverStatus, ...]`, en `util_bbdd.connection`. `EngineCapabilities` dice por
+  motor si admite async, origen y destino de `MigrationPlanner`, readiness, documentación, grafos, `SchemaComparator`,
+  volcado, constraints gestionadas por el volcado y `BulkCrud`; es una tabla de `core/capabilities.py` que un test
+  contrasta con la fuente de cada operación. `DriverStatus(name, installed)` comprueba con `importlib.util.find_spec`,
+  sin importar el driver, cada módulo de la lista `drivers` del motor. **Para la web (W-T1)**: sustituye
+  `EngineCapabilities`, `find_spec` y `migration_engines()` de `catalog.py`; `readiness` sale ya de la matriz (sin
+  llamar a `assess`).
+
 ## [4.5.0] - 2026-10-27
 
 SemVer: MINOR (añadidos, una corrección y un aviso de obsolescencia; solo parámetros opcionales nuevos, sin cambios de

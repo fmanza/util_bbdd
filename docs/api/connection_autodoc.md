@@ -68,3 +68,30 @@ curada: [Factory de Conexiones](connection_factory.md).
       members_order: source
       filters:
         - "!^_"
+
+---
+
+## Capacidades y drivers por motor (v4.6.0)
+
+`get_engine_capabilities(db_type)` dice qué operaciones admite un motor y `get_driver_status(db_type)` qué drivers
+de Python están instalados (sin importarlos). Las dos se importan desde `util_bbdd.connection`.
+
+::: util_bbdd.core.capabilities.get_engine_capabilities
+    options:
+      show_source: false
+      heading_level: 3
+
+::: util_bbdd.core.capabilities.EngineCapabilities
+    options:
+      show_source: false
+      heading_level: 3
+
+::: util_bbdd._drivers.driver_status.get_driver_status
+    options:
+      show_source: false
+      heading_level: 3
+
+::: util_bbdd._drivers.driver_status.DriverStatus
+    options:
+      show_source: false
+      heading_level: 3

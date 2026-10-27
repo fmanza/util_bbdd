@@ -84,6 +84,13 @@ __all__: list[str] = [
     "EngineReadinessAdvisor",
     "EngineReadinessReport",
     "AdvisoryFinding",
+    # Capacidades y drivers por motor (v4.6.0, G5 y G10 de util_bbdd_web)
+    "EngineCapabilities",
+    "get_engine_capabilities",
+    "DriverStatus",
+    "get_driver_status",
 ]
 
+from .._drivers.driver_status import DriverStatus, get_driver_status
+from ..core.capabilities import EngineCapabilities, get_engine_capabilities
 from .performance_advisor import AdvisoryFinding, EngineReadinessAdvisor, EngineReadinessReport
