@@ -5,7 +5,16 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [4.6.0] - 2026-10-27
+
+SemVer: MINOR (añadidos, correcciones y dos correcciones de seguridad; solo parámetros opcionales nuevos, sin cambios de
+valor por defecto; G11 como `security` en MINOR por la decisión D2 del plan). Ola 6 del plan de huecos de
+util_bbdd_web (catálogo, conexiones y explorador): G5, G10, G8, G14, G12, G15, G11, G13, G17, G18, G19 y G20. Cambios
+que se notan al actualizar: `cx_Oracle` desaparece de los drivers de Oracle; `get_db_type_driver_info("sqlserver")`
+devuelve el driver predeterminado en lugar de `{}`; `build_conn_params` conserva los opcionales declarados;
+`get_database_info()` enmascara los secretos; una plantilla de query que interpole con `{nombre}` un valor que no sea
+identificador ni número lanza `QueryValidationError` (los valores van como `:nombre`). Cada entrada dice qué necesita
+la web (fases W-T1 a W-T4).
 
 ### Added
 
