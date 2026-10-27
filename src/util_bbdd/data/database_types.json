@@ -298,7 +298,6 @@
       "version_range": "11g R2+",
       "default_port": 1521,
       "drivers": [
-        "cx_Oracle",
         "oracledb"
       ],
       "url_docs": "https://docs.oracle.com/",
@@ -771,6 +770,7 @@
       "driver_info": [
         {
           "name": "pymssql",
+          "default": true,
           "pip_package": "pymssql",
           "import_name": "pymssql",
           "install_command": "pip install \"util_bbdd[sqlserver]\"  (o: pip install pymssql)",

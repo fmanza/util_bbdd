@@ -44,6 +44,10 @@ print(get_driver_status("sqlserver"))  # (DriverStatus(name='pymssql', installed
 print(get_engine_capabilities("hsqldb").bulk)  # False: sin dialecto de SQLAlchemy
 ```
 
+La ficha del motor (`SyncDatabaseManager.get_db_type_info_static(db_type)`) trae `default_driver` desde v4.6.0: el
+driver predeterminado con la misma forma en todos los motores (`name`, `pip_package`, `install_command`,
+`system_requirements`…). `driver_info` no cambia: en SQL Server sigue siendo la lista de opciones (`pymssql`, `pyodbc`).
+
 ### 3.2 Construir `conn_params` del motor
 
 Cada motor exige un conjunto mínimo de claves (ver referencia completa en §5):

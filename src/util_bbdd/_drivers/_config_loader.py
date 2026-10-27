@@ -81,11 +81,41 @@ class ConfigTypeCoercer:
         return cast(ErrorMessagesConfig, value) if isinstance(value, dict) else {}
 
 
+def default_driver(driver_info: Any) -> JsonDict:
+    """Driver predeterminado de un motor con la misma forma en todos (G14 de util_bbdd_web, v4.6.0).
+
+    ``driver_info`` es un ``dict`` en todos los motores salvo SQL Server, que lista una opción por driver: se toma la
+    marcada con ``"default": true`` (o la primera). El resultado es una copia con ``name`` (el ``import_name`` si el
+    ``dict`` no lo trae), ``pip_package``, ``install_command``, ``system_requirements``… del driver.
+
+    Args:
+        driver_info: Valor de ``driver_info`` del motor en ``database_types.json``.
+    """
+    if isinstance(driver_info, list):
+        options = [ConfigTypeCoercer.to_json_dict(option) for option in driver_info]
+        chosen = next((option for option in options if option.get("default") is True), options[0] if options else {})
+    else:
+        chosen = ConfigTypeCoercer.to_json_dict(driver_info)
+    result = dict(chosen)
+    result.pop("default", None)
+    if "name" not in result and "import_name" in result:
+        result["name"] = result["import_name"]
+    return result
+
+
+def with_default_drivers(config: JsonDict) -> JsonDict:
+    """Añade ``default_driver`` (:func:`default_driver`) a cada motor de ``database_types``; ``driver_info`` no cambia."""
+    for info in ConfigTypeCoercer.to_json_object_map(config.get("database_types")).values():
+        if isinstance(info, dict) and "driver_info" in info:
+            info["default_driver"] = default_driver(info["driver_info"])
+    return config
+
+
 def load_database_type_config(config_file: Path) -> JsonDict:
-    """Carga el JSON de configuracion de tipos de base de datos."""
+    """Carga el JSON de configuracion de tipos de base de datos, con ``default_driver`` en cada motor (v4.6.0)."""
     try:
         with config_file.open(encoding="utf-8") as file_handle:
-            return ConfigTypeCoercer.to_json_dict(json.load(file_handle))
+            return with_default_drivers(ConfigTypeCoercer.to_json_dict(json.load(file_handle)))
     except FileNotFoundError as error:
         raise FileNotFoundError(f"Archivo de configuración no encontrado: {config_file}") from error
     except json.JSONDecodeError as error:
@@ -98,5 +128,7 @@ __all__: list[str] = [
     "JsonDict",
     "JsonObjectMap",
     "OptionalParamsConfig",
+    "default_driver",
     "load_database_type_config",
+    "with_default_drivers",
 ]

@@ -183,8 +183,10 @@ class DatabaseQueries:
         return [str(feature) for feature in raw_features]
 
     def get_driver_requirements(self) -> dict[str, Any]:
-        """Obtiene los requisitos del driver para el tipo de base de datos"""
+        """Obtiene los requisitos del driver para el tipo de base de datos (en SQL Server, los del predeterminado)."""
         raw_driver_info: Any = self.db_metadata.get("driver_info", {})
+        if not isinstance(raw_driver_info, dict):
+            raw_driver_info = self.db_metadata.get("default_driver", {})  # G14: driver_info es una lista de opciones
         return cast(dict[str, Any], raw_driver_info if isinstance(raw_driver_info, dict) else {})
 
     def get_connection_examples(self) -> dict[str, dict[str, Any]]:

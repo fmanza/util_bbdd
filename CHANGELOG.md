@@ -18,6 +18,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `EngineCapabilities`, `find_spec` y `migration_engines()` de `catalog.py`; `readiness` sale ya de la matriz (sin
   llamar a `assess`).
 
+### Fixed
+
+- **data** (G8 y G14 de util_bbdd_web): `cx_Oracle` sale de los `drivers` de Oracle (obsoleto; la librería usa
+  `oracledb`). Cada motor de `get_db_type_info_static` / `get_db_type_info` trae `default_driver`, el driver
+  predeterminado con la misma forma en todos (`name`, `pip_package`, `import_name`, `install_command`,
+  `system_requirements`…); en SQL Server es la opción marcada `"default": true` en `database_types.json` (`pymssql`).
+  `driver_info` no cambia (en SQL Server sigue siendo la lista de opciones). `get_db_type_driver_info("sqlserver")`,
+  `get_database_type_driver_info()` de los managers y `get_driver_requirements()` de las queries devolvían `{}` en SQL
+  Server; ahora, el driver predeterminado. **Para la web (W-T1)**: `OBSOLETE_DRIVERS` y `_driver_info()` de
+  `catalog.py` se sustituyen por `drivers` y `default_driver`.
+
 ## [4.5.0] - 2026-10-27
 
 SemVer: MINOR (añadidos, una corrección y un aviso de obsolescencia; solo parámetros opcionales nuevos, sin cambios de

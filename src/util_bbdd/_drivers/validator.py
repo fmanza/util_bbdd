@@ -182,10 +182,14 @@ class DatabaseTypeValidator:
             db_type: Tipo de base de datos
 
         Returns:
-            Diccionario con información del driver
+            Diccionario con información del driver. En SQL Server, cuyo ``driver_info`` lista una opción por driver, el
+            predeterminado (``default_driver``); hasta v4.5.x era ``{}`` (G14 de util_bbdd_web).
         """
         info = self.get_db_type_info(db_type)
-        return ConfigTypeCoercer.to_json_dict(info.get("driver_info"))
+        raw = info.get("driver_info")
+        if isinstance(raw, list):
+            return ConfigTypeCoercer.to_json_dict(info.get("default_driver"))
+        return ConfigTypeCoercer.to_json_dict(raw)
 
     def get_db_type_connection_params(self, db_type: str) -> JsonDict:
         """Obtiene la configuración de parámetros de conexión de un tipo de BD.
