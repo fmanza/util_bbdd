@@ -222,11 +222,15 @@ class ParallelOptions:
             ``BulkCrud.maintenance_scope``); exige ``disable_constraints=True`` y lanza ``IndexRebuildError`` si un
             único no se reconstruye. Con 4 hilos solo compensa en SQL Server y Oracle.
         retry: Reintentos por partición (:class:`RetryOptions`).
+        require_atomic: Solo ``BulkCrud`` (v4.5.0, G36 de util_bbdd_web): ``True`` fuerza un hilo para que cada
+            ``bulk_*_from_df`` vaya en una transacción (``ParallelPlan.atomic``), sea cual sea ``mode``. Útil para
+            dejar ``ParallelOptions`` configurado y pedir la atomicidad por carga. Exige ``BatchOptions`` sin
+            ``commit_every_n_chunks``; ``ParallelBulkLoader`` no lo admite (cada partición es una transacción).
 
     Raises:
         ValueError: Si ``mode`` no es ``"off"``, ``"manual"`` ni ``"auto"``, ``max_workers`` no es un entero ≥ 1 o
-            ``min_rows`` no es ``None`` ni un entero ≥ 1, o ``disable_indexes`` no es ``bool``, ``"secondary"`` ni
-            ``"all"`` (o es ``"all"`` sin ``disable_constraints``).
+            ``min_rows`` no es ``None`` ni un entero ≥ 1, ``disable_indexes`` no es ``bool``, ``"secondary"`` ni
+            ``"all"`` (o es ``"all"`` sin ``disable_constraints``), o ``require_atomic`` no es ``bool``.
     """
 
     mode: ParallelMode = "manual"
@@ -236,8 +240,11 @@ class ParallelOptions:
     disable_constraints: bool = False
     disable_indexes: bool | IndexMode = False
     retry: RetryOptions = field(default_factory=RetryOptions)
+    require_atomic: bool = False
 
     def __post_init__(self) -> None:
+        if not isinstance(self.require_atomic, bool):
+            raise ValueError(f"require_atomic debe ser bool, recibido: {self.require_atomic!r}")
         if self.mode not in _PARALLEL_MODES:
             raise ValueError(f"mode debe ser 'off', 'manual' o 'auto', recibido: {self.mode!r}")
         _positive_int(self.max_workers, "max_workers")
@@ -266,6 +273,9 @@ class BulkOptions:
         # F2 del AUDIT_PLAN (sesión 2026-10-18b): con disable_indexes="all" los duplicados no dan error que apartar.
         if self.parallel is not None and self.parallel.disable_indexes == "all" and self.rejects.on_error == "isolate":
             raise ValueError("ParallelOptions(disable_indexes='all') no admite RejectOptions(on_error='isolate').")
+        if self.parallel is not None and self.parallel.require_atomic and self.batch.commit_every_n_chunks is not None:
+            # G36: con commits periódicos la carga no es atómica ni en un hilo.
+            raise ValueError("ParallelOptions(require_atomic=True) no admite BatchOptions(commit_every_n_chunks=...).")
 
     @classmethod
     def of(

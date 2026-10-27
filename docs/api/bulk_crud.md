@@ -45,7 +45,7 @@ flowchart TD
 | `unaudited_committed_rows` | propiedad | Con `commit_every_n_chunks`: filas confirmadas por commits periódicos que no constan en el CSV porque la sesión falló antes de confirmar entera su operación | `int` |
 | `audit_uncommitted_records` | propiedad | Con `audit.strict=True`: registros escritos en el CSV antes de un commit que falló | `int` |
 | `options` | propiedad | Paquetes de opciones de la instancia (v3.0.0) | `BulkOptions` |
-| `parallel_plan` | `(operation, rows)` | Plan de ejecución de un `bulk_*_from_df` con las `ParallelOptions` de la instancia: hilos y motivos (`reasons`). Sin `parallel`, en serie | `ParallelPlan` |
+| `parallel_plan` | `(operation, rows)` | Plan de ejecución de un `bulk_*_from_df` con las `ParallelOptions` de la instancia: hilos, motivos (`reasons`) y `atomic` (desde 4.5.0: `True` si la operación irá en una sola transacción; `False` con más de un hilo o con `commit_every_n_chunks`). Sin `parallel`, en serie | `ParallelPlan` |
 | `last_parallel_result` | propiedad | Resultado de la última carga paralela de un `bulk_*_from_df` (también tras `ParallelLoadError`); `None` si no hubo. Desde 4.5.0 sus `total_rows` cuentan en `rows_committed` y `last_operation_rows_committed`. Si falló alguna partición, las confirmadas no forman un prefijo: para reanudar, `partition_results` dice qué particiones fallaron | `ParallelLoadResult \| None` |
 
 ### Contrato de entrada
@@ -84,7 +84,7 @@ construirse, antes de tocar la BD. `ParallelBulkLoader` recibe los mismos.
 | `AuditOptions` | `csv_path=None`, `strict=False`, `sink=None`, `run_id=None`, `warn_if_disabled=True` |
 | `RejectOptions` | `on_error="raise"`, `csv_path=None`, `max_rejects=None` |
 | `ExecutionOptions` | `fast_executemany=True`, `insert_resolver=None`, `update_via_staging=True`, `strip_strings=True`, `reflect_foreign_keys=True` |
-| `ParallelOptions` | `mode="manual"`, `max_workers=4`, `partition_column=None`, `min_rows=None`, `disable_constraints=False`, `disable_indexes=False` (v3.2.0; `"all"` desde v3.3.0), `retry=RetryOptions()` |
+| `ParallelOptions` | `mode="manual"`, `max_workers=4`, `partition_column=None`, `min_rows=None`, `disable_constraints=False`, `disable_indexes=False` (v3.2.0; `"all"` desde v3.3.0), `retry=RetryOptions()`, `require_atomic=False` (v4.5.0: `True` fuerza un hilo para que cada `bulk_*_from_df` sea atómico; solo `BulkCrud`, sin `commit_every_n_chunks`) |
 | `RetryOptions` | `max_retries=0`, `backoff=(0.5, 30.0)`, `retry_on=None` |
 
 ```python

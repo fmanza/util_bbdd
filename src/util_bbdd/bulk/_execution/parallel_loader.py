@@ -275,7 +275,13 @@ class ParallelBulkLoader:
 
         Raises:
             AuditConfigError: Si no se puede crear el directorio de ``audit.csv_path`` (subclase de ``ValueError``).
+            ValueError: Si ``parallel.require_atomic`` es ``True``: cada partición es una transacción (G36).
         """
+        if parallel is not None and parallel.require_atomic:
+            raise ValueError(
+                "ParallelBulkLoader carga cada partición en su transacción: ParallelOptions(require_atomic=True) solo "
+                "aplica a BulkCrud."
+            )
         options = BulkOptions.of(
             batch=batch, audit=audit, rejects=rejects, execution=execution, parallel=parallel or ParallelOptions()
         )
@@ -544,6 +550,7 @@ class ParallelBulkLoader:
             options=replace(self._parallel, max_workers=self._max_workers),
             partitions=partitions,
             staging_update=self._options.execution.update_via_staging,
+            periodic_commits=self._options.batch.commit_every_n_chunks is not None,
         )
         plan = ParallelPlanner.plan(facts_in)
         if plan.parallel and operation == "update" and facts_in.staging_update and not self._staging_update_available():

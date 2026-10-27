@@ -7,6 +7,15 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **bulk** (G36 de util_bbdd_web): `ParallelPlan.atomic` dice si la carga irá en una sola transacción: `True` con un
+  hilo, una partición y sin `commit_every_n_chunks`; `False` con más de un hilo (una transacción por partición: si una
+  falla, las demás quedan confirmadas). Lo calcula `ParallelPlanner.plan` (hecho nuevo `PlanInput.periodic_commits`);
+  `BulkCrud.parallel_plan(operation, rows).atomic` lo da antes de cargar. Un `ParallelPlan` construido a mano es
+  `atomic=False` salvo que se indique. `ParallelOptions(require_atomic=True)` fuerza un hilo en `BulkCrud`; exige
+  `BatchOptions` sin `commit_every_n_chunks` y `ParallelBulkLoader` lo rechaza (`ValueError`).
+
 ### Fixed
 
 - **bulk** (G37 de util_bbdd_web): `BulkCrud.rows_committed` y `last_operation_rows_committed` cuentan en todos los

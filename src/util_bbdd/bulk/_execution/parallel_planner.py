@@ -20,7 +20,7 @@ Dos tipos de reglas:
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import ClassVar, Literal
 
@@ -110,6 +110,8 @@ class PlanInput:
         staging_update: En MySQL/MariaDB y PostgreSQL, el UPDATE irá por tabla temporal (``update_via_staging`` y, en
             PostgreSQL, privilegio ``TEMP``). Se ignora en el resto de motores, que no la usan.
         workload: Origen de los datos de cada partición (:data:`Workload`).
+        periodic_commits: La carga confirma cada N lotes (``BatchOptions.commit_every_n_chunks``): no es atómica ni en
+            un hilo (v4.5.0, :attr:`ParallelPlan.atomic`).
     """
 
     dialect: str
@@ -120,6 +122,7 @@ class PlanInput:
     pool_capacity: int | None = None
     staging_update: bool = True
     workload: Workload = "memory"
+    periodic_commits: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,10 +132,15 @@ class ParallelPlan:
     Attributes:
         workers: Hilos (y particiones, en ``BulkCrud`` y ``dump``) que usar; 1 = en serie.
         reasons: Por qué se recortaron los hilos pedidos o en qué medición se basa la decisión, en orden.
+        atomic: ``True`` si la carga va en una sola transacción: un hilo, una partición y sin ``commit_every_n_chunks``
+            (v4.5.0, G36 de util_bbdd_web). Con más de un hilo cada partición es una transacción y, si una falla, las
+            demás quedan confirmadas. Con ``ParallelBulkLoader`` y varias particiones tampoco lo es en un hilo. Lo
+            calcula :meth:`ParallelPlanner.plan`; un plan construido a mano es ``False`` salvo que se indique.
     """
 
     workers: int
     reasons: tuple[str, ...] = ()
+    atomic: bool = False
 
     @property
     def parallel(self) -> bool:
@@ -178,9 +186,18 @@ class ParallelPlanner:
             facts: Datos de la carga (opciones, motor, operación, filas, particiones y capacidad del pool).
 
         Returns:
-            Número de hilos y motivos de cada recorte.
+            Número de hilos, motivos de cada recorte y si la carga es atómica (:attr:`ParallelPlan.atomic`).
         """
+        plan = cls._plan_workers(facts)
+        atomic: bool = plan.workers == 1 and (facts.partitions or 1) <= 1 and not facts.periodic_commits
+        return replace(plan, atomic=atomic)
+
+    @classmethod
+    def _plan_workers(cls, facts: PlanInput) -> ParallelPlan:
+        """Hilos y motivos de :meth:`plan`, sin :attr:`ParallelPlan.atomic`."""
         options = facts.options
+        if options.require_atomic:
+            return ParallelPlan(1, ("require_atomic=True: en serie, en una transacción",))
         if options.mode == "off":
             return ParallelPlan(1, ("mode='off': en serie",))
         workers: int = options.max_workers

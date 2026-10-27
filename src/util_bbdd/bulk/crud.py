@@ -408,6 +408,8 @@ class BulkCrud:
         (:meth:`parallel_plan`) da más de un hilo el DataFrame se reparte en particiones consecutivas que inserta
         ``ParallelBulkLoader``, una transacción por partición: **deja de ser atómica**. Si alguna partición falla, lanza
         ``ParallelLoadError`` (las demás quedan confirmadas); el resultado queda en :attr:`last_parallel_result`.
+        ``parallel_plan("insert", len(df)).atomic`` lo dice antes de cargar; ``ParallelOptions(require_atomic=True)``
+        fuerza un hilo.
         """
         if self.__run_in_parallel(
             df,
@@ -792,12 +794,17 @@ class BulkCrud:
         ``plan.reasons`` explica la decisión. Sin ``parallel`` en el constructor, en serie. En el UPDATE de PostgreSQL
         comprueba (una vez por instancia, solo si el plan es paralelo) el privilegio ``TEMP``.
 
+        ``plan.atomic`` (v4.5.0, G36 de util_bbdd_web) dice si la operación irá en una sola transacción: ``False`` con
+        más de un hilo (una transacción por partición) o con ``commit_every_n_chunks``. ``ParallelOptions(
+        require_atomic=True)`` fuerza un hilo. Es el plan de una operación fuera de :meth:`bulk_session` (dentro va
+        siempre en serie, en la transacción de la sesión) y con ``generar_sql=False``.
+
         Args:
             operation: ``"insert"``, ``"update"`` o ``"delete"``.
             rows: Número de filas de la operación.
 
         Returns:
-            ``ParallelPlan`` con el número de hilos (``workers``) y los motivos (``reasons``).
+            ``ParallelPlan`` con el número de hilos (``workers``), los motivos (``reasons``) y ``atomic``.
 
         Examples:
             >>> crud = BulkCrud(engine, parallel=ParallelOptions(mode="auto"))  # doctest: +SKIP
@@ -805,8 +812,9 @@ class BulkCrud:
             ('INSERT en mssql: INSERT 50K-1M: 2,4-2,8× con 4 hilos',)
         """
         options = self._options.parallel
+        periodic_commits: bool = self._options.batch.commit_every_n_chunks is not None
         if options is None:
-            return ParallelPlan(1, ("sin ParallelOptions: en serie",))
+            return ParallelPlan(1, ("sin ParallelOptions: en serie",), atomic=not periodic_commits)
         dialect: str = self.engine.dialect.name
         plan_input = PlanInput(
             dialect=dialect,
@@ -815,6 +823,7 @@ class BulkCrud:
             rows=rows,
             pool_capacity=pool_capacity(self.engine),
             staging_update=self._update_via_staging,
+            periodic_commits=periodic_commits,
         )
         plan = ParallelPlanner.plan(plan_input)
         if plan.parallel and operation == "update" and dialect == "postgresql" and self._update_via_staging:
