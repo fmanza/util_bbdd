@@ -306,6 +306,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-10-26-web-gaps-ola2 | **v4.2.0**: ola 2 del plan de huecos de util_bbdd_web (comparación): etiquetas sin datos de conexión, `SchemaDiff.to_dict`/`from_dict`, Mermaid con SRI y `mermaid_src`, progreso/cancelación en `compare()` | claude/practical-ride-44fot0 | new_feature + version-closure | CLOSED | `2026-10-26-web-gaps-ola2/TRACEABILITY.md` |
 | 2026-10-26-web-gaps-ola3 | **v4.3.0**: ola 3 del plan de huecos de util_bbdd_web (migración): motores públicos, FK con el tipo de la referenciada, `MigrationPlan.to_dict`/`from_dict`, `check_target()`, modo seco y `stop_on_error`, progreso/cancelación en `execute()` | develop | new_feature + version-closure | CLOSED | `2026-10-26-web-gaps-ola3/TRACEABILITY.md` |
 | 2026-10-27-web-gaps-ola4 | **v4.4.0**: ola 4 del plan de huecos de util_bbdd_web (volcado): `plan()`, auditoría por tabla, diario de constraints y `restore_constraints()`, isolate de una fila en Oracle, fechas de SQLite, `error_msg` saneado, aviso de `truncate_target`, progreso/cancelación en `run()` | develop | new_feature + version-closure | CLOSED | `2026-10-27-web-gaps-ola4/TRACEABILITY.md` |
+| 2026-10-27-web-gaps-ola5 | **v4.5.0**: ola 5 del plan de huecos de util_bbdd_web (carga bulk): contadores de filas en todos los modos, `ParallelPlan.atomic`, `dry_run` y aviso de `generar_sql`, progreso/cancelación por lote | develop | new_feature + version-closure | CLOSED | `2026-10-27-web-gaps-ola5/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 

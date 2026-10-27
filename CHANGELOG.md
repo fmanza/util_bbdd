@@ -5,7 +5,14 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [4.5.0] - 2026-10-27
+
+SemVer: MINOR (añadidos, una corrección y un aviso de obsolescencia; solo parámetros opcionales nuevos, sin cambios de
+valor por defecto). Ola 5 del plan de huecos de util_bbdd_web (carga bulk): G37, G36, G35 y G1. Cambios que se notan
+al actualizar: `rows_committed` y `last_operation_rows_committed` dejan de ser 0 en modo atómico y suman las cargas
+paralelas; `bulk_*_from_df` sin `generar_sql` ni `dry_run` emite `FutureWarning`; la igualdad de dos `ParallelPlan`
+compara también `atomic`. Una cancelación (`cancel_token`) de una carga de una sola transacción la deshace entera (ver
+el último punto de Added).
 
 ### Added
 

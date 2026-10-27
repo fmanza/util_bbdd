@@ -4,7 +4,7 @@ Librería Python para **operaciones de base de datos** en MariaDB, MySQL, Oracle
 async) y HSQLDB (sync): conexiones con pool, carga masiva desde DataFrames, volcado entre motores, migración DDL,
 comparación de esquemas y documentación de la base de datos.
 
-**Version:** 4.4.0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 4.5.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -29,11 +29,11 @@ comparación de esquemas y documentación de la base de datos.
 `util_bbdd` no está publicado en PyPI: se instala desde el repositorio, fijando la versión con su tag.
 
 ```bash
-pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v4.4.0"
+pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v4.5.0"
 
 # Con los drivers de un motor (extras: postgresql, mariadb, mysql, oracle, sqlserver, sqlserver-odbc, hsqldb,
 # sqlite-async; se combinan con comas)
-pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v4.4.0"
+pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v4.5.0"
 ```
 
 La documentación de BD (`openpyxl`, `python-docx`, `jinja2`) y pandas van en la instalación base; los drivers de
@@ -347,7 +347,7 @@ pruebas (`scripts/bench_env.example.sh`). Flujo con asistentes de IA (Claude Cod
 [Semantic Versioning](https://semver.org/): desde 1.0.0, la API pública (la raíz y los submódulos públicos listados
 arriba) solo cambia de forma incompatible en una versión MAJOR.
 
-**Current Version: v4.4.0** (volcado: `DumpOrchestrator.plan()`, eventos de auditoría por tabla durante el volcado, diario de constraints y `restore_constraints()`, `on_error="isolate"` con lotes de una fila en Oracle, fechas ISO de SQLite, `error_msg` sin datos de negocio, `FutureWarning` si `truncate_target` no es explícito, y progreso y cancelación en `run()`)
+**Current Version: v4.5.0** (carga bulk: `rows_committed` y `last_operation_rows_committed` también en modo atómico y en paralelo, `ParallelPlan.atomic` y `ParallelOptions(require_atomic=True)`, `dry_run` y `FutureWarning` si `generar_sql` no es explícito, y progreso y cancelación por lote)
 
 Historial completo: [CHANGELOG.md](CHANGELOG.md) · Hoja de ruta: [docs/roadmap.md](docs/roadmap.md).
 
