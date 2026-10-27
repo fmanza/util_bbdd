@@ -5,6 +5,23 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Documentation
+
+- **Publicar una versión** (`docs/guides/release_guide.md`, en la navegación tras «Incorporación para
+  Desarrolladores»): de `develop` terminado a la release completa, en Git Bash. Comprobaciones, commit de versión
+  (con la lista de `sync.instructions.md` y el cambio de las líneas de instalación `@vX.Y.Z`), wheel y `.sha256` con
+  prueba en un venv limpio, `main` por fast-forward, tag anotado, y release con `gh`. La release se crea o se completa
+  según exista o no, porque `docs-release.yml` también la crea al subir el tag. Incluye verificación con
+  `sha256sum -c`, qué hacer si algo sale mal, y ramas y Dependabot. La sección «Publicar una release» de
+  `onboarding_dev.md` remite a ella.
+
+### Changed
+
+- **Dependabot** (`.github/dependabot.yml`): mensual, un PR agrupado por ecosistema (`pip`, `github-actions`) y contra
+  `develop` (antes semanal, hasta 5 PR por ecosistema y contra `main`).
+
 ## [4.6.0] - 2026-10-27
 
 SemVer: MINOR (añadidos, correcciones y dos correcciones de seguridad; solo parámetros opcionales nuevos, sin cambios de

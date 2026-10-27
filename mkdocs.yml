@@ -109,6 +109,7 @@ nav:
   # ── Guías de uso y operación ───────────────────────────────────────────────
   - Guías:
       - Incorporación para Desarrolladores: guides/onboarding_dev.md
+      - Publicar una versión: guides/release_guide.md
       - Conexión y Drivers:
           - Conexión y Drivers por Motor: guides/connection_guide.md
           - MariaDB v0.35.0 (Charset Handling): guides/mariadb_v0.35.0_charset_handling.md
