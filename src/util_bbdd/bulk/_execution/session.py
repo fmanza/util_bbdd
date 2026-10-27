@@ -9,6 +9,8 @@ ejecutores comparten un :class:`SessionScope` y cada uno lleva su :class:`Commit
 - Las filas pendientes y confirmadas (:class:`RowLedger`) son de la sesión: un commit confirma la transacción entera,
   lo haga el ejecutor que lo haga (2a, 2026-09-27: el commit periódico del DELETE confirmaba filas de INSERT que no se
   contaban). Desde v0.18.0 las filas del DELETE también se cuentan (ver ``BulkCrud.rows_committed``).
+- Desde v4.5.0 (G37 de util_bbdd_web) el libro cuenta también sin cadencia: las filas quedan pendientes hasta el commit
+  de la transacción de la operación o de la sesión, que las confirma (antes, en modo atómico, no se anotaban).
 """
 
 from __future__ import annotations
@@ -59,6 +61,11 @@ class RowLedger:
         self.pending = 0
         self.op_pending = 0
 
+    def record_committed(self, rows: int) -> None:
+        """Anota ``rows`` filas confirmadas fuera de la transacción del libro (carga paralela: cada partición la suya)."""
+        self.committed += rows
+        self.op_committed += rows
+
 
 @dataclass
 class CommitCadence:
@@ -91,11 +98,15 @@ class CommitCadence:
         self.batches = 0
 
     def on_batch(self, rows: int) -> bool:
-        """Registra un lote de ``rows`` filas; ``True`` si toca un commit periódico. Sin cadencia no hace nada."""
-        if self.every is None:
-            return False
+        """Registra un lote de ``rows`` filas; ``True`` si toca un commit periódico.
+
+        Sin cadencia las filas también se anotan (pendientes hasta el commit de la transacción, G37), pero nunca toca un
+        commit periódico.
+        """
         if self.count_rows:
             self.ledger.add(rows)
+        if self.every is None:
+            return False
         self.batches += 1
         return self.batches >= self.every
 

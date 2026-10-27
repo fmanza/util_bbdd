@@ -148,14 +148,14 @@ class TestRowsCommittedTracking:
     """BLK-08 (AUDIT_CODE 2026-09-22): rows_committed debe reflejar solo las filas
     que ya sobrevivieron un commit real, no las ejecutadas-pero-pendientes."""
 
-    def test_rows_committed_stays_zero_without_cadence(self) -> None:
+    def test_rows_committed_counts_the_atomic_commit(self) -> None:
         engine = _make_sqlite_engine()
         crud = BulkCrud(engine, batch=BatchOptions(chunk_size=2))  # sin commit_every_n_chunks (modo atómico)
         df = pd.DataFrame({"id": [1, 2, 3], "name": ["a", "b", "c"]})
 
         crud.bulk_insert_from_df(df, "items", generar_sql=False)
 
-        assert crud.rows_committed == 0
+        assert crud.rows_committed == 3  # G37 (v4.5.0): hasta v4.4.x se quedaba en 0 sin cadencia
 
     def test_rows_committed_accumulates_periodic_and_tail_commits(self) -> None:
         engine = _make_sqlite_engine()

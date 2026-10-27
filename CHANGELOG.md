@@ -5,6 +5,21 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **bulk** (G37 de util_bbdd_web): `BulkCrud.rows_committed` y `last_operation_rows_committed` cuentan en todos los
+  modos. Hasta 4.4.x solo avanzaban con `commit_every_n_chunks`: en modo atómico (el de por defecto) se quedaban en 0, y
+  las cargas paralelas de `bulk_*_from_df` no sumaban. Ahora suman las filas de cada transacción confirmada (la de la
+  operación, la de `bulk_session` o las de la cadencia) y las de las particiones confirmadas de una carga paralela
+  (`last_parallel_result.total_rows`); una operación atómica que falla sigue sin sumar nada. El significado no cambia:
+  filas enviadas (`len(df)`, con las apartadas por `on_error="isolate"`), no las que la BD dice haber modificado. El
+  `rowcount` de los drivers no sirve para esto: con varios (PyMySQL, psycopg2, pyodbc con `fast_executemany`) no es
+  fiable en un `executemany` (`supports_sane_multi_rowcount=False` en SQLAlchemy). Tras una carga paralela con alguna
+  partición fallida, `last_operation_rows_committed` no es un prefijo de la entrada: para reanudar,
+  `partition_results`.
+
 ## [4.4.0] - 2026-10-27
 
 SemVer: MINOR (añadidos, correcciones, un aviso de obsolescencia y una corrección de seguridad; solo parámetros

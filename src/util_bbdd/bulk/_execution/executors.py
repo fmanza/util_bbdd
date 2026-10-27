@@ -112,7 +112,7 @@ class BatchStatementExecutor:
 
     @property
     def rows_committed(self) -> int:
-        """Filas confirmadas por commits de la cadencia (``commit_every_n_chunks``); 0 sin cadencia (BLK-08)."""
+        """Filas confirmadas por commits: los de la cadencia (BLK-08) y, desde v4.5.0, el de cada transacción (G37)."""
         return self.cadence.rows_committed
 
     @property
@@ -193,8 +193,13 @@ class BatchStatementExecutor:
                 connection.commit()
                 self.cadence.confirm()
         else:
-            with self._engine.begin() as connection:
-                work(connection)
+            try:
+                with self._engine.begin() as connection:
+                    work(connection)
+            except BaseException:
+                self.cadence.discard_pending()  # G37: el rollback deshace las filas anotadas
+                raise
+            self.cadence.confirm()
 
     def _execute_on_connection(
         self,
@@ -295,8 +300,13 @@ class DeleteBatchExecutor:
                 connection.commit()
                 self.session.rows.confirm()
             return
-        with self._engine.begin() as connection:
-            self._execute_on_connection(connection, table=table, df=df, pk_cols=pk_cols, **position)
+        try:
+            with self._engine.begin() as connection:
+                self._execute_on_connection(connection, table=table, df=df, pk_cols=pk_cols, **position)
+        except BaseException:
+            self.session.rows.discard()  # G37: el rollback deshace las filas anotadas
+            raise
+        self.session.rows.confirm()
 
     def _execute_on_connection(
         self,

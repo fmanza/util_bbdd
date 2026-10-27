@@ -928,6 +928,7 @@ class BulkCrud:
 
         options = self._options
         assert options.parallel is not None  # lo comprueba __run_in_parallel
+        self._session.rows.start_operation()
         loader = ParallelBulkLoader(
             self.engine,
             batch=options.batch,
@@ -953,6 +954,8 @@ class BulkCrud:
         else:
             result = loader.delete(tabla_destino, readers)
         self._last_parallel_result = result
+        # G37: cada partición confirmó sus filas en su transacción; cuentan también si otra falló.
+        self._session.rows.record_committed(result.total_rows)
         self._parallel_audit = self._parallel_audit + AuditCounters.of(result)
         self._parallel_rows_rejected += result.rows_rejected
         if result.partition_errors:
@@ -1417,13 +1420,20 @@ class BulkCrud:
 
     @property
     def last_operation_rows_committed(self) -> int:
-        """Filas de la última operación (o de la que falló) confirmadas por commits periódicos: su prefijo confirmado.
+        """Filas de la última operación (o de la que falló) ya confirmadas en la BD: su prefijo confirmado.
 
-        B-11 (performance-audit de bulk 2026-10-01). Solo con ``commit_every_n_chunks``: los lotes se confirman en
-        orden, así que tras un fallo basta con reanudar desde esa posición (``df.iloc[n:]``, o saltando ``n`` filas de
-        la secuencia en las vías ``*_from_chunks``, que cuentan como una sola operación). En modo atómico es 0: un
-        fallo deshace la operación entera. A diferencia de :attr:`rows_committed` (acumulado de la instancia), no
-        incluye filas de operaciones anteriores que un commit de esta confirmó.
+        B-11 (performance-audit de bulk 2026-10-01). Con ``commit_every_n_chunks`` los lotes se confirman en orden, así
+        que tras un fallo basta con reanudar desde esa posición (``df.iloc[n:]``, o saltando ``n`` filas de la secuencia
+        en las vías ``*_from_chunks``, que cuentan como una sola operación). En modo atómico, desde v4.5.0 (G37 de
+        util_bbdd_web), son todas las filas de la operación cuando su transacción (o la de :meth:`bulk_session`) se
+        confirma, y 0 si falla: el fallo la deshace entera. Hasta v4.4.x era siempre 0 en modo atómico. A diferencia de
+        :attr:`rows_committed` (acumulado de la instancia), no incluye filas de operaciones anteriores que un commit de
+        esta confirmó.
+
+        Cuenta las filas enviadas (``len(df)``, también las apartadas con ``on_error="isolate"``, ver
+        :attr:`rows_rejected`), no las que la BD dice haber modificado: un UPDATE o DELETE de una clave que no existe
+        cuenta. En una carga paralela (``ParallelOptions``) son las filas de las particiones confirmadas
+        (``last_parallel_result.total_rows``); si alguna falló no forman un prefijo: para reanudar, ``partition_results``.
         """
         return self._session.rows.op_committed
 
@@ -1453,9 +1463,9 @@ class BulkCrud:
     def last_parallel_result(self) -> ParallelLoadResult | None:
         """Resultado de la última carga paralela de un ``bulk_*_from_df`` (``ParallelOptions``); ``None`` si no hubo.
 
-        También tras un ``ParallelLoadError`` (es el mismo que ``exc.result``). Las filas de una carga paralela no
-        cuentan en :attr:`rows_committed` ni en :attr:`last_operation_rows_committed` (son de la cadencia de commits de
-        la instancia): están en ``total_rows`` y en ``partition_results``.
+        También tras un ``ParallelLoadError`` (es el mismo que ``exc.result``). Desde v4.5.0 (G37 de util_bbdd_web) sus
+        ``total_rows`` cuentan en :attr:`rows_committed` y en :attr:`last_operation_rows_committed`; el detalle está en
+        ``partition_results``.
         """
         return self._last_parallel_result
 
@@ -1466,11 +1476,11 @@ class BulkCrud:
         Cuenta las filas enviadas de INSERT, UPDATE y DELETE (``len(df)``, como el CSV de auditoría; no las que la BD dice
         haber modificado). Hasta v0.17.x no contaba las del DELETE.
 
-        BLK-08 (AUDIT_CODE 2026-09-22): solo avanza cuando la instancia se construyó
-        con ``commit_every_n_chunks`` — cada vez que se alcanza el commit periódico
-        o el commit final de ``bulk_session()``. En modo atómico (default, sin
-        ``commit_every_n_chunks``) permanece en 0: un fallo revierte toda la sesión,
-        por lo que no hay filas parciales que reportar como comprometidas.
+        BLK-08 (AUDIT_CODE 2026-09-22): avanza con cada commit, nunca con filas ejecutadas pendientes de confirmar. Con
+        ``commit_every_n_chunks``, en cada commit periódico y en el final de ``bulk_session()``. En modo atómico
+        (default), desde v4.5.0 (G37 de util_bbdd_web), cuando se confirma la transacción de la operación o de la sesión;
+        un fallo la revierte entera y no suma nada. Hasta v4.4.x permanecía en 0 en modo atómico. Incluye las filas de
+        las particiones confirmadas de las cargas paralelas de ``bulk_*_from_df`` (:attr:`last_parallel_result`).
 
         Permite a quien orquesta cargas por partición (p.ej. ``ParallelBulkLoader``)
         saber cuántas filas sobrevivieron aunque la carga falle a mitad de sesión.
@@ -1537,10 +1547,15 @@ class BulkCrud:
                         cadence.discard_pending()
                         raise
                 return
-            with self.engine.begin() as conn, self._session.bind(conn):
-                persistence.start_session_audit(conn)
-                yield  # NOSONAR - igual que arriba: el flush solo procede si el bloque termina bien
-                persistence.flush_audit_before_commit()
+            try:
+                with self.engine.begin() as conn, self._session.bind(conn):
+                    persistence.start_session_audit(conn)
+                    yield  # NOSONAR - igual que arriba: el flush solo procede si el bloque termina bien
+                    persistence.flush_audit_before_commit()
+            except BaseException:
+                self._session.rows.discard()  # G37: el rollback deshace las filas anotadas
+                raise
+            self._session.rows.confirm()
             persistence.flush_audit_after_commit()
         finally:
             for exc in self._session.run_after_end():

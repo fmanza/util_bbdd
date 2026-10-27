@@ -139,4 +139,4 @@ def test_atomic_session_commits_once_at_the_end(engine: Engine) -> None:
         _delete(crud, 100, 101)
 
     assert log == ["INSERT", "INSERT", "INSERT", "DELETE", "DELETE", "COMMIT"]
-    assert crud.rows_committed == 0  # sin cadencia no avanza (BLK-08)
+    assert crud.rows_committed == 5  # G37 (v4.5.0): el commit final de la sesión confirma las 5 filas
