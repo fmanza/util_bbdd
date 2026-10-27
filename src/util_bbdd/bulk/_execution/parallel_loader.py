@@ -36,6 +36,7 @@ import pandas as pd
 from sqlalchemy import Engine, Table, text
 from sqlalchemy.exc import SQLAlchemyError
 
+from ..._core.exceptions import OperationCancelledError
 from ...metadata import facts
 from .._audit.counters import AuditCounters
 from .._audit.errors import AuditError
@@ -65,6 +66,7 @@ from ..options import (
 )
 from .maintenance import TableMaintenance
 from .parallel_planner import ParallelPlan, ParallelPlanner, PlanInput
+from .progress import BatchProgress
 from .range_partitioner import RangePartitioner
 
 # Un lector de partición: invocado en su hilo worker, produce los chunks a insertar, actualizar o borrar.
@@ -229,6 +231,7 @@ class ParallelBulkLoader:
         ValueError,
         pd.errors.DatabaseError,
         AuditError,
+        OperationCancelledError,
     )
 
     def __init__(
@@ -299,6 +302,8 @@ class ParallelBulkLoader:
         #: Privilegio TEMP de PostgreSQL para el plan del UPDATE (None: sin comprobar). Una consulta por instancia; la
         #: fachada paralela de BulkCrud lo pasa ya comprobado. Los workers lo vuelven a comprobar en su sesión.
         self._temp_tables_allowed: bool | None = None
+        #: Progreso común de las particiones (G1): lo fija ``BulkCrud`` en su carga paralela y cada worker lo recibe.
+        self._progress: BatchProgress | None = None
 
     @property
     def options(self) -> BulkOptions:
@@ -611,6 +616,7 @@ class ParallelBulkLoader:
         t_start = time.perf_counter()
         try:
             crud = BulkCrud(self._engine, **self._options.for_worker(run_id=audit_run_id).as_kwargs())
+            crud._progress = self._progress  # noqa: SLF001 — mismo paquete: progreso común de la carga (G1)
         except Exception as exc:
             self.logger.warning(
                 "No se pudo preparar la partición %d de '%s': %s", index, tabla_destino, exc, exc_info=True
@@ -716,7 +722,7 @@ class ParallelBulkLoader:
         No se reintenta un error permanente (``retry_on``) ni un intento que ya dejó efectos fuera de la transacción
         (rechazos o auditoría estricta escritos), porque reintentarlo los duplicaría.
         """
-        if not self._retry.should_retry(exc):
+        if isinstance(exc, OperationCancelledError) or not self._retry.should_retry(exc):
             return self._permanent_failure(crud, index, t_start, tabla_destino, exc, attempt, waited)
         detail: str | None = None
         if rejected_now > 0:

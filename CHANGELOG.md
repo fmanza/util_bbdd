@@ -19,6 +19,19 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `bulk_update_from_df` y `bulk_delete_from_df`: nombre explícito del modo seco. `dry_run=True` equivale a
   `generar_sql=True` (escribe el SQL en `path_sql` y no toca la BD) y `dry_run=False` a `generar_sql=False`; si los dos
   se pasan con valores distintos, `ValueError`. Las vías `*_from_chunks` no cambian: solo ejecutan, no generan SQL.
+- **bulk** (G1 de util_bbdd_web): progreso por lote y cancelación cooperativa en `BulkCrud`. Los seis métodos de carga
+  (`bulk_*_from_df` y `bulk_*_from_chunks`) aceptan `on_progress` y `cancel_token` (solo palabra clave). Eventos de la
+  operación `"bulk"`, fase `"rows"`: uno al empezar y uno por lote ejecutado con las filas enviadas hasta ahora;
+  `total=len(df)` en `*_from_df` y `None` en `*_from_chunks`, y `message` con la tabla. En una carga paralela, `current`
+  suma todos los hilos. Con `generar_sql=True` no hay eventos ni se comprueba la cancelación. La cancelación se
+  comprueba antes de cada lote y sale con `OperationCancelledError` (`phase="rows"`) **después** de deshacer la
+  transacción en curso. **Qué deshace en una carga de una sola transacción** (el modo por defecto, sin
+  `commit_every_n_chunks`): la operación entera, también sus lotes ya ejecutados; en `*_from_chunks`, la secuencia
+  entera; dentro de `bulk_session()`, la sesión entera si la excepción sale del bloque, incluidas sus operaciones
+  anteriores. No queda ninguna fila ni registro de auditoría de lo deshecho, y `rows_committed` no suma. Con
+  `commit_every_n_chunks` se quedan los lotes ya confirmados (`last_operation_rows_committed` dice desde dónde reanudar).
+  En paralelo, cada partición deshace su lote en curso y las que terminaron se quedan (`last_parallel_result`). Una
+  cancelación antes de empezar no toca nada.
 
 ### Deprecated
 

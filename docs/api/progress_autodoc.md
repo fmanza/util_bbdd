@@ -25,6 +25,7 @@ token = CancellationToken()
 | `"compare"` | `SchemaComparator.compare(on_progress=, cancel_token=)` | `metadata`, `tables`, `views`, `routines` | 4.2.0 |
 | `"migrate"` | `MigrationPlan.execute(on_progress=, cancel_token=)` | `statements` | 4.3.0 |
 | `"dump"` | `DumpOrchestrator.run(on_progress=, cancel_token=)` | `tables`, `rows` | 4.4.0 |
+| `"bulk"` | `BulkCrud.bulk_*_from_df(on_progress=, cancel_token=)` y `bulk_*_from_chunks(...)` | `rows` | 4.5.0 |
 
 ---
 

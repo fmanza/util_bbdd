@@ -18,6 +18,7 @@ from sqlalchemy import (
     Table,
 )
 
+from util_bbdd._core.exceptions import OperationCancelledError
 from util_bbdd._core.validation import validate_chunk_size
 
 from .._support.rejects import Isolator
@@ -25,6 +26,7 @@ from .._support.sql_helpers import SqlColumns
 from ._driver_quirks import _driver_decimal_context, _pymssql_plain_decimals, _register_fast_executemany
 from .delete_strategies import DeleteExecutionStrategyProtocol, DeleteStrategyResolver
 from .insert_strategies import InsertExecutionStrategyProtocol, InsertStrategyResolver
+from .progress import BatchProgress
 from .session import CommitCadence, SessionScope
 
 # Nota que deja ``_commit_periodico`` cuando falla el COMMIT; ``batch_failure_note`` la reconoce (A4, audit-code 2026-10-01).
@@ -51,6 +53,8 @@ def batch_failure_note(
     """
     try:
         yield
+    except OperationCancelledError:
+        raise  # G1: parada pedida antes de enviar el lote, no un fallo del lote
     except Exception as exc:
         where: str = f"lote {index}" if chunk is None else f"lote {index} del chunk {chunk}"
         span: str = f"filas {first_row}–{first_row + rows - 1} de la entrada, base 0"
@@ -103,6 +107,8 @@ class BatchStatementExecutor:
         self.cadence: CommitCadence = CommitCadence(commit_every_n_chunks, ledger=self.session.rows)
         #: ``RejectOptions(on_error="isolate")`` lo fija durante cada operación: cada lote va en un SAVEPOINT (S-2).
         self.isolator: Isolator | None = None
+        #: Progreso y cancelación de la operación en curso (G1, v4.5.0): se comprueba antes de cada lote.
+        self.progress: BatchProgress | None = None
         drivername: str = str(engine.url.drivername).lower()
         self._insert_strategy: InsertExecutionStrategyProtocol = (insert_resolver or InsertStrategyResolver()).resolve(
             engine.dialect.name, drivername
@@ -157,6 +163,8 @@ class BatchStatementExecutor:
             raise TypeError(f"{type(strategy).__name__} no admite bloques por columnas")
 
         def run(connection: Any) -> None:
+            if self.progress is not None:
+                self.progress.check()
             if self.isolator is None:
                 strategy.execute_columns(connection=connection, stmt=stmt, block=block)
             else:
@@ -170,6 +178,8 @@ class BatchStatementExecutor:
             if self.cadence.on_batch(len(block)):
                 _commit_periodico(connection, self.session.commit_hook)
                 self.cadence.confirm()
+            if self.progress is not None:
+                self.progress.batch_done(len(block))
 
         self._run(run)
 
@@ -219,6 +229,8 @@ class BatchStatementExecutor:
         chosen: InsertExecutionStrategyProtocol = strategy or self._insert_strategy
         for start in range(0, len(records), self._chunk_size):
             batch: Sequence[Mapping[str, Any]] = records[start : start + self._chunk_size]
+            if self.progress is not None:
+                self.progress.check()
             if self.isolator is None:
                 self._send(connection, batch, stmt, chosen)
             else:
@@ -231,6 +243,8 @@ class BatchStatementExecutor:
             if self.cadence.on_batch(len(batch)):
                 _commit_periodico(connection, self.session.commit_hook)
                 self.cadence.confirm()
+            if self.progress is not None:
+                self.progress.batch_done(len(batch))
 
     def _send(
         self,
@@ -267,6 +281,8 @@ class DeleteBatchExecutor:
         self._cadence: CommitCadence = CommitCadence(commit_every_n_chunks, ledger=self.session.rows)
         #: Como en ``BatchStatementExecutor``: cada lote en un SAVEPOINT con ``RejectOptions(on_error="isolate")`` (S-2).
         self.isolator: Isolator | None = None
+        #: Como en ``BatchStatementExecutor``: progreso y cancelación antes de cada lote (G1).
+        self.progress: BatchProgress | None = None
 
     def execute(
         self,
@@ -328,6 +344,8 @@ class DeleteBatchExecutor:
             cadence.restart()
         for index, batch_df in enumerate(self._iter_batches(df=df, pk_cols=pk_cols)):
             first_row = row_offset + index * self._chunk_size
+            if self.progress is not None:
+                self.progress.check()
             with batch_failure_note("DELETE", table.fullname, index, first_row, len(batch_df), chunk):
                 if self.isolator is None:
                     self._execute_batch(
@@ -345,6 +363,8 @@ class DeleteBatchExecutor:
             if cadence.on_batch(len(batch_df)):
                 _commit_periodico(connection, self.session.commit_hook)
                 cadence.confirm()
+            if self.progress is not None:
+                self.progress.batch_done(len(batch_df))
 
     def _iter_batches(self, *, df: pd.DataFrame, pk_cols: Sequence[str]) -> Iterator[pd.DataFrame]:
         """Genera batches no vacíos para la ejecución sin materializar la lista completa."""

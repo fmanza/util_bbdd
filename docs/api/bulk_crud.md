@@ -26,12 +26,12 @@ flowchart TD
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
 | `BulkCrud` | `(engine, *, batch?, audit?, rejects?, execution?, parallel?)` | Crea instancia con engine SQLAlchemy y [paquetes de opciones](#paquetes-de-opciones-v300) (v3.0.0; hasta v2.x, 16 parámetros sueltos: [guía de migración](../guides/api_3_0_migration.md)) | `BulkCrud` |
-| `bulk_insert_from_df` | `(df, tabla_destino, generar_sql?, path_sql?, override_identity?, exclude_autoincrement_pk?, *, dry_run?)` | INSERT masivo desde DataFrame | `None` |
-| `bulk_insert_from_chunks` | `(chunks, tabla_destino, *, override_identity?, exclude_autoincrement_pk?)` | INSERT streaming de iterable de DataFrames; resuelve columnas/identidad una sola vez | `int` (filas insertadas) |
-| `bulk_update_from_df` | `(df, tabla_destino, generar_sql?, path_sql?, *, dry_run?)` | UPDATE masivo desde DataFrame | `None` |
-| `bulk_delete_from_df` | `(df, tabla_destino, generar_sql?, path_sql?, *, dry_run?)` | DELETE masivo desde DataFrame | `None` |
-| `bulk_update_from_chunks` | `(chunks, tabla_destino)` | UPDATE en streaming: `bulk_update_from_df` por chunk dentro de una sola sesión; lee el iterable de forma perezosa y lo cierra al terminar | `int` (filas enviadas) |
-| `bulk_delete_from_chunks` | `(chunks, tabla_destino)` | DELETE en streaming, como `bulk_update_from_chunks` | `int` (filas enviadas) |
+| `bulk_insert_from_df` | `(df, tabla_destino, generar_sql?, path_sql?, override_identity?, exclude_autoincrement_pk?, *, dry_run?, on_progress?, cancel_token?)` | INSERT masivo desde DataFrame | `None` |
+| `bulk_insert_from_chunks` | `(chunks, tabla_destino, *, override_identity?, exclude_autoincrement_pk?, on_progress?, cancel_token?)` | INSERT streaming de iterable de DataFrames; resuelve columnas/identidad una sola vez | `int` (filas insertadas) |
+| `bulk_update_from_df` | `(df, tabla_destino, generar_sql?, path_sql?, *, dry_run?, on_progress?, cancel_token?)` | UPDATE masivo desde DataFrame | `None` |
+| `bulk_delete_from_df` | `(df, tabla_destino, generar_sql?, path_sql?, *, dry_run?, on_progress?, cancel_token?)` | DELETE masivo desde DataFrame | `None` |
+| `bulk_update_from_chunks` | `(chunks, tabla_destino, *, on_progress?, cancel_token?)` | UPDATE en streaming: `bulk_update_from_df` por chunk dentro de una sola sesión; lee el iterable de forma perezosa y lo cierra al terminar | `int` (filas enviadas) |
+| `bulk_delete_from_chunks` | `(chunks, tabla_destino, *, on_progress?, cancel_token?)` | DELETE en streaming, como `bulk_update_from_chunks` | `int` (filas enviadas) |
 | `last_operation_rows_committed` | propiedad | Filas de la última operación (o de la que falló) ya confirmadas en la BD, es decir, su prefijo confirmado. Con `commit_every_n_chunks`, las de los commits periódicos: para reanudar, `df.iloc[n:]`, o saltar `n` filas de la secuencia en `*_from_chunks` (cuentan como una operación). En modo atómico, todas las de la operación cuando su transacción (o la de `bulk_session`) se confirma y 0 si falla (desde 4.5.0; antes, siempre 0). Son filas enviadas, no las que la BD dice haber modificado: un UPDATE o DELETE de una clave inexistente cuenta. En una carga paralela, las de las particiones confirmadas | `int` |
 | `rows_committed` | propiedad | Acumulado de la instancia de las filas confirmadas, con las mismas reglas que `last_operation_rows_committed` (incluidas las cargas paralelas desde 4.5.0) | `int` |
 | `rows_rejected` | propiedad | Con `on_error="isolate"`: filas rechazadas por la instancia (acumulado), escritas en `rejects_csv_path`. No están en la BD ni en la auditoría, pero sí cuentan en `rows_committed` y `last_operation_rows_committed`, que son posiciones de la entrada para reanudar | `int` |
@@ -135,6 +135,31 @@ crud.bulk_insert_from_df(df, "ventas", generar_sql=False)
 - Efectos secundarios: filas modificadas en BD, fichero `.sql` opcional, entrada en CSV de auditoría.
 - Auditoría y transacciones: fuera de `bulk_session` cada operación se anota al terminar, con sus datos ya confirmados. Dentro de `bulk_session` (y en `bulk_insert_from_chunks`, que abre la suya) se anota cuando un commit la confirma: al salir del bloque o, con `commit_every_n_chunks`, en el commit periódico. Si la sesión acaba en rollback no queda ninguna fila de auditoría de lo deshecho (se avisa con un WARNING), y reintentar la sesión no la duplica. Con `commit_every_n_chunks`, una operación que falla con parte de sus lotes ya confirmados no se anota; `rows_committed` da esas filas. Las operaciones con `generar_sql=True` no tocan la BD y se anotan al momento.
 
+### Progreso y cancelación (v4.5.0)
+
+Los seis métodos de carga aceptan `on_progress` y `cancel_token` ([contrato común](progress_autodoc.md)). Eventos de la
+operación `"bulk"`, fase `"rows"`: uno al empezar (`current=0`) y uno por lote ejecutado con las filas enviadas hasta
+ahora (también las apartadas por `on_error="isolate"`); `total` es `len(df)` en `*_from_df` y `None` en `*_from_chunks`;
+`message` es la tabla destino. En una carga paralela, `current` suma todos los hilos. Con `generar_sql=True` no hay
+eventos ni se comprueba la cancelación.
+
+La cancelación se comprueba antes de cada lote y sale con `OperationCancelledError` **después** de deshacer la
+transacción en curso:
+
+| Modo | Qué queda en la BD tras cancelar |
+|---|---|
+| Una transacción (por defecto) | **Nada de la operación**: también se deshacen sus lotes ya ejecutados. En `*_from_chunks`, nada de la secuencia |
+| Dentro de `bulk_session()` | Nada de la sesión, si la excepción sale del bloque (las operaciones anteriores de la sesión también se deshacen) |
+| `commit_every_n_chunks` | Los lotes ya confirmados; `last_operation_rows_committed` dice desde dónde reanudar |
+| Paralelo (`ParallelOptions`) | Las particiones que terminaron; cada una deshace su lote en curso (`last_parallel_result`, `rows_committed`) |
+
+```python
+from util_bbdd.progress import CancellationToken
+
+token = CancellationToken()  # token.cancel() desde otro hilo
+crud.bulk_insert_from_df(df, "ventas", generar_sql=False, on_progress=print, cancel_token=token)
+```
+
 ### Errores y casos especiales
 
 | Error | Cuándo ocurre |
@@ -143,6 +168,7 @@ crud.bulk_insert_from_df(df, "ventas", generar_sql=False)
 | `SQLAlchemyError` | Error al reflejar la tabla, timeout de BD, violación de constraint |
 | `AuditError` / `OSError` | Solo con `audit.strict=True`: no se pudo escribir el CSV de auditoría. Con el valor por defecto (`False`) no se lanza |
 | `ParallelLoadError` | Con `parallel`: falló alguna partición de una carga paralela; las demás quedan confirmadas. `exc.result` es el `ParallelLoadResult` |
+| `OperationCancelledError` | Desde 4.5.0: se canceló `cancel_token` antes de empezar o entre lotes (`phase="rows"`). Qué queda en la BD: [Progreso y cancelación](#progreso-y-cancelacion-v450). En una carga paralela tiene prioridad sobre `ParallelLoadError` y el resultado sigue en `last_parallel_result` |
 | `RuntimeError` | `bulk_insert_from_chunks`, `bulk_update_from_chunks` o `bulk_delete_from_chunks` dentro de un `bulk_session` abierto: gestionan su propia transacción (dentro de la sesión, usar `*_from_df` por chunk) |
 
 **Aislamiento de filas (`on_error="isolate"`), límites:**

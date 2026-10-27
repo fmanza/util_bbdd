@@ -57,6 +57,7 @@ from ..metadata.catalog_registry import CatalogDialectNotFoundError
 from ..metadata.model import Kind
 from ..metadata.reflection import reflect_table
 from ..metadata.source import CatalogSource
+from ..progress import CancellationToken, ProgressCallback, ProgressReporter
 from ._execution.batch import (
     STAGING_UPDATE_DIALECTS,
     BatchStatementExecutor,
@@ -66,6 +67,7 @@ from ._execution.batch import (
 from ._execution.executors import batch_failure_note
 from ._execution.maintenance import TableMaintenance
 from ._execution.parallel_planner import ParallelPlan, ParallelPlanner, PlanInput
+from ._execution.progress import BatchProgress
 from ._execution.range_partitioner import HashPartitioner, RangePartitioner
 from ._execution.session import SessionScope
 from ._models import MaintenanceScopeResult, PKSyncResult
@@ -340,6 +342,9 @@ class BulkCrud:
         )
         #: Chunk en curso de bulk_update_from_chunks / bulk_delete_from_chunks (None fuera de ellas).
         self._stream: _StreamPosition | None = None
+        #: Progreso compartido de una carga paralela: ``ParallelBulkLoader`` lo fija en la ``BulkCrud`` de cada partición
+        #: para que ``current`` sume las filas de todos los hilos (G1). ``None`` fuera de un worker.
+        self._progress: BatchProgress | None = None
         #: Estrategias de UPDATE por staging reutilizadas en la instancia: PostgreSQL comprueba TEMP una sola vez.
         self._staging_strategies: dict[tuple[int, tuple[str, ...], tuple[str, ...]], StagingUpdateStrategy] = {}
         # INSERT no entra en este dict porque requiere kwargs extra (override_identity,
@@ -410,6 +415,8 @@ class BulkCrud:
         exclude_autoincrement_pk: bool = False,
         *,
         dry_run: bool | None = None,
+        on_progress: ProgressCallback | None = None,
+        cancel_token: CancellationToken | None = None,
     ) -> None:
         """
         Inserta en bloque los datos del DataFrame en la tabla destino, o genera la SQL si se indica.
@@ -430,8 +437,19 @@ class BulkCrud:
                      no se modifica. Solo afecta a INSERT; no a UPDATE ni DELETE. Por defecto False.
             dry_run: Nombre explícito del modo seco (v4.5.0): ``True`` equivale a ``generar_sql=True`` (escribe el SQL
                 en ``path_sql`` y no toca la BD) y ``False`` a ``generar_sql=False``.
+            on_progress: Receptor de eventos de progreso (v4.5.0, G1 de util_bbdd_web): operación ``"bulk"``, fase
+                ``"rows"``, uno al empezar (``current=0``) y uno por lote ejecutado con las filas enviadas hasta ahora
+                (también las apartadas por ``on_error="isolate"``); ``total=len(df)`` y ``message`` es ``tabla_destino``.
+                En una carga paralela, ``current`` suma todos los hilos. Con ``generar_sql=True`` no hay eventos.
+            cancel_token: Cancelación cooperativa (v4.5.0): se comprueba antes de cada lote. Al cancelar se lanza
+                ``OperationCancelledError`` después de deshacer la transacción en curso. Sin ``commit_every_n_chunks`` no
+                queda ninguna fila de la operación (ni de la :meth:`bulk_session` que la contiene, si la excepción sale de
+                ella); con cadencia quedan los lotes ya confirmados (:attr:`last_operation_rows_committed`). En una carga
+                paralela, cada partición deshace su lote en curso y las ya confirmadas se quedan
+                (:attr:`last_parallel_result`). Con ``generar_sql=True`` no se comprueba.
 
         Raises:
+            OperationCancelledError: Si ``cancel_token`` se cancela (antes de empezar o entre lotes).
             ValueError: Si generar_sql y dry_run se pasan con valores distintos.
             ValueError: Si generar_sql=True y path_sql no es proporcionado o no es válido.
             ValueError: Si el DataFrame es vacío o si hay errores de SQL.
@@ -448,24 +466,27 @@ class BulkCrud:
         fuerza un hilo.
         """
         generar_sql = _resolve_generar_sql("bulk_insert_from_df", generar_sql, dry_run)
-        if self.__run_in_parallel(
-            df,
-            tabla_destino,
-            "insert",
-            generar_sql,
-            override_identity=override_identity,
-            exclude_autoincrement_pk=exclude_autoincrement_pk,
-        ):
-            return
-        self.__run_bulk_pipeline(
-            df=df,
-            tabla_destino=tabla_destino,
-            generar_sql=generar_sql,
-            path_sql=path_sql,
-            strategy_key="insert",
-            override_identity=override_identity,
-            exclude_autoincrement_pk=exclude_autoincrement_pk,
-        )
+        tracking = (None, None) if generar_sql else (on_progress, cancel_token)
+        with self.__progress_scope(tabla_destino, len(df), *tracking) as progress:
+            if self.__run_in_parallel(
+                df,
+                tabla_destino,
+                "insert",
+                generar_sql,
+                override_identity=override_identity,
+                exclude_autoincrement_pk=exclude_autoincrement_pk,
+                progress=progress,
+            ):
+                return
+            self.__run_bulk_pipeline(
+                df=df,
+                tabla_destino=tabla_destino,
+                generar_sql=generar_sql,
+                path_sql=path_sql,
+                strategy_key="insert",
+                override_identity=override_identity,
+                exclude_autoincrement_pk=exclude_autoincrement_pk,
+            )
 
     @medir_tiempo()
     def bulk_update_from_df(
@@ -476,6 +497,8 @@ class BulkCrud:
         path_sql: StrPath | None = None,
         *,
         dry_run: bool | None = None,
+        on_progress: ProgressCallback | None = None,
+        cancel_token: CancellationToken | None = None,
     ) -> None:
         """
         Actualiza en bloque los registros del DataFrame en la tabla destino.
@@ -487,8 +510,11 @@ class BulkCrud:
             path_sql: Directorio (``str`` o ``Path``) del archivo SQL. Es obligatorio si generar_sql=True.
                      El nombre del archivo se genera dinámicamente y se combina con esta ruta.
             dry_run: Como en :meth:`bulk_insert_from_df` (v4.5.0).
+            on_progress: Como en :meth:`bulk_insert_from_df` (v4.5.0).
+            cancel_token: Como en :meth:`bulk_insert_from_df` (v4.5.0).
 
         Raises:
+            OperationCancelledError: Si ``cancel_token`` se cancela (antes de empezar o entre lotes).
             ValueError: Si no hay claves primarias o columnas actualizables.
             ValueError: Si generar_sql y dry_run se pasan con valores distintos.
             ValueError: Si generar_sql=True y path_sql no es proporcionado o no es válido.
@@ -497,15 +523,17 @@ class BulkCrud:
         particiones son disjuntas por PK (o por ``ParallelOptions.partition_column``).
         """
         generar_sql = _resolve_generar_sql("bulk_update_from_df", generar_sql, dry_run)
-        if self.__run_in_parallel(df, tabla_destino, "update", generar_sql):
-            return
-        self.__run_bulk_pipeline(
-            df=df,
-            tabla_destino=tabla_destino,
-            generar_sql=generar_sql,
-            path_sql=path_sql,
-            strategy_key="update",
-        )
+        tracking = (None, None) if generar_sql else (on_progress, cancel_token)
+        with self.__progress_scope(tabla_destino, len(df), *tracking) as progress:
+            if self.__run_in_parallel(df, tabla_destino, "update", generar_sql, progress=progress):
+                return
+            self.__run_bulk_pipeline(
+                df=df,
+                tabla_destino=tabla_destino,
+                generar_sql=generar_sql,
+                path_sql=path_sql,
+                strategy_key="update",
+            )
 
     @medir_tiempo()
     def bulk_delete_from_df(
@@ -516,6 +544,8 @@ class BulkCrud:
         path_sql: StrPath | None = None,
         *,
         dry_run: bool | None = None,
+        on_progress: ProgressCallback | None = None,
+        cancel_token: CancellationToken | None = None,
     ) -> None:
         """
         Borra en bloque registros del DataFrame desde la tabla destino.
@@ -527,8 +557,11 @@ class BulkCrud:
             path_sql: Directorio (``str`` o ``Path``) del archivo SQL. Es obligatorio si generar_sql=True.
                      El nombre del archivo se genera dinámicamente y se combina con esta ruta.
             dry_run: Como en :meth:`bulk_insert_from_df` (v4.5.0).
+            on_progress: Como en :meth:`bulk_insert_from_df` (v4.5.0).
+            cancel_token: Como en :meth:`bulk_insert_from_df` (v4.5.0).
 
         Raises:
+            OperationCancelledError: Si ``cancel_token`` se cancela (antes de empezar o entre lotes).
             ValueError: Si no hay columnas de clave primaria disponibles.
             ValueError: Si generar_sql y dry_run se pasan con valores distintos.
             ValueError: Si generar_sql=True y path_sql no es proporcionado o no es válido.
@@ -536,15 +569,17 @@ class BulkCrud:
         La operación se registra en auditoría si fue configurada. Con ``parallel``, como :meth:`bulk_update_from_df`.
         """
         generar_sql = _resolve_generar_sql("bulk_delete_from_df", generar_sql, dry_run)
-        if self.__run_in_parallel(df, tabla_destino, "delete", generar_sql):
-            return
-        self.__run_bulk_pipeline(
-            df=df,
-            tabla_destino=tabla_destino,
-            generar_sql=generar_sql,
-            path_sql=path_sql,
-            strategy_key="delete",
-        )
+        tracking = (None, None) if generar_sql else (on_progress, cancel_token)
+        with self.__progress_scope(tabla_destino, len(df), *tracking) as progress:
+            if self.__run_in_parallel(df, tabla_destino, "delete", generar_sql, progress=progress):
+                return
+            self.__run_bulk_pipeline(
+                df=df,
+                tabla_destino=tabla_destino,
+                generar_sql=generar_sql,
+                path_sql=path_sql,
+                strategy_key="delete",
+            )
 
     @medir_tiempo()
     def bulk_insert_from_chunks(
@@ -554,6 +589,8 @@ class BulkCrud:
         *,
         override_identity: bool = False,
         exclude_autoincrement_pk: bool = False,
+        on_progress: ProgressCallback | None = None,
+        cancel_token: CancellationToken | None = None,
     ) -> int:
         """Inserta en streaming una secuencia de DataFrames en la tabla destino.
 
@@ -574,11 +611,16 @@ class BulkCrud:
             tabla_destino: Nombre de la tabla destino (``schema.tabla`` o ``tabla``).
             override_identity: Igual que en :meth:`bulk_insert_from_df` (PostgreSQL).
             exclude_autoincrement_pk: Excluye la PK autoincremental/identity del INSERT.
+            on_progress: Como en :meth:`bulk_insert_from_df` (v4.5.0), con ``total=None``: la secuencia no dice cuántas
+                filas trae; ``current`` acumula las de todos los chunks.
+            cancel_token: Como en :meth:`bulk_insert_from_df` (v4.5.0): sin ``commit_every_n_chunks`` la cancelación
+                deshace la secuencia entera (va en una sola sesión).
 
         Returns:
             Número total de filas insertadas.
 
         Raises:
+            OperationCancelledError: Si ``cancel_token`` se cancela (antes de empezar o entre lotes).
             ValueError: Si hay columnas GENERATED ALWAYS AS IDENTITY (PostgreSQL) y
                 ``override_identity=False``.
             SQLAlchemyError: Ante errores SQL durante la inserción.
@@ -589,7 +631,11 @@ class BulkCrud:
         resolved: tuple[Any, list[str]] | None = None
         self._session.rows.start_operation()  # B-11: last_operation_rows_committed cuenta todo el stream
 
-        with self._rejects.operation(tabla_destino, "INSERT") as isolated, self.bulk_session():
+        with (
+            self.__progress_scope(tabla_destino, None, on_progress, cancel_token),
+            self._rejects.operation(tabla_destino, "INSERT") as isolated,
+            self.bulk_session(),
+        ):
             for chunk_index, chunk in enumerate(chunks):
                 working_df: pd.DataFrame = chunk.copy(deep=False)
                 self.__actualizar_df(working_df, tabla)
@@ -637,7 +683,14 @@ class BulkCrud:
         return total
 
     @medir_tiempo()
-    def bulk_update_from_chunks(self, chunks: Iterable[pd.DataFrame], tabla_destino: str) -> int:
+    def bulk_update_from_chunks(
+        self,
+        chunks: Iterable[pd.DataFrame],
+        tabla_destino: str,
+        *,
+        on_progress: ProgressCallback | None = None,
+        cancel_token: CancellationToken | None = None,
+    ) -> int:
         """Actualiza en streaming con una secuencia de DataFrames, sin materializar todo el dataset en memoria (B-08).
 
         Equivale a :meth:`bulk_update_from_df` con cada chunk, todos dentro de un único :meth:`bulk_session` (atómico,
@@ -651,14 +704,26 @@ class BulkCrud:
         Args:
             chunks: Iterable de DataFrames con la PK y las columnas a actualizar.
             tabla_destino: Nombre de la tabla destino (``schema.tabla`` o ``tabla``).
+            on_progress: Como en :meth:`bulk_insert_from_chunks` (v4.5.0).
+            cancel_token: Como en :meth:`bulk_insert_from_chunks` (v4.5.0).
 
         Returns:
             Número total de filas enviadas.
+
+        Raises:
+            OperationCancelledError: Si ``cancel_token`` se cancela (antes de empezar o entre lotes).
         """
-        return self.__stream_operation(chunks, tabla_destino, "update")
+        return self.__stream_operation(chunks, tabla_destino, "update", on_progress, cancel_token)
 
     @medir_tiempo()
-    def bulk_delete_from_chunks(self, chunks: Iterable[pd.DataFrame], tabla_destino: str) -> int:
+    def bulk_delete_from_chunks(
+        self,
+        chunks: Iterable[pd.DataFrame],
+        tabla_destino: str,
+        *,
+        on_progress: ProgressCallback | None = None,
+        cancel_token: CancellationToken | None = None,
+    ) -> int:
         """Borra en streaming las filas cuyas PK llegan en una secuencia de DataFrames (B-08).
 
         Como :meth:`bulk_update_from_chunks`, con :meth:`bulk_delete_from_df` en cada chunk.
@@ -666,14 +731,24 @@ class BulkCrud:
         Args:
             chunks: Iterable de DataFrames con las columnas de la PK.
             tabla_destino: Nombre de la tabla destino (``schema.tabla`` o ``tabla``).
+            on_progress: Como en :meth:`bulk_insert_from_chunks` (v4.5.0).
+            cancel_token: Como en :meth:`bulk_insert_from_chunks` (v4.5.0).
 
         Returns:
             Número total de filas enviadas.
+
+        Raises:
+            OperationCancelledError: Si ``cancel_token`` se cancela (antes de empezar o entre lotes).
         """
-        return self.__stream_operation(chunks, tabla_destino, "delete")
+        return self.__stream_operation(chunks, tabla_destino, "delete", on_progress, cancel_token)
 
     def __stream_operation(
-        self, chunks: Iterable[pd.DataFrame], tabla_destino: str, strategy_key: Literal["update", "delete"]
+        self,
+        chunks: Iterable[pd.DataFrame],
+        tabla_destino: str,
+        strategy_key: Literal["update", "delete"],
+        on_progress: ProgressCallback | None = None,
+        cancel_token: CancellationToken | None = None,
     ) -> int:
         """Ejecuta ``strategy_key`` chunk a chunk en una sesión; una sola operación en el libro de filas (B-11)."""
         self.__ensure_no_open_session(f"bulk_{strategy_key}_from_chunks")
@@ -686,6 +761,7 @@ class BulkCrud:
         operation: str = strategy_key.upper()
         with (
             closing_iterable(chunks) as items,
+            self.__progress_scope(tabla_destino, None, on_progress, cancel_token),
             self._rejects.operation(tabla_destino, operation) as isolated,
             self.bulk_session(),
         ):
@@ -785,6 +861,34 @@ class BulkCrud:
         """Engancha a los dos ejecutores el aislador de la operación en curso (``None`` al terminar)."""
         self._batch_statement_executor.isolator = isolator
         self._delete_batch_executor.isolator = isolator
+
+    @contextmanager
+    def __progress_scope(
+        self,
+        tabla_destino: str,
+        total: int | None,
+        on_progress: ProgressCallback | None,
+        cancel_token: CancellationToken | None,
+    ) -> Generator[BatchProgress | None, None, None]:
+        """Progreso y cancelación de una operación pública (G1), enganchados a los dos ejecutores mientras dura.
+
+        Comprueba la cancelación antes de empezar (cancelada, no toca nada) y emite el evento inicial. En el worker de
+        una carga paralela usa el progreso compartido (:attr:`_progress`) sin evento inicial: lo emitió quien reparte.
+        Sin ``on_progress`` ni ``cancel_token`` no hace nada.
+        """
+        progress: BatchProgress | None = self._progress
+        if progress is not None:
+            progress.check()
+        elif on_progress is not None or cancel_token is not None:
+            reporter = ProgressReporter("bulk", on_progress, cancel_token, self.logger)
+            progress = BatchProgress(reporter, tabla_destino, total)
+            progress.start()
+        previous: BatchProgress | None = self._batch_statement_executor.progress
+        self._batch_statement_executor.progress = self._delete_batch_executor.progress = progress
+        try:
+            yield progress
+        finally:
+            self._batch_statement_executor.progress = self._delete_batch_executor.progress = previous
 
     def __resolve_stream_insert(
         self,
@@ -894,6 +998,7 @@ class BulkCrud:
         *,
         override_identity: bool = False,
         exclude_autoincrement_pk: bool = False,
+        progress: BatchProgress | None = None,
     ) -> bool:
         """Hace la operación con ``ParallelBulkLoader`` si hay ``parallel`` y el plan da más de un hilo.
 
@@ -905,6 +1010,7 @@ class BulkCrud:
 
         Raises:
             ParallelLoadError: Si alguna partición falló (las demás quedan confirmadas).
+            OperationCancelledError: Si se canceló ``progress`` (las particiones confirmadas se quedan).
         """
         if self._options.parallel is None or generar_sql or df.empty:
             return False
@@ -931,6 +1037,7 @@ class BulkCrud:
             plan.workers,
             override_identity=override_identity,
             exclude_autoincrement_pk=exclude_autoincrement_pk,
+            progress=progress,
         )
         return True
 
@@ -977,8 +1084,13 @@ class BulkCrud:
         *,
         override_identity: bool,
         exclude_autoincrement_pk: bool,
+        progress: BatchProgress | None = None,
     ) -> None:
-        """Carga las particiones con ``ParallelBulkLoader`` y suma sus contadores a los de la instancia."""
+        """Carga las particiones con ``ParallelBulkLoader`` y suma sus contadores a los de la instancia.
+
+        ``progress`` lo comparten las ``BulkCrud`` de las particiones (G1): sus eventos suman todos los hilos y, si se
+        cancela, cada partición para antes de su siguiente lote y aquí se lanza ``OperationCancelledError``.
+        """
         # Diferido: parallel_loader importa BulkCrud.
         from ._execution.parallel_loader import ParallelBulkLoader
 
@@ -997,6 +1109,7 @@ class BulkCrud:
         )
         # El privilegio TEMP ya comprobado por parallel_plan: el loader no abre otra conexión para consultarlo.
         loader._temp_tables_allowed = self._temp_tables_allowed  # noqa: SLF001 — mismo paquete (bulk)
+        loader._progress = progress  # noqa: SLF001 — ídem: progreso común de las particiones (G1)
         readers = [lambda partition=partition: iter((partition,)) for partition in partitions]
         if operation == "insert":
             result = loader.load(
@@ -1014,6 +1127,10 @@ class BulkCrud:
         self._session.rows.record_committed(result.total_rows)
         self._parallel_audit = self._parallel_audit + AuditCounters.of(result)
         self._parallel_rows_rejected += result.rows_rejected
+        if result.partition_errors and progress is not None:
+            # G1: si se canceló, las particiones que no terminaron pararon por eso: se informa la cancelación. Si todas
+            # terminaron, la carga está completa y no se lanza aunque el token se cancelara al final.
+            progress.check()
         if result.partition_errors:
             raise ParallelLoadError(
                 f"bulk {operation.upper()} en paralelo sobre '{tabla_destino}': fallaron {len(result.partition_errors)} "
