@@ -59,6 +59,9 @@ from util_bbdd.connection import ConnectionParamsManager
 ConnectionParamsManager.param_kinds("oracle")  # {'user': 'plain', 'password': 'secret', 'dsn': 'host', ...}
 ```
 
+`get_database_info()` de los dos managers devuelve `connection_params` con los secretos enmascarados (`"***"`) desde
+v4.6.0; `ConnectionParamsManager.redact_secrets(db_type, conn_params)` hace lo mismo con cualquier `conn_params`.
+
 ### 3.2 Construir `conn_params` del motor
 
 Cada motor exige un conjunto mínimo de claves (ver referencia completa en §5):

@@ -43,6 +43,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   los conservaba y no cambia. **Para la web (W-T2)**: `build_params` deja de mezclar
   `{**build_conn_params(...), **params}`.
 
+### Security
+
+- **managers** (G11 de util_bbdd_web): `SyncDatabaseManager.get_database_info()` y
+  `AsyncDatabaseManager.get_database_info()` devolvían `connection_params` con la contraseña en claro; ahora con los
+  secretos enmascarados (`"***"`): los parámetros de clase `secret` (`connection_params.kinds`) y, dentro de un valor
+  `dict` como `connection_properties` de HSQLDB, las claves que contienen `password`. El manager sigue conectando con
+  los valores reales. Nuevo `ConnectionParamsManager.redact_secrets(db_type, conn_params)`. Se publica en MINOR como
+  corrección de seguridad (decisión D2 del plan): quien leyera la contraseña de ese resultado debe tomarla de sus
+  propios `conn_params`. **Para la web**: no usa `get_database_info()`; no necesita cambios.
+
 ## [4.5.0] - 2026-10-27
 
 SemVer: MINOR (añadidos, una corrección y un aviso de obsolescencia; solo parámetros opcionales nuevos, sin cambios de

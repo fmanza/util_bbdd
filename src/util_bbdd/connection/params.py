@@ -40,6 +40,9 @@ _CONFIG_CLASSES: dict[str, tuple[type, type | None]] = {
 #: Clase de un parámetro de conexión (``connection_params.kinds`` de ``database_types.json``; v4.6.0, G12).
 ParamKind = Literal["secret", "host", "port", "path", "blocked", "plain"]
 
+#: Valor que sustituye a un secreto en :meth:`ConnectionParamsManager.redact_secrets` (G11).
+REDACTED: str = "***"
+
 #: Claves aceptadas que no son campo de ninguna config: ``close_timeout`` lo usa el manager aunque no haya pool;
 #: ``encoding`` (Oracle) se acepta y se ignora (python-oracledb trabaja siempre en UTF-8).
 _EXTRA_KEYS: dict[str, frozenset[str]] = {
@@ -103,6 +106,36 @@ class ConnectionParamsManager:
         params = get_database_validator().get_db_type_connection_params(db_type)
         kinds: Any = params.get("kinds", {})
         return {str(name): cast(ParamKind, kind) for name, kind in kinds.items()} if isinstance(kinds, dict) else {}
+
+    @staticmethod
+    def redact_secrets(db_type: str, conn_params: dict[str, Any]) -> dict[str, Any]:
+        """Copia de ``conn_params`` con los secretos enmascarados (v4.6.0, G11 de util_bbdd_web).
+
+        Sustituye por :data:`REDACTED` el valor no vacío de cada parámetro de clase ``secret`` (:meth:`param_kinds`) y,
+        dentro de un valor ``dict`` (p. ej. ``connection_properties`` de HSQLDB, propiedades JDBC), el de cada clave que
+        contenga ``password``. El resto se copia tal cual; ``conn_params`` no se modifica.
+
+        Args:
+            db_type: Tipo de motor.
+            conn_params: Parámetros de conexión.
+
+        Example:
+            >>> ConnectionParamsManager.redact_secrets("postgresql", {"user": "u", "password": "x"})
+            {'user': 'u', 'password': '***'}
+        """
+        secrets = {name for name, kind in ConnectionParamsManager.param_kinds(db_type).items() if kind == "secret"}
+        redacted: dict[str, Any] = {}
+        for name, value in conn_params.items():
+            if name in secrets and value not in (None, ""):
+                redacted[name] = REDACTED
+            elif isinstance(value, dict):
+                redacted[name] = {
+                    key: REDACTED if "password" in str(key).lower() and inner not in (None, "") else inner
+                    for key, inner in value.items()
+                }
+            else:
+                redacted[name] = value
+        return redacted
 
     @staticmethod
     def param_kind(db_type: str, name: str) -> ParamKind:

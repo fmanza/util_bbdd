@@ -704,14 +704,16 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         Obtiene información básica de la base de datos
 
         Returns:
-            Diccionario con información de la conexión y base de datos
+            Diccionario con información de la conexión y base de datos. Desde v4.6.0 (G11 de util_bbdd_web),
+            ``connection_params`` lleva los secretos enmascarados (``"***"``,
+            ``ConnectionParamsManager.redact_secrets``): el resultado se puede registrar o serializar.
         """
         return {
             "db_type": self.db_type,
             "db_type_name": self.get_database_type_name(),
             "db_type_description": self.get_database_type_description(),
             "database": self.database,
-            "connection_params": dict(self.conn_params),
+            "connection_params": ConnectionParamsManager.redact_secrets(self.db_type, self.conn_params),
             "default_port": self.get_default_port(),
             "required_params": self.get_required_params(),
             "optional_params": self.get_optional_params(),
