@@ -80,7 +80,7 @@ class MaintenanceScopeResult:
     Se obtiene mediante ``as`` en el bloque ``with``::
 
         with bulk.maintenance_scope("orders", disable_indexes=True) as ms:
-            bulk.bulk_insert_from_df(df, "orders")
+            bulk.bulk_insert_from_df(df, "orders", generar_sql=False)
         for r in ms.constraint_results:
             print(r.constraint_name, r.status)
         for r in ms.index_results:

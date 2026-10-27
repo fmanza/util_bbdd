@@ -26,10 +26,10 @@ flowchart TD
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
 | `BulkCrud` | `(engine, *, batch?, audit?, rejects?, execution?, parallel?)` | Crea instancia con engine SQLAlchemy y [paquetes de opciones](#paquetes-de-opciones-v300) (v3.0.0; hasta v2.x, 16 parámetros sueltos: [guía de migración](../guides/api_3_0_migration.md)) | `BulkCrud` |
-| `bulk_insert_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | INSERT masivo desde DataFrame | `None` |
+| `bulk_insert_from_df` | `(df, tabla_destino, generar_sql?, path_sql?, override_identity?, exclude_autoincrement_pk?, *, dry_run?)` | INSERT masivo desde DataFrame | `None` |
 | `bulk_insert_from_chunks` | `(chunks, tabla_destino, *, override_identity?, exclude_autoincrement_pk?)` | INSERT streaming de iterable de DataFrames; resuelve columnas/identidad una sola vez | `int` (filas insertadas) |
-| `bulk_update_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | UPDATE masivo desde DataFrame | `None` |
-| `bulk_delete_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | DELETE masivo desde DataFrame | `None` |
+| `bulk_update_from_df` | `(df, tabla_destino, generar_sql?, path_sql?, *, dry_run?)` | UPDATE masivo desde DataFrame | `None` |
+| `bulk_delete_from_df` | `(df, tabla_destino, generar_sql?, path_sql?, *, dry_run?)` | DELETE masivo desde DataFrame | `None` |
 | `bulk_update_from_chunks` | `(chunks, tabla_destino)` | UPDATE en streaming: `bulk_update_from_df` por chunk dentro de una sola sesión; lee el iterable de forma perezosa y lo cierra al terminar | `int` (filas enviadas) |
 | `bulk_delete_from_chunks` | `(chunks, tabla_destino)` | DELETE en streaming, como `bulk_update_from_chunks` | `int` (filas enviadas) |
 | `last_operation_rows_committed` | propiedad | Filas de la última operación (o de la que falló) ya confirmadas en la BD, es decir, su prefijo confirmado. Con `commit_every_n_chunks`, las de los commits periódicos: para reanudar, `df.iloc[n:]`, o saltar `n` filas de la secuencia en `*_from_chunks` (cuentan como una operación). En modo atómico, todas las de la operación cuando su transacción (o la de `bulk_session`) se confirma y 0 si falla (desde 4.5.0; antes, siempre 0). Son filas enviadas, no las que la BD dice haber modificado: un UPDATE o DELETE de una clave inexistente cuenta. En una carga paralela, las de las particiones confirmadas | `int` |
@@ -70,7 +70,8 @@ flowchart TD
 | `parallel` | `ParallelOptions \| None` | Ejecución paralela de `bulk_*_from_df`: el DataFrame se reparte en particiones disjuntas (INSERT: tramos consecutivos; UPDATE/DELETE: por PK, o `partition_column`, por rangos si es una columna entera o datetime y por hash si no) que carga `ParallelBulkLoader`, una transacción por partición. **Deja de ser atómica.** Ver [carga paralela](#carga-paralela-desde-bulkcrud-v300) | Default `None` (en serie) |
 | `df` | `pd.DataFrame` | Datos fuente | No puede estar vacío; columnas deben coincidir con tabla destino |
 | `tabla_destino` | `str` | Nombre de la tabla en BD | Debe existir; se normaliza mayúsculas/minúsculas por motor |
-| `generar_sql` | `bool` | Escribir el SQL generado en fichero | Si `True`, `path_sql` es obligatorio |
+| `generar_sql` | `bool \| None` | `True`: escribir el SQL generado en fichero **sin ejecutar nada**; `False`: ejecutar | Si `True`, `path_sql` es obligatorio. `None` (default) equivale a `True` y, si tampoco se pasa `dry_run`, emite `FutureWarning` (desde 4.5.0): en 5.0.0 el valor por defecto será ejecutar. Pásalo siempre explícito |
+| `dry_run` | `bool \| None` | Nombre explícito del modo seco (desde 4.5.0, solo palabra clave): `True` equivale a `generar_sql=True` y `False` a `generar_sql=False` | `ValueError` si contradice a `generar_sql` |
 | `path_sql` | `str \| Path \| None` | Directorio base para el fichero SQL (desde v1.1.0 también `str`) | Nombre generado automáticamente (tabla + operación + timestamp) |
 
 ### Paquetes de opciones (v3.0.0)

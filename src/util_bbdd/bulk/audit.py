@@ -237,7 +237,7 @@ class AuditManager:
 
         Examples:
             >>> crud = BulkCrud(engine, audit=AuditOptions(csv_path=Path("audit.csv")))
-            >>> crud.bulk_insert_from_df(df, "clientes")
+            >>> crud.bulk_insert_from_df(df, "clientes", generar_sql=False)
             >>> crud.audit_manager.exportar_resumen_excel()  # incluye la hoja Condiciones_motor
         """
         return self._exporters.exportar_resumen_excel(

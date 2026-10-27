@@ -15,6 +15,18 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `BulkCrud.parallel_plan(operation, rows).atomic` lo da antes de cargar. Un `ParallelPlan` construido a mano es
   `atomic=False` salvo que se indique. `ParallelOptions(require_atomic=True)` fuerza un hilo en `BulkCrud`; exige
   `BatchOptions` sin `commit_every_n_chunks` y `ParallelBulkLoader` lo rechaza (`ValueError`).
+- **bulk** (G35 de util_bbdd_web): `dry_run: bool | None = None` (solo palabra clave) en `bulk_insert_from_df`,
+  `bulk_update_from_df` y `bulk_delete_from_df`: nombre explícito del modo seco. `dry_run=True` equivale a
+  `generar_sql=True` (escribe el SQL en `path_sql` y no toca la BD) y `dry_run=False` a `generar_sql=False`; si los dos
+  se pasan con valores distintos, `ValueError`. Las vías `*_from_chunks` no cambian: solo ejecutan, no generan SQL.
+
+### Deprecated
+
+- **bulk** (G35 de util_bbdd_web): llamar a `bulk_*_from_df` sin `generar_sql` ni `dry_run` emite `FutureWarning`. El
+  comportamiento no cambia (escribe el SQL y no ejecuta), pero en 5.0.0 el valor por defecto pasará a ejecutar. Pasa
+  `generar_sql=False` para cargar o `dry_run=True` para generar el SQL. El parámetro `generar_sql` pasa a
+  `bool | None = None` para distinguir el valor omitido; `True` y `False`, también posicionales, funcionan igual que
+  antes.
 
 ### Fixed
 

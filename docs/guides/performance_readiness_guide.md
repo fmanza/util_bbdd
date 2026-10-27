@@ -204,7 +204,7 @@ assert advisor.report_once(engine) is True
 
 # Siguientes → no repite (tampoco BulkCrud, que llama a report_once al crearse)
 for df in particiones:
-    BulkCrud(engine).bulk_insert_from_df(df, "users")
+    BulkCrud(engine).bulk_insert_from_df(df, "users", generar_sql=False)
 assert advisor.report_once(engine) is False
 ```
 
@@ -262,7 +262,7 @@ from util_bbdd.bulk import AuditManager
 from util_bbdd.bulk.options import AuditOptions
 
 crud = BulkCrud(engine, audit=AuditOptions(csv_path=Path("audit/audit.csv")))  # verifica el engine al crearse
-crud.bulk_insert_from_df(df, "users")
+crud.bulk_insert_from_df(df, "users", generar_sql=False)
 crud.audit_manager.exportar_resumen_excel()  # ... + hoja Condiciones_motor, sin nueva conexión
 
 # Tras ParallelBulkLoader, con un AuditManager propio:
@@ -347,7 +347,7 @@ engine = manager.get_sqlalchemy_engine()
 # BulkCrud.__init__ llama a report_once(engine): primera instancia verifica, las demás no
 bulk = BulkCrud(engine, audit=AuditOptions(csv_path="audit.csv"))
 for partition in partitions:
-    bulk.bulk_insert_from_df(partition, "users")
+    bulk.bulk_insert_from_df(partition, "users", generar_sql=False)
 
 # DumpOrchestrator verifica origen y destino al empezar (una vez por engine en el proceso)
 # y los muestra en la hoja «Condiciones del motor» del informe Excel

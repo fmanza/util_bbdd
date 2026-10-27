@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import math
 import uuid
+import warnings
 
 from collections.abc import Callable, Generator, Iterable, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager, contextmanager
@@ -158,6 +159,34 @@ def _lob_like(column_type: Any) -> bool:
         return True
     length = getattr(column_type, "length", None) if isinstance(column_type, String) else None
     return length is not None and length > _LOB_LIKE_STRING_LENGTH
+
+
+def _resolve_generar_sql(method: str, generar_sql: bool | None, dry_run: bool | None) -> bool:
+    """``generar_sql`` efectivo de un ``bulk_*_from_df`` a partir de ``generar_sql`` y ``dry_run`` (G35 de util_bbdd_web).
+
+    Sin ninguno de los dos, ``True`` (el valor por defecto de siempre) con un ``FutureWarning`` dirigido a quien llama:
+    en 5.0.0 el valor por defecto pasará a ejecutar.
+
+    Raises:
+        ValueError: Si se pasan los dos con valores distintos.
+    """
+    if dry_run is None:
+        if generar_sql is not None:
+            return generar_sql
+        # stacklevel: este helper, el método, el wrapper de medir_tiempo y quien llama.
+        warnings.warn(
+            f"BulkCrud.{method}: sin generar_sql ni dry_run se escribe el SQL y no se ejecuta (generar_sql=True). "
+            "En 5.0.0 el valor por defecto será ejecutar: pasa dry_run=True para generar el SQL o generar_sql=False "
+            "para ejecutar.",
+            FutureWarning,
+            stacklevel=4,
+        )
+        return True
+    if generar_sql is not None and generar_sql != dry_run:
+        raise ValueError(
+            f"BulkCrud.{method}: generar_sql={generar_sql} y dry_run={dry_run} se contradicen; pasa solo uno de los dos."
+        )
+    return dry_run
 
 
 class BulkCrud:
@@ -375,10 +404,12 @@ class BulkCrud:
         self,
         df: pd.DataFrame,
         tabla_destino: str,
-        generar_sql: bool = True,
+        generar_sql: bool | None = None,
         path_sql: StrPath | None = None,
         override_identity: bool = False,
         exclude_autoincrement_pk: bool = False,
+        *,
+        dry_run: bool | None = None,
     ) -> None:
         """
         Inserta en bloque los datos del DataFrame en la tabla destino, o genera la SQL si se indica.
@@ -386,7 +417,9 @@ class BulkCrud:
         Args:
             df: DataFrame con los datos.
             tabla_destino: Nombre de la tabla destino.
-            generar_sql: Si True, genera la sentencia SQL en texto.
+            generar_sql: Si True, genera la sentencia SQL en texto y no ejecuta nada; si False, ejecuta. ``None``
+                (default): como ``True``, con un ``FutureWarning`` si tampoco se pasa ``dry_run``, porque en 5.0.0 el
+                valor por defecto será ejecutar (G35 de util_bbdd_web, v4.5.0). Pásalo siempre explícito.
             path_sql: Directorio (``str`` o ``Path``) del archivo SQL. Es obligatorio si generar_sql=True.
                      El nombre del archivo se genera dinámicamente y se combina con esta ruta.
             override_identity: Si True y el motor es PostgreSQL, genera INSERT con
@@ -395,8 +428,11 @@ class BulkCrud:
             exclude_autoincrement_pk: Si True, excluye la columna PK autoincremental/identity
                      del INSERT (tanto en ejecución como en generación SQL). El DataFrame original
                      no se modifica. Solo afecta a INSERT; no a UPDATE ni DELETE. Por defecto False.
+            dry_run: Nombre explícito del modo seco (v4.5.0): ``True`` equivale a ``generar_sql=True`` (escribe el SQL
+                en ``path_sql`` y no toca la BD) y ``False`` a ``generar_sql=False``.
 
         Raises:
+            ValueError: Si generar_sql y dry_run se pasan con valores distintos.
             ValueError: Si generar_sql=True y path_sql no es proporcionado o no es válido.
             ValueError: Si el DataFrame es vacío o si hay errores de SQL.
             ValueError: Si override_identity=False y el DataFrame incluye columnas
@@ -411,6 +447,7 @@ class BulkCrud:
         ``parallel_plan("insert", len(df)).atomic`` lo dice antes de cargar; ``ParallelOptions(require_atomic=True)``
         fuerza un hilo.
         """
+        generar_sql = _resolve_generar_sql("bulk_insert_from_df", generar_sql, dry_run)
         if self.__run_in_parallel(
             df,
             tabla_destino,
@@ -435,8 +472,10 @@ class BulkCrud:
         self,
         df: pd.DataFrame,
         tabla_destino: str,
-        generar_sql: bool = True,
+        generar_sql: bool | None = None,
         path_sql: StrPath | None = None,
+        *,
+        dry_run: bool | None = None,
     ) -> None:
         """
         Actualiza en bloque los registros del DataFrame en la tabla destino.
@@ -444,17 +483,20 @@ class BulkCrud:
         Args:
             df: DataFrame con los datos a actualizar.
             tabla_destino: Nombre de la tabla destino.
-            generar_sql: Si True, genera la sentencia SQL en texto.
+            generar_sql: Como en :meth:`bulk_insert_from_df` (``None``: ``True`` con ``FutureWarning``, G35).
             path_sql: Directorio (``str`` o ``Path``) del archivo SQL. Es obligatorio si generar_sql=True.
                      El nombre del archivo se genera dinámicamente y se combina con esta ruta.
+            dry_run: Como en :meth:`bulk_insert_from_df` (v4.5.0).
 
         Raises:
             ValueError: Si no hay claves primarias o columnas actualizables.
+            ValueError: Si generar_sql y dry_run se pasan con valores distintos.
             ValueError: Si generar_sql=True y path_sql no es proporcionado o no es válido.
 
         La operación se registra en auditoría si fue configurada. Con ``parallel``, como :meth:`bulk_insert_from_df`; las
         particiones son disjuntas por PK (o por ``ParallelOptions.partition_column``).
         """
+        generar_sql = _resolve_generar_sql("bulk_update_from_df", generar_sql, dry_run)
         if self.__run_in_parallel(df, tabla_destino, "update", generar_sql):
             return
         self.__run_bulk_pipeline(
@@ -470,8 +512,10 @@ class BulkCrud:
         self,
         df: pd.DataFrame,
         tabla_destino: str,
-        generar_sql: bool = True,
+        generar_sql: bool | None = None,
         path_sql: StrPath | None = None,
+        *,
+        dry_run: bool | None = None,
     ) -> None:
         """
         Borra en bloque registros del DataFrame desde la tabla destino.
@@ -479,16 +523,19 @@ class BulkCrud:
         Args:
             df: DataFrame con los datos a borrar (debe contener claves primarias).
             tabla_destino: Nombre de la tabla destino.
-            generar_sql: Si True, genera la sentencia SQL en texto.
+            generar_sql: Como en :meth:`bulk_insert_from_df` (``None``: ``True`` con ``FutureWarning``, G35).
             path_sql: Directorio (``str`` o ``Path``) del archivo SQL. Es obligatorio si generar_sql=True.
                      El nombre del archivo se genera dinámicamente y se combina con esta ruta.
+            dry_run: Como en :meth:`bulk_insert_from_df` (v4.5.0).
 
         Raises:
             ValueError: Si no hay columnas de clave primaria disponibles.
+            ValueError: Si generar_sql y dry_run se pasan con valores distintos.
             ValueError: Si generar_sql=True y path_sql no es proporcionado o no es válido.
 
         La operación se registra en auditoría si fue configurada. Con ``parallel``, como :meth:`bulk_update_from_df`.
         """
+        generar_sql = _resolve_generar_sql("bulk_delete_from_df", generar_sql, dry_run)
         if self.__run_in_parallel(df, tabla_destino, "delete", generar_sql):
             return
         self.__run_bulk_pipeline(
@@ -1669,7 +1716,7 @@ class BulkCrud:
             bulk = BulkCrud(engine)
             with bulk.bulk_session():
                 with bulk.maintenance_scope("usuarios", disable_indexes=True) as ms:
-                    bulk.bulk_insert_from_df(df, "usuarios")
+                    bulk.bulk_insert_from_df(df, "usuarios", generar_sql=False)
             for r in ms.constraint_results:
                 print(r.constraint_name, r.status)
 
