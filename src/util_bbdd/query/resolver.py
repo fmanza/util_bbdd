@@ -16,7 +16,7 @@ import time
 from typing import Any
 
 from util_bbdd.models import QueryDefinition
-from util_bbdd.validators.base_validator import QueryParameterValidator
+from util_bbdd.validators.base_validator import QueryParameterValidator, check_interpolated_params
 
 from .._core.exceptions import (
     QueryNotFoundError,
@@ -111,6 +111,14 @@ class QueryResolver:
                     f"Validation failed for query '{query_name}' on db_type '{effective_db_type}'. "
                     f"Provided params: {list(params.keys())}"
                 )
+                self.logger.error(f"❌ {msg}")
+                raise QueryValidationError(msg)
+
+            # G18 (v4.6.0): todo valor que la plantilla interpola con {nombre} es un identificador o un número, no solo
+            # los nombres que conoce el validador del motor (tabla, schema…); los valores van por bind (:nombre).
+            interpolation_errors: list[str] = check_interpolated_params(query_def.sql_template, params)
+            if interpolation_errors:
+                msg = f"Validation failed for query '{query_name}': {'; '.join(interpolation_errors)}"
                 self.logger.error(f"❌ {msg}")
                 raise QueryValidationError(msg)
 

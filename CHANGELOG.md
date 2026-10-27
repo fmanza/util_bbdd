@@ -66,6 +66,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   los valores reales. Nuevo `ConnectionParamsManager.redact_secrets(db_type, conn_params)`. Se publica en MINOR como
   corrección de seguridad (decisión D2 del plan): quien leyera la contraseña de ese resultado debe tomarla de sus
   propios `conn_params`. **Para la web**: no usa `get_database_info()`; no necesita cambios.
+- **query** (G18 de util_bbdd_web): `QueryResolver.resolve` valida **todos** los parámetros que la plantilla
+  interpola con `{nombre}` (`str.format`), no solo los que conocía el validador de cada motor (`tabla`, `schema`,
+  `database`…): cada uno debe ser un identificador (letras, dígitos, `_`, `$`, `#`, `@`) o un número (`int`, `float`
+  finito, `Decimal`); si no, `QueryValidationError` sin ejecutar nada. Un valor como `1; DROP TABLE x` en un parámetro
+  `{estado}` entraba en el SQL tal cual. Los parámetros que la plantilla usa como *bind* (`:nombre` o `%(nombre)s`) no
+  se interpolan y no cambian: es la vía para valores de datos. Una plantilla propia que interpolara texto libre debe
+  pasarlo a `:nombre`. **Para la web (W-T4)**: su validación de parámetros y el guardián `sqlglot` se mantienen como
+  defensa.
 
 ## [4.5.0] - 2026-10-27
 

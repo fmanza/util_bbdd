@@ -2,9 +2,12 @@
 Base validator: Clase abstracta para todos los validadores de BD
 """
 
+import math
 import re
+import string
 
 from abc import ABC, abstractmethod
+from decimal import Decimal
 from typing import Any
 
 from ..models import QueryDefinition
@@ -14,6 +17,53 @@ from ..models import QueryDefinition
 # str.format(). Sin esta allowlist, un valor como "x; DROP TABLE y; --" pasaba la validación de
 # varios motores sin objeción (ver AUDIT_CODE SVC-02, 2026-09-22).
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9_$#]+$")
+
+#: Valores que ``QueryResolver`` admite en un campo ``{nombre}`` de la plantilla (G18 de util_bbdd_web, v4.6.0): la
+#: allowlist de identificadores más ``@`` (SQL Server lo admite en schemas). Sin comillas, espacios, ``;`` ni ``-``.
+_INTERPOLATED_RE = re.compile(r"^[A-Za-z0-9_$#@]+$")
+
+
+def _interpolated_fields(template: str) -> set[str]:
+    """Nombres de los campos ``{nombre}`` de ``template`` (``{a.b}`` y ``{a[0]}`` cuentan como ``a``)."""
+    fields: set[str] = set()
+    for _literal, field_name, _spec, _conversion in string.Formatter().parse(template):
+        if field_name:
+            fields.add(re.split(r"[.\[]", field_name, maxsplit=1)[0])
+    return fields
+
+
+def check_interpolated_params(template: str, params: dict[str, Any]) -> list[str]:
+    """Errores de los parámetros que ``template`` interpola con ``{nombre}`` (``str.format``) (G18, v4.6.0).
+
+    Cada valor interpolado debe ser un identificador (letras, dígitos, ``_``, ``$``, ``#``, ``@``) o un número
+    (``int``, ``float`` finito o ``Decimal``; no ``bool``). Los parámetros que la plantilla usa como *bind*
+    (``:nombre`` o ``%(nombre)s``) no se interpolan y no se comprueban aquí: es la vía para valores (texto, rutas,
+    fechas). Los que faltan los informa la interpolación.
+
+    Args:
+        template: SQL de la query con campos ``{nombre}``.
+        params: Parámetros de la llamada.
+
+    Returns:
+        Un mensaje por parámetro no admitido; vacío si todos lo son.
+    """
+    errors: list[str] = []
+    for name in sorted(_interpolated_fields(template) & set(params)):
+        value = params[name]
+        if isinstance(value, bool):
+            ok = False
+        elif isinstance(value, int | Decimal):
+            ok = True
+        elif isinstance(value, float):
+            ok = math.isfinite(value)
+        else:
+            ok = isinstance(value, str) and bool(_INTERPOLATED_RE.match(value))
+        if not ok:
+            errors.append(
+                f"Parameter '{name}' is interpolated into the SQL and must be an identifier (letters, digits, _ $ # @) "
+                f"or a number; pass values as bind parameters (:{name})"
+            )
+    return errors
 
 
 class QueryParameterValidator(ABC):

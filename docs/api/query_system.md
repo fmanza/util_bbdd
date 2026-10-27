@@ -51,7 +51,7 @@ flowchart TD
 | `queries_file` | `Path \| None` | Ruta al JSON de queries (`{"<db_type>": {"<nombre>": "<SQL>"}}`) | `None` usa `data/sql_queries.json` del paquete, que no trae consultas: sin `queries_file`, toda query por nombre da `QueryNotFoundError` |
 | `db_type` | `str` | Motor para resolver queries | Se normaliza a minúsculas |
 | `query_name` | `str` | Nombre de la query en el JSON | Snake_case; sensible al casing del JSON |
-| `params` | `dict[str, Any] \| None` | Parámetros a interpolar en el template | `None` equivale a `{}`; son identificadores, no valores de datos |
+| `params` | `dict[str, Any] \| None` | Parámetros del template: los campos `{nombre}` se interpolan; los `:nombre` (o `%(nombre)s`) van por *bind* al ejecutar | `None` equivale a `{}`. Desde 4.6.0 todo valor interpolado con `{nombre}` debe ser un identificador (letras, dígitos, `_`, `$`, `#`, `@`) o un número; si no, `QueryValidationError`. Los valores de datos (texto, fechas, rutas) van como `:nombre` |
 
 ### Contrato de salida
 
@@ -66,7 +66,7 @@ flowchart TD
 | `FileNotFoundError` | JSON de queries no encontrado en `__init__` del registry |
 | `ValueError` | JSON inválido o estructura incorrecta |
 | `QueryNotFoundError` | `db_type` o `query_name` no en el JSON |
-| `QueryValidationError` | `is_valid=False` del validador |
+| `QueryValidationError` | `is_valid=False` del validador, o (desde 4.6.0) un valor interpolado con `{nombre}` que no es identificador ni número |
 | `QueryParameterError` | Placeholder sin valor al interpolar; `resolve` en un resolver sin `db_type` (usar `bind`) |
 
 ## 3. Componentes y Clases
