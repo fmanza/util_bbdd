@@ -35,6 +35,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `get_database_type_driver_info()` de los managers y `get_driver_requirements()` de las queries devolvían `{}` en SQL
   Server; ahora, el driver predeterminado. **Para la web (W-T1)**: `OBSOLETE_DRIVERS` y `_driver_info()` de
   `catalog.py` se sustituyen por `drivers` y `default_driver`.
+- **connection** (G15 de util_bbdd_web): `build_conn_params` conserva los opcionales declarados del motor
+  (`connection_params.optional` de `database_types.json`) que recibe y su builder no ponía: `sslmode`,
+  `application_name` u `options` en PostgreSQL, `ssl_*` en MySQL/MariaDB, `encryption` o `trust_cert` en SQL Server,
+  etc. Hasta 4.5.x se perdían. Los no declarados y los `None` siguen fuera; en Oracle con `dsn`, el destino por partes
+  (`host`, `port`, `service_name`, `sid`, `database`) también. El camino de los managers (`prepare_and_validate`) ya
+  los conservaba y no cambia. **Para la web (W-T2)**: `build_params` deja de mezclar
+  `{**build_conn_params(...), **params}`.
 
 ## [4.5.0] - 2026-10-27
 

@@ -5,6 +5,7 @@ import dataclasses
 from collections.abc import Callable
 from typing import Any
 
+from .._drivers import get_database_validator
 from .config import (
     HSQLDBConnectionConfig,
     MariaDBConnectionConfig,
@@ -36,7 +37,9 @@ def build_conn_params(db_type: str, **kwargs: Any) -> dict[str, Any]:
         **kwargs: Parámetros de conexión y opciones específicas del motor.
 
     Returns:
-        Diccionario conn_params listo para SyncDatabaseManager.
+        Diccionario conn_params listo para SyncDatabaseManager: los requeridos, los opcionales con valor por defecto
+        y, desde v4.6.0, el resto de opcionales declarados del motor que se hayan pasado (p. ej. ``sslmode`` en
+        PostgreSQL; G15 de util_bbdd_web). Los parámetros no declarados se descartan.
 
     Raises:
         ValueError: Si el tipo de base no es soportado o faltan parámetros requeridos.
@@ -57,7 +60,31 @@ def build_conn_params(db_type: str, **kwargs: Any) -> dict[str, Any]:
     if not builder:
         raise ValueError(f"Tipo de base de datos no soportado para build_conn_params: {db_type}")
 
-    return builder(kwargs, normalized_type)
+    conn_params = builder(kwargs, normalized_type)
+    return _with_declared_optionals(normalized_type, conn_params, kwargs)
+
+
+#: Parámetros que un builder descarta a propósito: con ``dsn``, Oracle no usa el destino por partes.
+_SUPERSEDED_BY_DSN: frozenset[str] = frozenset({"host", "port", "service_name", "sid", "database"})
+
+
+def _with_declared_optionals(db_type: str, conn_params: dict[str, Any], kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Añade a ``conn_params`` los opcionales declarados del motor que recibió y su builder no puso (G15, v4.6.0).
+
+    Hasta v4.5.x cada builder devolvía solo los parámetros que conocía: ``sslmode`` en PostgreSQL o ``ssl_ca`` en
+    MySQL se perdían aunque ``database_types.json`` los declara. Se conservan los declarados con valor distinto de
+    ``None``; los no declarados siguen fuera (``prepare_and_validate`` los rechaza).
+    """
+    declared: set[str] = {
+        str(option.get("name"))
+        for option in get_database_validator().get_optional_params(db_type)
+        if isinstance(option, dict)
+    }
+    skipped: frozenset[str] = _SUPERSEDED_BY_DSN if db_type == "oracle" and kwargs.get("dsn") else frozenset()
+    for name, value in kwargs.items():
+        if name in declared and name not in conn_params and name not in skipped and value is not None:
+            conn_params[name] = value
+    return conn_params
 
 
 def _validate_required(required: list[str], kwargs: dict[str, Any], db_type: str) -> None:
