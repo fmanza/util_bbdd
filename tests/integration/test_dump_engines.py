@@ -114,6 +114,8 @@ class Setup:
         return f"{self.prefix}_{suffix}"
 
     def run(self, tables: list[str], **cfg: Any) -> Any:
+        # Volcados completos: desde 5.0.0 (G30) truncate_target vale False por defecto; un test puede pasar False.
+        cfg.setdefault("truncate_target", True)
         return DumpOrchestrator(
             DumpConfig(
                 source_engine=self.source,
