@@ -11,7 +11,6 @@ Todas siguen el mismo contrato (por eso sus métodos no repiten docstring):
 from __future__ import annotations
 
 import re
-import warnings
 
 from dataclasses import dataclass, field
 from typing import Any, ClassVar
@@ -130,9 +129,6 @@ class MariaDBConnectionConfig:
     read_timeout: int = 30
     write_timeout: int = 60
     charset: str = "utf8mb4"
-    #: Sin efecto: ningún driver de MariaDB lo admite (Connector/Python 1.1.14 lanza ``TypeError``). Se conserva por
-    #: compatibilidad; ``from_params`` avisa con ``FutureWarning`` y ``to_driver_kwargs`` no lo envía.
-    encoding_errors: str | None = None
     init_command: str = "SET NAMES utf8mb4"
     #: TLS (MariaDB Connector/Python: ``ssl``, ``ssl_ca``, ``ssl_cert``, ``ssl_key``, ``ssl_verify_cert``; aiomysql:
     #: ``SSLContext``). Cualquiera de ellos activa TLS; sin ninguno, la conexión no se cifra (comportamiento previo).
@@ -156,18 +152,6 @@ class MariaDBConnectionConfig:
         init_command = _single_statement(
             _opt_str(params, "init_command") or "SET NAMES utf8mb4", "init_command", db_type
         )
-        encoding_errors = _opt_str(params, "encoding_errors")
-        if encoding_errors is not None:
-            if encoding_errors not in {"replace", "strict", "ignore"}:
-                raise ValueError(
-                    f"Parametro invalido para {db_type}: encoding_errors debe ser 'replace', 'strict' o 'ignore'; "
-                    f"recibido '{encoding_errors}'"
-                )
-            warnings.warn(
-                "encoding_errors no tiene efecto: ningún driver de MariaDB lo admite (se ignora)",
-                FutureWarning,
-                stacklevel=2,
-            )
         return cls(
             host=_require_str(params, "host", db_type),
             user=_require_str(params, "user", db_type),
@@ -180,7 +164,6 @@ class MariaDBConnectionConfig:
             read_timeout=_to_int(params.get("read_timeout", 30), "read_timeout", db_type, min_value=0),
             write_timeout=_to_int(params.get("write_timeout", 60), "write_timeout", db_type, min_value=0),
             charset=charset,
-            encoding_errors=encoding_errors,
             init_command=init_command,
             ssl=_to_bool(params.get("ssl", False), "ssl", db_type),
             ssl_ca=_opt_str(params, "ssl_ca"),

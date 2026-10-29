@@ -134,7 +134,7 @@ abrir el manager: `DatabaseConfigurationError` si falla la creación del pool (l
 | Motor | Claves requeridas | Opcionales habituales |
 |---|---|---|
 | `postgresql` | `host`, `user`, `password`, `database` | `port`=5432, `schema` (→ `search_path`; nombres sin comillas separados por comas), `sslmode` (también en async: asyncpg recibe el modo de libpq), `connect_timeout`, `application_name`, `pool_size` |
-| `mariadb` | `host`, `user`, `password`, `database` | `port`=3306, `charset`=utf8mb4, `init_command`=`"SET NAMES utf8mb4"`, `catalog_charset_mode`=`"auto"`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size`, `ssl`/`ssl_ca`/`ssl_cert`/`ssl_key`, `ssl_verify_cert` (sin `ssl_verify_identity`: límite del driver, ver §6). `encoding_errors` se acepta pero no tiene efecto |
+| `mariadb` | `host`, `user`, `password`, `database` | `port`=3306, `charset`=utf8mb4, `init_command`=`"SET NAMES utf8mb4"`, `catalog_charset_mode`=`"auto"`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size`, `ssl`/`ssl_ca`/`ssl_cert`/`ssl_key`, `ssl_verify_cert` (sin `ssl_verify_identity`: límite del driver, ver §6). `encoding_errors` se retiró en 5.0.0 (nunca tuvo efecto) |
 | `mysql` | `host`, `user`, `password`, `database` | `port`=3306, `charset`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size`, `max_overflow`, `pool_timeout`, `pool_recycle`, `ssl_ca`/`ssl_cert`/`ssl_key`, `ssl_verify_cert`, `ssl_verify_identity` (sync y async: con CA se verifican certificado y hostname salvo que se desactiven) |
 | `oracle` | `user`, `password` + **uno de** `service_name` / `sid` / `dsn` / `database` | `host`=localhost, `port`=1521, `protocol` (`tcp`/`tcps`; sin `dsn`), `oracle_client_path`, `oracle_thick_mode`, `pool_size`, `schema` (owner por defecto de los metadatos; sin él, el usuario. Desde 4.1.0; no cambia `CURRENT_SCHEMA`) |
 | `sqlserver` | `host`, `user`, `password`, `database` | `port`=1433, `sql_server_driver` (`pymssql`/`pyodbc`), `driver_name` (pyodbc), `encryption` (`mandatory`/`optional`/`off`; con pymssql se traduce a `require`/por defecto de FreeTDS/`off`), `trust_cert` y `use_mars` (solo pyodbc/aioodbc; con pymssql, `trust_cert=True` avisa una vez de que no se aplica) |
@@ -156,7 +156,7 @@ abrir el manager: `DatabaseConfigurationError` si falla la creación del pool (l
 | Error async con HSQLDB | HSQLDB no soporta async | Usar `SyncDatabaseManager` (HSQLDB es solo síncrono) |
 | `Server has gone away` (MariaDB/MySQL) | Conexión caducada en cargas largas | Obtener el engine con `get_sqlalchemy_engine()` (incluye `pool_pre_ping`) |
 | El `schema` PostgreSQL parece ignorado | `schema` no es un parámetro libpq | La librería lo traduce a `options=-c search_path=<schema>` automáticamente |
-| `UnicodeDecodeError` en MariaDB al generar documentación | Encoding mismatch: servidor `latin1` vs. cliente `utf8mb4` | Usar `init_command` y `catalog_charset_mode="convert"` (ver §6; `encoding_errors` no tiene efecto) |
+| `UnicodeDecodeError` en MariaDB al generar documentación | Encoding mismatch: servidor `latin1` vs. cliente `utf8mb4` | Usar `init_command` y `catalog_charset_mode="convert"` (ver §6; `encoding_errors` nunca tuvo efecto y se retiró en 5.0.0) |
 | `MetadataError: … SystemError del driver mariadb … fetchrows` con `use_pool=True` y servidor en `latin1` (hasta v0.40.2; el diagnóstico dice `utf8mb4_clean`) | El reset de sesión del pool nativo deshacía `init_command` | Actualizar a v0.40.3 o, en versiones anteriores, `use_pool=False` (ver §6) |
 | `ValidationError: … init_command admite una sola sentencia` (o, hasta v0.40.1, `You have an error in your SQL syntax … near 'SET NAMES utf8mb4'`) | `init_command` con varias sentencias separadas por `;` | Un solo `SET` con comas: `SET SESSION character_set_server = utf8mb4, NAMES utf8mb4` (ver §6) |
 | `CERT_E_CN_NO_MATCH` (MariaDB sync) o error de conexión TLS (async) con `ssl_ca` | El nombre o la IP de `host` no figura en el certificado del servidor; el conector de MariaDB no permite verificar solo la CA | Conectar con un nombre que esté en el certificado (ver [TLS en MariaDB](#tls-en-mariadb-ssl-ssl_ca-ssl_cert-ssl_key-ssl_verify_cert-desde-v0390)) |
@@ -297,13 +297,14 @@ hostname: MariaDB Connector/Python no tiene equivalente a `ssl_verify_identity`.
 Las rutas de `ssl_ca`, `ssl_cert` y `ssl_key` pueden ser relativas al directorio de trabajo (comprobado con
 Connector/Python 1.1.14, aunque su documentación pida rutas absolutas).
 
-#### **`encoding_errors`** (obsoleto, sin efecto)
+#### **`encoding_errors`** (retirado en 5.0.0)
 
 Ningún driver de MariaDB lo admite: MariaDB Connector/Python 1.1.14 (la última versión) rechaza `encoding_errors`
 con `TypeError`, igual que `mariadb.ConnectionPool`, y aiomysql no tiene ese parámetro. Hasta v0.35.6 la librería lo
 enviaba por defecto (`"replace"`) y el reintento defensivo lo quitaba en cada conexión nueva, así que **nunca llegó a
-aplicarse** (ni como red de seguridad ni sustituyendo bytes). Desde v0.35.7 no se envía; si aparece en `conn_params`
-se acepta por compatibilidad y emite un `FutureWarning`.
+aplicarse** (ni como red de seguridad ni sustituyendo bytes). Desde v0.35.7 no se envía y hasta 4.x se aceptaba con
+un `FutureWarning`. En 5.0.0 deja de ser un parámetro del motor: no está en `database_types.json` ni en
+`MariaDBConnectionConfig`, y si aparece en `conn_params` se descarta sin aviso, como cualquier parámetro no declarado.
 
 ### 7. Pools: `pool_size`, `close_timeout` y el pool del Engine
 

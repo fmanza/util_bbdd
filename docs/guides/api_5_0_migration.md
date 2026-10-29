@@ -19,6 +19,8 @@ python -m pytest -W error::FutureWarning -W error::DeprecationWarning
 | Volcado | `DumpConfig(truncate_target=...)` vale `True` si no se indica: `run()` vacía el destino | Vale `False`: `run()` añade filas sin borrar nada (modo append) | `FutureWarning` desde 4.4.0 |
 | Carga masiva | `BulkCrud.bulk_{insert,update,delete}_from_df` sin `generar_sql` ni `dry_run` escribe el SQL y no ejecuta | Ejecuta | `FutureWarning` desde 4.5.0 |
 | Documentación | `DatabaseDocumentation` sin `fichero_salida` agrupa en la misma carpeta las generaciones de los 90 s siguientes | Cada generación tiene su carpeta | Ninguno (no es destructivo) |
+| Auditoría de bulk | `AuditManager.columnas_auditoria = [...]` cambia la cabecera del CSV | `AttributeError` (solo lectura) | `DeprecationWarning` |
+| Conexión MariaDB | `encoding_errors` se acepta (sin efecto) | Se descarta sin aviso; no está en `database_types.json` | `FutureWarning` |
 
 ## 3. Volcado: `truncate_target=False` por defecto
 
@@ -94,3 +96,21 @@ Este cambio no tuvo `FutureWarning` previo: no borra ni sobrescribe nada, solo c
 | `fichero_salida=...` | Igual | Nada |
 | `batch_window_seconds=N` explícito (también `0`) | Igual | Nada |
 | Sin los dos, y cuentas con que varias generaciones seguidas acaben en la misma carpeta | Cada una en su carpeta | Pasa `batch_window_seconds=90` |
+
+## 6. Retiradas: `columnas_auditoria` y `encoding_errors`
+
+Dos cosas que ya avisaban en 4.x desaparecen:
+
+- **`AuditManager.columnas_auditoria`** pasa a ser de solo lectura. Asignarla cambiaba la cabecera del CSV, pero cada
+  fila se seguía escribiendo con las 7 columnas fijas y el fichero dejaba de poder leerse. Ahora asignarla da
+  `AttributeError`. Leerla sigue igual.
+- **`encoding_errors` de MariaDB** deja de ser un parámetro del motor. Nunca tuvo efecto: ningún driver de MariaDB lo
+  admite. Se quita de `MariaDBConnectionConfig`, de la validación y de `database_types.json`, que incluye la lista de
+  opcionales y la clase del parámetro en `param_kinds`. Si aparece en `conn_params` o en `build_conn_params`, se
+  descarta sin aviso, como cualquier parámetro no declarado.
+
+| Tu código en 4.x | Qué pasa en 5.0 | Qué hacer |
+|---|---|---|
+| `manager.columnas_auditoria = [...]` | `AttributeError` | Quitar la asignación (las columnas son siempre las 7 fijas) |
+| `conn_params={..., "encoding_errors": "replace"}` | Se descarta sin aviso | Quitar la clave |
+| Un validador propio que acepte solo los parámetros declarados del motor (p. ej. leyendo `database_types.json` o `param_kinds`) | Rechaza `encoding_errors` en conexiones guardadas | Quitar la clave de lo guardado |

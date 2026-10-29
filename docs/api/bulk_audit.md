@@ -42,7 +42,7 @@ flowchart TD
 | `exportar_resumen_json` | `(output_path?)` | Estadísticas y conteos en JSON (por defecto `auditoria.json` junto al CSV) | `Path` |
 | `exportar_resumen_html` | `(output_path?)` | Informe HTML (por defecto `auditoria.html` junto al CSV) | `Path` |
 
-Propiedades: `audit_csv_path`, `cache_enabled`, `cache_ttl_seconds` (lectura y escritura) y `columnas_auditoria` (asignarla está obsoleto: emite `DeprecationWarning`).
+Propiedades: `audit_csv_path`, `cache_enabled`, `cache_ttl_seconds` (lectura y escritura) y `columnas_auditoria` (solo lectura: el setter, obsoleto desde 3.x, se retiró en 5.0.0 y asignarla da `AttributeError`).
 
 ### Contrato de entrada
 

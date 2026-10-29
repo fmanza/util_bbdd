@@ -13,7 +13,6 @@ Su logger sigue siendo ``util_bbdd.bulk.audit``.
 from __future__ import annotations
 
 import logging
-import warnings
 
 from collections.abc import Sequence
 from datetime import datetime
@@ -105,22 +104,12 @@ class AuditManager:
 
     @property
     def columnas_auditoria(self) -> list[str]:
-        return self._repository.columnas_auditoria
+        """Columnas del CSV de auditoría (las 7 fijas). Solo lectura: el setter se retiró en 5.0.0 (D8-8).
 
-    @columnas_auditoria.setter
-    def columnas_auditoria(self, value: list[str]) -> None:
-        """Obsoleto: se retirará en la próxima versión menor.
-
-        H7 (audit-code 2026-09-25): cambia la cabecera del CSV, pero cada fila se sigue escribiendo con las 7 columnas
-        fijas, así que el fichero deja de poder leerse.
+        H7 (audit-code 2026-09-25): asignarlas cambiaba la cabecera del CSV, pero cada fila se seguía escribiendo con
+        las 7 columnas fijas y el fichero dejaba de poder leerse.
         """
-        warnings.warn(
-            "AuditManager.columnas_auditoria no debe asignarse: la cabecera dejaría de coincidir con las filas del CSV "
-            "(siempre 7 columnas). El setter se retirará en la próxima versión menor.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self._repository.columnas_auditoria = value
+        return self._repository.columnas_auditoria
 
     @property
     def cache_enabled(self) -> bool:

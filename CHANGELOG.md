@@ -56,6 +56,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   si coincide en el mismo segundo o la carpeta ya existe, lleva el sufijo `-2`, `-3`… (antes dos generaciones en el
   mismo segundo compartían carpeta aunque se pidiera `0`). Con una ventana explícita, todo sigue igual. Sin
   `FutureWarning` previo porque no es destructivo (D8-1).
+
+### Removed
+
+- **BREAKING — bulk** (U-8.6, D8-8): setter de `AuditManager.columnas_auditoria` (obsoleto con `DeprecationWarning`).
+  La propiedad es de solo lectura: asignarla da `AttributeError`.
+- **BREAKING — connection** (U-8.6, D8-8): parámetro `encoding_errors` de MariaDB, que nunca tuvo efecto (ningún
+  driver lo admite; `FutureWarning` hasta 4.x). Se quitan el campo de `MariaDBConnectionConfig`, su validación y el
+  aviso, y su entrada en `optional` y en `kinds` de `database_types.json`. Si se pasa, se descarta sin aviso como
+  cualquier parámetro no declarado. Quien valide contra los parámetros declarados (util_bbdd_web, W-8.1) debe quitarlo
+  de las conexiones guardadas.
 - **Dependabot** (`.github/dependabot.yml`): mensual, un PR agrupado por ecosistema (`pip`, `github-actions`) y contra
   `develop` (antes semanal, hasta 5 PR por ecosistema y contra `main`).
 

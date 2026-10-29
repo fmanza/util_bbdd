@@ -99,7 +99,8 @@ class AuditCsvRepository:
         self._lock_path: Path | None = None
         self._lock: threading.Lock | None = None
         # (ruta, columnas) cuya cabecera ya se comprobó: una vez por instancia, y otra si cambia la ruta o las columnas
-        # (setter obsoleto ``AuditManager.columnas_auditoria``); ver ``_asegurar_cabecera``.
+        # (``columnas_auditoria`` del repositorio; ``AuditManager`` ya no deja cambiarlas, 5.0.0); ver
+        # ``_asegurar_cabecera``.
         self._cabecera_validada: tuple[Path, tuple[str, ...]] | None = None
 
         if self.audit_csv_path is not None:

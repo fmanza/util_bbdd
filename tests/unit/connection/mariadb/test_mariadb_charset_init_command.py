@@ -7,17 +7,21 @@ Comprobado contra el banco (MariaDB 11.4, MariaDB Connector/Python 1.1.14, la ú
 - v0.35.6 hizo el ``init_command`` por defecto ``SET NAMES <charset>``: con ``charset="latin1"`` la conexión sync
   dejaba de abrirse (regresión). En sync la sesión es siempre ``SET NAMES utf8mb4``; ``charset`` solo lo usa aiomysql
   (async).
-- ``encoding_errors`` no lo aplica ningún driver: se acepta por compatibilidad, avisa y no se envía (antes provocaba un
-  ``TypeError`` y un reintento en cada conexión nueva).
+- ``encoding_errors`` no lo aplica ningún driver. Hasta 4.x se aceptaba con ``FutureWarning`` y no se enviaba; desde
+  5.0.0 (U-8.6) no es un parámetro del motor y se descarta sin aviso, como cualquier parámetro no declarado.
 """
 
 from __future__ import annotations
+
+import warnings
 
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
+from util_bbdd._drivers import get_db_type_info
+from util_bbdd.connection import build_conn_params
 from util_bbdd.connection.config import MariaDBConnectionConfig
 from util_bbdd.connection.mariadb import pool_connection_mariadb
 from util_bbdd.connection.mariadb.async_connection_mariadb import AsyncMariaDBConnection
@@ -46,11 +50,19 @@ def test_invalid_charset_is_rejected(charset: str) -> None:
         MariaDBConnectionConfig.from_params({**BASE, "charset": charset})
 
 
-def test_encoding_errors_is_accepted_but_ignored_with_warning() -> None:
-    with pytest.warns(FutureWarning, match="encoding_errors"):
+def test_encoding_errors_is_no_longer_a_parameter() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         config = MariaDBConnectionConfig.from_params({**BASE, "encoding_errors": "strict"})
+        built = build_conn_params("mariadb", **BASE, encoding_errors="replace")
 
+    assert not hasattr(config, "encoding_errors")
     assert "encoding_errors" not in config.to_driver_kwargs()
+    assert "encoding_errors" not in built
+    assert "encoding_errors" not in ConnectionParamsManager.param_kinds("mariadb")
+    params = get_db_type_info("mariadb")["connection_params"]
+    declared = {param["name"] for param in params["optional"]} | set(params["kinds"])
+    assert "encoding_errors" not in declared
 
 
 def test_sync_connect_sends_only_kwargs_the_driver_accepts(monkeypatch: pytest.MonkeyPatch) -> None:

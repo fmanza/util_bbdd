@@ -3,7 +3,7 @@
 !!! warning "Corrección (v0.35.7)"
     Esta guía describe el diseño de v0.35.0. Comprobado contra el driver real: MariaDB Connector/Python 1.1.14 (la
     última versión) **no admite `encoding_errors` ni `charset`**, así que con ese driver `encoding_errors` nunca
-    llegó a aplicarse; desde v0.35.7 es un parámetro sin efecto. Lo vigente está en
+    llegó a aplicarse; desde v0.35.7 es un parámetro sin efecto y en 5.0.0 se retiró. Lo vigente está en
     la [Guía de conexión § 6](connection_guide.md#6-parametros-especiales-de-mariadb-init_command-y-encoding_errors).
 
 ## 1. Objetivo
@@ -217,6 +217,7 @@ En versiones < 0.35.0, `init_command` y `encoding_errors` no existían en `conn_
 ## 8. Lo que vino después
 
 - **v0.35.7**: `encoding_errors` queda sin efecto (ningún driver lo admite).
+- **5.0.0**: `encoding_errors` se retira (se descarta sin aviso si se pasa).
 - **v0.38.0**: `catalog_charset_mode` (`auto`/`native`/`convert`) decide cómo leer el catálogo; en `auto` diagnostica el
   charset del servidor (ver [Guía de conexión § 6](connection_guide.md#6-parametros-especiales-de-mariadb-init_command-y-encoding_errors)).
 

@@ -79,7 +79,7 @@ a través de la factoría:
 |---|---|---|---|---|
 | `mariadb` | `charset` | `utf8mb4` | Charset de la conexión async (aiomysql); el conector sync trabaja siempre en utf8mb4 | cualquiera |
 | `mariadb` | `init_command` | `"SET NAMES utf8mb4"` | SQL ejecutado en cada conexión sync/pool | v0.35.0+ |
-| `mariadb` | `encoding_errors` | — | Obsoleto y sin efecto: ningún driver de MariaDB lo admite (`FutureWarning`) | — |
+| `mariadb` | `encoding_errors` | — | Retirado en 5.0.0 (nunca tuvo efecto: ningún driver de MariaDB lo admite); si se pasa, se descarta sin aviso como cualquier parámetro no declarado | hasta 4.x |
 
 Para MariaDB: MariaDB Connector/Python (1.1.14, la última) no admite `charset` ni `encoding_errors`; la librería no
 se los envía. Si un driver antiguo rechaza `init_command`, el pool lo ejecuta a mano en cada `get_connection()`.

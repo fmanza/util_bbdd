@@ -414,11 +414,13 @@ class TestAuditManagerFacade:
         manager = AuditManager(audit_csv_path=None)
         manager.registrar_operacion("t", "sqlite", "INSERT", 1, 0.1)
 
-    def test_asignar_columnas_auditoria_esta_obsoleto(self, manager: AuditManager) -> None:
-        # H7 (audit-code 2026-09-25): el setter cambia la cabecera pero las filas siguen teniendo 7 columnas.
-        with pytest.warns(DeprecationWarning, match="columnas_auditoria"):
-            manager.columnas_auditoria = _COLUMNS
-        assert manager.columnas_auditoria == _COLUMNS
+    def test_columnas_auditoria_es_de_solo_lectura(self, manager: AuditManager) -> None:
+        # H7 (audit-code 2026-09-25): el setter cambiaba la cabecera pero las filas seguían teniendo 7 columnas.
+        # U-8.6 (5.0.0, D8-8): el setter obsoleto se retira.
+        columnas = list(manager.columnas_auditoria)
+        with pytest.raises(AttributeError):
+            manager.columnas_auditoria = _COLUMNS  # type: ignore[misc]
+        assert manager.columnas_auditoria == columnas
 
     def test_ruta_inaccesible_lanza_audit_config_error_compatible_con_value_error(self, tmp_path: Path) -> None:
         # H8 (audit-code 2026-09-25): antes ValueError fuera de la jerarquía AuditError.

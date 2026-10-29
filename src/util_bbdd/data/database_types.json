@@ -80,11 +80,6 @@
             "description": "Comando SQL ejecutado al abrir cada conexión sync/pool; MariaDB Connector/Python solo admite sesiones utf8mb4"
           },
           {
-            "name": "encoding_errors",
-            "type": "string",
-            "description": "Obsoleto y sin efecto: ningún driver de MariaDB lo admite; se acepta por compatibilidad con FutureWarning"
-          },
-          {
             "name": "pool_name",
             "type": "string",
             "description": "Nombre del pool nativo de MariaDB (por defecto se genera uno único por instancia)"
@@ -153,7 +148,6 @@
           "write_timeout": "plain",
           "pool_size": "plain",
           "init_command": "blocked",
-          "encoding_errors": "plain",
           "pool_name": "plain",
           "close_timeout": "plain",
           "pool_recycle": "plain",
