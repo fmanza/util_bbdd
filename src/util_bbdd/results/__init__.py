@@ -9,6 +9,7 @@ Consolidación de:
 # Imports desde normalizer
 from .normalizer import ResultNormalizer
 from .types import (
+    CustomQueryResult,
     QueryResult,
     Row,
     RowOrNone,
@@ -21,6 +22,7 @@ __all__: list[str] = [
     "Rows",
     "RowOrNone",
     "QueryResult",
+    "CustomQueryResult",
     # Normalizer
     "ResultNormalizer",
 ]

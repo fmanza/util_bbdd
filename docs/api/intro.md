@@ -48,6 +48,7 @@ from util_bbdd.analysis import GraphvizRelationshipGraphExt
 | `get_foreign_keys(tabla)` | Claves foráneas |
 | `get_ddl(tabla)` | DDL de una tabla |
 | `execute_custom_many(sql, params?)` | Query libre → lista de filas (tuplas) |
+| `execute_custom_result(sql, params?)` | Query libre → `CustomQueryResult` con columnas y filas (desde 5.0.0) |
 | `execute_custom_one(sql, params?)` | Query libre → una fila (tupla) o `None` |
 | `get_schema_metadata()` | Catálogo completo por lotes → `SchemaSnapshot` (ADR-003) |
 | `init()` / `get_connection()` / `release_connection(conn)` | Ciclo de vida (mismos nombres en sync y async) |

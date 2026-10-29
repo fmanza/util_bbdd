@@ -14,8 +14,8 @@ from .._core.exceptions import (
 )
 from ..query.registry import QueryRegistry
 from ..query.resolver import QueryResolver
-from ..results import ResultNormalizer, RowOrNone, Rows
-from ._read_only import read_only_statements, validate_max_rows
+from ..results import CustomQueryResult, ResultNormalizer, RowOrNone, Rows
+from ._read_only import is_server_timeout, read_only_statements, server_timeout_statements, validate_max_rows
 
 # ``%`` literales en SQL para drivers pyformat (PyMySQL/aiomysql): todo ``%`` que no sea marcador (``%s``,
 # ``%(nombre)s``) ni esté ya escapado (``%%``) se duplica.
@@ -379,7 +379,14 @@ class SyncQueryExecutor:
         read_only: bool = False,
         max_rows: int | None = None,
         db_type: str | None = None,
+        columns: list[str] | None = None,
+        server_timeout: bool = False,
     ) -> RowOrNone | Rows:
+        """Ejecuta ``sql``; con ``columns``, añade ahí los nombres de columna del cursor (``execute_custom_result``).
+
+        ``server_timeout`` (5.0.0): con ``read_only``, ``timeout`` también es el plazo del servidor
+        (``server_timeout_statements``), y su cancelación se lanza como ``QueryTimeoutError``.
+        """
         conn = None
         cursor = None
         start_time: float = time.perf_counter()  # monotónico (T1)
@@ -387,6 +394,8 @@ class SyncQueryExecutor:
         deadline: float | None = self._build_deadline(timeout)
         validate_max_rows(max_rows)
         prelude, epilogue = read_only_statements(db_type) if read_only else ((), ())
+        if read_only and server_timeout:
+            prelude += server_timeout_statements(db_type, timeout)
 
         try:
             self._raise_if_timed_out(deadline, timeout_msg)
@@ -398,6 +407,10 @@ class SyncQueryExecutor:
             cursor = conn.cursor()
             self._execute_sql_with_optional_params(cursor, sql, params)
             self._raise_if_timed_out(deadline, timeout_msg)
+            if columns is not None:
+                columns.extend(str(item[0]) for item in cursor.description or ())
+                if cursor.description is None:  # sin conjunto de resultados (p. ej. un DML): no hay filas que leer
+                    return []
 
             db_type_hint: str = "mariadb" if self._is_mariadb_connection(conn) else "unknown"
             result = self._fetch_with_decode_fallback(
@@ -423,6 +436,8 @@ class SyncQueryExecutor:
         except QueryTimeoutError:
             raise
         except Exception as err:
+            if server_timeout and is_server_timeout(err):
+                raise QueryTimeoutError(timeout_msg) from err
             msg = f"Error executing custom query: {str(err)}"
             self.logger.error(msg, exc_info=True)
             raise DatabaseOperationError(msg, "CUSTOM", db_type="unknown") from err
@@ -558,3 +573,37 @@ class SyncQueryExecutor:
             db_type=db_type,
         )
         return self.result_normalizer.normalize_one(result)
+
+    def execute_custom_result(
+        self,
+        sql: str,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
+        *,
+        read_only: bool = False,
+        max_rows: int | None = None,
+        db_type: str | None = None,
+    ) -> CustomQueryResult:
+        """Como :meth:`execute_custom_many`, pero devuelve también los nombres de columna (5.0.0, G42).
+
+        Con ``read_only`` y ``timeout``, en PostgreSQL el plazo también corta la consulta en el servidor
+        (``SET LOCAL statement_timeout``, D8-4).
+
+        Raises:
+            QueryTimeoutError: Si se supera ``timeout`` (en el cliente o, en PostgreSQL, en el servidor).
+            DatabaseOperationError: Si falla la ejecución (el error original queda en ``__cause__``).
+            ValueError: Si ``max_rows`` no es un entero ≥ 1, o ``read_only`` sin ``db_type`` válido.
+        """
+        columns: list[str] = []
+        result = self._execute_custom(
+            sql=sql,
+            params=params,
+            timeout=timeout,
+            expect_one=False,
+            read_only=read_only,
+            max_rows=max_rows,
+            db_type=db_type,
+            columns=columns,
+            server_timeout=True,
+        )
+        return CustomQueryResult(columns=tuple(columns), rows=self.result_normalizer.normalize_many(result))

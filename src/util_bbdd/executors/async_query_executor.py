@@ -18,8 +18,8 @@ from .._core.exceptions import (
 from ..async_utils import maybe_await
 from ..query.registry import QueryRegistry
 from ..query.resolver import QueryResolver
-from ..results import ResultNormalizer, RowOrNone, Rows
-from ._read_only import read_only_statements, validate_max_rows
+from ..results import CustomQueryResult, ResultNormalizer, RowOrNone, Rows
+from ._read_only import is_server_timeout, read_only_statements, server_timeout_statements, validate_max_rows
 
 # ``%`` literales en SQL para drivers pyformat (PyMySQL/aiomysql): todo ``%`` que no sea marcador (``%s``,
 # ``%(nombre)s``) ni esté ya escapado (``%%``) se duplica.
@@ -172,6 +172,24 @@ class AsyncQueryExecutor:
         result_many = self.result_normalizer.normalize_many([tuple(record) for record in records])
         return result_many, len(result_many)
 
+    async def _fetch_asyncpg_described(
+        self, conn: Any, sql: str, params: dict[str, Any] | None, max_rows: int | None, columns: list[str]
+    ) -> tuple[Rows, int]:
+        """Como :meth:`_fetch_asyncpg` (varias filas), con los nombres de columna en ``columns`` (G42, 5.0.0).
+
+        Los ``Record`` de asyncpg no dan las columnas si no hay filas: se sacan de la sentencia preparada.
+        """
+        driver_sql, args = self._to_asyncpg(sql, params)
+        statement = await conn.prepare(driver_sql)
+        columns.extend(str(attribute.name) for attribute in statement.get_attributes())
+        if max_rows is not None:
+            async with conn.transaction():
+                records = await (await statement.cursor(*args)).fetch(max_rows)
+        else:
+            records = await statement.fetch(*args)
+        result_many = self.result_normalizer.normalize_many([tuple(record) for record in records])
+        return result_many, len(result_many)
+
     async def _get_cursor(self, conn: Any) -> tuple[Any, bool]:
         if hasattr(conn, "cursor"):
             cursor = await maybe_await(conn.cursor())
@@ -267,14 +285,21 @@ class AsyncQueryExecutor:
         read_only: bool = False,
         max_rows: int | None = None,
         db_type: str | None = None,
+        columns: list[str] | None = None,
+        server_timeout: bool = False,
     ) -> RowOrNone | Rows:
+        """Como ``SyncQueryExecutor._execute_custom``: ``columns`` y ``server_timeout`` para ``execute_custom_result``."""
         conn = None
         cursor = None
         owns_cursor = False
         start_time: float = time.perf_counter()  # monotónico (T1)
         validate_max_rows(max_rows)
         prelude, epilogue = read_only_statements(db_type) if read_only else ((), ())
+        timeout_statements = (
+            server_timeout_statements(db_type, deadline_seconds) if read_only and server_timeout else ()
+        )
         asyncpg_transaction: Any = None
+        result: RowOrNone | Rows
 
         try:
             async with self._timeout_context(
@@ -286,13 +311,24 @@ class AsyncQueryExecutor:
                     if read_only:
                         asyncpg_transaction = conn.transaction(readonly=True)
                         await asyncpg_transaction.start()
-                    result, result_rows = await self._fetch_asyncpg(conn, sql, params, expect_one, max_rows)
+                        for statement in timeout_statements:
+                            await conn.execute(statement)
+                    if columns is not None:
+                        result, result_rows = await self._fetch_asyncpg_described(conn, sql, params, max_rows, columns)
+                    else:
+                        result, result_rows = await self._fetch_asyncpg(conn, sql, params, expect_one, max_rows)
                 else:
                     if read_only:
-                        await self._start_read_only(conn, prelude)
+                        await self._start_read_only(conn, prelude + timeout_statements)
                     cursor, owns_cursor = await self._get_cursor(conn)
                     await self._execute_sql_with_optional_params(cursor, sql, params)
-                    result, result_rows = await self._fetch_and_normalize(cursor, expect_one, max_rows)
+                    description = getattr(cursor, "description", None)
+                    if columns is not None:
+                        columns.extend(str(item[0]) for item in description or ())
+                    if columns is not None and description is None:
+                        result, result_rows = [], 0  # sin conjunto de resultados (p. ej. un DML): no hay filas
+                    else:
+                        result, result_rows = await self._fetch_and_normalize(cursor, expect_one, max_rows)
 
             elapsed_ms: float = (time.perf_counter() - start_time) * 1000
             self.logger.debug(f"✅ Custom query executed: elapsed_ms={elapsed_ms:.2f}, result_rows={result_rows}")
@@ -301,6 +337,8 @@ class AsyncQueryExecutor:
         except QueryTimeoutError:
             raise
         except Exception as err:
+            if server_timeout and is_server_timeout(err):
+                raise QueryTimeoutError("Custom query execution exceeded timeout") from err
             msg = f"Error executing custom query: {str(err)}"
             self.logger.error(msg, exc_info=True)
             raise DatabaseOperationError(msg, "CUSTOM", db_type="unknown") from err
@@ -433,3 +471,37 @@ class AsyncQueryExecutor:
             db_type=db_type,
         )
         return self.result_normalizer.normalize_one(result)
+
+    async def execute_custom_result(
+        self,
+        sql: str,
+        params: dict[str, Any] | None = None,
+        deadline_seconds: float | None = None,
+        *,
+        read_only: bool = False,
+        max_rows: int | None = None,
+        db_type: str | None = None,
+    ) -> CustomQueryResult:
+        """Como :meth:`execute_custom_many`, pero devuelve también los nombres de columna (5.0.0, G42).
+
+        Con ``read_only`` y ``deadline_seconds``, en PostgreSQL el plazo también corta la consulta en el servidor
+        (``SET LOCAL statement_timeout``, D8-4), con asyncpg y con psycopg.
+
+        Raises:
+            QueryTimeoutError: Si se supera ``deadline_seconds`` (en el cliente o, en PostgreSQL, en el servidor).
+            DatabaseOperationError: Si falla la ejecución (el error original queda en ``__cause__``).
+            ValueError: Si ``max_rows`` no es un entero ≥ 1, o ``read_only`` sin ``db_type`` válido.
+        """
+        columns: list[str] = []
+        result = await self._execute_custom(
+            sql=sql,
+            params=params,
+            deadline_seconds=deadline_seconds,
+            expect_one=False,
+            read_only=read_only,
+            max_rows=max_rows,
+            db_type=db_type,
+            columns=columns,
+            server_timeout=True,
+        )
+        return CustomQueryResult(columns=tuple(columns), rows=self.result_normalizer.normalize_many(result))

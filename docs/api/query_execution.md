@@ -37,6 +37,7 @@ sequenceDiagram
 | `execute_query_one` | `(query_name, db_type, params, timeout=None)` | Query registrada → una fila o `None` | `RowOrNone` |
 | `execute_custom_many` | `(sql, params=None, timeout=None)` | SQL libre → múltiples filas | `Rows` |
 | `execute_custom_one` | `(sql, params=None, timeout=None)` | SQL libre → una fila o `None` | `RowOrNone` |
+| `execute_custom_result` | `(sql, params=None, timeout=None, *, read_only=False, max_rows=None, db_type=None)` | SQL libre → columnas y filas (desde 5.0.0) | `CustomQueryResult` |
 
 #### AsyncQueryExecutor
 
@@ -45,6 +46,7 @@ sequenceDiagram
 | `execute_query_many` / `execute_query_one` | `async (query_name, db_type, params=None, deadline_seconds=None)` | Query registrada async → múltiples filas / una fila o `None` | `Rows` / `RowOrNone` |
 | `execute_custom_many` | `async (sql, params=None, deadline_seconds=None)` | SQL libre async → múltiples filas | `Rows` |
 | `execute_custom_one` | `async (sql, params=None, deadline_seconds=None)` | SQL libre async → una fila o `None` | `RowOrNone` |
+| `execute_custom_result` | `async (sql, params=None, deadline_seconds=None, *, read_only=False, max_rows=None, db_type=None)` | SQL libre async → columnas y filas (desde 5.0.0) | `CustomQueryResult` |
 
 #### ResultNormalizer
 

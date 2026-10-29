@@ -29,7 +29,7 @@ from ..metadata import (
 from ..metadata.catalog_registry import get_catalog_dialect
 from ..metadata.model import ALL_KINDS, Kind, SchemaSnapshot
 from ..metadata.source import AsyncCatalogSource
-from ..results import ResultNormalizer, RowOrNone
+from ..results import CustomQueryResult, ResultNormalizer, RowOrNone
 from ._catalog_executor import AsyncManagerCatalogExecutor
 from ._catalog_facade import AsyncCatalogFacade
 from ._manager_lifecycle import (
@@ -342,6 +342,58 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
             read_only=read_only,
         )
         return cast(RowOrNone, result)
+
+    async def execute_custom_result(
+        self,
+        sql: str,
+        params: Any | None = None,
+        timeout: float | None = None,
+        *,
+        read_only: bool = False,
+        max_rows: int | None = None,
+    ) -> CustomQueryResult:
+        """Ejecuta SQL custom y devuelve sus columnas y filas (5.0.0, G42 de util_bbdd_web).
+
+        Como ``SyncDatabaseManager.execute_custom_result``. Con asyncpg, la transacción de solo lectura es
+        ``conn.transaction(readonly=True)`` y las columnas salen de la sentencia preparada (también sin filas).
+
+        Args:
+            sql: Consulta SQL a ejecutar.
+            params: Diccionario de parámetros SQL (opcional).
+            timeout: Plazo en segundos (opcional). Con ``read_only=True`` en PostgreSQL también corta la consulta en
+                el servidor (``SET LOCAL statement_timeout``, D8-4).
+            read_only: Como en :meth:`execute_custom_many`.
+            max_rows: Como en :meth:`execute_custom_many`.
+
+        Returns:
+            ``CustomQueryResult`` con ``columns`` y ``rows``.
+
+        Raises:
+            DatabaseOperationError: Si falla la ejecución (el error del driver queda en ``__cause__``); también una
+                escritura con ``read_only=True``.
+            QueryTimeoutError: Si se supera ``timeout``.
+            ValueError: Si ``max_rows`` no es un entero ≥ 1.
+
+        Examples:
+            >>> result = await manager.execute_custom_result("SELECT 1 AS a, 2 AS a", read_only=True)
+            >>> result.columns
+            ('a', 'a')
+        """
+        validate_max_rows(max_rows)
+        executor: AsyncQueryExecutor = await self._get_query_executor()
+        result = await self._run_manager_operation_async(
+            action=lambda: executor.execute_custom_result(
+                sql=sql,
+                params=params,
+                deadline_seconds=timeout,
+                read_only=read_only,
+                max_rows=max_rows,
+                db_type=self.db_type,
+            ),
+            error_message="Error ejecutando consulta SQL",
+            operation="CUSTOM",
+        )
+        return cast(CustomQueryResult, result)
 
     async def execute_query_many(
         self,

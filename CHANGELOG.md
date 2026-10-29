@@ -7,6 +7,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **managers** (G42 de util_bbdd_web, U-8.4): `execute_custom_result(sql, params=None, timeout=None, *,
+  read_only=False, max_rows=None) -> CustomQueryResult` en `SyncDatabaseManager` y `AsyncDatabaseManager`.
+  `CustomQueryResult` (`util_bbdd.results`, dataclass congelada) lleva `columns` (nombres en el orden del `SELECT`,
+  también sin filas y repetidos; vacío si la sentencia no devuelve filas) y `rows`. Con `read_only=True` y `timeout`,
+  PostgreSQL aplica `SET LOCAL statement_timeout` dentro de la transacción de solo lectura: la consulta se corta en el
+  servidor y se lanza `QueryTimeoutError` con el error del driver en `__cause__` (D8-4). `execute_custom_many/one` no
+  cambian. Con asyncpg, las columnas salen de la sentencia preparada.
+
 ### Documentation
 
 - **Publicar una versión** (`docs/guides/release_guide.md`, en la navegación tras «Incorporación para

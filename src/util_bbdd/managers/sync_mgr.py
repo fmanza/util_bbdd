@@ -48,7 +48,7 @@ from ..metadata.catalog_registry import get_catalog_dialect
 from ..metadata.model import ALL_KINDS, Kind, SchemaSnapshot
 from ..metadata.source import CatalogSource
 from ..query import DatabaseQueries
-from ..results import RowOrNone
+from ..results import CustomQueryResult, RowOrNone
 from ._catalog_executor import ManagerCatalogExecutor
 from ._catalog_facade import SyncCatalogFacade
 from ._manager_lifecycle import SyncConnectionLifecycleManager
@@ -607,6 +607,65 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
             read_only=read_only,
         )
         return cast(RowOrNone, result)
+
+    def execute_custom_result(
+        self,
+        sql: str,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
+        *,
+        read_only: bool = False,
+        max_rows: int | None = None,
+    ) -> CustomQueryResult:
+        """Ejecuta una consulta SQL personalizada y devuelve sus columnas y filas (5.0.0, G42 de util_bbdd_web).
+
+        Como :meth:`execute_custom_many`, que no cambia, pero con los nombres de columna: también sin filas y con
+        nombres repetidos, en el orden del ``SELECT``.
+
+        Args:
+            sql: Consulta SQL a ejecutar.
+            params: Diccionario de parámetros SQL (opcional).
+            timeout: Plazo en segundos (opcional), comprobado en el cliente. Con ``read_only=True`` en PostgreSQL
+                también corta la consulta en el servidor (``SET LOCAL statement_timeout``, D8-4); en el resto de
+                motores la consulta sigue en el servidor hasta terminar.
+            read_only: Como en :meth:`execute_custom_many` (transacción de solo lectura que termina en ``rollback``).
+            max_rows: Como en :meth:`execute_custom_many` (``fetchmany``; para saber si había más, pide ``n + 1``).
+
+        Returns:
+            ``CustomQueryResult`` con ``columns`` (tupla de nombres; vacía si la sentencia no devuelve un conjunto de
+            resultados) y ``rows``.
+
+        Raises:
+            DatabaseOperationError: Si falla la ejecución (el error del driver queda en ``__cause__``); también una
+                escritura con ``read_only=True``.
+            QueryTimeoutError: Si se supera ``timeout`` (en PostgreSQL con ``read_only``, también en el servidor; el
+                error del driver queda en ``__cause__``).
+            ValueError: Si ``max_rows`` no es un entero ≥ 1.
+
+        Examples:
+            >>> result = manager.execute_custom_result(
+            ...     "SELECT id, nombre FROM clientes WHERE alta > :desde",
+            ...     params={"desde": "2026-01-01"},
+            ...     timeout=30,
+            ...     read_only=True,
+            ...     max_rows=101,
+            ... )
+            >>> result.columns
+            ('id', 'nombre')
+            >>> truncated = len(result.rows) > 100
+        """
+        validate_max_rows(max_rows)
+        executor: SyncQueryExecutor = self._get_sync_query_executor()
+        self.logger.debug("📝 Ejecutando consulta SQL personalizada (con columnas)")
+        result = self._run_manager_operation(
+            action=lambda: executor.execute_custom_result(
+                sql=sql, params=params, timeout=timeout, read_only=read_only, max_rows=max_rows, db_type=self.db_type
+            ),
+            error_message="Error ejecutando consulta SQL",
+            operation="EXECUTE",
+        )
+        self.logger.info("✅ Consulta SQL personalizada ejecutada exitosamente")
+        return cast(CustomQueryResult, result)
 
     def resolve_query(self, query_name: str, **params: Any) -> Any:
         """Resuelve una query registrada y devuelve SQL final + metadatos, sin ejecutarla.

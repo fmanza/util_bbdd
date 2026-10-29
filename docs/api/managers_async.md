@@ -41,6 +41,7 @@ flowchart TD
 | `execute_query_many` | `async (query_name, **params)` | Query registrada → varias filas | `Rows` |
 | `execute_custom_many` | `async (sql, params?, *, read_only=False, max_rows=None)` | SQL libre → varias filas. Con `read_only=True` (desde 4.6.0) va en una transacción de solo lectura del motor que termina siempre en `rollback`: una escritura falla (en SQL Server, sin transacciones de solo lectura, se deshace). `max_rows` (solo `_many`) trae como mucho esas filas (`fetchmany`); pide `n + 1` para saber si había más; con asyncpg, `conn.transaction(readonly=True)` | `Rows` |
 | `execute_custom_one` | `async (sql, params?, *, read_only=False)` | SQL libre → una fila (`read_only` como en `execute_custom_many`) | `RowOrNone` |
+| `execute_custom_result` | `async (sql, params=None, timeout=None, *, read_only=False, max_rows=None)` | Desde 5.0.0: columnas y filas, como en el manager síncrono. Con asyncpg las columnas salen de la sentencia preparada, también sin filas; con `read_only=True` y `timeout`, PostgreSQL corta la consulta en el servidor | `CustomQueryResult(columns, rows)` (`util_bbdd.results`) |
 | `get_sqlalchemy_engine` | `async ()` | AsyncEngine SQLAlchemy | `AsyncEngine` |
 | `get_engine_readiness` | `async ()` | Verificación de condiciones del motor (`EngineReadinessAdvisor.assess_async`): estáticos con `conn_params`, dinámicos con una conexión del `AsyncEngine` (vía `run_sync`); sin conexión, solo estáticos y el motivo en `error` | `EngineReadinessReport` |
 | `close` | `async (mode?)` | Cierra el gestor y libera recursos | `None` |
