@@ -86,7 +86,7 @@ Con `SyncDatabaseManager` es igual (sin `await`): thin es el modo por defecto ta
    librería por su nombre sin versión (`libclntsh.so` o `libclntsh.dylib`): si el Instant Client solo trae el nombre
    versionado (`libclntsh.so.19.1`), crea el enlace (`ln -s libclntsh.so.19.1 libclntsh.so`) en su directorio.
 
-4. **python-oracledb**: instálalo con el extra `oracle` (`pip install "util_bbdd[oracle] @ git+https://github.com/fmanza/util_bbdd.git@v5.0.0"`)
+4. **python-oracledb**: instálalo con el extra `oracle` (`pip install "util_bbdd[oracle] @ git+https://github.com/fmanza/util_bbdd.git@v5.1.0"`)
    o con `pip install oracledb`.
 
 #### Configuración
@@ -202,7 +202,7 @@ sirve para Engines propios `postgresql+psycopg2://` (p. ej. la estrategia `execu
 
 **Instalación:**
 ```bash
-pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v5.0.0"  # psycopg[binary], psycopg-pool y asyncpg
+pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v5.1.0"  # psycopg[binary], psycopg-pool y asyncpg
 ```
 
 **Configuración:**
@@ -230,7 +230,7 @@ Desde v0.19.0 son dos motores distintos, con las mismas claves de `conn_params`:
 | `mariadb` | `mariadb` (MariaDB Connector/Python) | `aiomysql` | extra `mariadb` |
 | `mysql` | `pymysql` | `aiomysql` | extra `mysql` |
 
-Instalación de un extra: `pip install "util_bbdd[mariadb] @ git+https://github.com/fmanza/util_bbdd.git@v5.0.0"`.
+Instalación de un extra: `pip install "util_bbdd[mariadb] @ git+https://github.com/fmanza/util_bbdd.git@v5.1.0"`.
 
 **Limitación del driver (MariaDB):** MariaDB Connector/Python no tiene `ssl_verify_identity`. Con `ssl_ca` verifica
 la CA y el hostname a la vez, sin forma de verificar solo la CA: el nombre o la IP con que conectas debe figurar en el

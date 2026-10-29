@@ -309,6 +309,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-10-27-web-gaps-ola5 | **v4.5.0**: ola 5 del plan de huecos de util_bbdd_web (carga bulk): contadores de filas en todos los modos, `ParallelPlan.atomic`, `dry_run` y aviso de `generar_sql`, progreso/cancelación por lote | develop | new_feature + version-closure | CLOSED | `2026-10-27-web-gaps-ola5/TRACEABILITY.md` |
 | 2026-10-27-web-gaps-ola6 | **v4.6.0**: ola 6 del plan de huecos de util_bbdd_web (catálogo, conexiones y explorador): capacidades y drivers por motor, `default_driver`, `kind` de parámetros, opcionales de `build_conn_params`, secretos fuera de `get_database_info`, ping/versión/schemas, parámetros interpolados validados, `read_only`/`max_rows` | develop | new_feature + version-closure | CLOSED | `2026-10-27-web-gaps-ola6/TRACEABILITY.md` |
 | 2026-10-29-web-gaps-ola8 | **v5.0.0**: ola 8 del plan de huecos de util_bbdd_web (valores por defecto seguros): `truncate_target=False`, `bulk_*_from_df` ejecuta, documentación sin ventana, `execute_custom_result`, versión completa del servidor, retiradas D8-8 | develop | new_feature + version-closure | CLOSED | `2026-10-29-web-gaps-ola8/TRACEABILITY.md` |
+| 2026-10-29-web-gaps-ola9 | **v5.1.0**: ola 9 del plan de huecos de util_bbdd_web (G44): `NUMBER` de Oracle sin pasar por `float` en `execute_custom_*` y `execute_query_*` | develop | new_feature + version-closure | CLOSED | `2026-10-29-web-gaps-ola9/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 

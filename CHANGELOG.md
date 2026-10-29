@@ -7,6 +7,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.1.0] - 2026-10-29
+
+SemVer: MINOR publicada como corrección (D9-1 de util_bbdd_web). Ola 9 del plan de huecos de util_bbdd_web (Grupo 9,
+U-9.1): los `NUMBER` de Oracle dejan de pasar por `float` en las consultas personalizadas y nombradas (G44). Cambia
+el tipo de esos valores (`float` → `Decimal`): ver la nota de abajo y [Migración a la API 5.0](docs/guides/api_5_0_migration.md) § 7.
+
 ### Fixed
 
 - **executors, Oracle** (G44 de util_bbdd_web, U-9.1): `execute_custom_*` y `execute_query_*` ya no pasan por

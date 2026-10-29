@@ -31,7 +31,7 @@ El ejemplo lee un schema PostgreSQL con una vista que usa `ILIKE` (que MySQL no 
 
 ```bash
 # sqlglot para la reescritura de vistas
-pip install "util_bbdd[migrate] @ git+https://github.com/fmanza/util_bbdd.git@v5.0.0"
+pip install "util_bbdd[migrate] @ git+https://github.com/fmanza/util_bbdd.git@v5.1.0"
 
 # Validación sintáctica
 python -m py_compile docs/examples/migrate_views.py
