@@ -7,6 +7,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-10-29
+
+SemVer: MAJOR. Ola 8 del plan de huecos de util_bbdd_web (Grupo 8, U-8.1 a U-8.6): los valores por defecto que
+podían borrar o sobrescribir datos sin pedirlo cambian a los seguros (G30, G35, y G2 sin aviso previo por la decisión
+D8-1), y se retira lo obsoleto (D8-8). También se añaden `execute_custom_result` (G42) y la versión completa del
+servidor (G43), que no rompen nada. Cambios que se notan al actualizar: `DumpConfig` sin `truncate_target` ya no vacía
+el destino; `bulk_*_from_df` sin `generar_sql` ni `dry_run` ejecuta; `DatabaseDocumentation` sin `fichero_salida` da
+una carpeta por generación; asignar `AuditManager.columnas_auditoria` da `AttributeError`; `encoding_errors` de
+MariaDB se descarta. Si el código no emite ningún `FutureWarning` ni `DeprecationWarning` con 4.6.0, solo le afecta G2.
+Guía: [Migración a la API 5.0](docs/guides/api_5_0_migration.md).
+
 ### Added
 
 - **managers** (G42 de util_bbdd_web, U-8.4): `execute_custom_result(sql, params=None, timeout=None, *,

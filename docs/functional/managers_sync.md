@@ -19,7 +19,7 @@ flujos de introspección intensivos o en generación de documentación de esquem
   (extras `mariadb` / `mysql`), `psycopg` (v3) y `psycopg-pool` para PostgreSQL (extra `postgresql`), `oracledb` para
   Oracle (extra `oracle`), `pymssql` para SQL Server (o `pyodbc` con `sql_server_driver="pyodbc"`),
   `jaydebeapi` y Java para HSQLDB. Instalación con extras:
-  `pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v4.6.0"`
+  `pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v5.0.0"`
 - Tipo de motor declarado explícitamente: `mariadb`, `mysql`, `oracle`, `postgresql`, `sqlserver`, `sqlite` o `hsqldb`
 - Parámetros de conexión obligatorios del motor: `host`, `user`, `password` y `database` (MariaDB, MySQL, PostgreSQL,
   SQL Server); `user` y `password` (Oracle); `user`, `jdbc_url` y `jdbc_jar` (HSQLDB); `database` (SQLite)
