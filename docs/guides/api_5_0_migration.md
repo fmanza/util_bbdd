@@ -114,3 +114,26 @@ Dos cosas que ya avisaban en 4.x desaparecen:
 | `manager.columnas_auditoria = [...]` | `AttributeError` | Quitar la asignación (las columnas son siempre las 7 fijas) |
 | `conn_params={..., "encoding_errors": "replace"}` | Se descarta sin aviso | Quitar la clave |
 | Un validador propio que acepte solo los parámetros declarados del motor (p. ej. leyendo `database_types.json` o `param_kinds`) | Rechaza `encoding_errors` en conexiones guardadas | Quitar la clave de lo guardado |
+
+## 7. 5.1: `NUMBER` de Oracle como `Decimal`
+
+Desde 5.1.0, en Oracle, `execute_custom_*` y `execute_query_*` (síncronos y asíncronos) devuelven los `NUMBER` sin
+pasar por `float`, como ya hacían PostgreSQL y MySQL con `numeric`/`decimal`. Antes, `12345678901234567.891` llegaba
+como `1.2345678901234568e+16`. Es una corrección, pero cambia el tipo de algunos valores:
+
+| Columna | 5.0 | 5.1 |
+|---|---|---|
+| `NUMBER(p,s)` con `s > 0` | `float` | `Decimal` |
+| `NUMBER` sin restricción (o una expresión: `1.5`, `AVG(...)`) con decimales | `float` | `Decimal` |
+| `NUMBER` sin restricción entero (`COUNT(*)`, `7`) | `int` | `int` |
+| `NUMBER(p)`, `INTEGER` | `int` | `int` |
+| `FLOAT`, `BINARY_FLOAT`, `BINARY_DOUBLE` | `float` | `float` |
+
+| Tu código en 5.0 | Qué pasa en 5.1 | Qué hacer |
+|---|---|---|
+| Opera esos valores con `float` (`valor * 1.1`) | `TypeError` | Convertir: `float(valor)`, o operar con `Decimal` |
+| Los serializa con `json.dumps` | `TypeError` (`Decimal` no es serializable) | `default=str` o convertir antes |
+| Pone su propio `outputtypehandler` en la conexión de oracledb | Igual: se respeta el suyo | Nada |
+| Usa `oracledb.defaults.fetch_decimals = True` como rodeo | Mismo resultado | Puede quitarlo |
+
+El catálogo (`get_schema_metadata`, `get_columns`…) no cambia: el conversor va solo en el cursor de cada consulta.

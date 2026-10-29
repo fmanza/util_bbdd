@@ -19,6 +19,7 @@ from ..async_utils import maybe_await
 from ..query.registry import QueryRegistry
 from ..query.resolver import QueryResolver
 from ..results import CustomQueryResult, ResultNormalizer, RowOrNone, Rows
+from ._oracle_numbers import prepare_query_cursor
 from ._read_only import is_server_timeout, read_only_statements, server_timeout_statements, validate_max_rows
 
 # ``%`` literales en SQL para drivers pyformat (PyMySQL/aiomysql): todo ``%`` que no sea marcador (``%s``,
@@ -256,6 +257,7 @@ class AsyncQueryExecutor:
                     result, result_rows = await self._fetch_asyncpg(conn, final_sql, execute_params, expect_one)
                 else:
                     cursor, owns_cursor = await self._get_cursor(conn)
+                    prepare_query_cursor(conn, cursor)
                     await self._execute_sql_with_optional_params(cursor, final_sql, execute_params)
                     result, result_rows = await self._fetch_and_normalize(cursor, expect_one)
 
@@ -321,6 +323,7 @@ class AsyncQueryExecutor:
                     if read_only:
                         await self._start_read_only(conn, prelude + timeout_statements)
                     cursor, owns_cursor = await self._get_cursor(conn)
+                    prepare_query_cursor(conn, cursor)
                     await self._execute_sql_with_optional_params(cursor, sql, params)
                     description = getattr(cursor, "description", None)
                     if columns is not None:

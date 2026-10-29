@@ -7,6 +7,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **executors, Oracle** (G44 de util_bbdd_web, U-9.1): `execute_custom_*` y `execute_query_*` ya no pasan por
+  `float` los `NUMBER` de Oracle. Un `NUMBER` con escala (`NUMBER(38,3)`) da `Decimal`, y uno sin restricción da
+  `int` si es entero y `Decimal` si no (`12345678901234567.891` salía como `1.2345678901234568e+16`). `FLOAT`,
+  `BINARY_FLOAT`/`BINARY_DOUBLE`, `NUMBER(p)` y `NULL` no cambian. El conversor (`outputtypehandler` del módulo
+  privado `executors/_oracle_numbers.py`) va solo en el cursor de cada consulta, síncrona y asíncrona: ni la conexión
+  ni `oracledb.defaults` cambian, y el catálogo sigue igual. Si la conexión ya tiene un `outputtypehandler` propio,
+  se respeta. **Cambio de tipo** (D9-1): el código que mezcle esos valores con `float` (`valor * 1.1`) da `TypeError`;
+  es lo que ya pasaba con PostgreSQL y MySQL. Guía: [Migración a la API 5.0](docs/guides/api_5_0_migration.md) § 7.
+
 ## [5.0.0] - 2026-10-29
 
 SemVer: MAJOR. Ola 8 del plan de huecos de util_bbdd_web (Grupo 8, U-8.1 a U-8.6): los valores por defecto que

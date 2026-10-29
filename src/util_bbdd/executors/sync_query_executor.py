@@ -15,6 +15,7 @@ from .._core.exceptions import (
 from ..query.registry import QueryRegistry
 from ..query.resolver import QueryResolver
 from ..results import CustomQueryResult, ResultNormalizer, RowOrNone, Rows
+from ._oracle_numbers import prepare_query_cursor
 from ._read_only import is_server_timeout, read_only_statements, server_timeout_statements, validate_max_rows
 
 # ``%`` literales en SQL para drivers pyformat (PyMySQL/aiomysql): todo ``%`` que no sea marcador (``%s``,
@@ -334,6 +335,7 @@ class SyncQueryExecutor:
             self._raise_if_timed_out(deadline, timeout_msg)
 
             cursor = conn.cursor()
+            prepare_query_cursor(conn, cursor)
             execute_params = self._resolve_execute_params(final_sql, params)
             self._execute_sql_with_optional_params(cursor, final_sql, execute_params)
             self._raise_if_timed_out(deadline, timeout_msg)
@@ -405,6 +407,7 @@ class SyncQueryExecutor:
             if read_only:
                 self._start_read_only(conn, prelude)
             cursor = conn.cursor()
+            prepare_query_cursor(conn, cursor)
             self._execute_sql_with_optional_params(cursor, sql, params)
             self._raise_if_timed_out(deadline, timeout_msg)
             if columns is not None:

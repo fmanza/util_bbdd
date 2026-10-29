@@ -83,7 +83,10 @@ ejecutores; normalmente se usan a través de `execute_query_*` / `execute_custom
 
 - `execute_*_many`: siempre `list[tuple]`, nunca `None`; lista vacía si no hay filas.
 - `execute_*_one`: `tuple` con valores de la primera fila, o `None` si no hay resultado.
-- Los valores de columna son tipos nativos del driver, sin conversión adicional.
+- Los valores de columna son tipos nativos del driver, sin conversión adicional, salvo en Oracle (desde 5.1.0): un
+  `NUMBER` con escala da `Decimal`, y uno sin restricción da `int` si es entero y `Decimal` si no, en lugar de
+  `float`. `FLOAT` y `BINARY_*` siguen como `float`. El conversor va en el cursor de la consulta (síncrono y
+  asíncrono), no en la conexión ([migración](../guides/api_5_0_migration.md#7-51-number-de-oracle-como-decimal)).
 
 ### Errores y casos especiales
 
