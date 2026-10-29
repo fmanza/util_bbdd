@@ -30,7 +30,8 @@ flowchart TD
 | `init` | `()` | No hace I/O (el manager sync conecta en `__init__`); existe por simetría con `AsyncDatabaseManager.init()` | `Self` |
 | `get_schema_metadata` | `(schema=None, *, kinds=ALL_KINDS, tables=None)` | Metadatos del schema con una consulta por tipo de objeto (tablas, columnas, claves, índices, routines…) ([lectura de metadatos](metadata_manager.md)) | `SchemaSnapshot` |
 | `ping` | `()` | Comprueba que la conexión responde con una consulta trivial del catálogo (también HSQLDB) y devuelve el tiempo de ida y vuelta en segundos; si no responde, lanza la excepción del driver (desde 4.6.0) | `float` |
-| `get_server_version` | `()` | Versión del servidor tal como la informa (`16.4`, `11.4.2-MariaDB`, `19.0.0.0.0`; en SQLite, la de la biblioteca) (desde 4.6.0) | `str \| None` |
+| `get_server_version` | `()` | Versión del servidor tal como la informa (`16.4`, `11.4.2-MariaDB`, `23.26.3.0.0`; en SQLite, la de la biblioteca) (desde 4.6.0). En Oracle 18c o posterior, la completa (`VERSION_FULL`, desde 5.0.0; antes `23.0.0.0.0`) | `str \| None` |
+| `get_server_version_info` | `()` | Los números del principio de `get_server_version()`, sin sufijos de distribución: `(11, 4, 2)` de `11.4.2-MariaDB-…`; `None` si no hay versión (desde 5.0.0) | `tuple[int, ...] \| None` |
 | `get_schema_names` | `()` | Schemas visibles, ordenados, con el nombre del catálogo (Oracle `BENCH`, no `bench`; PostgreSQL sin `pg_*`) (desde 4.6.0) | `list[str]` |
 | `get_tables` / `get_views` / `get_routines` | `()` | Objetos del schema, del snapshot | `list[TableMeta]` / `list[ViewMeta]` / `list[RoutineMeta]` |
 | `get_columns` | `(tabla)` | Columnas de una tabla o vista | `list[ColumnMeta]` |

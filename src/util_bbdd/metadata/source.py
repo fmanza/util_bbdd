@@ -14,6 +14,7 @@ Examples:
 from __future__ import annotations
 
 import logging
+import re
 
 from collections.abc import Collection, Mapping
 from functools import partial
@@ -30,6 +31,9 @@ from .model import ALL_KINDS, TABLE_SCOPED_KINDS, Kind, SchemaSnapshot
 from .snapshot_cache import CacheKey, SnapshotCache
 
 logger = logging.getLogger(__name__)
+
+#: Números del principio de una versión (``11.4.2`` de ``11.4.2-MariaDB-1:11.4.2+maria~ubu2204``).
+_LEADING_VERSION: re.Pattern[str] = re.compile(r"\d+(?:\.\d+)*")
 
 #: Por encima de este nº de tablas pedidas, se lee el schema completo (una consulta) en vez de filtrar con ``IN``.
 FILTER_MAX_TABLES = 50
@@ -182,6 +186,18 @@ class _SourceBase:
             raise MetadataError(f"El dialecto de catálogo '{self.dialect.name}' no implementa {method}()")
         return str(build())
 
+    def _full_server_version_sql(self, version: str | None) -> str | None:
+        """SQL de ``FullServerVersionCatalogDialect`` para el servidor de ``version``, si la hay (G43, 5.0.0)."""
+        build = getattr(self.dialect, "full_server_version_sql", None)
+        sql = None if build is None or version is None else build(self._version_info(version))
+        return None if sql is None else str(sql)
+
+    @staticmethod
+    def _version_info(version: str | None) -> tuple[int, ...] | None:
+        """Números del principio de ``version``, sin sufijos de distribución; ``None`` si no empieza por un número."""
+        match = _LEADING_VERSION.match(version.strip()) if version else None
+        return tuple(int(part) for part in match.group().split(".")) if match else None
+
     @staticmethod
     def _first_value(rows: list[tuple[Any, ...]]) -> str | None:
         return str(rows[0][0]).strip() if rows and rows[0] and rows[0][0] is not None else None
@@ -286,12 +302,29 @@ class CatalogSource(_SourceBase):
         self.executor.fetch_all(self.dialect.current_schema_sql(), {})
 
     def server_version(self) -> str | None:
-        """Versión del servidor como texto (``16.4``, ``8.0.36``, ``19.0.0.0.0``…), leída cada vez (v4.6.0, G13).
+        """Versión del servidor como texto (``16.4``, ``8.0.36``, ``23.26.3.0.0``…), leída cada vez (v4.6.0, G13).
+
+        Si el dialecto da una versión más completa para ese servidor (``FullServerVersionCatalogDialect``: Oracle 18c
+        o posterior, ``VERSION_FULL``, desde 5.0.0), se lee también y es la que se devuelve.
 
         Raises:
             MetadataError: Si el dialecto no implementa ``ServerInfoCatalogDialect``.
         """
-        return self._first_value(self.executor.fetch_all(self._server_info_sql("server_version_sql"), {}))
+        version = self._first_value(self.executor.fetch_all(self._server_info_sql("server_version_sql"), {}))
+        full_sql = self._full_server_version_sql(version)
+        if full_sql is None:
+            return version
+        return self._first_value(self.executor.fetch_all(full_sql, {})) or version
+
+    def server_version_info(self) -> tuple[int, ...] | None:
+        """Números del principio de :meth:`server_version` (``(11, 4, 2)`` de ``11.4.2-MariaDB-…``; 5.0.0, G43).
+
+        ``None`` si el servidor no da versión o no empieza por un número.
+
+        Raises:
+            MetadataError: Si el dialecto no implementa ``ServerInfoCatalogDialect``.
+        """
+        return self._version_info(self.server_version())
 
     def schema_names(self) -> list[str]:
         """Schemas visibles con el nombre del catálogo (Oracle ``BENCH``, no ``bench``), ordenados (v4.6.0, G17).
@@ -378,7 +411,15 @@ class AsyncCatalogSource(_SourceBase):
 
     async def server_version(self) -> str | None:
         """Como :meth:`CatalogSource.server_version`."""
-        return self._first_value(await self.executor.fetch_all(self._server_info_sql("server_version_sql"), {}))
+        version = self._first_value(await self.executor.fetch_all(self._server_info_sql("server_version_sql"), {}))
+        full_sql = self._full_server_version_sql(version)
+        if full_sql is None:
+            return version
+        return self._first_value(await self.executor.fetch_all(full_sql, {})) or version
+
+    async def server_version_info(self) -> tuple[int, ...] | None:
+        """Como :meth:`CatalogSource.server_version_info`."""
+        return self._version_info(await self.server_version())
 
     async def schema_names(self) -> list[str]:
         """Como :meth:`CatalogSource.schema_names`."""

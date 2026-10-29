@@ -61,7 +61,7 @@ def test_server_info_is_read_every_time() -> None:
 
     assert source.server_version() == "19.0.0.0.0"
     source.server_version()
-    assert len(executor.sql) == 2  # sin caché
+    assert len(executor.sql) == 4  # sin caché; desde 5.0.0 (G43), VERSION y VERSION_FULL en 18c o posterior
 
 
 def test_oracle_schema_names_keep_the_catalog_case() -> None:

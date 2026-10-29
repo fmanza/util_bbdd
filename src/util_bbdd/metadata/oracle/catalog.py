@@ -241,6 +241,15 @@ class OracleCatalog:
         """
         return "SELECT version FROM product_component_version WHERE product LIKE 'Oracle%Database%' AND ROWNUM = 1"
 
+    def full_server_version_sql(self, version: tuple[int, ...] | None) -> str | None:
+        """Versión completa con la release update (``23.26.3.0.0``; 5.0.0, G43): ``VERSION_FULL``, desde Oracle 18c.
+
+        ``None`` antes de la 18 (11g y 12c no tienen la columna) o sin versión: vale la de ``server_version_sql()``.
+        """
+        if version is None or version < (18,):
+            return None
+        return "SELECT version_full FROM product_component_version WHERE product LIKE 'Oracle%Database%' AND ROWNUM = 1"
+
     def for_server_version(self, version: tuple[int, ...]) -> OracleCatalog:
         """:class:`Oracle11Catalog` antes de la 12 (sin ``ALL_TAB_IDENTITY_COLS``); si no, ``self``."""
         return Oracle11Catalog() if version and version < (12,) else self

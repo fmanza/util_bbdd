@@ -136,6 +136,23 @@ class ServerInfoCatalogDialect(CatalogDialect, Protocol):
 
 
 @runtime_checkable
+class FullServerVersionCatalogDialect(Protocol):
+    """Dialecto con una versión del servidor más completa que la de ``server_version_sql`` (5.0.0, G43).
+
+    Opcional: ``CatalogSource.server_version()`` lee primero ``server_version_sql()`` y, con esa versión, pide aquí la
+    SQL de la versión completa; si no la hay (``None``), se queda con la primera. Es otra SQL a propósito:
+    ``server_version_sql()`` también la usa ``VersionedCatalogDialect`` para elegir la variante del catálogo y tiene
+    que funcionar en todas las versiones. Oracle: ``VERSION_FULL`` desde 18c (``23.26.3.0.0``; ``VERSION`` da
+    ``23.0.0.0.0``). Decidir por la versión evita lanzar una consulta que falle: el ejecutor de catálogo deshace la
+    transacción de la conexión al fallar.
+    """
+
+    def full_server_version_sql(self, version: tuple[int, ...] | None) -> str | None:
+        """SQL sin parámetros de la versión completa para un servidor de ``version``, o ``None`` si no la tiene."""
+        ...
+
+
+@runtime_checkable
 class CatalogExecutor(Protocol):
     """Ejecuta SQL de catálogo con parámetros ``:nombre`` y devuelve todas las filas como tuplas."""
 

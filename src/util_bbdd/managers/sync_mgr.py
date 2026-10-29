@@ -882,6 +882,19 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         """
         return self.metadata_source.server_version()
 
+    def get_server_version_info(self) -> tuple[int, ...] | None:
+        """Versión del servidor como números, sin sufijos de distribución (5.0.0, G43 de util_bbdd_web).
+
+        Los números del principio de :meth:`get_server_version`: ``(11, 4, 2)`` de ``11.4.2-MariaDB-1:11.4.2+maria~…``,
+        ``(16, 4)`` de ``16.4 (Debian 16.4-1.pgdg120+1)``, ``(23, 26, 3, 0, 0)`` en Oracle 23ai. ``None`` si el servidor
+        no da versión o no empieza por un número.
+
+        Examples:
+            >>> manager.get_server_version_info() >= (8, 0)
+            True
+        """
+        return self.metadata_source.server_version_info()
+
     def get_schema_names(self) -> list[str]:
         """Schemas visibles para el usuario, ordenados, con el nombre que guarda el catálogo (v4.6.0, G17).
 

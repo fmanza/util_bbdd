@@ -16,6 +16,19 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   PostgreSQL aplica `SET LOCAL statement_timeout` dentro de la transacción de solo lectura: la consulta se corta en el
   servidor y se lanza `QueryTimeoutError` con el error del driver en `__cause__` (D8-4). `execute_custom_many/one` no
   cambian. Con asyncpg, las columnas salen de la sentencia preparada.
+- **managers** (G43 de util_bbdd_web, U-8.5): `get_server_version_info() -> tuple[int, ...] | None` en los dos
+  managers (y `server_version_info()` en `CatalogSource`/`AsyncCatalogSource`): los números del principio de
+  `get_server_version()`, sin sufijos de distribución (`(11, 4, 2)` de `11.4.2-MariaDB-…`, `(16, 4)` de
+  `16.4 (Debian …)`). En el banco coincide con `server_version_info` de SQLAlchemy en PostgreSQL, MySQL, MariaDB,
+  SQL Server y Oracle. Protocol opcional nuevo `FullServerVersionCatalogDialect` (`util_bbdd.metadata.contracts`).
+
+### Fixed
+
+- **managers, Oracle** (G43 de util_bbdd_web, U-8.5): `get_server_version()` da la versión completa con la release
+  update (`VERSION_FULL`: `23.26.3.0.0` en Oracle 23ai; antes `23.0.0.0.0`) en Oracle 18c o posterior. Se lee
+  primero `VERSION` y solo se pide `VERSION_FULL` si la versión es 18 o más, así que en 11g y 12c no se lanza ninguna
+  consulta que falle (el ejecutor de catálogo desharía la transacción de la conexión). La elección de
+  `Oracle11Catalog` sigue usando `VERSION`.
 
 ### Documentation
 

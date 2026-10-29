@@ -645,6 +645,10 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         """Como ``SyncDatabaseManager.get_server_version`` (v4.6.0, G13)."""
         return await self.metadata_source.server_version()
 
+    async def get_server_version_info(self) -> tuple[int, ...] | None:
+        """Como ``SyncDatabaseManager.get_server_version_info`` (5.0.0, G43)."""
+        return await self.metadata_source.server_version_info()
+
     async def get_schema_names(self) -> list[str]:
         """Como ``SyncDatabaseManager.get_schema_names`` (v4.6.0, G17)."""
         return await self.metadata_source.schema_names()
