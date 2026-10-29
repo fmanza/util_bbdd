@@ -18,6 +18,7 @@ python -m pytest -W error::FutureWarning -W error::DeprecationWarning
 |---|---|---|---|
 | Volcado | `DumpConfig(truncate_target=...)` vale `True` si no se indica: `run()` vacía el destino | Vale `False`: `run()` añade filas sin borrar nada (modo append) | `FutureWarning` desde 4.4.0 |
 | Carga masiva | `BulkCrud.bulk_{insert,update,delete}_from_df` sin `generar_sql` ni `dry_run` escribe el SQL y no ejecuta | Ejecuta | `FutureWarning` desde 4.5.0 |
+| Documentación | `DatabaseDocumentation` sin `fichero_salida` agrupa en la misma carpeta las generaciones de los 90 s siguientes | Cada generación tiene su carpeta | Ninguno (no es destructivo) |
 
 ## 3. Volcado: `truncate_target=False` por defecto
 
@@ -77,3 +78,19 @@ crud.bulk_insert_from_df(df, "clientes", path_sql="sql/", dry_run=True)
 ```
 
 `bulk_*_from_chunks` no cambia: siempre ejecutaba.
+
+## 5. Documentación: sin ventana de agrupación por defecto
+
+Hasta 4.x, `DatabaseDocumentation` sin `fichero_salida` reutilizaba durante 90 s el nombre automático
+`<bd>-<fecha_hora>`: las generaciones seguidas de la misma base de datos escribían en la misma carpeta, aunque las
+lanzaran usuarios o procesos distintos. En 5.0 la ventana por defecto es `0`: cada generación tiene su carpeta. Si dos
+caen en el mismo segundo, la segunda lleva el sufijo `-2` (la tercera `-3`…), y no se reutiliza una carpeta que ya
+exista en `directorio_salida`.
+
+Este cambio no tuvo `FutureWarning` previo: no borra ni sobrescribe nada, solo crea más carpetas.
+
+| Tu código en 4.x | Qué pasa en 5.0 | Qué hacer |
+|---|---|---|
+| `fichero_salida=...` | Igual | Nada |
+| `batch_window_seconds=N` explícito (también `0`) | Igual | Nada |
+| Sin los dos, y cuentas con que varias generaciones seguidas acaben en la misma carpeta | Cada una en su carpeta | Pasa `batch_window_seconds=90` |

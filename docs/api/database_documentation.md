@@ -46,11 +46,11 @@ con `formatos=[...]`.
 |---|---|---|---|
 | `db_manager` | `DocumentationSourcePort` | Fuente de metadatos y consultas, normalmente un `SyncDatabaseManager` con conexión activa | No puede ser `None`; debe cumplir el puerto (`doc/application/ports.py`), incluido `get_schema_metadata()`: el catálogo se lee por lotes, una consulta por tipo de objeto (`doc.application.use_cases.catalog_rows`); no soporta `AsyncDatabaseManager` |
 | `directorio_salida` | `Path` | Directorio base donde escribir ficheros | Se crean subdirectorios por ejecución y formato |
-| `fichero_salida` | `Path \| None` | Nombre base sin extensión | `None` genera automáticamente con timestamp y clave de BD; se reutiliza si hay generaciones seguidas dentro de `batch_window_seconds` |
+| `fichero_salida` | `Path \| None` | Nombre base sin extensión | `None` genera automáticamente con timestamp y clave de BD: uno por generación (con sufijo `-2`, `-3`… si coincide el segundo) o, con `batch_window_seconds` > 0, reutilizado por las generaciones seguidas dentro de la ventana |
 | `imprimir` | `dict[str, Any] \| None` | Configuración de secciones, estilos y grafos: qué se documenta, con qué plantilla y estilo, y cómo se dibujan los diagramas. Referencia completa en [Configuración de `imprimir`](#configuracion-de-imprimir) | `None` usa los valores por defecto (todas las secciones desactivadas) |
 | `formatos` | `list[str] \| None` | `["word"]`, `["excel"]`, `["html"]` o combinaciones | `None` usa `["word"]`; valores inválidos lanzan `DocumentationConfigError` |
 | `headers_file` | `Path` | JSON de cabeceras: `{"headers": {"COLUMNAS": {"base": [...]}, ...}}` | Desde 0.41.0 solo `base` por sección (las cabeceras son iguales en todos los motores) |
-| `batch_window_seconds` | `int \| None` | Ventana temporal en segundos para agrupar generaciones automáticas | `None` usa 90 s; solo aplica si `fichero_salida` es `None`. Generaciones lanzadas en esta ventana reutilizan el mismo nombre. Usar 0 para deshabilitar. Un valor que no sea un entero ≥ 0 (también `bool`) da `DocumentationConfigError` al construir |
+| `batch_window_seconds` | `int \| None` | Ventana temporal en segundos para agrupar generaciones automáticas | `None` usa 0 (sin agrupar; hasta 4.x, 90 s); solo aplica si `fichero_salida` es `None`. Con un valor > 0, las generaciones lanzadas en esta ventana reutilizan el mismo nombre. Un valor que no sea un entero ≥ 0 (también `bool`) da `DocumentationConfigError` al construir |
 | `schema` | `str \| None` | Schema que documentar (owner en Oracle, base de datos en MySQL/MariaDB) | `None` usa el contexto de metadatos del manager. Desde 4.1.0: catálogo, DDL, diagramas y almacenamiento se leen de ese schema con la misma conexión (el usuario necesita permiso de lectura sobre sus objetos) |
 | `on_progress` | `ProgressCallback \| None` | Recibe los `ProgressEvent` de la generación ([Progreso y cancelación](progress_autodoc.md)) | Operación `"documentation"`: fase `"metadata"` y, por formato (`"word"`, `"excel"`, `"html"`), un evento al empezar (`0` de N tablas) y uno por tabla. Un callback que falla se registra una vez y deja de llamarse. Desde 4.1.0 |
 | `cancel_token` | `CancellationToken \| None` | Parada cooperativa | Se comprueba antes de leer el catálogo, antes de cada formato y entre tablas: `OperationCancelledError`. Los formatos terminados quedan; el que estaba en curso puede quedar incompleto. Desde 4.1.0 |
@@ -259,29 +259,31 @@ generación continúa con el aviso.
 ### Cache de nombres automáticos (Batching)
 
 Cuando `fichero_salida` es `None`, el nombre se genera automáticamente como `<bd>-<fecha_hora>`. Para agrupar
-generaciones seguidas en **la misma carpeta**, se cachea el nombre durante `batch_window_seconds` (default 90 s):
+generaciones seguidas en **la misma carpeta**, pase `batch_window_seconds` > 0: el nombre se cachea durante ese tiempo.
+Por defecto (desde 5.0.0; hasta 4.x eran 90 s) la ventana es `0` y cada generación tiene su carpeta; si dos caen en el
+mismo segundo, la segunda lleva el sufijo `-2` (y así sucesivamente), y tampoco se reutiliza una carpeta que ya exista.
 
 ```python
 # Primera llamada (t=0 s): genera postgresql-20261012_153025/
-result1 = DatabaseDocumentation(manager, Path("out")).generate()
+result1 = DatabaseDocumentation(manager, Path("out"), batch_window_seconds=90).generate()
 
 # Segunda llamada (t=30 s): reutiliza postgresql-20261012_153025/ (está en cache)
-result2 = DatabaseDocumentation(manager, Path("out")).generate()
+result2 = DatabaseDocumentation(manager, Path("out"), batch_window_seconds=90).generate()
 
-# Tercera llamada (t=100 s): genera postgresql-20261012_153125/ (caducó la cache)
-result3 = DatabaseDocumentation(manager, Path("out")).generate()
+# Tercera llamada (t=100 s): genera postgresql-20261012_153205/ (caducó la cache)
+result3 = DatabaseDocumentation(manager, Path("out"), batch_window_seconds=90).generate()
 ```
 
 **Configuración de la ventana**:
-- `batch_window_seconds=0`: Deshabilita el batching; cada generación usa un nombre nuevo
+- `batch_window_seconds=0` o `None` (default): sin batching; cada generación usa un nombre nuevo
+- `batch_window_seconds=90`: el comportamiento por defecto hasta 4.x
 - `batch_window_seconds=300`: Agrupa generaciones durante 5 minutos
-- `batch_window_seconds=None`: Usa el default (90 s)
 
 La cache es **global y thread-safe** (compartida entre instancias), con clave por directorio de salida y servidor:
 `(directorio_salida, motor, host, puerto, base de datos, identificador)`, sin credenciales. Desde 4.1.0, dos bases de
-datos con el mismo nombre en servidores distintos (o dos ficheros SQLite homónimos) ya no comparten carpeta. Para
-que cada generación tenga su propia carpeta pase `fichero_salida` o `batch_window_seconds=0`, recomendado cuando
-varios usuarios o procesos escriben en el mismo `directorio_salida`.
+datos con el mismo nombre en servidores distintos (o dos ficheros SQLite homónimos) ya no comparten carpeta. Con
+varios usuarios o procesos escribiendo en el mismo `directorio_salida`, no use ventana (es el valor por defecto) o
+pase `fichero_salida`.
 
 **Verificar uso de cache (Debug)**:
 

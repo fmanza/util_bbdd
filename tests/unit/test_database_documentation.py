@@ -114,7 +114,7 @@ def test_invalid_configuration_raises_documentation_config_error(tmp_path: Path,
     assert isinstance(raised.value, DocumentationError)
 
 
-@pytest.mark.parametrize(("value", "expected"), [(None, 90), (0, 0), (300, 300)])
+@pytest.mark.parametrize(("value", "expected"), [(None, 0), (0, 0), (90, 90)])
 def test_batch_window_seconds_accepts_none_and_non_negative_ints(value: int | None, expected: int) -> None:
     assert DatabaseDocumentation._batch_window(value) == expected
 

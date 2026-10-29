@@ -78,7 +78,12 @@ class DocumentationOutputRuntime(OutputPolicyPort):
         current_time: float | None = None,
         current_datetime: datetime | None = None,
     ) -> Path:
-        """Genera un nombre automático reutilizable dentro de una ventana temporal corta."""
+        """Genera un nombre automático ``<base de datos>-<fecha_hora>``, reutilizable dentro de una ventana temporal.
+
+        Con ``batch_window_seconds`` > 0, una generación de la misma base de datos dentro de la ventana reutiliza el
+        nombre anterior (misma carpeta). Con ``0`` (por defecto desde 5.0.0, G2 de util_bbdd_web) nunca se reutiliza:
+        si el nombre ya se dio en ese segundo o la carpeta ya existe en ``output_dir``, lleva un sufijo ``-2``, ``-3``…
+        """
         resolved_datetime: datetime = current_datetime or datetime.now()
         timestamp: str = resolved_datetime.strftime("%Y%m%d_%H%M%S")
         normalized_conn_params: ConnectionParams = conn_params if isinstance(conn_params, dict) else {}
@@ -98,7 +103,7 @@ class DocumentationOutputRuntime(OutputPolicyPort):
         )
         now: float = current_time if current_time is not None else time.time()
         cached: tuple[float, str] | None = output_cache.get(cache_key)
-        if cached is not None:
+        if cached is not None and batch_window_seconds > 0:
             cached_at, cached_name = cached
             if now - cached_at <= batch_window_seconds:
                 age_seconds: int = int(now - cached_at)
@@ -109,12 +114,35 @@ class DocumentationOutputRuntime(OutputPolicyPort):
                 return Path(cached_name)
 
         generated_name: str = f"{safe_identifier}-{timestamp}"
+        if batch_window_seconds == 0:
+            generated_name = self._unique_auto_name(generated_name, output_dir, cached[1] if cached else None)
         output_cache[cache_key] = (now, generated_name)
         _logger.debug(
             f"✨ Generando nuevo nombre de carpeta de documentación "
             f"(cache: {safe_identifier}, ventana: {batch_window_seconds} s): {generated_name}"
         )
         return Path(generated_name)
+
+    @staticmethod
+    def _unique_auto_name(base_name: str, output_dir: Path, last_name: str | None) -> str:
+        """``base_name`` o ``base_name-N``, distinto del último nombre dado y de las carpetas que ya hay en disco.
+
+        Sin ventana de agrupación, dos generaciones en el mismo segundo daban el mismo nombre y compartían carpeta.
+        ``last_name`` es el último nombre dado a la misma base de datos en este proceso (la caché); el disco cubre lo
+        generado antes por otro proceso.
+        """
+        number: int = 1
+        if last_name == base_name:
+            number = 2
+        elif last_name is not None and last_name.startswith(f"{base_name}-"):
+            suffix: str = last_name[len(base_name) + 1 :]
+            if suffix.isdigit():
+                number = int(suffix) + 1
+        candidate: str = base_name if number == 1 else f"{base_name}-{number}"
+        while (output_dir / candidate).exists():
+            number += 1
+            candidate = f"{base_name}-{number}"
+        return candidate
 
     def resolve_document_output_filename(
         self,

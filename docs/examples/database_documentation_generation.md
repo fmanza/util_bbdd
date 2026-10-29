@@ -18,7 +18,7 @@ Aspectos críticos:
 
 - **Separación constructor / `generate()`**: el constructor solo valida la configuración (lanza `DocumentationConfigError` si un formato, el fichero de cabeceras o la plantilla Word no son válidos) y no consulta la base de datos. `generate()` lee el catálogo, escribe los ficheros y devuelve un `DocumentationResult` con la ruta de cada formato y el número de tablas, vistas y rutinas.
 - **`imprimir_config`**: diccionario que controla qué documentar y cómo presentarlo. Las claves `tablas`, `vistas` y `rutinas` controlan las secciones de objetos; `info_database`, `columnas_charset`, `almacenamiento` y `condiciones_motor` añaden secciones al final del documento; `plantilla_word`, `plantilla_html`, `tablas_por_documento`, `table_style` y `html_items_por_pagina` controlan la presentación, y `grafo` configura los diagramas de relaciones. Todas vienen desactivadas por defecto. Referencia de cada clave y ejemplo completo: [Configuración de `imprimir`](../api/database_documentation.md#configuracion-de-imprimir).
-- **Batching automático de nombres**: cuando `fichero_salida` es `None`, el nombre se genera automáticamente. Las generaciones lanzadas dentro de `batch_window_seconds` (default 90 s) reutilizan la misma carpeta. Configurable con el parámetro `batch_window_seconds` (0 para deshabilitar, `None` para default, o un número de segundos personalizado).
+- **Batching automático de nombres**: cuando `fichero_salida` es `None`, el nombre se genera automáticamente. Por defecto (desde 5.0.0) cada generación tiene su carpeta (sufijo `-2`, `-3`… si coinciden en el mismo segundo). Con `batch_window_seconds` > 0, las generaciones lanzadas dentro de esa ventana reutilizan la misma carpeta (hasta 4.x el valor por defecto era 90 s).
 - **Fragmentación Word automática**: con `tablas_por_documento=50` (default), esquemas grandes se dividen en múltiples ficheros `.docx` numerados automáticamente.
 - **Dependencias**: `openpyxl`, `python-docx` y `jinja2` (Excel, Word y HTML) van en la instalación base; los grafos necesitan el extra `analysis` y los binarios de Graphviz.
 
@@ -47,14 +47,15 @@ for i in range(3):
         directorio_salida=Path("output"),
         # fichero_salida=None genera automático y se cachea
         formatos=["html"],
+        batch_window_seconds=90,  # desde 5.0.0 hay que pedirlo (por defecto, 0)
     )
     doc.generate()
     # Los tres archivos van a: output/<base-FECHA_HORA>/HTML/
 ```
 
-**Caso 3: Deshabilitar batching** (cada generación en carpeta nueva):
+**Caso 3: Sin batching** (cada generación en carpeta nueva; es el comportamiento por defecto desde 5.0.0):
 ```python
-# Usar batch_window_seconds=0 para deshabilitar la cache
+# batch_window_seconds=0 equivale a no pasarlo
 doc = DatabaseDocumentation(
     db_manager=mgr,
     directorio_salida=Path("output"),

@@ -45,8 +45,9 @@ class DatabaseDocumentation:
         db_manager: Fuente de metadatos (``DocumentationSourcePort``), normalmente un ``SyncDatabaseManager``.
         directorio_salida: Directorio de salida. Cada generación crea en él una carpeta con una subcarpeta por formato.
         fichero_salida: Nombre base de la salida (sin extensión). Si es None, se genera automático como
-            ``<base de datos>-<fecha_hora>``, reutilizado por las generaciones lanzadas dentro de
-            ``batch_window_seconds`` para agruparlas en la misma carpeta.
+            ``<base de datos>-<fecha_hora>``, único por generación (con sufijo ``-2``, ``-3``… si coincide en el mismo
+            segundo) o, con ``batch_window_seconds`` > 0, reutilizado por las generaciones lanzadas dentro de la
+            ventana para agruparlas en la misma carpeta.
         imprimir: Secciones y opciones (ver ``docs/api/database_documentation.md``), entre ellas:
             - plantilla_word: Ruta opcional a plantilla Word (.docx)
             - plantilla_excel: Ruta opcional a plantilla Excel (.xlsx o .xltx): tema, fuentes, encabezado, pie y
@@ -65,8 +66,9 @@ class DatabaseDocumentation:
         formatos: Formatos a generar: 'word', 'excel', 'html' (por defecto ``["word"]``).
         headers_file: JSON con las cabeceras de cada sección (``{"headers": {"COLUMNAS": {"base": [...]}, ...}}``).
         batch_window_seconds: Ventana temporal en segundos para agrupar generaciones automáticas en la misma carpeta
-            (default 90; entero ≥ 0, ``0`` no agrupa). Si ``fichero_salida`` es None y se lanzan dos generaciones
-            dentro de esta ventana, reutilizan el mismo nombre.
+            (entero ≥ 0). ``0`` (default desde 5.0.0; antes 90, G2 de util_bbdd_web) no agrupa: cada generación tiene
+            su carpeta. Con un valor > 0, si ``fichero_salida`` es None y se lanzan dos generaciones de la misma base
+            de datos dentro de la ventana, reutilizan el mismo nombre.
         schema: Schema (owner en Oracle, base de datos en MySQL/MariaDB) que documentar; por defecto, el contexto de
             metadatos del manager. Todas las lecturas (catálogo, DDL, diagramas, almacenamiento) van a ese schema
             con la misma conexión (desde 4.1.0); el usuario necesita permiso de lectura sobre sus objetos.
@@ -88,8 +90,9 @@ class DatabaseDocumentation:
         >>> result.outputs["html"]
     """
 
-    _AUTO_OUTPUT_BATCH_WINDOW_SECONDS: ClassVar[int] = 90
-    # Nombres automáticos recientes por (directorio, servidor, base de datos): agrupan las generaciones seguidas
+    _AUTO_OUTPUT_BATCH_WINDOW_SECONDS: ClassVar[int] = 0  # 5.0.0 (G2): antes 90
+    # Nombres automáticos recientes por (directorio, servidor, base de datos): agrupan las generaciones seguidas con
+    # ventana > 0 y, sin ventana, numeran las que caen en el mismo segundo
     _LAST_AUTO_OUTPUT_BY_KEY: ClassVar[OutputCache] = {}
     _AUTO_OUTPUT_LOCK: ClassVar[threading.Lock] = threading.Lock()
 
@@ -132,7 +135,7 @@ class DatabaseDocumentation:
 
     @classmethod
     def _batch_window(cls, value: int | None) -> int:
-        """``batch_window_seconds`` validado: entero ≥ 0 (``0`` no agrupa); ``None``, el valor por defecto (90 s).
+        """``batch_window_seconds`` validado: entero ≥ 0 (``0`` no agrupa); ``None``, el valor por defecto (``0``).
 
         Hasta ahora no se validaba: un negativo no agrupaba nunca y un ``str`` fallaba al comparar, ya en ``generate()``.
         """

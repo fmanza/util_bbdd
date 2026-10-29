@@ -162,6 +162,45 @@ def test_batch_window_groups_only_the_same_database_of_the_same_server(
     assert (names[0] == names[1]) is shared
 
 
+def _auto_names(tmp_path: Path, batch_window_seconds: int, count: int) -> list[Path]:
+    """``count`` nombres automáticos de la misma base de datos en el mismo segundo (tiempo inyectado)."""
+    cache: dict[tuple[str, ...], tuple[float, str]] = {}
+    output_runtime = DocumentationOutputRuntime()
+    return [
+        output_runtime.generate_auto_output_filename(
+            db_type="postgresql",
+            database="demo",
+            conn_params={},
+            output_dir=tmp_path,
+            output_cache=cache,
+            batch_window_seconds=batch_window_seconds,
+            current_time=100.0,
+            current_datetime=datetime(2026, 4, 1, 10, 0, 0),
+        )
+        for _ in range(count)
+    ]
+
+
+def test_without_batch_window_each_generation_has_its_own_name_in_the_same_second(tmp_path: Path) -> None:
+    """U-8.3 (G2 de util_bbdd_web, 5.0.0): con ventana 0 el nombre no se reutiliza aunque coincida el segundo."""
+    assert _auto_names(tmp_path, 0, 3) == [
+        Path("demo-20260401_100000"),
+        Path("demo-20260401_100000-2"),
+        Path("demo-20260401_100000-3"),
+    ]
+
+
+def test_without_batch_window_skips_folders_already_on_disk(tmp_path: Path) -> None:
+    (tmp_path / "demo-20260401_100000").mkdir()  # p. ej. de otro proceso
+    (tmp_path / "demo-20260401_100000-2").mkdir()
+
+    assert _auto_names(tmp_path, 0, 1) == [Path("demo-20260401_100000-3")]
+
+
+def test_explicit_batch_window_still_groups_in_the_same_second(tmp_path: Path) -> None:
+    assert _auto_names(tmp_path, 90, 2) == [Path("demo-20260401_100000")] * 2
+
+
 def test_cache_key_never_contains_credentials(tmp_path: Path) -> None:
     cache: dict[tuple[str, ...], tuple[float, str]] = {}
     DocumentationOutputRuntime().generate_auto_output_filename(

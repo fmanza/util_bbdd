@@ -87,3 +87,19 @@ def test_html_shows_the_view_definition_as_the_engine_stores_it(sqlite_db: Path,
     assert "THEN '&amp;<b>' ELSE '>'" in shown
     word = "\n".join(p.text for p in docx.Document(str(result.outputs["word"])).paragraphs)
     assert "THEN '&amp;<b>' ELSE '>'" in word
+
+
+@pytest.mark.parametrize(("batch_window_seconds", "folders"), [(None, 2), (90, 1)])
+def test_auto_output_name_groups_only_with_an_explicit_batch_window(
+    sqlite_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, batch_window_seconds: int | None, folders: int
+) -> None:
+    """U-8.3 (G2 de util_bbdd_web, 5.0.0): sin ``fichero_salida`` ni ventana, cada generación tiene su carpeta."""
+    monkeypatch.setattr(DatabaseDocumentation, "_LAST_AUTO_OUTPUT_BY_KEY", {})
+    out = tmp_path / "out"
+    with SyncDatabaseManager("sqlite", {"database": str(sqlite_db)}, use_pool=False) as manager:
+        for _ in range(2):
+            DatabaseDocumentation(
+                manager, directorio_salida=out, formatos=["excel"], batch_window_seconds=batch_window_seconds
+            ).generate()
+
+    assert len([p for p in out.iterdir() if p.is_dir()]) == folders

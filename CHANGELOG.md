@@ -28,6 +28,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   ni `dry_run` **ejecuta** (antes escribía el SQL y no tocaba la BD, con `FutureWarning` desde 4.5.0), sin aviso.
   `dry_run` es el nombre preferido; `generar_sql` se queda como alias sin aviso (D8-2) y, si se contradicen,
   `ValueError` como hasta ahora. `bulk_*_from_chunks` no cambia.
+- **BREAKING — doc** (G2 de util_bbdd_web, U-8.3): `DatabaseDocumentation(batch_window_seconds=None)` vale `0` (antes
+  90 s): sin `fichero_salida`, cada generación tiene su carpeta. Con ventana `0` el nombre automático no se reutiliza:
+  si coincide en el mismo segundo o la carpeta ya existe, lleva el sufijo `-2`, `-3`… (antes dos generaciones en el
+  mismo segundo compartían carpeta aunque se pidiera `0`). Con una ventana explícita, todo sigue igual. Sin
+  `FutureWarning` previo porque no es destructivo (D8-1).
 - **Dependabot** (`.github/dependabot.yml`): mensual, un PR agrupado por ecosistema (`pip`, `github-actions`) y contra
   `develop` (antes semanal, hasta 5 PR por ecosistema y contra `main`).
 
