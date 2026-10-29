@@ -17,7 +17,6 @@ from __future__ import annotations
 import logging
 import math
 import uuid
-import warnings
 
 from collections.abc import Callable, Generator, Iterable, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager, contextmanager
@@ -166,24 +165,14 @@ def _lob_like(column_type: Any) -> bool:
 def _resolve_generar_sql(method: str, generar_sql: bool | None, dry_run: bool | None) -> bool:
     """``generar_sql`` efectivo de un ``bulk_*_from_df`` a partir de ``generar_sql`` y ``dry_run`` (G35 de util_bbdd_web).
 
-    Sin ninguno de los dos, ``True`` (el valor por defecto de siempre) con un ``FutureWarning`` dirigido a quien llama:
-    en 5.0.0 el valor por defecto pasará a ejecutar.
+    ``dry_run`` es el nombre preferido y ``generar_sql`` su alias (D8-2). Sin ninguno de los dos, ``False``: ejecuta
+    (5.0.0; hasta 4.x era ``True`` con un ``FutureWarning``).
 
     Raises:
         ValueError: Si se pasan los dos con valores distintos.
     """
     if dry_run is None:
-        if generar_sql is not None:
-            return generar_sql
-        # stacklevel: este helper, el método, el wrapper de medir_tiempo y quien llama.
-        warnings.warn(
-            f"BulkCrud.{method}: sin generar_sql ni dry_run se escribe el SQL y no se ejecuta (generar_sql=True). "
-            "En 5.0.0 el valor por defecto será ejecutar: pasa dry_run=True para generar el SQL o generar_sql=False "
-            "para ejecutar.",
-            FutureWarning,
-            stacklevel=4,
-        )
-        return True
+        return bool(generar_sql)
     if generar_sql is not None and generar_sql != dry_run:
         raise ValueError(
             f"BulkCrud.{method}: generar_sql={generar_sql} y dry_run={dry_run} se contradicen; pasa solo uno de los dos."
@@ -424,9 +413,9 @@ class BulkCrud:
         Args:
             df: DataFrame con los datos.
             tabla_destino: Nombre de la tabla destino.
-            generar_sql: Si True, genera la sentencia SQL en texto y no ejecuta nada; si False, ejecuta. ``None``
-                (default): como ``True``, con un ``FutureWarning`` si tampoco se pasa ``dry_run``, porque en 5.0.0 el
-                valor por defecto será ejecutar (G35 de util_bbdd_web, v4.5.0). Pásalo siempre explícito.
+            generar_sql: Alias de ``dry_run`` (se prefiere ``dry_run``): si True, genera la sentencia SQL en texto y no
+                ejecuta nada; si False, ejecuta. ``None`` (default): lo que diga ``dry_run``; sin ninguno de los dos,
+                ejecuta (5.0.0; hasta 4.x generaba el SQL, G35 de util_bbdd_web).
             path_sql: Directorio (``str`` o ``Path``) del archivo SQL. Es obligatorio si generar_sql=True.
                      El nombre del archivo se genera dinámicamente y se combina con esta ruta.
             override_identity: Si True y el motor es PostgreSQL, genera INSERT con
@@ -435,8 +424,8 @@ class BulkCrud:
             exclude_autoincrement_pk: Si True, excluye la columna PK autoincremental/identity
                      del INSERT (tanto en ejecución como en generación SQL). El DataFrame original
                      no se modifica. Solo afecta a INSERT; no a UPDATE ni DELETE. Por defecto False.
-            dry_run: Nombre explícito del modo seco (v4.5.0): ``True`` equivale a ``generar_sql=True`` (escribe el SQL
-                en ``path_sql`` y no toca la BD) y ``False`` a ``generar_sql=False``.
+            dry_run: Modo seco (v4.5.0; nombre preferido desde 5.0.0): ``True`` escribe el SQL en ``path_sql`` y no
+                toca la BD (como ``generar_sql=True``); ``False`` o ``None`` (default) ejecuta.
             on_progress: Receptor de eventos de progreso (v4.5.0, G1 de util_bbdd_web): operación ``"bulk"``, fase
                 ``"rows"``, uno al empezar (``current=0``) y uno por lote ejecutado con las filas enviadas hasta ahora
                 (también las apartadas por ``on_error="isolate"``); ``total=len(df)`` y ``message`` es ``tabla_destino``.
@@ -506,10 +495,10 @@ class BulkCrud:
         Args:
             df: DataFrame con los datos a actualizar.
             tabla_destino: Nombre de la tabla destino.
-            generar_sql: Como en :meth:`bulk_insert_from_df` (``None``: ``True`` con ``FutureWarning``, G35).
+            generar_sql: Alias de ``dry_run``, como en :meth:`bulk_insert_from_df` (``None``: ejecuta, 5.0.0).
             path_sql: Directorio (``str`` o ``Path``) del archivo SQL. Es obligatorio si generar_sql=True.
                      El nombre del archivo se genera dinámicamente y se combina con esta ruta.
-            dry_run: Como en :meth:`bulk_insert_from_df` (v4.5.0).
+            dry_run: Como en :meth:`bulk_insert_from_df` (v4.5.0; ``None``: ejecuta).
             on_progress: Como en :meth:`bulk_insert_from_df` (v4.5.0).
             cancel_token: Como en :meth:`bulk_insert_from_df` (v4.5.0).
 
@@ -553,10 +542,10 @@ class BulkCrud:
         Args:
             df: DataFrame con los datos a borrar (debe contener claves primarias).
             tabla_destino: Nombre de la tabla destino.
-            generar_sql: Como en :meth:`bulk_insert_from_df` (``None``: ``True`` con ``FutureWarning``, G35).
+            generar_sql: Alias de ``dry_run``, como en :meth:`bulk_insert_from_df` (``None``: ejecuta, 5.0.0).
             path_sql: Directorio (``str`` o ``Path``) del archivo SQL. Es obligatorio si generar_sql=True.
                      El nombre del archivo se genera dinámicamente y se combina con esta ruta.
-            dry_run: Como en :meth:`bulk_insert_from_df` (v4.5.0).
+            dry_run: Como en :meth:`bulk_insert_from_df` (v4.5.0; ``None``: ejecuta).
             on_progress: Como en :meth:`bulk_insert_from_df` (v4.5.0).
             cancel_token: Como en :meth:`bulk_insert_from_df` (v4.5.0).
 

@@ -1,4 +1,4 @@
-"""U-B3 (G35 de util_bbdd_web): ``dry_run`` explícito y ``FutureWarning`` si no se pasa ni ``generar_sql`` ni ``dry_run``."""
+"""G35 de util_bbdd_web: ``dry_run`` explícito (U-B3, 4.5.0) y, sin ``generar_sql`` ni ``dry_run``, ejecución (U-8.2, 5.0.0)."""
 
 from __future__ import annotations
 
@@ -43,16 +43,15 @@ def _rows(engine: Engine) -> list[tuple[int, str]]:
         return [(int(r[0]), str(r[1])) for r in conn.execute(text("SELECT id, v FROM items ORDER BY id"))]
 
 
-@pytest.mark.parametrize("method", METHODS)
-def test_no_argument_warns_and_writes_sql(crud: BulkCrud, engine: Engine, tmp_path: Path, method: str) -> None:
-    df = DF if method == "bulk_insert_from_df" else DF.iloc[:2]
-    with pytest.warns(FutureWarning, match="5.0.0") as caught:
-        getattr(crud, method)(df, "items", path_sql=tmp_path)
+def test_no_argument_executes_without_warning(crud: BulkCrud, engine: Engine, tmp_path: Path) -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        crud.bulk_insert_from_df(DF.iloc[2:], "items", path_sql=tmp_path)
+        crud.bulk_update_from_df(DF.iloc[:1], "items", path_sql=tmp_path)
+        crud.bulk_delete_from_df(DF.iloc[1:2], "items", path_sql=tmp_path)
 
-    assert caught[0].filename == __file__  # apunta a quien llama, no a util_bbdd
-    assert method in str(caught[0].message)
-    assert _rows(engine) == [(1, "a"), (2, "b")]  # no ejecuta
-    assert len(list(tmp_path.glob("*.sql"))) == 1
+    assert _rows(engine) == [(1, "x"), (3, "z")]
+    assert list(tmp_path.glob("*.sql")) == []  # no se genera SQL
 
 
 @pytest.mark.parametrize("method", METHODS)
@@ -87,9 +86,10 @@ def test_explicit_generar_sql_does_not_warn(crud: BulkCrud, tmp_path: Path, valu
         crud.bulk_delete_from_df(DF.iloc[2:], "items", generar_sql=value, path_sql=tmp_path, dry_run=value)
 
 
-def test_contradictory_values_raise(crud: BulkCrud, engine: Engine) -> None:
+@pytest.mark.parametrize(("generar_sql", "dry_run"), [(False, True), (True, False)])
+def test_contradictory_values_raise(crud: BulkCrud, engine: Engine, generar_sql: bool, dry_run: bool) -> None:
     with pytest.raises(ValueError, match="se contradicen"):
-        crud.bulk_insert_from_df(DF, "items", generar_sql=False, dry_run=True)
+        crud.bulk_insert_from_df(DF, "items", generar_sql=generar_sql, dry_run=dry_run)
     assert _rows(engine) == [(1, "a"), (2, "b")]
 
 

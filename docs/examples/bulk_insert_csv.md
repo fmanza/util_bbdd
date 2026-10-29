@@ -17,7 +17,7 @@ Resuelve el patrón ETL más frecuente: "tengo un CSV, quiero cargarlo en BD y t
 El ejemplo demuestra tres aspectos clave:
 
 - **Auditoría habilitada**: `AuditOptions(csv_path=...)` es la ruta del **fichero** CSV de auditoría (el directorio se crea si falta). Cada operación bulk añade una fila con tabla, motor, filas, duración y timestamp. El CSV es tabulado y con coma decimal: se lee con `AuditManager(ruta).leer_auditoria()`, no con `pd.read_csv` por defecto.
-- **`generar_sql=False`**: sin él, `bulk_insert_from_df` genera un fichero SQL en lugar de ejecutar y exige `path_sql` (desde 4.5.0 avisa con `FutureWarning`: en 5.0.0 ejecutará por defecto). `dry_run=True` es el nombre explícito del modo seco.
+- **`generar_sql=False`**: desde 5.0.0 es lo que hace `bulk_insert_from_df` por defecto (ejecutar); hasta 4.x, sin él, generaba un fichero SQL en lugar de ejecutar. Para generar el SQL sin tocar la BD, `dry_run=True` (nombre preferido) con `path_sql`.
 - **Tabla destino**: `BulkCrud` no crea tablas; el ejemplo la crea antes de cargar.
 - **Columnas**: las del DataFrame se emparejan con las de la tabla sin distinguir mayúsculas.
 

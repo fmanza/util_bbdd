@@ -24,6 +24,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   normal: se retiran el descriptor `_TruncateTargetField`, el marcador `_ImplicitTrue` y el aviso. Con
   `manage_indexes="all"` hay que pasar `truncate_target=True`; si no, `ValueError` al construir (el mensaje no cambia).
   Guía nueva: [Migración a la API 5.0](docs/guides/api_5_0_migration.md).
+- **BREAKING — bulk** (G35 de util_bbdd_web, U-8.2): `BulkCrud.bulk_{insert,update,delete}_from_df` sin `generar_sql`
+  ni `dry_run` **ejecuta** (antes escribía el SQL y no tocaba la BD, con `FutureWarning` desde 4.5.0), sin aviso.
+  `dry_run` es el nombre preferido; `generar_sql` se queda como alias sin aviso (D8-2) y, si se contradicen,
+  `ValueError` como hasta ahora. `bulk_*_from_chunks` no cambia.
 - **Dependabot** (`.github/dependabot.yml`): mensual, un PR agrupado por ecosistema (`pip`, `github-actions`) y contra
   `develop` (antes semanal, hasta 5 PR por ecosistema y contra `main`).
 

@@ -17,6 +17,7 @@ python -m pytest -W error::FutureWarning -W error::DeprecationWarning
 | Área | 4.x | 5.0 | Aviso previo |
 |---|---|---|---|
 | Volcado | `DumpConfig(truncate_target=...)` vale `True` si no se indica: `run()` vacía el destino | Vale `False`: `run()` añade filas sin borrar nada (modo append) | `FutureWarning` desde 4.4.0 |
+| Carga masiva | `BulkCrud.bulk_{insert,update,delete}_from_df` sin `generar_sql` ni `dry_run` escribe el SQL y no ejecuta | Ejecuta | `FutureWarning` desde 4.5.0 |
 
 ## 3. Volcado: `truncate_target=False` por defecto
 
@@ -49,3 +50,30 @@ DumpOrchestrator(config).run()
 
 `DumpConfig` ya no emite el `FutureWarning`, y el campo es un `bool` normal: `dataclasses.fields(DumpConfig)` da
 `False` como valor por defecto.
+
+## 4. Carga masiva: `bulk_*_from_df` ejecuta por defecto
+
+Hasta 4.x, `bulk_insert_from_df`, `bulk_update_from_df` y `bulk_delete_from_df` sin `generar_sql` ni `dry_run`
+escribían el SQL en `path_sql` y no tocaban la base de datos. En 5.0 **ejecutan**, sin aviso. `dry_run` es el nombre
+preferido del modo seco; `generar_sql` se mantiene como alias, sin aviso.
+
+| Tu código en 4.x | Qué pasa en 5.0 | Qué hacer |
+|---|---|---|
+| `generar_sql=False` o `dry_run=False` | Igual: ejecuta | Nada (puedes quitar el argumento) |
+| `generar_sql=True` o `dry_run=True` | Igual: escribe el SQL y no ejecuta | Nada (se prefiere `dry_run=True`) |
+| Sin ninguno de los dos (con `FutureWarning`) | **Ejecuta** contra la BD; `path_sql` se ignora | Si querías el fichero SQL, añade `dry_run=True` |
+| `generar_sql` y `dry_run` con valores distintos | Igual: `ValueError` | Pasa solo uno |
+
+Antes (4.x, genera el fichero SQL sin decirlo):
+
+```python
+crud.bulk_insert_from_df(df, "clientes", path_sql="sql/")
+```
+
+Después (5.0, mismo comportamiento):
+
+```python
+crud.bulk_insert_from_df(df, "clientes", path_sql="sql/", dry_run=True)
+```
+
+`bulk_*_from_chunks` no cambia: siempre ejecutaba.

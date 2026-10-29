@@ -70,8 +70,8 @@ flowchart TD
 | `parallel` | `ParallelOptions \| None` | Ejecución paralela de `bulk_*_from_df`: el DataFrame se reparte en particiones disjuntas (INSERT: tramos consecutivos; UPDATE/DELETE: por PK, o `partition_column`, por rangos si es una columna entera o datetime y por hash si no) que carga `ParallelBulkLoader`, una transacción por partición. **Deja de ser atómica.** Ver [carga paralela](#carga-paralela-desde-bulkcrud-v300) | Default `None` (en serie) |
 | `df` | `pd.DataFrame` | Datos fuente | No puede estar vacío; columnas deben coincidir con tabla destino |
 | `tabla_destino` | `str` | Nombre de la tabla en BD | Debe existir; se normaliza mayúsculas/minúsculas por motor |
-| `generar_sql` | `bool \| None` | `True`: escribir el SQL generado en fichero **sin ejecutar nada**; `False`: ejecutar | Si `True`, `path_sql` es obligatorio. `None` (default) equivale a `True` y, si tampoco se pasa `dry_run`, emite `FutureWarning` (desde 4.5.0): en 5.0.0 el valor por defecto será ejecutar. Pásalo siempre explícito |
-| `dry_run` | `bool \| None` | Nombre explícito del modo seco (desde 4.5.0, solo palabra clave): `True` equivale a `generar_sql=True` y `False` a `generar_sql=False` | `ValueError` si contradice a `generar_sql` |
+| `generar_sql` | `bool \| None` | Alias de `dry_run` (se prefiere `dry_run`). `True`: escribir el SQL generado en fichero **sin ejecutar nada**; `False`: ejecutar | Si `True`, `path_sql` es obligatorio. `None` (default): lo que diga `dry_run`; sin ninguno de los dos, **ejecuta** (desde 5.0.0; hasta 4.x generaba el SQL, ver [Migración a la API 5.0](../guides/api_5_0_migration.md)) |
+| `dry_run` | `bool \| None` | Modo seco (desde 4.5.0, solo palabra clave; nombre preferido desde 5.0.0): `True` escribe el SQL en `path_sql` sin tocar la BD; `False` o `None` (default) ejecuta | `ValueError` si contradice a `generar_sql` |
 | `path_sql` | `str \| Path \| None` | Directorio base para el fichero SQL (desde v1.1.0 también `str`) | Nombre generado automáticamente (tabla + operación + timestamp) |
 
 ### Paquetes de opciones (v3.0.0)
