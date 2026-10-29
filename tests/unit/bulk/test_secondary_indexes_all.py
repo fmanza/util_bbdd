@@ -511,7 +511,10 @@ def test_dump_all_requires_truncate_target_and_rejects_isolate(tmp_path: object)
             source_engine=engine,
             target_engine=engine,
             manage_indexes="all",
+            truncate_target=True,
             on_error="isolate",
             rejects_csv_path="r.csv",
         )
-    DumpConfig(source_engine=engine, target_engine=engine, manage_indexes="all")
+    with pytest.raises(ValueError, match="truncate_target"):  # 5.0.0 (G30): el valor por defecto es False
+        DumpConfig(source_engine=engine, target_engine=engine, manage_indexes="all")
+    DumpConfig(source_engine=engine, target_engine=engine, manage_indexes="all", truncate_target=True)

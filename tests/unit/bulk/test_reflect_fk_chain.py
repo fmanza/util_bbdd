@@ -52,7 +52,9 @@ def test_dump_of_long_fk_chain_does_not_raise_recursion_error(tmp_path: Path) ->
     _chain(dst, N_TABLES)
 
     result = DumpOrchestrator(
-        DumpConfig(source_engine=src, target_engine=dst, output_dir=tmp_path, collect_row_counts=False)
+        DumpConfig(
+            source_engine=src, target_engine=dst, output_dir=tmp_path, collect_row_counts=False, truncate_target=True
+        )
     ).run()
 
     assert len(result.table_results) == N_TABLES

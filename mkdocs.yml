@@ -132,6 +132,7 @@ nav:
       - Reutilización de Código: guides/code_reusability_analysis_guide.md
       - Drivers por Motor: guides/drivers.md
       - Migración de Versión:
+          - Migración a la API 5.0 (v5.0.0): guides/api_5_0_migration.md
           - Migración a la API 3.0 (v3.0.0): guides/api_3_0_migration.md
           - Migración a la API 1.0 (v0.43.0): guides/api_1_0_migration.md
           - Guía de Migración (v0.6.3): guides/migration_guide.md

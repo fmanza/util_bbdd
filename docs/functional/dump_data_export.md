@@ -54,7 +54,7 @@ flowchart TD
 
 **Tablas con ciclos FK:** Cuando dos o más tablas tienen claves foráneas circulares, el algoritmo las detecta, las carga al final sin garantía de orden (con constraints desactivadas) y las registra en el informe con indicador de ciclo FK.
 
-**Volcado en modo append:** Con `truncate_target=False`, los datos se insertan sin limpiar el destino primero. Puede generar duplicados si los registros ya existen.
+**Volcado en modo append:** Con `truncate_target=False` (valor por defecto desde 5.0.0), los datos se insertan sin limpiar el destino primero. Puede generar duplicados si los registros ya existen.
 
 **Palancas de rendimiento opcionales:** Cuatro opciones opt-in permiten acelerar el volcado en escenarios de alto volumen: cadencia de commit, gestión de índices, paralelismo por tabla y paralelismo por rangos PK. Todas están desactivadas por defecto.
 

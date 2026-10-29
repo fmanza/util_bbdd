@@ -54,7 +54,7 @@ config = DumpConfig(
     target_schema="dbo",
     tables=None,              # None = todas las tablas del origen
     chunk_size=5000,          # bájalo si en MariaDB/MySQL un lote con TEXT/JSON supera max_allowed_packet
-    truncate_target=True,     # vaciar destino antes de cargar (full refresh)
+    truncate_target=True,     # vaciar destino antes de cargar (full refresh); por defecto False (append, 5.0.0)
     output_dir=Path("reports"),
 )
 ```

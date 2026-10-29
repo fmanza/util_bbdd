@@ -17,7 +17,7 @@ Resuelve el caso de actualizar un entorno de analítica con datos de producción
 Aspectos críticos:
 
 - **`DumpConfig.chunk_size`**: filas por lectura del origen (default 5000; el ejemplo usa 1000). En destinos MariaDB/MySQL con filas grandes (`TEXT`/`JSON`), reducirlo si un lote supera `max_allowed_packet`.
-- **`truncate_target=True`**: vacía el destino antes de cargar en orden inverso topológico (respetando FKs). Con `False`, los datos se añaden al existente (modo append); riesgo de duplicados si las PKs ya existen.
+- **`truncate_target=True`**: vacía el destino antes de cargar en orden inverso topológico (respetando FKs). Con `False` (valor por defecto desde 5.0.0), los datos se añaden al existente (modo append); riesgo de duplicados si las PKs ya existen.
 - **`SyncDatabaseManager.get_sqlalchemy_engine()`**: para destino MariaDB, usar este método en lugar de `create_engine()` directamente, ya que incluye automáticamente `pool_pre_ping=True` y `pool_recycle=3600` para evitar `Server has gone away`.
 - **Best-effort**: un fallo en una tabla no detiene el volcado. Revisar el informe Excel para identificar las tablas con `ERROR` o `MISSING_TARGET`.
 
@@ -36,7 +36,7 @@ config = DumpConfig(
     target_engine=dst_mgr.get_sqlalchemy_engine(),  # pool_pre_ping incluido
     chunk_size=500,
     output_dir=Path("reports"),
-    truncate_target=True,  # explícito: el valor por defecto pasará a False en 5.0.0
+    truncate_target=True,  # por defecto False desde 5.0.0 (append)
 )
 ```
 

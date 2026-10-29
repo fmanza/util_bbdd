@@ -19,6 +19,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **BREAKING — dump** (G30 de util_bbdd_web, U-8.1): `DumpConfig.truncate_target` vale `False` por defecto (antes
+  `True`, con `FutureWarning` desde 4.4.0): sin el argumento, `run()` añade filas sin vaciar el destino. Es un `bool`
+  normal: se retiran el descriptor `_TruncateTargetField`, el marcador `_ImplicitTrue` y el aviso. Con
+  `manage_indexes="all"` hay que pasar `truncate_target=True`; si no, `ValueError` al construir (el mensaje no cambia).
+  Guía nueva: [Migración a la API 5.0](docs/guides/api_5_0_migration.md).
 - **Dependabot** (`.github/dependabot.yml`): mensual, un PR agrupado por ecosistema (`pip`, `github-actions`) y contra
   `develop` (antes semanal, hasta 5 PR por ecosistema y contra `main`).
 

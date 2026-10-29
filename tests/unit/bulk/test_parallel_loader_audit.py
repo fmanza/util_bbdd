@@ -226,7 +226,7 @@ class TestDumpAudit:
 
     def test_non_empty_sqlite_target_is_cleaned_before_loading(self, tmp_path: Path) -> None:
         # Antes: TRUNCATE TABLE fallaba en SQLite, el destino conservaba sus filas y la carga chocaba con la PK 1.
-        cfg, dst = self._config(tmp_path)
+        cfg, dst = self._config(tmp_path, truncate_target=True)
         cfg.bulk_audit_path = None
         with dst.begin() as conn:
             conn.exec_driver_sql("INSERT INTO items (id, name) VALUES (1, 'viejo'), (9, 'solo destino')")

@@ -75,7 +75,7 @@ class TestDumpConfig:
         assert cfg.target_schema is None
         assert cfg.tables is None
         assert cfg.chunk_size == 5000
-        assert cfg.truncate_target is True
+        assert cfg.truncate_target is False  # 5.0.0 (G30)
         assert isinstance(cfg.output_dir, Path)
 
     def test_custom_values(self):
