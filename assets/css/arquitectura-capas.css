@@ -1,0 +1,38 @@
+/* Diagrama de capas e imports (docs/architecture.md). Tokens ligados a las variables de Material. */
+.arq-figure {
+  --arq-sans: var(--md-text-font-family, system-ui, sans-serif);
+  --arq-mono: var(--md-code-font-family, ui-monospace, monospace);
+  --arq-ink: var(--md-default-fg-color);
+  --arq-muted: var(--md-default-fg-color--light);
+  --arq-node: var(--md-default-bg-color);
+  --arq-node-line: var(--md-default-fg-color--light);
+  --arq-line: var(--md-default-fg-color);
+  --arq-band-3: color-mix(in srgb, var(--md-default-fg-color) 3%, var(--md-default-bg-color));
+  --arq-band-2: color-mix(in srgb, var(--md-default-fg-color) 6%, var(--md-default-bg-color));
+  --arq-band-1: color-mix(in srgb, var(--md-default-fg-color) 10%, var(--md-default-bg-color));
+  --arq-band-line: var(--md-default-fg-color--lightest);
+  --arq-amber: #a45500;
+  --arq-badge-ink: #fff;
+  margin: 1.5em 0;
+}
+[data-md-color-scheme="slate"] .arq-figure { --arq-amber: #f0a03c; --arq-badge-ink: #101418; }
+.arq-figure .arq-scroll { overflow-x: auto; }
+.arq-figure svg.arq { min-width: 640px; }
+.arq-figure figcaption { font-size: .8rem; color: var(--md-default-fg-color--light); margin-top: .5rem; }
+.arq { display: block; width: 100%; height: auto; color: var(--arq-ink); font-family: var(--arq-sans); }
+.arq .arq-band { stroke: var(--arq-band-line); stroke-opacity: 1; stroke-width: 1; }
+.arq .arq-band-3 { fill: var(--arq-band-3); }
+.arq .arq-band-2 { fill: var(--arq-band-2); }
+.arq .arq-band-1 { fill: var(--arq-band-1); }
+.arq .arq-band-label { fill: var(--arq-muted); font: 600 11px var(--arq-sans); letter-spacing: .12em; }
+.arq .arq-band-note, .arq .arq-lbl, .arq .arq-sub { fill: var(--arq-muted); font: 400 11.5px var(--arq-sans); }
+.arq .arq-node rect { fill: var(--arq-node); stroke: var(--arq-node-line); stroke-width: 1.2; }
+.arq .arq-shared rect { stroke-dasharray: 4 3; }
+.arq .arq-name { fill: var(--arq-ink); font: 500 13px var(--arq-mono); }
+.arq .arq-edge { fill: none; stroke: var(--arq-line); stroke-width: 1.4; }
+.arq .arq-edge.lazy { stroke-dasharray: 2 4; stroke-linecap: round; }
+.arq .arq-edge.warn { stroke: var(--arq-amber); stroke-width: 1.8; stroke-dasharray: 6 4; }
+.arq .arq-head { fill: var(--arq-line); }
+.arq .arq-head-warn { fill: var(--arq-amber); }
+.arq .arq-badge-warn { fill: var(--arq-amber); }
+.arq .arq-badge-num { fill: var(--arq-badge-ink); font: 700 11px var(--arq-sans); }
