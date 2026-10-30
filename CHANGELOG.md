@@ -19,6 +19,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   las tablas de cada ciclo de FK en el mismo orden en todos los procesos: `bfs_component` recorre los vecinos
   ordenados en vez de desde un `set`, cuyo orden dependía de `PYTHONHASHSEED`. Cambia el orden visible de los ciclos
   de 3+ tablas respecto a versiones anteriores; las tablas y el orden de carga no cambian.
+- **comparar** (util_bbdd_web GAPS G46, U-10.3, seguridad): un nombre de tabla con saltos de línea ya no añade
+  sentencias ni directivas (`%%{init: …}%%`) a los diagramas Mermaid del informe HTML y del Markdown.
+  `escape_mermaid_label` pasa a espacio `\r`, `\n`, los caracteres de control y los separadores de línea de Unicode, y
+  neutraliza `%%` (`% %`). Los ids de nodo del Markdown llevan solo `[A-Za-z0-9_]` (el resto, `_`) con sufijo `_2`,
+  `_3`… si dos coinciden: cambian los ids de los nombres con caracteres fuera de `[A-Za-z0-9_ ]` (también letras no
+  ASCII como `ñ`), no lo que se ve en el diagrama.
 
 ## [5.1.0] - 2026-10-29
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from typing import TYPE_CHECKING, ClassVar
 
@@ -21,6 +22,25 @@ from ._base import (
     escape_markdown_table_cell,
     escape_mermaid_label,
 )
+
+_NON_ID_CHARS: re.Pattern[str] = re.compile(r"[^A-Za-z0-9_]")
+
+
+def _mermaid_node_id(prefix: str, name: str, used: set[str]) -> str:
+    """Id de nodo Mermaid de una tabla: ``prefix_nombre`` con solo ``[A-Za-z0-9_]`` (el resto, ``_``).
+
+    G46 de util_bbdd_web (U-10.3): el id se construía con el escape del label y un nombre con saltos de línea o ``-->``
+    añadía sentencias al diagrama. Si dos nombres dan el mismo id, el segundo lleva un sufijo (``_2``, ``_3``…); ``used``
+    acumula los ids del diagrama.
+    """
+    base = f"{prefix}_{_NON_ID_CHARS.sub('_', name)}"
+    node_id = base
+    suffix = 2
+    while node_id in used:
+        node_id = f"{base}_{suffix}"
+        suffix += 1
+    used.add(node_id)
+    return node_id
 
 
 class MarkdownDiffReporter:
@@ -109,25 +129,26 @@ class MarkdownDiffReporter:
             return []
 
         lines: list[str] = ["## Diagrama de diferencias", "", "```mermaid", "graph LR"]
+        used_ids: set[str] = set()
 
         if added_tables:
             lines.append('    subgraph added["✅ Añadidas"]')
             for name in added_tables:
-                safe_id: str = f"A_{escape_mermaid_label(name).replace(' ', '_')}"
+                safe_id: str = _mermaid_node_id("A", name, used_ids)
                 lines.append(f'        {safe_id}["{escape_mermaid_label(name)}"]')
             lines.append(self._MERMAID_SUBGRAPH_END)
 
         if removed_tables:
             lines.append('    subgraph removed["❌ Eliminadas"]')
             for name in removed_tables:
-                safe_id = f"R_{escape_mermaid_label(name).replace(' ', '_')}"
+                safe_id = _mermaid_node_id("R", name, used_ids)
                 lines.append(f'        {safe_id}["{escape_mermaid_label(name)}"]')
             lines.append(self._MERMAID_SUBGRAPH_END)
 
         if modified_tables:
             lines.append('    subgraph modified["⚠️ Modificadas"]')
             for td in modified_tables:
-                safe_id = f"M_{escape_mermaid_label(td.table_name).replace(' ', '_')}"
+                safe_id = _mermaid_node_id("M", td.table_name, used_ids)
                 col_count: int = len(td.column_diffs)
                 label: str = escape_mermaid_label(td.table_name)
                 if col_count:
