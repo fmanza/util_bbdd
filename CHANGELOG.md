@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.2.0] - 2026-10-30
+
+SemVer: MINOR (D10-1 de util_bbdd_web). Ola 10 del plan de huecos de util_bbdd_web (Grupo 10, U-10.1 a U-10.4): el
+informe HTML de la comparación carga Mermaid 12 por defecto (G45), y tres correcciones sin cambios de API: diagramas
+Mermaid sin sentencias ni directivas inyectadas por los nombres (G46), ciclos de FK del volcado en orden estable (G47)
+y fechas en texto en el SQL del modo seco de bulk (G48).
+
 ### Changed
 
 - **comparar** (util_bbdd_web GAPS G45, U-10.4): el informe HTML carga por defecto `mermaid@12.2.0` de jsDelivr
