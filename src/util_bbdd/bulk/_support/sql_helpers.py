@@ -13,11 +13,14 @@ from typing import Any, overload
 from sqlalchemy import (
     JSON,
     BindParameter,
+    Date,
+    DateTime,
     Delete,
     Insert,
     String,
     Table,
     TableClause,
+    Time,
     Update,
     and_,
     bindparam,
@@ -174,16 +177,28 @@ def _safe_filename_part(value: str) -> str:
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", value)
 
 
-def _json_as_string_literals(table: TableClause, values: SqlRecord) -> SqlRecord:
-    """Valores de columnas JSON como literal de cadena para la generación de SQL (P-20).
+_TEMPORAL_TYPES = (Date, DateTime, Time)  # sin anotar: mypy acota el tipo en isinstance
 
-    ``literal_binds`` necesita un ``literal_processor`` y el tipo ``JSON`` de SQLAlchemy no tiene. El valor ya viene
-    serializado por ``normalize_sql_literal``, así que se escribe como cadena, sin volver a serializar (coherente con
-    P-19). ``None`` se mantiene para que se genere ``NULL``.
+
+def _json_as_string_literals(table: TableClause, values: SqlRecord) -> SqlRecord:
+    """Valores de columnas JSON, y textos de columnas temporales, como literal de cadena para la generación de SQL.
+
+    P-20: ``literal_binds`` necesita un ``literal_processor`` y el tipo ``JSON`` de SQLAlchemy no tiene. El valor ya
+    viene serializado por ``normalize_sql_literal``, así que se escribe como cadena, sin volver a serializar (coherente
+    con P-19). ``None`` se mantiene para que se genere ``NULL``.
+
+    G48 de util_bbdd_web (U-10.1): un ``str`` en una columna ``Date``/``DateTime``/``Time`` (fechas de un CSV) daba
+    ``CompileError`` en todos los dialectos; se escribe tal cual, como cadena, sin convertir ni interpretar el formato.
+    Se decide por valor: los objetos fecha siguen el literal de su tipo.
     """
     return {
         name: literal(value, String())
-        if value is not None and name in table.c and isinstance(table.c[name].type, JSON)
+        if value is not None
+        and name in table.c
+        and (
+            isinstance(table.c[name].type, JSON)
+            or (isinstance(value, str) and isinstance(table.c[name].type, _TEMPORAL_TYPES))
+        )
         else value
         for name, value in values.items()
     }
@@ -282,10 +297,14 @@ class _LiteralTemplate:
           redefinen (escape de ``\\``) y siguen por ``render_literal_value``.
         - C-1 / P-30 (hotfix 2026-09-25): en columnas binarias, los ``bytes`` se escriben con el literal hexadecimal del
           dialecto (``_BINARY_LITERAL_FORMATS``); cualquier otro valor sigue el camino de su tipo.
+        - G48 de util_bbdd_web (U-10.1): en VALUES/SET de columnas temporales, un ``str`` se escribe como cadena
+          (:meth:`_temporal_processor`). En el WHERE no hace falta: ``coerce_compared_value`` ya da ``String``.
         """
         literal_format: str | None = _BINARY_LITERAL_FORMATS.get(dialect.name)
         if literal_format is not None and isinstance(slot.type, _Binary):
             return self._binary_processor(slot, type_, literal_format)
+        if type_ is not None and isinstance(slot.type, _TEMPORAL_TYPES):
+            return self._temporal_processor(type_, dialect, direct=direct)
         if type_ is None:
             render: Callable[[Any, TypeEngine[Any]], str] = self._compiler.render_literal_value
             column_type: TypeEngine[Any] = slot.type
@@ -312,6 +331,21 @@ class _LiteralTemplate:
             return render(value, type_ if type_ is not None else column_type.coerce_compared_value(operators.eq, value))
 
         return binary_literal
+
+    def _temporal_processor(self, type_: TypeEngine[Any], dialect: Any, *, direct: bool) -> Callable[[Any], str]:
+        """Literal de un hueco temporal en VALUES/SET: un ``str`` como cadena, sin interpretarlo; el resto, por su tipo."""
+        render: Callable[[Any, TypeEngine[Any]], str] = self._compiler.render_literal_value
+        text_type: TypeEngine[Any] = String()
+        processor: Callable[[Any], str] | None = (
+            type_.dialect_impl(dialect).literal_processor(dialect) if direct else None
+        )
+
+        def temporal_literal(value: Any) -> str:
+            if isinstance(value, str):
+                return render(value, text_type)
+            return processor(value) if processor is not None else render(value, type_)
+
+        return temporal_literal
 
     def _undo_percents(self, sql: str) -> str:
         return sql.replace("%%", "%") if self._undouble else sql  # P-23

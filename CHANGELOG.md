@@ -7,6 +7,15 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **bulk** (util_bbdd_web GAPS G48, U-10.1): el modo seco (`dry_run=True`) ya no da `CompileError` con un `str` en
+  una columna `Date`/`DateTime`/`Time` (las fechas de un CSV, que pandas deja como texto), en ningún dialecto. El
+  texto se escribe tal cual como literal de cadena en VALUES y SET, decidido por valor, también en el camino por fila;
+  ni se convierte ni se interpreta el formato: el SQL lleva lo que la BD recibiría al ejecutar. En el WHERE ya
+  funcionaba. Los objetos fecha no cambian (`TO_DATE` en Oracle), ni la ejecución. En Oracle, `'2026-10-18'` en un
+  `DATE` depende de `NLS_DATE_FORMAT` de la sesión que ejecute el fichero.
+
 ## [5.1.0] - 2026-10-29
 
 SemVer: MINOR publicada como corrección (D9-1 de util_bbdd_web). Ola 9 del plan de huecos de util_bbdd_web (Grupo 9,

@@ -425,7 +425,9 @@ class BulkCrud:
                      del INSERT (tanto en ejecución como en generación SQL). El DataFrame original
                      no se modifica. Solo afecta a INSERT; no a UPDATE ni DELETE. Por defecto False.
             dry_run: Modo seco (v4.5.0; nombre preferido desde 5.0.0): ``True`` escribe el SQL en ``path_sql`` y no
-                toca la BD (como ``generar_sql=True``); ``False`` o ``None`` (default) ejecuta.
+                toca la BD (como ``generar_sql=True``); ``False`` o ``None`` (default) ejecuta. Un texto en una columna
+                de fecha u hora se escribe tal cual, como cadena (5.2.0): en Oracle, ``'2026-10-18'`` en un ``DATE``
+                depende de ``NLS_DATE_FORMAT`` de la sesión que ejecute el fichero, igual que al ejecutar.
             on_progress: Receptor de eventos de progreso (v4.5.0, G1 de util_bbdd_web): operación ``"bulk"``, fase
                 ``"rows"``, uno al empezar (``current=0``) y uno por lote ejecutado con las filas enviadas hasta ahora
                 (también las apartadas por ``on_error="isolate"``); ``total=len(df)`` y ``message`` es ``tabla_destino``.
