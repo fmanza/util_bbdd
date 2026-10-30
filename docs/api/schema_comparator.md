@@ -71,8 +71,9 @@ flowchart TD
   `format_version` desconocidos, un campo obligatorio ausente o un valor de otro tipo (indica la ruta, p. ej.
   `table_diffs[2].status`), e ignora las claves que no son campos.
 - **`render()`** / **`render_all()`** — `Path` o `list[Path]` de ficheros generados en `output_dir`.
-- **Informe HTML y Mermaid** (4.2.0) — por defecto carga `mermaid@10.9.8` de jsDelivr con `integrity` (SRI;
-  constantes `MERMAID_VERSION`, `MERMAID_CDN_URL` y `MERMAID_SRI` de `util_bbdd.comparar.reporters.html_reporter`).
+- **Informe HTML y Mermaid** (4.2.0) — por defecto carga `mermaid@12.2.0` de jsDelivr con `integrity` (SRI;
+  constantes `MERMAID_VERSION`, `MERMAID_CDN_URL` y `MERMAID_SRI` de `util_bbdd.comparar.reporters.html_reporter`;
+  hasta 5.1.0, `mermaid@10.9.8`).
   `mermaid_src` lo cambia: URL `http(s)` o relativa (un asset propio con la CSP de la aplicación; `mermaid_integrity`
   opcional), `Path` a un `mermaid.min.js` local que se incrusta en el HTML (informe sin red, unos 3 MB más) o `None`
   (sin Mermaid). Otro esquema de URL o un fichero ilegible lanzan `SchemaDiffValidationError`. Si Mermaid no carga,

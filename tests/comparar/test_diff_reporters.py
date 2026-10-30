@@ -6,6 +6,9 @@ usando datos sintéticos (sin conexión a BD).
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import urllib.request
 import zipfile
 
 from pathlib import Path
@@ -43,7 +46,7 @@ from util_bbdd.comparar.reporters._base import (
     escape_mermaid_label,
     sanitize_filename,
 )
-from util_bbdd.comparar.reporters.html_reporter import MERMAID_CDN_URL, MERMAID_SRI
+from util_bbdd.comparar.reporters.html_reporter import MERMAID_CDN_URL, MERMAID_SRI, MERMAID_VERSION
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -286,6 +289,23 @@ class TestHtmlDiffReporter:
         # Script Mermaid CDN: versión fija con SRI (G25)
         assert f'<script src="{MERMAID_CDN_URL}" integrity="{MERMAID_SRI}" crossorigin="anonymous">' in content
         assert "mermaid@10/" not in content
+
+    def test_default_mermaid_is_12(self) -> None:
+        """G45 de util_bbdd_web (U-10.4, 5.2.0): Mermaid 12 por defecto, con el SRI de su ``dist/mermaid.min.js``."""
+        assert MERMAID_VERSION == "12.2.0"
+        assert MERMAID_CDN_URL == "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js"
+        assert MERMAID_SRI == "sha384-8xUhuLNMjW/cI2Dacg3DR4WliYznvIg0LVG1stctThKD/YVrJFI9TNCFxft5NYgp"
+
+    @pytest.mark.integration
+    def test_mermaid_sri_matches_the_cdn_file(self) -> None:
+        """El SRI coincide con el fichero que sirve jsDelivr (con red; sin ella, se salta)."""
+        try:
+            with urllib.request.urlopen(MERMAID_CDN_URL, timeout=30) as response:  # noqa: S310 (URL https fija)
+                content = response.read()
+        except OSError as error:
+            pytest.skip(f"sin acceso a {MERMAID_CDN_URL}: {error}")
+        digest = base64.b64encode(hashlib.sha384(content).digest()).decode("ascii")
+        assert f"sha384-{digest}" == MERMAID_SRI
 
     def test_script_survives_missing_mermaid(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
         """G25: ``mermaid.initialize`` solo se llama si Mermaid cargó; si no, los diagramas quedan como texto."""

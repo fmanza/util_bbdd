@@ -26,12 +26,13 @@ from ._base import STATUS_ES, DdlNormalizer, DiffSummary, build_diff_summary, es
 _TEMPLATES_DIR: Path = Path(__file__).parent / "templates"
 _DEFAULT_TEMPLATE: str = "diff_report.html.j2"
 
-#: Mermaid que carga el informe por defecto: versión exacta (la última 10.x) desde jsDelivr.
-MERMAID_VERSION: str = "10.9.8"
+#: Mermaid que carga el informe por defecto: versión exacta desde jsDelivr (12.2.0 desde util_bbdd 5.2.0, G45 de
+#: util_bbdd_web; antes 10.9.8). La plantilla solo usa ``initialize`` y ``run``, comprobados con esta versión.
+MERMAID_VERSION: str = "12.2.0"
 MERMAID_CDN_URL: str = f"https://cdn.jsdelivr.net/npm/mermaid@{MERMAID_VERSION}/dist/mermaid.min.js"
-#: SRI de ``dist/mermaid.min.js`` del paquete npm ``mermaid@10.9.8`` (tarball verificado con la ``integrity`` del
+#: SRI de ``dist/mermaid.min.js`` del paquete npm ``mermaid@12.2.0`` (tarball verificado con la ``integrity`` del
 #: registro). Si el CDN sirve otro contenido, el navegador no ejecuta el script y el informe sigue sin diagramas.
-MERMAID_SRI: str = "sha384-N3QqR/7q+xm3BGX+CBbNI8AUmRRqcsDzToy+0z1NLDI0QmTKW8zvwLvqulJgk3dP"
+MERMAID_SRI: str = "sha384-8xUhuLNMjW/cI2Dacg3DR4WliYznvIg0LVG1stctThKD/YVrJFI9TNCFxft5NYgp"
 
 
 class HtmlDiffReporter:

@@ -7,6 +7,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **comparar** (util_bbdd_web GAPS G45, U-10.4): el informe HTML carga por defecto `mermaid@12.2.0` de jsDelivr
+  (antes `10.9.8`). `MERMAID_VERSION`, `MERMAID_CDN_URL` y `MERMAID_SRI` cambian; el SRI se calculó sobre
+  `dist/mermaid.min.js` del tarball de npm, verificado con la `integrity` del registro. La plantilla (`initialize` y
+  `run`) se comprobó con Mermaid 12 en Chromium, con red: los tres diagramas se dibujan igual y, con un SRI
+  incorrecto, el script se bloquea y el informe queda sin diagramas, como antes. `mermaid_src` no cambia.
+
 ### Fixed
 
 - **bulk** (util_bbdd_web GAPS G48, U-10.1): el modo seco (`dry_run=True`) ya no da `CompileError` con un `str` en
