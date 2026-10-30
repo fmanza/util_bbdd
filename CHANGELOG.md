@@ -15,6 +15,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   ni se convierte ni se interpreta el formato: el SQL lleva lo que la BD recibiría al ejecutar. En el WHERE ya
   funcionaba. Los objetos fecha no cambian (`TO_DATE` en Oracle), ni la ejecución. En Oracle, `'2026-10-18'` en un
   `DATE` depende de `NLS_DATE_FORMAT` de la sesión que ejecute el fichero.
+- **dump** (util_bbdd_web GAPS G47, U-10.2): `DumpOrchestrator.plan().cycles` y `DumpResult.cycles_detected` dan
+  las tablas de cada ciclo de FK en el mismo orden en todos los procesos: `bfs_component` recorre los vecinos
+  ordenados en vez de desde un `set`, cuyo orden dependía de `PYTHONHASHSEED`. Cambia el orden visible de los ciclos
+  de 3+ tablas respecto a versiones anteriores; las tablas y el orden de carga no cambian.
 
 ## [5.1.0] - 2026-10-29
 

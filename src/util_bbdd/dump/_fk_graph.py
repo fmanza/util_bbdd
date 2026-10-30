@@ -157,7 +157,11 @@ def bfs_component(
     adj: dict[str, set[str]],
     visited: set[str],
 ) -> list[str]:
-    """Retorna todos los nodos alcanzables desde ``start`` mediante BFS."""
+    """Retorna todos los nodos alcanzables desde ``start`` mediante BFS.
+
+    Los vecinos se recorren ordenados (G47 de util_bbdd_web, U-10.2): desde el ``set`` el orden de la componente
+    dependía de ``PYTHONHASHSEED`` y cambiaba entre procesos.
+    """
     component: list[str] = []
     queue: deque[str] = deque([start])
     while queue:
@@ -166,5 +170,5 @@ def bfs_component(
             continue
         visited.add(node)
         component.append(node)
-        queue.extend(n for n in adj[node] if n not in visited)
+        queue.extend(n for n in sorted(adj[node]) if n not in visited)
     return component
