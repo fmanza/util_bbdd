@@ -25,11 +25,11 @@ jobs:
       contents: write   # required to create/update GitHub Releases
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -53,7 +53,7 @@ jobs:
           ls -lah site/ | head -20 || echo "site/ is empty or doesn't exist"
 
       - name: Upload ZIP to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/util_bbdd-docs-*.zip,dist/util_bbdd-docs-*.sha256
           fail_on_unmatched_files: false
