@@ -8,16 +8,21 @@ git). Los diagramas no necesitan Graphviz.
 Salida en la carpeta del formato (``<directorio_salida>/<nombre>/MARKDOWN``)::
 
     manifest.json
+    mkdocs.yml                                  # markdown.mkdocs_yml
     docs/index.md
     docs/tables/index.md, index-<letra>.md, <slug>.md
     docs/views/…, docs/routines/…
     docs/database/info.md | storage.md | engine-conditions.md
+    docs/catalog.json                           # markdown.catalog_json (ADR-006)
+    docs/llms.txt, docs/llms-full.txt           # markdown.llms_txt / llms_full_txt
+    docs/assets/javascripts/mermaid.min.js      # markdown.mermaid_js
 """
 
 from __future__ import annotations
 
 import logging
 
+from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -26,8 +31,10 @@ from ....application.ports import DocumentationManagerPort
 from ..shared.generator_shared import GeneratorInventoryRuntime, GeneratorRoutineRuntime, GeneratorTableRuntime
 from ..shared.print_config_manager import PrintConfigManager
 from ..shared.table_progress import TableProgress
+from ._catalog import CatalogEntry, catalog_json, llms_full_marker, llms_txt
 from ._front_matter import RECORD_KINDS, ObjectRecords
 from ._pages import PageContext, routine_page, table_page, view_page
+from ._site import MERMAID_JS_PATH, mkdocs_yml
 from ._site_pages import (
     IndexEntry,
     database_info_page,
@@ -37,9 +44,10 @@ from ._site_pages import (
     storage_page,
 )
 from ._slugs import sort_key, unique_slugs
-from ._writer import StagedWriter
+from ._writer import StagedWriter, TextStream, library_version
 
 _ROUTINE_TYPES: frozenset[str] = frozenset({"PROCEDURE", "FUNCTION"})
+_FRONT_MATTER_LINES = 4  # "---", JSON, "---", ""
 
 
 class MarkdownGenerator:
@@ -51,7 +59,7 @@ class MarkdownGenerator:
 
     Example:
         >>> result = DatabaseDocumentation(manager, Path("out"), formatos=["markdown"]).generate()
-        >>> result.outputs["markdown"]  # …/MARKDOWN con docs/ y manifest.json
+        >>> result.outputs["markdown"]  # …/MARKDOWN con docs/, manifest.json y mkdocs.yml
     """
 
     def __init__(self, database: str, headers: dict[str, list[str]]) -> None:
@@ -101,14 +109,20 @@ class MarkdownGenerator:
         routine_rows = sorted(self._routines(routines, resolved), key=lambda row: (sort_key(row[0]), row[1]))
 
         records = ObjectRecords(data_provider.get_schema_metadata(kinds=RECORD_KINDS))
-        table_slugs = unique_slugs(row[0] for row in table_rows)
-        ctx = PageContext(data_provider, self.headers, resolved, table_slugs)
+        ctx = PageContext(data_provider, self.headers, resolved, unique_slugs(row[0] for row in table_rows))
         writer = StagedWriter(output_target, self.logger)
         try:
-            self._write_tables(writer, ctx, table_rows, records, data_provider)
-            self._write_views(writer, ctx, view_rows, records)
-            self._write_routines(writer, ctx, routine_rows, records)
-            self._write_home(writer, ctx, tables=table_rows, views=view_rows, routines=routine_rows)
+            entries: list[CatalogEntry] = []
+            with self._llms_full(writer, resolved) as full:
+                home, sections = self._write_home(
+                    writer, ctx, tables=table_rows, views=view_rows, routines=routine_rows
+                )
+                if full is not None:
+                    full.write(_join(home))
+                entries += self._write_tables(writer, ctx, table_rows, records, full)
+                entries += self._write_views(writer, ctx, view_rows, records, full)
+                entries += self._write_routines(writer, ctx, routine_rows, records, full)
+            self._write_machine_files(writer, resolved, records, entries, [("Inicio", "index.md"), *sections])
             writer.publish({"engine": records.engine, "schema": records.schema, "database": self.database})
         finally:
             writer.discard()
@@ -135,18 +149,41 @@ class MarkdownGenerator:
 
     # --- Objetos ---
 
+    @staticmethod
+    def _llms_full(writer: StagedWriter, resolved: dict[str, Any]) -> AbstractContextManager[TextStream | None]:
+        """``llms-full.txt`` en streaming, o nada si está desactivado."""
+        if not resolved["llms_full_txt"]:
+            return nullcontext(None)
+        return writer.open_stream("docs/llms-full.txt")
+
+    @staticmethod
+    def _emit(
+        writer: StagedWriter,
+        ctx: PageContext,
+        path: str,
+        lines: list[str],
+        record: dict[str, Any],
+        full: TextStream | None,
+    ) -> CatalogEntry:
+        """Escribe la página ``docs/<path>`` y la añade a ``llms-full.txt`` (sin front matter, con su marcador)."""
+        writer.write(f"docs/{path}", _join(lines))
+        if full is not None:
+            body = lines[_FRONT_MATTER_LINES:] if ctx.resolved["front_matter"] else lines
+            full.write(f"\n{llms_full_marker(record, path)}\n\n{_join(body)}")
+        return CatalogEntry(record, path)
+
     def _write_tables(
         self,
         writer: StagedWriter,
         ctx: PageContext,
         rows: list[tuple[str, str, str | None]],
         records: ObjectRecords,
-        data_provider: DocumentationManagerPort,
-    ) -> None:
+        full: TextStream | None,
+    ) -> list[CatalogEntry]:
         options: dict[str, Any] = ctx.resolved["diagram_options"]
         graph = (
             MermaidRelationshipGraph(
-                data_provider,
+                ctx.data_provider,
                 column_mode=options["column_mode"],
                 max_columns=options["max_columns"],
                 show_constraint_name=options["show_constraint_name"],
@@ -154,8 +191,9 @@ class MarkdownGenerator:
             if ctx.resolved["include_diagrams"] and rows
             else None
         )
-        progress = TableProgress.of(data_provider, "markdown", len(rows))
-        entries: list[IndexEntry] = []
+        progress = TableProgress.of(ctx.data_provider, "markdown", len(rows))
+        entries: list[CatalogEntry] = []
+        index: list[IndexEntry] = []
         for name, comment, charset in rows:
             progress.before(name)
             slug = ctx.table_slugs[name]
@@ -169,35 +207,55 @@ class MarkdownGenerator:
                 if graph is not None
                 else None
             )
-            record = records.table(name, comment) if ctx.resolved["front_matter"] else None
-            writer.write(f"docs/tables/{slug}.md", _join(table_page(ctx, name, comment, charset, record, diagram)))
-            entries.append(IndexEntry(name, f"{slug}.md", comment))
+            record = records.table(name, comment)
+            front = record if ctx.resolved["front_matter"] else None
+            lines = table_page(ctx, name, comment, charset, front, diagram)
+            entries.append(self._emit(writer, ctx, f"tables/{slug}.md", lines, record, full))
+            index.append(IndexEntry(name, f"{slug}.md", comment))
             progress.done(name)
-        self._write_index(writer, "tables", "Tablas", entries, ctx)
+        self._write_index(writer, "tables", "Tablas", index, ctx)
+        return entries
 
     def _write_views(
-        self, writer: StagedWriter, ctx: PageContext, rows: list[tuple[str, str]], records: ObjectRecords
-    ) -> None:
+        self,
+        writer: StagedWriter,
+        ctx: PageContext,
+        rows: list[tuple[str, str]],
+        records: ObjectRecords,
+        full: TextStream | None,
+    ) -> list[CatalogEntry]:
         slugs = unique_slugs(name for name, _ in rows)
-        entries: list[IndexEntry] = []
+        entries: list[CatalogEntry] = []
+        index: list[IndexEntry] = []
         for name, comment in rows:
-            record = records.view(name, comment) if ctx.resolved["front_matter"] else None
-            writer.write(f"docs/views/{slugs[name]}.md", _join(view_page(ctx, name, comment, record)))
-            entries.append(IndexEntry(name, f"{slugs[name]}.md", comment))
-        self._write_index(writer, "views", "Vistas", entries, ctx)
+            record = records.view(name, comment)
+            lines = view_page(ctx, name, comment, record if ctx.resolved["front_matter"] else None)
+            entries.append(self._emit(writer, ctx, f"views/{slugs[name]}.md", lines, record, full))
+            index.append(IndexEntry(name, f"{slugs[name]}.md", comment))
+        self._write_index(writer, "views", "Vistas", index, ctx)
+        return entries
 
     def _write_routines(
-        self, writer: StagedWriter, ctx: PageContext, rows: list[tuple[str, str, str]], records: ObjectRecords
-    ) -> None:
+        self,
+        writer: StagedWriter,
+        ctx: PageContext,
+        rows: list[tuple[str, str, str]],
+        records: ObjectRecords,
+        full: TextStream | None,
+    ) -> list[CatalogEntry]:
         # Clave TIPO:nombre como en el HTML: un procedure y una función homónimos tienen ficheros distintos
         slugs = unique_slugs(f"{routine_type}:{name}" for name, routine_type, _ in rows)
-        entries: list[IndexEntry] = []
+        entries: list[CatalogEntry] = []
+        index: list[IndexEntry] = []
         for name, routine_type, comment in rows:
             slug = slugs[f"{routine_type}:{name}"]
-            record = records.routine(name, routine_type, comment) if ctx.resolved["front_matter"] else None
-            writer.write(f"docs/routines/{slug}.md", _join(routine_page(ctx, name, routine_type, comment, record)))
-            entries.append(IndexEntry(f"{name} ({routine_type.title()})", f"{slug}.md", comment))
-        self._write_index(writer, "routines", "Rutinas", entries, ctx)
+            record = records.routine(name, routine_type, comment)
+            front = record if ctx.resolved["front_matter"] else None
+            lines = routine_page(ctx, name, routine_type, comment, front)
+            entries.append(self._emit(writer, ctx, f"routines/{slug}.md", lines, record, full))
+            index.append(IndexEntry(f"{name} ({routine_type.title()})", f"{slug}.md", comment))
+        self._write_index(writer, "routines", "Rutinas", index, ctx)
+        return entries
 
     @staticmethod
     def _write_index(
@@ -207,6 +265,46 @@ class MarkdownGenerator:
             return
         for file_name, lines in index_pages(title, entries, ctx.resolved["index_page_size"]).items():
             writer.write(f"docs/{folder}/{file_name}", _join(lines))
+
+    # --- Ficheros para máquinas y publicación ---
+
+    def _write_machine_files(
+        self,
+        writer: StagedWriter,
+        resolved: dict[str, Any],
+        records: ObjectRecords,
+        entries: list[CatalogEntry],
+        nav: list[tuple[str, str]],
+    ) -> None:
+        """``catalog.json``, ``llms.txt``, ``mkdocs.yml`` (con ``nav``) y el Mermaid local, según ``imprimir["markdown"]``."""
+        if resolved["catalog_json"]:
+            selection = {
+                "tables": resolved["include_tables"],
+                "views": resolved["include_views"],
+                "procedures": resolved["include_procedures"],
+                "functions": resolved["include_functions"],
+            }
+            text = catalog_json(
+                entries, engine=records.engine, schema=records.schema, database=self.database, selection=selection
+            )
+            writer.write("docs/catalog.json", text)
+        if resolved["llms_txt"]:
+            text = llms_txt(
+                entries,
+                database=self.database,
+                engine=records.engine,
+                schema=records.schema,
+                with_catalog=resolved["catalog_json"],
+                with_full=resolved["llms_full_txt"],
+            )
+            writer.write("docs/llms.txt", text)
+        mermaid_js: Path | None = resolved["mermaid_js"]
+        if mermaid_js is not None:
+            writer.copy(f"docs/{MERMAID_JS_PATH}", Path(mermaid_js).expanduser())
+        if resolved["mkdocs_yml"]:
+            site_name = resolved["site_name"] or f"Documentación de {self.database}"
+            text = mkdocs_yml(site_name, version=library_version(), with_mermaid_js=mermaid_js is not None, nav=nav)
+            writer.write("mkdocs.yml", text)
 
     # --- Portada y base de datos ---
 
@@ -218,9 +316,9 @@ class MarkdownGenerator:
         tables: list[tuple[str, str, str | None]],
         views: list[tuple[str, str]],
         routines: list[tuple[str, str, str]],
-    ) -> None:
+    ) -> tuple[list[str], list[tuple[str, str]]]:
+        """Escribe ``index.md`` y las páginas de base de datos; devuelve las líneas de la portada y sus secciones."""
         resolved = ctx.resolved
-        provider = ctx.data_provider
         sections: list[tuple[str, str]] = [
             (title, f"{folder}/index.md")
             for title, folder, items in (
@@ -244,11 +342,13 @@ class MarkdownGenerator:
             views=list(views),
             routines=list(routines),
             include_storage=resolved["include_storage"],
-            data_provider=provider,
+            data_provider=ctx.data_provider,
             include_routines=True,
         )
         include_legend = bool(resolved["include_diagrams"] and tables)
-        writer.write("docs/index.md", _join(home_page(self.database, inventory, sections, include_legend)))
+        lines = home_page(self.database, inventory, sections, include_legend)
+        writer.write("docs/index.md", _join(lines))
+        return lines, sections
 
     def _database_page(self, path: str, ctx: PageContext) -> list[str]:
         provider = ctx.data_provider

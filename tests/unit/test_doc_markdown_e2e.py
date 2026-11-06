@@ -7,6 +7,7 @@ ficheros ajenos (BC1), cancelación sin dejar la carpeta a medias, diagramas sin
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -89,6 +90,12 @@ def test_markdown_config_defaults_and_effective_depth() -> None:
         "index_page_size": 200,
         "front_matter": True,
         "column_anchors": True,
+        "catalog_json": True,
+        "llms_txt": True,
+        "llms_full_txt": True,
+        "mkdocs_yml": True,
+        "site_name": None,
+        "mermaid_js": None,
     }
     assert resolved["diagram_options"]["max_depth"] == 2
     assert resolved["diagram_options"]["configured_max_depth"] == 5
@@ -191,13 +198,28 @@ def test_foreign_manifest_deletes_nothing(sqlite_db: Path, tmp_path: Path) -> No
     _generate(sqlite_db, tmp_path / "out")
     assert (root / "docs" / "x.md").exists()
 
+    x_hash = f"sha256:{hashlib.sha256(b'x').hexdigest()}"
     (root / "manifest.json").write_text(
-        json.dumps({"format": "util_bbdd.doc.markdown", "files": {"../fuera.md": "", "docs/x.md": ""}}),
+        json.dumps({"format": "util_bbdd.doc.markdown", "files": {"../fuera.md": x_hash, "docs/x.md": x_hash}}),
         encoding="utf-8",
     )
     _generate(sqlite_db, tmp_path / "out")
     assert (root.parent / "fuera.md").exists()  # ruta fuera de la carpeta: se ignora
-    assert not (root / "docs" / "x.md").exists()  # listada por un manifiesto nuestro y ya no generada
+    assert not (root / "docs" / "x.md").exists()  # listada por un manifiesto nuestro, intacta y ya no generada
+
+
+def test_modified_orphan_is_kept(sqlite_db: Path, tmp_path: Path) -> None:
+    """Un fichero generado que el usuario editó no se borra aunque deje de generarse (grupo C, C4)."""
+    root = _generate(sqlite_db, tmp_path / "out")
+    (root / "mkdocs.yml").write_text("site_name: mío\n", encoding="utf-8")
+    llms = (root / "docs" / "llms.txt").read_bytes()
+
+    imprimir = {**IMPRIMIR, "markdown": {"mkdocs_yml": False, "llms_txt": False}}
+    root = _generate(sqlite_db, tmp_path / "out", imprimir=imprimir)
+
+    assert (root / "mkdocs.yml").read_text(encoding="utf-8") == "site_name: mío\n"  # editado: se conserva
+    assert not (root / "docs" / "llms.txt").exists()  # intacto: se borra
+    assert llms  # se había generado
 
 
 def test_cancel_keeps_previous_version(sqlite_db: Path, tmp_path: Path) -> None:
@@ -243,13 +265,7 @@ def test_diagrams_without_graphviz(sqlite_db: Path, tmp_path: Path) -> None:
 @pytest.mark.integration
 @pytest.mark.skipif(shutil.which("zensical") is None, reason="zensical no está instalado")
 def test_zensical_strict_build(sqlite_db: Path, tmp_path: Path) -> None:
-    root = _generate(sqlite_db, tmp_path / "out")
-    (root / "mkdocs.yml").write_text(
-        "site_name: Prueba\ndocs_dir: docs\ntheme:\n  name: material\nmarkdown_extensions:\n  - tables\n"
-        "  - admonition\n  - pymdownx.superfences:\n      custom_fences:\n        - name: mermaid\n"
-        "          class: mermaid\n          format: !!python/name:pymdownx.superfences.fence_code_format\n",
-        encoding="utf-8",
-    )
+    root = _generate(sqlite_db, tmp_path / "out")  # con el mkdocs.yml generado (grupo C)
     result = subprocess.run(
         ["zensical", "build", "--strict"], cwd=root, capture_output=True, text=True, timeout=300, check=False
     )

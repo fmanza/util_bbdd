@@ -21,8 +21,18 @@ Base de la documentación Markdown con diagramas ER de Mermaid (sesión `2026-11
   - `manifest.json` con el hash de cada fichero.
 
   La salida es idéntica byte a byte para el mismo catálogo, salvo la fecha del manifiesto. Se escribe en una carpeta
-  temporal y se publica al terminar: al regenerar se borran solo los ficheros que listaba el manifiesto anterior, y
-  una cancelación deja la versión anterior intacta. Comprobado con `zensical build --strict`.
+  temporal y se publica al terminar: al regenerar se borran solo los ficheros que listaba el manifiesto anterior y
+  que nadie ha modificado, y una cancelación deja la versión anterior intacta. Comprobado con
+  `zensical build --strict`.
+- **doc** (Markdown): ficheros para máquinas y para publicar, cada uno con su opción en `imprimir["markdown"]`:
+  - `docs/catalog.json` (`catalog_json`): catálogo de los objetos documentados con columnas, claves, índices y
+    hashes. Es contrato público versionado (**ADR-006**) y comparte `id` y `hash` con el front matter;
+  - `docs/llms.txt` y `docs/llms-full.txt` (`llms_txt`, `llms_full_txt`) con el formato de llmstxt.org;
+  - `mkdocs.yml` (`mkdocs_yml`, `site_name`) listo para `zensical build`. Su `nav` es corta (portada e índices): a
+    cada objeto se llega por los índices o el buscador, y con cientos de tablas la barra lateral sigue siendo usable;
+  - `mermaid_js`: copia un `mermaid.min.js` local y lo carga desde el sitio. Zensical deja entonces de ir a unpkg,
+    así que el sitio dibuja los diagramas sin Internet. En ese caso también va `theme.font: false`, sin Google
+    Fonts.
 - **analysis**: `MermaidRelationshipGraph` y `MermaidErResult` (`util_bbdd.analysis`). Generan diagramas `erDiagram`
   de Mermaid de una tabla y sus relaciones. **No necesitan Graphviz** (funcionan sin el extra `analysis`).
   - Una línea por FK, con la cardinalidad de Graphviz. El lado padre es opcional (`|o`) si la FK admite nulos.

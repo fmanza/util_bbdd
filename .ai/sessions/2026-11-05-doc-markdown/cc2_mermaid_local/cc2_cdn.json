@@ -1,0 +1,13 @@
+{
+  "label": "cdn",
+  "blocks": [],
+  "blocked": [
+    "https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback",
+    "https://unpkg.com/mermaid@11/dist/mermaid.min.js"
+  ],
+  "errors": [
+    "Failed to load resource: net::ERR_FAILED",
+    "Failed to load resource: net::ERR_FAILED"
+  ],
+  "mermaidVersion": null
+}

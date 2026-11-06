@@ -87,8 +87,8 @@ class DocumentationBootstrap:
         Raises:
             DocumentationConfigError: ``imprimir`` no es un diccionario, un formato no está soportado, el fichero de
                 cabeceras no existe o está mal formado, o la plantilla Word indicada no es un fichero (o, con
-                ``word_template_check``, no se puede abrir o le faltan estilos), o la plantilla Excel no existe o no se
-                puede usar (``excel_template_check``).
+                ``word_template_check``, no se puede abrir o le faltan estilos), la plantilla Excel no existe o no se
+                puede usar (``excel_template_check``), o ``markdown.mermaid_js`` no es un fichero (5.3.0).
         """
         try:
             print_config = self._print_config_policy.normalize(self._imprimir)
@@ -113,6 +113,7 @@ class DocumentationBootstrap:
                 )
             if self._excel_template_check is not None:
                 self._excel_template_check(excel_path)
+        self._check_markdown_files(print_config, formatos)
         return DocumentationSettings(
             print_config=print_config,
             formatos=formatos,
@@ -120,6 +121,17 @@ class DocumentationBootstrap:
             headers=headers,
             table_style=str(print_config.get("table_style", "Table Grid")),
         )
+
+    @staticmethod
+    def _check_markdown_files(print_config: dict[str, Any], formatos: list[str]) -> None:
+        """Ficheros que usa el Markdown y que da el usuario (5.3.0): deben existir antes de generar nada."""
+        if "markdown" not in formatos:
+            return
+        mermaid_js: Any = dict(print_config.get("markdown") or {}).get("mermaid_js")
+        if mermaid_js is not None and not Path(mermaid_js).expanduser().is_file():
+            raise DocumentationConfigError(
+                f"markdown.mermaid_js no es un fichero: {mermaid_js}", operation="DOCUMENTATION"
+            )
 
     def build(self, settings: DocumentationSettings) -> DocumentationBootstrapState:
         """Nombre de salida (reutilizado entre generaciones seguidas) e inventario del catálogo (lee la BD)."""

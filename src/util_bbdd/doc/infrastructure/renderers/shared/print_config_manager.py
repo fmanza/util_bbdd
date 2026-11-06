@@ -84,6 +84,13 @@ class PrintConfigManager:
         "index_page_size": 200,
         "front_matter": True,
         "column_anchors": True,
+        # Grupo C: catálogo JSON, ficheros para LLM, mkdocs.yml y Mermaid local (sitios sin Internet)
+        "catalog_json": True,
+        "llms_txt": True,
+        "llms_full_txt": True,
+        "mkdocs_yml": True,
+        "site_name": None,
+        "mermaid_js": None,
     }
 
     @staticmethod
@@ -257,6 +264,12 @@ class PrintConfigManager:
             ),
             "front_matter": bool(cfg.get("front_matter", defaults["front_matter"])),
             "column_anchors": bool(cfg.get("column_anchors", defaults["column_anchors"])),
+            "catalog_json": bool(cfg.get("catalog_json", defaults["catalog_json"])),
+            "llms_txt": bool(cfg.get("llms_txt", defaults["llms_txt"])),
+            "llms_full_txt": bool(cfg.get("llms_full_txt", defaults["llms_full_txt"])),
+            "mkdocs_yml": bool(cfg.get("mkdocs_yml", defaults["mkdocs_yml"])),
+            "site_name": PrintConfigManager._normalize_non_empty_str(cfg.get("site_name"), fallback="") or None,
+            "mermaid_js": PrintConfigManager._normalize_path_value(cfg.get("mermaid_js")),
         }
 
     @staticmethod
@@ -438,6 +451,12 @@ class PrintConfigManager:
             "index_page_size": int(markdown_cfg["index_page_size"]),
             "front_matter": bool(markdown_cfg["front_matter"]),
             "column_anchors": bool(markdown_cfg["column_anchors"]),
+            "catalog_json": bool(markdown_cfg["catalog_json"]),
+            "llms_txt": bool(markdown_cfg["llms_txt"]),
+            "llms_full_txt": bool(markdown_cfg["llms_full_txt"]),
+            "mkdocs_yml": bool(markdown_cfg["mkdocs_yml"]),
+            "site_name": markdown_cfg["site_name"],
+            "mermaid_js": markdown_cfg["mermaid_js"],
         }
 
     @staticmethod

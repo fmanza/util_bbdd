@@ -198,6 +198,7 @@ nav:
           - ADR-003 Metadatos centralizados: adr/ADR-003-metadata-centralizada.md
           - ADR-004 Versión perezosa de Oracle: adr/ADR-004-lazy-oracle-version-resolution.md
           - ADR-005 Conexiones multimotor: adr/ADR-005-conexiones-multimotor.md
+          - ADR-006 Catálogo de la documentación Markdown: adr/ADR-006-catalogo-documentacion-markdown.md
           - Plantilla ADR: adr/ADR-TEMPLATE.md
   - Historia y Planes:
       - Roadmap: roadmap.md
