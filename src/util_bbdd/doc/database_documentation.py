@@ -22,6 +22,7 @@ from .infrastructure.adapters.sync_database_manager_adapter import SyncDatabaseM
 from .infrastructure.renderers.excel_generator import ExcelGenerator
 from .infrastructure.renderers.excel_template import ExcelTemplate
 from .infrastructure.renderers.html_generator import HtmlGenerator
+from .infrastructure.renderers.markdown._trace import TraceMap
 from .infrastructure.renderers.registry import build_default_renderer_registry
 from .infrastructure.renderers.shared.generator_shared import build_graph_generator_from_options
 from .infrastructure.renderers.shared.print_config_manager import PrintConfigManager
@@ -68,6 +69,11 @@ class DatabaseDocumentation:
             - markdown.index_page_size: Entradas por página de los índices por letra (default 200)
             - markdown.front_matter / markdown.column_anchors: Front matter (id estable, PK, FK, hash) y anclas
               ``col-…`` por columna (default ``True``)
+            - markdown.catalog_json / llms_txt / llms_full_txt / mkdocs_yml: ``catalog.json`` (ADR-006), ficheros
+              para LLM y ``mkdocs.yml`` con ``nav`` corta (default ``True``); markdown.site_name: título del sitio
+            - markdown.mermaid_js: ``mermaid.min.js`` local para publicar sin Internet
+            - markdown.trace_map: mapa de trazabilidad ``.toml`` o ``.json`` (objeto o columna → código, documentos
+              funcionales y técnicos, requisitos); se valida al construir
         formatos: Formatos a generar: 'word', 'excel', 'html', 'markdown' (alias 'md', desde 5.3.0; una carpeta con un
             ``.md`` por tabla, vista y rutina, diagramas ER de Mermaid sin Graphviz y ``manifest.json``). Por defecto
             ``["word"]``.
@@ -87,7 +93,8 @@ class DatabaseDocumentation:
             en curso puede quedar incompleto (el HTML escribe página a página). Desde 4.1.0.
 
     Raises:
-        DocumentationConfigError: Configuración inválida (formato no soportado, ``imprimir`` que no es un diccionario,
+        DocumentationConfigError: Configuración inválida (mapa de trazabilidad o ``mermaid_js`` del Markdown
+            inválidos, formato no soportado, ``imprimir`` que no es un diccionario,
             cabeceras inexistentes o mal formadas, plantilla Word que no existe, ``batch_window_seconds`` que no es un
             entero ≥ 0). También es ``ValueError``.
 
@@ -139,6 +146,7 @@ class DatabaseDocumentation:
         )
         self._settings: DocumentationSettings = self._bootstrap.settings()
         self._source.imprimir_config = self._settings.print_config
+        self._check_trace_map(self._settings)
 
     @classmethod
     def _batch_window(cls, value: int | None) -> int:
@@ -153,6 +161,13 @@ class DatabaseDocumentation:
                 f"batch_window_seconds debe ser un entero ≥ 0, recibido: {value!r}", operation="DOCUMENTATION"
             )
         return value
+
+    @staticmethod
+    def _check_trace_map(settings: DocumentationSettings) -> None:
+        """Valida el mapa de trazabilidad del Markdown antes de generar nada (5.3.0); el error lleva todos los fallos."""
+        trace_map: Any = dict(settings.print_config.get("markdown") or {}).get("trace_map")
+        if "markdown" in settings.formatos and trace_map is not None:
+            TraceMap.load(trace_map)
 
     def generate(self) -> DocumentationResult:
         """Lee el catálogo y genera los documentos de todos los formatos pedidos.

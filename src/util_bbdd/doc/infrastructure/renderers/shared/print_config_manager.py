@@ -91,6 +91,8 @@ class PrintConfigManager:
         "mkdocs_yml": True,
         "site_name": None,
         "mermaid_js": None,
+        # Grupo D: mapa de trazabilidad (.toml o .json)
+        "trace_map": None,
     }
 
     @staticmethod
@@ -270,6 +272,7 @@ class PrintConfigManager:
             "mkdocs_yml": bool(cfg.get("mkdocs_yml", defaults["mkdocs_yml"])),
             "site_name": PrintConfigManager._normalize_non_empty_str(cfg.get("site_name"), fallback="") or None,
             "mermaid_js": PrintConfigManager._normalize_path_value(cfg.get("mermaid_js")),
+            "trace_map": PrintConfigManager._normalize_path_value(cfg.get("trace_map")),
         }
 
     @staticmethod
@@ -457,6 +460,7 @@ class PrintConfigManager:
             "mkdocs_yml": bool(markdown_cfg["mkdocs_yml"]),
             "site_name": markdown_cfg["site_name"],
             "mermaid_js": markdown_cfg["mermaid_js"],
+            "trace_map": markdown_cfg["trace_map"],
         }
 
     @staticmethod

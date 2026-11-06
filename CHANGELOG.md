@@ -33,6 +33,19 @@ Base de la documentación Markdown con diagramas ER de Mermaid (sesión `2026-11
   - `mermaid_js`: copia un `mermaid.min.js` local y lo carga desde el sitio. Zensical deja entonces de ir a unpkg,
     así que el sitio dibuja los diagramas sin Internet. En ese caso también va `theme.font: false`, sin Google
     Fonts.
+- **doc** (Markdown): mapa de trazabilidad `markdown.trace_map`. Es un fichero TOML (recomendado) o JSON que
+  relaciona cada tabla, vista, rutina o columna con `code`, `functional`, `technical`, `requirements`, `tags` y
+  `notes`.
+  - **Validación**: se valida al construir `DatabaseDocumentation`. Es estricta: un campo desconocido es error, y
+    todos los errores se informan juntos.
+  - **Casado de nombres**: exacto o sin distinguir mayúsculas si no es ambiguo.
+  - **Salida en cada página**: sección «Trazabilidad» con enlace a las anclas de columna.
+  - **Front matter y `catalog.json`**: clave `trace`, fuera del `hash`.
+  - **Página `traceability.md`**: cobertura, matriz, objetos sin trazar, índices por requisito y por fichero de
+    código, y entradas del mapa que no corresponden a ningún objeto.
+  - **Índices del sitio**: entrada en `llms.txt` y en la `nav`.
+  - **Seguridad**: las referencias nunca se leen del disco. Solo las URL `http(s)` se enlazan; el resto se muestra
+    como código literal.
 - **analysis**: `MermaidRelationshipGraph` y `MermaidErResult` (`util_bbdd.analysis`). Generan diagramas `erDiagram`
   de Mermaid de una tabla y sus relaciones. **No necesitan Graphviz** (funcionan sin el extra `analysis`).
   - Una línea por FK, con la cardinalidad de Graphviz. El lado padre es opcional (`|o`) si la FK admite nulos.

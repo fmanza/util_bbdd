@@ -96,6 +96,7 @@ def test_markdown_config_defaults_and_effective_depth() -> None:
         "mkdocs_yml": True,
         "site_name": None,
         "mermaid_js": None,
+        "trace_map": None,
     }
     assert resolved["diagram_options"]["max_depth"] == 2
     assert resolved["diagram_options"]["configured_max_depth"] == 5

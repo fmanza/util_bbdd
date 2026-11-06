@@ -44,6 +44,7 @@ from ._site_pages import (
     storage_page,
 )
 from ._slugs import sort_key, unique_slugs
+from ._trace import TracedObject, TraceEntry, TraceMap, Unmatched, match_columns, trace_section, traceability_page
 from ._writer import StagedWriter, TextStream, library_version
 
 _ROUTINE_TYPES: frozenset[str] = frozenset({"PROCEDURE", "FUNCTION"})
@@ -110,6 +111,12 @@ class MarkdownGenerator:
 
         records = ObjectRecords(data_provider.get_schema_metadata(kinds=RECORD_KINDS))
         ctx = PageContext(data_provider, self.headers, resolved, unique_slugs(row[0] for row in table_rows))
+        tracer = _Tracer(
+            TraceMap.load(resolved["trace_map"]) if resolved["trace_map"] is not None else None,
+            tables=[row[0] for row in table_rows],
+            views=[row[0] for row in view_rows],
+            routines=[f"{routine_type}:{name}" for name, routine_type, _ in routine_rows],
+        )
         writer = StagedWriter(output_target, self.logger)
         try:
             entries: list[CatalogEntry] = []
@@ -119,10 +126,14 @@ class MarkdownGenerator:
                 )
                 if full is not None:
                     full.write(_join(home))
-                entries += self._write_tables(writer, ctx, table_rows, records, full)
-                entries += self._write_views(writer, ctx, view_rows, records, full)
-                entries += self._write_routines(writer, ctx, routine_rows, records, full)
-            self._write_machine_files(writer, resolved, records, entries, [("Inicio", "index.md"), *sections])
+                entries += self._write_tables(writer, ctx, table_rows, records, full, tracer)
+                entries += self._write_views(writer, ctx, view_rows, records, full, tracer)
+                entries += self._write_routines(writer, ctx, routine_rows, records, full, tracer)
+            nav = [("Inicio", "index.md"), *sections]
+            if tracer.enabled:
+                writer.write("docs/traceability.md", _join(traceability_page(tracer.objects, tracer.unmatched)))
+                nav.append(("Trazabilidad", "traceability.md"))
+            self._write_machine_files(writer, resolved, records, entries, nav, with_traceability=tracer.enabled)
             writer.publish({"engine": records.engine, "schema": records.schema, "database": self.database})
         finally:
             writer.discard()
@@ -179,8 +190,11 @@ class MarkdownGenerator:
         rows: list[tuple[str, str, str | None]],
         records: ObjectRecords,
         full: TextStream | None,
+        tracer: _Tracer,
     ) -> list[CatalogEntry]:
         options: dict[str, Any] = ctx.resolved["diagram_options"]
+        # Anclas de columna (las mismas que pone la sección «Columnas»), para enlazar las trazas por columna
+        with_anchors = bool(ctx.resolved["column_anchors"] and ctx.resolved["table_section_flags"][1])
         graph = (
             MermaidRelationshipGraph(
                 ctx.data_provider,
@@ -208,8 +222,17 @@ class MarkdownGenerator:
                 else None
             )
             record = records.table(name, comment)
+            column_names = [str(column["name"]) for column in record["columns"]]
+            anchors = (
+                {column: f"col-{anchor}" for column, anchor in unique_slugs(column_names).items()}
+                if with_anchors
+                else {}
+            )
+            record, trace_lines = tracer.apply(
+                "tables", name, "Tablas", name, f"tables/{slug}.md", record, column_names, anchors
+            )
             front = record if ctx.resolved["front_matter"] else None
-            lines = table_page(ctx, name, comment, charset, front, diagram)
+            lines = table_page(ctx, name, comment, charset, front, diagram) + trace_lines
             entries.append(self._emit(writer, ctx, f"tables/{slug}.md", lines, record, full))
             index.append(IndexEntry(name, f"{slug}.md", comment))
             progress.done(name)
@@ -223,14 +246,16 @@ class MarkdownGenerator:
         rows: list[tuple[str, str]],
         records: ObjectRecords,
         full: TextStream | None,
+        tracer: _Tracer,
     ) -> list[CatalogEntry]:
         slugs = unique_slugs(name for name, _ in rows)
         entries: list[CatalogEntry] = []
         index: list[IndexEntry] = []
         for name, comment in rows:
-            record = records.view(name, comment)
-            lines = view_page(ctx, name, comment, record if ctx.resolved["front_matter"] else None)
-            entries.append(self._emit(writer, ctx, f"views/{slugs[name]}.md", lines, record, full))
+            path = f"views/{slugs[name]}.md"
+            record, trace_lines = tracer.apply("views", name, "Vistas", name, path, records.view(name, comment))
+            lines = view_page(ctx, name, comment, record if ctx.resolved["front_matter"] else None) + trace_lines
+            entries.append(self._emit(writer, ctx, path, lines, record, full))
             index.append(IndexEntry(name, f"{slugs[name]}.md", comment))
         self._write_index(writer, "views", "Vistas", index, ctx)
         return entries
@@ -242,18 +267,23 @@ class MarkdownGenerator:
         rows: list[tuple[str, str, str]],
         records: ObjectRecords,
         full: TextStream | None,
+        tracer: _Tracer,
     ) -> list[CatalogEntry]:
         # Clave TIPO:nombre como en el HTML: un procedure y una función homónimos tienen ficheros distintos
         slugs = unique_slugs(f"{routine_type}:{name}" for name, routine_type, _ in rows)
         entries: list[CatalogEntry] = []
         index: list[IndexEntry] = []
         for name, routine_type, comment in rows:
-            slug = slugs[f"{routine_type}:{name}"]
-            record = records.routine(name, routine_type, comment)
+            key = f"{routine_type}:{name}"
+            path = f"routines/{slugs[key]}.md"
+            display = f"{name} ({routine_type.title()})"
+            record, trace_lines = tracer.apply(
+                "routines", key, "Rutinas", display, path, records.routine(name, routine_type, comment)
+            )
             front = record if ctx.resolved["front_matter"] else None
-            lines = routine_page(ctx, name, routine_type, comment, front)
-            entries.append(self._emit(writer, ctx, f"routines/{slug}.md", lines, record, full))
-            index.append(IndexEntry(f"{name} ({routine_type.title()})", f"{slug}.md", comment))
+            lines = routine_page(ctx, name, routine_type, comment, front) + trace_lines
+            entries.append(self._emit(writer, ctx, path, lines, record, full))
+            index.append(IndexEntry(display, f"{slugs[key]}.md", comment))
         self._write_index(writer, "routines", "Rutinas", index, ctx)
         return entries
 
@@ -275,6 +305,8 @@ class MarkdownGenerator:
         records: ObjectRecords,
         entries: list[CatalogEntry],
         nav: list[tuple[str, str]],
+        *,
+        with_traceability: bool,
     ) -> None:
         """``catalog.json``, ``llms.txt``, ``mkdocs.yml`` (con ``nav``) y el Mermaid local, según ``imprimir["markdown"]``."""
         if resolved["catalog_json"]:
@@ -296,6 +328,7 @@ class MarkdownGenerator:
                 schema=records.schema,
                 with_catalog=resolved["catalog_json"],
                 with_full=resolved["llms_full_txt"],
+                with_traceability=with_traceability,
             )
             writer.write("docs/llms.txt", text)
         mermaid_js: Path | None = resolved["mermaid_js"]
@@ -357,6 +390,45 @@ class MarkdownGenerator:
         if path == "database/storage.md":
             return storage_page(provider)
         return engine_conditions_page(provider)
+
+
+class _Tracer:
+    """Aplica el mapa de trazabilidad (si lo hay) a cada objeto y reúne lo necesario para ``traceability.md``."""
+
+    def __init__(self, trace_map: TraceMap | None, *, tables: list[str], views: list[str], routines: list[str]) -> None:
+        self.enabled: bool = trace_map is not None
+        self.objects: list[TracedObject] = []
+        self.unmatched: list[Unmatched] = []
+        self._matched: dict[str, dict[str, TraceEntry]] = {}
+        if trace_map is not None:
+            for section, names in (("tables", tables), ("views", views), ("routines", routines)):
+                self._matched[section], unmatched = trace_map.match(section, names)
+                self.unmatched += unmatched
+
+    def apply(
+        self,
+        section: str,
+        key: str,
+        kind_title: str,
+        display: str,
+        path: str,
+        record: dict[str, Any],
+        column_names: list[str] | None = None,
+        anchors: dict[str, str] | None = None,
+    ) -> tuple[dict[str, Any], list[str]]:
+        """Registro con ``trace`` (fuera de ``hash``) y sección «Trazabilidad» de la página; sin mapa, sin cambios."""
+        if not self.enabled:
+            return record, []
+        entry = self._matched[section].get(key)
+        columns: dict[str, TraceEntry] = {}
+        if entry is not None and column_names is not None:
+            columns, unmatched = match_columns(entry, key, column_names)
+            self.unmatched += unmatched
+        self.objects.append(TracedObject(kind_title, display, path, entry, columns))
+        if entry is None:
+            return record, []
+        # ``hash`` ya está calculado sobre la estructura: la traza se añade después y no lo cambia
+        return {**record, "trace": entry.to_dict(columns)}, trace_section(entry, columns, anchors or {})
 
 
 def _join(lines: list[str]) -> str:

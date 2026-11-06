@@ -41,6 +41,7 @@ FRONT_MATTER_KEYS: tuple[str, ...] = (
     "fk_out",
     "fk_in",
     "hash",
+    "trace",  # mapa de trazabilidad (grupo D); fuera de ``hash``
 )
 
 
