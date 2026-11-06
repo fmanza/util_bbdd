@@ -11,6 +11,18 @@ Base de la documentación Markdown con diagramas ER de Mermaid (sesión `2026-11
 
 ### Added
 
+- **doc**: formato `"markdown"` (alias `"md"`) en `DatabaseDocumentation`. Genera la carpeta `MARKDOWN` con:
+  - un `.md` por tabla, vista y rutina, con las mismas secciones, opciones de `imprimir` y cabeceras que Word;
+  - DDL en bloques `sql` y diagramas ER de Mermaid **sin Graphviz**. La profundidad es la de `grafo.max_depth`, con
+    el tope `markdown.max_diagram_depth` (por defecto 2) y aviso si recorta;
+  - front matter en una línea JSON (id estable `<tipo>:<schema>.<nombre>`, PK, FK salientes y entrantes, hash) y
+    anclas `col-…` por columna, para que una IA trace los objetos;
+  - índices por letra paginados (`markdown.index_page_size`, 200) y portada con inventario y leyenda;
+  - `manifest.json` con el hash de cada fichero.
+
+  La salida es idéntica byte a byte para el mismo catálogo, salvo la fecha del manifiesto. Se escribe en una carpeta
+  temporal y se publica al terminar: al regenerar se borran solo los ficheros que listaba el manifiesto anterior, y
+  una cancelación deja la versión anterior intacta. Comprobado con `zensical build --strict`.
 - **analysis**: `MermaidRelationshipGraph` y `MermaidErResult` (`util_bbdd.analysis`). Generan diagramas `erDiagram`
   de Mermaid de una tabla y sus relaciones. **No necesitan Graphviz** (funcionan sin el extra `analysis`).
   - Una línea por FK, con la cardinalidad de Graphviz. El lado padre es opcional (`|o`) si la FK admite nulos.

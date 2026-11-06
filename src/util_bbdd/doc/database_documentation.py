@@ -1,4 +1,4 @@
-"""Documentación de una base de datos (cualquier motor soportado) en Word, Excel y HTML."""
+"""Documentación de una base de datos (cualquier motor soportado) en Word, Excel, HTML y Markdown."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ _DEFAULT_HEADERS_FILE: Path = Path(__file__).parent / "data" / "headers_config.j
 
 
 class DatabaseDocumentation:
-    """Genera la documentación de un schema en Word, Excel y/o HTML a partir de sus metadatos.
+    """Genera la documentación de un schema en Word, Excel, HTML y/o Markdown a partir de sus metadatos.
 
     Crear la instancia solo valida la configuración (no consulta la base de datos); :meth:`generate` lee el catálogo
     por lotes (ADR-003) y escribe los documentos.
@@ -63,7 +63,14 @@ class DatabaseDocumentation:
             - grafo.workers: Procesos ``dot`` simultáneos (por defecto, los núcleos hasta 8)
             - grafo.orthogonal_edges: Aristas ortogonales (por defecto ``True``); ``False`` dibuja curvas, para los
               grafos en los que el enrutado ortogonal de Graphviz falla
-        formatos: Formatos a generar: 'word', 'excel', 'html' (por defecto ``["word"]``).
+            - markdown.max_diagram_depth: Tope de profundidad de los diagramas ER del Markdown (default 2; la
+              efectiva es ``min(grafo.max_depth, este)`` y se avisa si recorta). Desde 5.3.0
+            - markdown.index_page_size: Entradas por página de los índices por letra (default 200)
+            - markdown.front_matter / markdown.column_anchors: Front matter (id estable, PK, FK, hash) y anclas
+              ``col-…`` por columna (default ``True``)
+        formatos: Formatos a generar: 'word', 'excel', 'html', 'markdown' (alias 'md', desde 5.3.0; una carpeta con un
+            ``.md`` por tabla, vista y rutina, diagramas ER de Mermaid sin Graphviz y ``manifest.json``). Por defecto
+            ``["word"]``.
         headers_file: JSON con las cabeceras de cada sección (``{"headers": {"COLUMNAS": {"base": [...]}, ...}}``).
         batch_window_seconds: Ventana temporal en segundos para agrupar generaciones automáticas en la misma carpeta
             (entero ≥ 0). ``0`` (default desde 5.0.0; antes 90, G2 de util_bbdd_web) no agrupa: cada generación tiene

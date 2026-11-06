@@ -16,7 +16,7 @@ import re
 
 # Saltos de línea y caracteres de control (C0, DEL, C1), más los separadores de línea y párrafo de Unicode, que el
 # parser de Mermaid (JavaScript) también trata como fin de línea.
-_LINE_BREAKS: re.Pattern[str] = re.compile(r"[\x00-\x1f\x7f-\x9f  ]")
+_LINE_BREAKS: re.Pattern[str] = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
 _DIRECTIVE: re.Pattern[str] = re.compile(r"%(?=%)")
 _NON_ID_CHARS: re.Pattern[str] = re.compile(r"[^A-Za-z0-9_]")
 

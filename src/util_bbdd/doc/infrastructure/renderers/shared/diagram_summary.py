@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .diagram_legend import build_diagram_navigation_tips, build_hidden_levels_help
+
+if TYPE_CHECKING:
+    from .....analysis.base import GraphDocument
 
 
 def build_diagram_summary_payload(
@@ -40,6 +43,20 @@ def build_diagram_summary_payload(
             hidden_incoming_levels=int(hidden_incoming_levels),
         ),
     }
+
+
+def build_diagram_summary_payload_from_document(document: GraphDocument) -> dict[str, Any]:
+    """Resumen de niveles de un ``GraphDocument`` (el mismo cálculo que Word; lo usa el Markdown desde 5.3.0)."""
+    hidden = document.hidden_levels
+    return build_diagram_summary_payload(
+        max_depth=document.max_depth,
+        total_outgoing_levels=document.total_outgoing_levels,
+        total_incoming_levels=document.total_incoming_levels,
+        visible_outgoing_levels=max(0, document.total_outgoing_levels - hidden.outgoing_hidden_levels),
+        visible_incoming_levels=max(0, document.total_incoming_levels - hidden.incoming_hidden_levels),
+        hidden_outgoing_levels=hidden.outgoing_hidden_levels,
+        hidden_incoming_levels=hidden.incoming_hidden_levels,
+    )
 
 
 def build_diagram_summary_line(summary_payload: dict[str, Any]) -> str:

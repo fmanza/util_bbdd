@@ -18,12 +18,15 @@ _logger: logging.Logger = logging.getLogger(__name__)
 #: (``<>:"|?*``) y los de control.
 _UNSAFE_NAME_CHARS: re.Pattern[str] = re.compile(r'[ /\\<>:"|?*\x00-\x1f]')
 
-_DEFAULT_SUPPORTED_OUTPUT_FORMATS: set[str] = {"word", "excel", "html"}
+_DEFAULT_SUPPORTED_OUTPUT_FORMATS: set[str] = {"word", "excel", "html", "markdown"}
 _DEFAULT_FORMAT_FOLDER_MAP: dict[str, str] = {
     "html": "HTML",
     "word": "WORD",
     "excel": "EXCEL",
+    "markdown": "MARKDOWN",  # 5.3.0
 }
+#: Alias aceptados en ``formatos`` (5.3.0): ``"md"`` → ``"markdown"``
+_FORMAT_ALIASES: dict[str, str] = {"md": "markdown"}
 
 
 class DocumentationOutputRuntime(OutputPolicyPort):
@@ -180,10 +183,11 @@ class DocumentationOutputRuntime(OutputPolicyPort):
         seen: set[str] = set()
         for raw_format in formatos:
             normalized_format: str = str(raw_format or "").strip().lower()
+            normalized_format = _FORMAT_ALIASES.get(normalized_format, normalized_format)
             if not normalized_format:
                 continue
             if normalized_format not in self._supported_output_formats:
-                raise ValueError(f"Formato no soportado: {raw_format}. Use 'word', 'excel' o 'html'")
+                raise ValueError(f"Formato no soportado: {raw_format}. Use 'word', 'excel', 'html' o 'markdown'")
             if normalized_format in seen:
                 continue
             seen.add(normalized_format)

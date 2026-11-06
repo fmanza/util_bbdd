@@ -12,6 +12,7 @@ from ...application._internal_ports import (
 from ...application.ports import DocumentRendererPort
 from .excel_generator import ExcelGenerator
 from .html_generator import HtmlGenerator
+from .markdown import MarkdownGenerator
 from .word_generator import WordGenerator
 
 
@@ -43,8 +44,9 @@ def build_default_renderer_registry(
     word_generator_cls: type[WordGenerator] = WordGenerator,
     excel_generator_cls: type[ExcelGenerator] = ExcelGenerator,
     html_generator_cls: type[HtmlGenerator] = HtmlGenerator,
+    markdown_generator_cls: type[MarkdownGenerator] = MarkdownGenerator,
 ) -> DocumentationRendererRegistry:
-    """Construye el registry estándar de renderers Word/Excel/HTML."""
+    """Construye el registry estándar de renderers Word/Excel/HTML/Markdown."""
 
     def _word_factory(*, database: str, headers: dict[str, list[str]], table_style: str) -> DocumentRendererPort:
         return word_generator_cls(database=database, headers=headers, table_style=table_style)
@@ -55,6 +57,10 @@ def build_default_renderer_registry(
     def _html_factory(*, database: str, headers: dict[str, list[str]], table_style: str) -> DocumentRendererPort:
         _ = table_style
         return html_generator_cls(database=database, headers=headers)
+
+    def _markdown_factory(*, database: str, headers: dict[str, list[str]], table_style: str) -> DocumentRendererPort:
+        _ = table_style
+        return markdown_generator_cls(database=database, headers=headers)
 
     return DocumentationRendererRegistry(
         registrations=[
@@ -78,6 +84,14 @@ def build_default_renderer_registry(
                 include_graph_generator=True,
                 accepts_graph_generator=True,
                 factory=_html_factory,
+            ),
+            # 5.3.0: carpeta (como HTML); sus diagramas ER de Mermaid no usan el generador Graphviz compartido
+            RendererRegistration(
+                output_format="markdown",
+                output_extension=None,
+                include_graph_generator=False,
+                accepts_graph_generator=False,
+                factory=_markdown_factory,
             ),
         ]
     )

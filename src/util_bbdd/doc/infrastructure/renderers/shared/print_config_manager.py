@@ -77,6 +77,15 @@ class PrintConfigManager:
         },
     }
 
+    #: Bloque ``markdown`` (5.3.0): tope de profundidad de los diagramas Mermaid, entradas por página de índice, front
+    #: matter y anclas de columna.
+    DEFAULT_MARKDOWN: dict[str, Any] = {
+        "max_diagram_depth": 2,
+        "index_page_size": 200,
+        "front_matter": True,
+        "column_anchors": True,
+    }
+
     @staticmethod
     def normalize(imprimir: dict[str, Any] | None) -> dict[str, Any]:
         """Normaliza `imprimir` y devuelve una estructura estable."""
@@ -231,6 +240,23 @@ class PrintConfigManager:
                 fallback=15,
             ),
             "grafo": graph,
+            "markdown": PrintConfigManager._normalize_markdown(normalized_input.get("markdown")),
+        }
+
+    @staticmethod
+    def _normalize_markdown(markdown_cfg: Any) -> dict[str, Any]:
+        """Bloque ``markdown`` con sus valores por defecto; enteros positivos y booleanos (5.3.0)."""
+        cfg: dict[str, Any] = markdown_cfg if isinstance(markdown_cfg, dict) else {}
+        defaults: dict[str, Any] = PrintConfigManager.DEFAULT_MARKDOWN
+        return {
+            "max_diagram_depth": PrintConfigManager._to_positive_int(
+                cfg.get("max_diagram_depth", defaults["max_diagram_depth"]), fallback=int(defaults["max_diagram_depth"])
+            ),
+            "index_page_size": PrintConfigManager._to_positive_int(
+                cfg.get("index_page_size", defaults["index_page_size"]), fallback=int(defaults["index_page_size"])
+            ),
+            "front_matter": bool(cfg.get("front_matter", defaults["front_matter"])),
+            "column_anchors": bool(cfg.get("column_anchors", defaults["column_anchors"])),
         }
 
     @staticmethod
@@ -252,6 +278,7 @@ class PrintConfigManager:
             "table_style": "Table Grid",
             "html_items_por_pagina": 15,
             "grafo": dict(PrintConfigManager.DEFAULT_GRAPH),
+            "markdown": dict(PrintConfigManager.DEFAULT_MARKDOWN),
         }
 
     @staticmethod
@@ -368,6 +395,49 @@ class PrintConfigManager:
             "database_info_flags": PrintConfigManager.get_database_info_flags(config),
             "template_path": config.get("plantilla_excel"),
             "table_style": config.get("table_style_excel"),
+        }
+
+    @staticmethod
+    def resolve_for_markdown(config: dict[str, Any]) -> dict[str, Any]:
+        """Resuelve opciones de ejecución para Markdown (5.3.0): los flags de Word y las opciones de los diagramas ER.
+
+        La profundidad de los diagramas es ``min(grafo.max_depth, markdown.max_diagram_depth)``; la configurada se
+        conserva para avisar del recorte.
+        """
+        graph_cfg: dict[str, Any] = config.get("grafo", {})
+        markdown_cfg: dict[str, Any] = PrintConfigManager._normalize_markdown(config.get("markdown"))
+        configured_depth: int = PrintConfigManager._to_positive_int(
+            graph_cfg.get("max_depth", PrintConfigManager.DEFAULT_GRAPH["max_depth"]),
+            fallback=int(PrintConfigManager.DEFAULT_GRAPH["max_depth"]),
+        )
+        columns_cfg: dict[str, Any] = dict(graph_cfg.get("columns", {}))
+        diagram_options: dict[str, Any] = {
+            "max_depth": min(configured_depth, int(markdown_cfg["max_diagram_depth"])),
+            "configured_max_depth": configured_depth,
+            "direction": PrintConfigManager._normalize_graph_direction(graph_cfg.get("direction", "both")),
+            "max_subnodes": PrintConfigManager._to_positive_int(graph_cfg.get("max_subnodes", 10), fallback=10),
+            "column_mode": PrintConfigManager._normalize_graph_column_mode(columns_cfg.get("mode", "relations")),
+            "max_columns": PrintConfigManager._to_positive_int(columns_cfg.get("max_items", 8), fallback=8),
+            "show_constraint_name": bool(dict(graph_cfg.get("cardinality", {})).get("show_constraint_name", False)),
+            "summary_enabled": bool(dict(graph_cfg.get("summary", {})).get("enabled", True)),
+        }
+        return {
+            "include_tables": bool(config.get("tablas", {}).get("imprimir_tablas", False)),
+            "include_views": bool(config.get("vistas", {}).get("imprimir_vistas", False)),
+            "include_procedures": bool(config.get("rutinas", {}).get("imprimir_procedures", False)),
+            "include_functions": bool(config.get("rutinas", {}).get("imprimir_function", False)),
+            "include_storage": bool(config.get("almacenamiento", {}).get("imprimir_almacenamiento", False)),
+            "include_engine_conditions": PrintConfigManager.include_engine_conditions(config),
+            "include_database_info": bool(config.get("info_database", {}).get("imprimir_info_database", False)),
+            "include_columns_charset": bool(config.get("columnas_charset", {}).get("charset_collation", False)),
+            "table_section_flags": PrintConfigManager.get_table_section_flags(config),
+            "view_section_flags": PrintConfigManager.get_view_section_flags(config),
+            "database_info_flags": PrintConfigManager.get_database_info_flags(config),
+            "include_diagrams": bool(graph_cfg.get("enabled", False)),
+            "diagram_options": diagram_options,
+            "index_page_size": int(markdown_cfg["index_page_size"]),
+            "front_matter": bool(markdown_cfg["front_matter"]),
+            "column_anchors": bool(markdown_cfg["column_anchors"]),
         }
 
     @staticmethod
