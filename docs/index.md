@@ -21,7 +21,8 @@ Está dirigida a **desarrolladores, ingenieros de datos y DBAs** que necesitan m
 - ✅ **Comparación de esquemas** (`SchemaComparator`, `SchemaDiff`) con reportes HTML/Excel/Word/Markdown/SQL
 - ✅ **Migración DDL** entre motores (`MigrationPlanner`, `MigrationPlan`)
 - ✅ **Volcado de datos** entre esquemas/motores (`DumpOrchestrator`, `DumpConfig`)
-- ✅ **Documentación de BD** generada automáticamente (Word, Excel, HTML/Jinja2)
+- ✅ **Documentación de BD** generada automáticamente (Word, Excel, HTML/Jinja2 y Markdown con diagramas Mermaid,
+  trazabilidad y cambios entre generaciones)
 - ✅ **Análisis de relaciones** — grafos de relaciones entre tablas (Graphviz)
 
 ### API pública 3.x (estable con SemVer desde 1.0.0)

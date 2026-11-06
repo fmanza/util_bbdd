@@ -17,14 +17,18 @@ flowchart TD
     H -->|html| K[HtmlGenerator]
     H -->|excel| J[ExcelGenerator]
     H -->|word| I[WordGenerator]
-    I & J & K --> L[SyncDatabaseManager]
+    H -->|markdown| MD[MarkdownGenerator]
+    I & J & K & MD --> L[SyncDatabaseManager]
     L --> M[Base de datos]
     I --> N[Fichero .docx]
     J --> O[Fichero .xlsx]
     K --> P[Ficheros .html]
+    MD --> MF["Carpeta MARKDOWN<br/>(docs/, manifest.json, mkdocs.yml)"]
     F --> Q{grafo.enabled?}
     Q -->|Sí| R["GraphvizRelationshipGraphExt<br/>(uno para Word y HTML; prefetch por lotes)"]
     R --> N & P
+    MD -->|grafo.enabled| ME["MermaidRelationshipGraph<br/>(erDiagram en texto, sin Graphviz)"]
+    ME --> MF
 ```
 
 ## 2. Modelo de Datos / Contratos
@@ -37,8 +41,8 @@ flowchart TD
 | `generate` | `()` | Lee el catálogo y genera todos los formatos configurados | `DocumentationResult` |
 
 Ambas se importan de `util_bbdd.doc` (`from util_bbdd.doc import DatabaseDocumentation, DocumentationResult`). Desde
-0.41.0 los generadores por formato (`WordGenerator`, `ExcelGenerator`, `HtmlGenerator`) ya no se exportan: se eligen
-con `formatos=[...]`.
+0.41.0 los generadores por formato (`WordGenerator`, `ExcelGenerator`, `HtmlGenerator` y, desde 5.3.0,
+`MarkdownGenerator`) no se exportan: se eligen con `formatos=[...]`.
 
 ### Contrato de entrada
 
@@ -48,18 +52,19 @@ con `formatos=[...]`.
 | `directorio_salida` | `Path` | Directorio base donde escribir ficheros | Se crean subdirectorios por ejecución y formato |
 | `fichero_salida` | `Path \| None` | Nombre base sin extensión | `None` genera automáticamente con timestamp y clave de BD: uno por generación (con sufijo `-2`, `-3`… si coincide el segundo) o, con `batch_window_seconds` > 0, reutilizado por las generaciones seguidas dentro de la ventana |
 | `imprimir` | `dict[str, Any] \| None` | Configuración de secciones, estilos y grafos: qué se documenta, con qué plantilla y estilo, y cómo se dibujan los diagramas. Referencia completa en [Configuración de `imprimir`](#configuracion-de-imprimir) | `None` usa los valores por defecto (todas las secciones desactivadas) |
-| `formatos` | `list[str] \| None` | `["word"]`, `["excel"]`, `["html"]` o combinaciones | `None` usa `["word"]`; valores inválidos lanzan `DocumentationConfigError` |
+| `formatos` | `list[str] \| None` | `["word"]`, `["excel"]`, `["html"]`, `["markdown"]` (alias `"md"`, desde 5.3.0) o combinaciones | `None` usa `["word"]`; valores inválidos lanzan `DocumentationConfigError` |
 | `headers_file` | `Path` | JSON de cabeceras: `{"headers": {"COLUMNAS": {"base": [...]}, ...}}` | Desde 0.41.0 solo `base` por sección (las cabeceras son iguales en todos los motores) |
 | `batch_window_seconds` | `int \| None` | Ventana temporal en segundos para agrupar generaciones automáticas | `None` usa 0 (sin agrupar; hasta 4.x, 90 s); solo aplica si `fichero_salida` es `None`. Con un valor > 0, las generaciones lanzadas en esta ventana reutilizan el mismo nombre. Un valor que no sea un entero ≥ 0 (también `bool`) da `DocumentationConfigError` al construir |
 | `schema` | `str \| None` | Schema que documentar (owner en Oracle, base de datos en MySQL/MariaDB) | `None` usa el contexto de metadatos del manager. Desde 4.1.0: catálogo, DDL, diagramas y almacenamiento se leen de ese schema con la misma conexión (el usuario necesita permiso de lectura sobre sus objetos) |
-| `on_progress` | `ProgressCallback \| None` | Recibe los `ProgressEvent` de la generación ([Progreso y cancelación](progress_autodoc.md)) | Operación `"documentation"`: fase `"metadata"` y, por formato (`"word"`, `"excel"`, `"html"`), un evento al empezar (`0` de N tablas) y uno por tabla. Un callback que falla se registra una vez y deja de llamarse. Desde 4.1.0 |
-| `cancel_token` | `CancellationToken \| None` | Parada cooperativa | Se comprueba antes de leer el catálogo, antes de cada formato y entre tablas: `OperationCancelledError`. Los formatos terminados quedan; el que estaba en curso puede quedar incompleto. Desde 4.1.0 |
+| `on_progress` | `ProgressCallback \| None` | Recibe los `ProgressEvent` de la generación ([Progreso y cancelación](progress_autodoc.md)) | Operación `"documentation"`: fase `"metadata"` y, por formato (`"word"`, `"excel"`, `"html"`, `"markdown"`), un evento al empezar (`0` de N tablas) y uno por tabla. Un callback que falla se registra una vez y deja de llamarse. Desde 4.1.0 |
+| `cancel_token` | `CancellationToken \| None` | Parada cooperativa | Se comprueba antes de leer el catálogo, antes de cada formato y entre tablas: `OperationCancelledError`. Los formatos terminados quedan; el que estaba en curso puede quedar incompleto, salvo el Markdown, que escribe en una carpeta temporal y deja intacta la versión anterior. Desde 4.1.0 |
 
 ### Configuración de `imprimir`
 
 `imprimir` decide qué secciones lleva la documentación, con qué plantilla y estilo se presentan y cómo se dibujan los
-diagramas de relaciones. Se normaliza una sola vez (`PrintConfigManager.normalize`) y vale igual para los tres formatos;
-cada formato ignora lo que no le aplica (las plantillas o `tablas_por_documento`, por ejemplo).
+diagramas de relaciones. Se normaliza una sola vez (`PrintConfigManager.normalize`) y vale igual para los cuatro
+formatos; cada formato ignora lo que no le aplica (las plantillas o `tablas_por_documento`, por ejemplo). El bloque
+`markdown` solo lo usa el formato Markdown ([Documentación Markdown](#documentacion-markdown-markdown)).
 
 **Reglas de lectura**:
 
@@ -115,8 +120,12 @@ Las subclaves de `tablas` y `vistas` solo tienen efecto con `imprimir_tablas` / 
 
 #### Diagramas de relaciones (`grafo`)
 
-También se acepta la clave `graph`. Los diagramas necesitan Graphviz (el extra `analysis` y el binario `dot`) y solo se
-dibujan en Word y HTML.
+También se acepta la clave `graph`. En Word y HTML, los diagramas necesitan Graphviz (el extra `analysis` y el binario
+`dot`). En Markdown (desde 5.3.0) son diagramas `erDiagram` de Mermaid en texto, generados por
+`MermaidRelationshipGraph` **sin Graphviz**. Usan `enabled`, `show_columns`, `direction`, `max_depth` (con el tope
+`markdown.max_diagram_depth`), `max_subnodes`, `columns.mode`, `columns.max_items`,
+`cardinality.show_constraint_name` y `summary.enabled`. Las demás claves son de Graphviz; los tipos de columna se
+muestran siempre, porque la sintaxis de Mermaid los exige.
 
 | Clave | Por defecto | Efecto |
 |---|---|---|
@@ -138,6 +147,32 @@ dibujan en Word y HTML.
 | `cardinality.show_constraint_name` | `False` | Rotula cada relación con el nombre de su clave foránea |
 | `cardinality.style` | `"end_markers"` | Sin efecto: es el único estilo (marcas de cardinalidad en los extremos) |
 | `summary.enabled` | `True` | Línea de resumen bajo cada diagrama: profundidad visible y niveles de entrada y salida dibujados frente a los existentes |
+
+#### Documentación Markdown (`markdown`)
+
+Desde 5.3.0. Solo aplica con `formatos=["markdown"]`. Las rutas se aceptan como `str` o `Path`.
+
+| Clave | Por defecto | Efecto |
+|---|---|---|
+| `max_diagram_depth` | `2` | Tope de profundidad de los diagramas: la efectiva es `min(grafo.max_depth, este)`. Si recorta, la página lo avisa (`!!! warning`) |
+| `index_page_size` | `200` | Entradas por página de los índices por letra (`tables/index-a.md`, `index-a-2.md`…) |
+| `front_matter` | `True` | Front matter JSON en una línea por página: `id` estable (`table:<schema>.<nombre>`), `pk`, `fk_out`, `fk_in`, `hash` y, con mapa de trazabilidad, `trace` |
+| `column_anchors` | `True` | Ancla `col-<columna>` por columna (`<a id>` en la tabla «Columnas») para enlazar desde el código |
+| `catalog_json` | `True` | `docs/catalog.json`: catálogo de los objetos documentados, contrato versionado ([ADR-006](../adr/ADR-006-catalogo-documentacion-markdown.md)) |
+| `llms_txt` | `True` | `docs/llms.txt` (formato de llmstxt.org) |
+| `llms_full_txt` | `True` | `docs/llms-full.txt`: todas las páginas en un fichero, cada una precedida de su id y su ruta |
+| `mkdocs_yml` | `True` | `mkdocs.yml` listo para `zensical build` (o `mkdocs build`), con `nav` corta: portada e índices |
+| `site_name` | `None` | Título del sitio; `None`: «Documentación de <base de datos>» |
+| `mermaid_js` | `None` | Ruta a un `mermaid.min.js` local. Se copia al sitio y se carga en lugar del de unpkg, así que los diagramas se dibujan **sin Internet**; además pone `theme.font: false`. Debe existir: si no, `DocumentationConfigError` al construir |
+| `trace_map` | `None` | Mapa de trazabilidad `.toml` (recomendado) o `.json`: objeto o columna → código, documentos funcionales y técnicos, requisitos ([guía](../guides/markdown_documentation_guide.md#35-mapa-de-trazabilidad)). Se valida al construir |
+| `previous` | `None` | Generación anterior (carpeta `MARKDOWN`, su `docs/` o su `catalog.json`): añade `docs/changes.md` y `docs/changes.json` con los cambios de esquema, sin conexión a la base de datos. Se valida al construir |
+
+Las secciones de cada página son las de Word (mismos flags, cabeceras de `headers_file` y mensajes), con estas
+diferencias:
+
+- un fichero por tabla, vista y rutina, en orden alfabético;
+- el DDL va en bloques `sql`;
+- no aplican `tablas_por_documento`, `table_style` ni las plantillas.
 
 #### Ejemplo completo
 
@@ -253,8 +288,31 @@ generación continúa con el aviso.
 - **Word** → fichero `.docx` bajo `WORD/`.
 - **Excel** → fichero `.xlsx` bajo `EXCEL/`.
 - **HTML** → sitio HTML bajo `HTML/`.
-- Los grafos se insertan como imágenes generadas por Graphviz en Word y HTML cuando están configurados. Cada formato
-  produce lo mismo con independencia de los demás formatos pedidos en la misma llamada.
+- **Markdown** (desde 5.3.0) → carpeta `MARKDOWN/`:
+
+  ```text
+  MARKDOWN/
+    manifest.json            # versión de util_bbdd, motor, schema, fecha y sha256 de cada fichero
+    mkdocs.yml               # markdown.mkdocs_yml
+    docs/
+      index.md               # inventario, enlaces y leyenda de los diagramas
+      tables/index.md, tables/index-<letra>.md, tables/<slug>.md
+      views/…, routines/<tipo>-<slug>.md
+      database/info.md | storage.md | engine-conditions.md
+      catalog.json, llms.txt, llms-full.txt
+      traceability.md        # con markdown.trace_map
+      changes.md, changes.json   # con markdown.previous
+  ```
+
+  - **Determinismo**: el contenido de `docs/` es idéntico byte a byte para el mismo catálogo y las mismas opciones; la
+    fecha solo va en `manifest.json`.
+  - **Escritura**: se escribe en una carpeta temporal y se publica al terminar. Al regenerar se borran solo los
+    ficheros que listaba el `manifest.json` anterior y que nadie ha modificado; los ficheros ajenos se conservan.
+  - **Seguridad**: el texto del catálogo se escapa (HTML y Markdown) y los nombres de fichero son seguros también en
+    Windows.
+- Los grafos se insertan como imágenes generadas por Graphviz en Word y HTML, y como bloques Mermaid en Markdown, cuando
+  están configurados. Cada formato produce lo mismo con independencia de los demás formatos pedidos en la misma
+  llamada.
 
 ### Cache de nombres automáticos (Batching)
 
@@ -311,7 +369,8 @@ doc = DatabaseDocumentation(manager, Path("out")).generate()
 
 | Error | Cuándo ocurre |
 |---|---|
-| `DocumentationConfigError` (también `ValueError`) | Al crear la instancia: formato no soportado, `imprimir` que no es un diccionario, fichero de cabeceras inexistente o mal formado, plantilla Word que no existe (solo si se pide Word) |
+| `DocumentationConfigError` (también `ValueError`) | Al crear la instancia: formato no soportado, `imprimir` que no es un diccionario, fichero de cabeceras inexistente o mal formado, plantilla Word que no existe (solo si se pide Word). Con Markdown (5.3.0): `markdown.mermaid_js` que no es un fichero, mapa de trazabilidad inválido (todos los errores juntos: extensión, sintaxis, sección o campo desconocido, tipo) o `markdown.previous` sin un `catalog.json` legible y de una versión soportada |
+| `DocumentationConfigError` en `generate()` | Markdown con `previous` de otro motor de base de datos (los tipos no son comparables) |
 | `DocumentationRenderError` | En `generate()`: falla la creación de la carpeta de salida (desde 1.1.1; antes, `OSError`) o la escritura de un formato; la causa queda en `__cause__` |
 | Error de `SyncDatabaseManager` (`DatabaseException`) | En `generate()`: conexión caída o permisos insuficientes al leer el catálogo; no se envuelve |
 
@@ -323,7 +382,9 @@ doc = DatabaseDocumentation(manager, Path("out")).generate()
 | `DocumentationResult` | Resultado de `generate()`: salidas por formato y recuentos |
 | `DocumentationBootstrap` | `settings()` valida la configuración; `build()` resuelve la salida y lee el inventario del catálogo |
 | `DocumentationOrchestrator` | Un generador de grafos para todos los formatos y despacho por formato; traduce los fallos de renderer a `DocumentationRenderError` |
-| `HtmlGenerator` / `ExcelGenerator` / `WordGenerator` | Renderers internos por formato de salida |
+| `HtmlGenerator` / `ExcelGenerator` / `WordGenerator` / `MarkdownGenerator` | Renderers internos por formato de salida |
+| `doc/infrastructure/renderers/markdown/` | Markdown (5.3.0): páginas, escape, nombres de fichero, front matter y `catalog.json`, `llms*.txt`, `mkdocs.yml`, mapa de trazabilidad (`_trace.py`), cambios (`_changes.py`) y escritura con staging (`_writer.py`) |
+| `MermaidRelationshipGraph` (`analysis/mermaid_er.py`) | Diagramas `erDiagram` del Markdown, sin Graphviz ([Grafos de Relaciones](analysis.md)) |
 | `doc/infrastructure/storage/engines.py` | Inventario de almacenamiento: una entrada por motor (consultas, cabeceras, tratamiento) |
 
 ## 4. Dependencias y Requisitos
@@ -334,9 +395,12 @@ doc = DatabaseDocumentation(manager, Path("out")).generate()
 | `python-docx` | Generación de documentos Word | Solo para `word` | Error al intentar generar Word |
 | `openpyxl` | Generación de hojas Excel | Solo para `excel` | Error al intentar generar Excel |
 | `Jinja2` | Generación de HTML | Solo para `html` | Error al intentar generar HTML |
-| `graphviz` + binarios | Generación de grafos | Opcional | Sin grafos cuando no disponible |
+| `graphviz` + binarios | Generación de grafos en Word y HTML | Opcional | Sin grafos cuando no disponible. El Markdown no lo necesita |
+| Zensical o MkDocs Material | Publicar la carpeta Markdown como sitio (`zensical build`) | Opcional, fuera de la librería | La carpeta sigue siendo Markdown legible |
 | `openpyxl`, `python-docx`, `Jinja2` | Excel, Word y HTML | Incluidas en la instalación base (no hay extra `doc`) | Instalación incompleta: reinstalar `util_bbdd` |
 
 ## 5. Ejemplos Relacionados
 
 - [Ejemplo: Generación de Documentación de Base de Datos](../examples/database_documentation_generation.md) — Generación de HTML, Word y Excel desde SQLite en memoria
+- [Ejemplo: Documentación Markdown](../examples/markdown_documentation.md) — Markdown con diagramas Mermaid, mapa de trazabilidad y cambios entre generaciones (SQLite)
+- [Guía: Documentación Markdown](../guides/markdown_documentation_guide.md) — Publicar, versionar, trazar y usarla con IA

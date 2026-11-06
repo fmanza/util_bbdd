@@ -120,6 +120,8 @@ nav:
           - Troubleshooting: guides/troubleshooting.md
       - Comparación de Esquemas:
           - Comparador de Esquemas: guides/comparator.md
+      - Documentación de BD:
+          - Documentación Markdown: guides/markdown_documentation_guide.md
       - Volcado de Datos:
           - Volcado de Datos entre Motores: guides/dump_guide.md
       - Migración de Esquemas:
@@ -182,6 +184,7 @@ nav:
           - Generación de Grafos: examples/graph_generation.md
       - Documentación de BD:
           - Generación de Documentación: examples/database_documentation_generation.md
+          - Documentación Markdown: examples/markdown_documentation.md
       - Manejo de Excepciones:
           - Manejo de Excepciones: examples/exception_handling.md
 

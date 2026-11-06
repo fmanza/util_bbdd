@@ -36,7 +36,8 @@ entre esquemas, migración DDL entre motores, generación de documentación y vi
 - **Migración DDL**: `MigrationPlanner` traduce esquemas completos entre motores (Oracle, MariaDB,
   SQL Server, PostgreSQL como origen o destino).
 - **Comparación de esquemas**: `SchemaComparator` + reporters (SQL, HTML, Word, Excel, Markdown).
-- **Documentación de BD**: genera documentación en Word, Excel o HTML a partir de metadatos reales.
+- **Documentación de BD**: genera documentación en Word, Excel, HTML o Markdown (con diagramas Mermaid, trazabilidad y
+  cambios entre generaciones) a partir de metadatos reales.
 - **Análisis de relaciones**: grafos con Graphviz (`GraphvizRelationshipGraphExt`).
 - **Validadores y query registry**: `QueryRegistry`, `QueryResolver`, validadores de parámetros.
 
@@ -52,7 +53,7 @@ src/util_bbdd/
   migrate/              # MigrationPlanner: migración DDL entre motores (extractors, IR, emitters)
   metadata/             # CatalogSource/SchemaSnapshot (lectura por lotes), CatalogDialect por motor, reflection
   comparar/             # SchemaComparator, SchemaDiff, reporters (SQL/HTML/Word/Excel/MD)
-  doc/                  # Generación de documentación (Word, Excel, HTML, Jinja2)
+  doc/                  # Generación de documentación (Word, Excel, HTML con Jinja2, Markdown)
   connection/           # build_conn_params, params builder, configs por motor
   factory/              # ConnectionFactory, PoolFactory
   query/                # QueryRegistry, QueryResolver, query execution
@@ -82,7 +83,7 @@ src/util_bbdd/
 | `migrate/` | Migración DDL entre motores (`MigrationPlanner`) |
 | `metadata/` | Introspección de esquemas por lotes (`CatalogSource` → `SchemaSnapshot`, una consulta por tipo de objeto y schema), DDL e inventario; único punto con SQL de catálogo e `Inspector` (ADR-003; `.github/instructions/architecture.instructions.md` § Reglas de acceso a metadatos) |
 | `comparar/` | Comparación de dos esquemas; diff estructurado; reporters por formato |
-| `doc/` | Documentación de BD en Word, Excel y HTML vía Jinja2 |
+| `doc/` | Documentación de BD en Word, Excel, HTML (Jinja2) y Markdown (Mermaid, `catalog.json`, trazabilidad, cambios) |
 | `connection/` | Construcción de parámetros y configuración de conexión por motor |
 | `factory/` | Factory de conexiones y pools; abstracción de engine SQLAlchemy |
 | `query/` | Registry de queries nombradas, resolver, parámetros |
@@ -395,4 +396,4 @@ especializaciones afectadas (`CLAUDE.md`, `.github/copilot-instructions.md`, `GE
 
 ---
 
-*Actualizado: 2026-10-25*
+*Actualizado: 2026-11-06*

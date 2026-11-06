@@ -1,6 +1,6 @@
 # Grafos de Relaciones (analysis)
 
-Proporciona clases para extraer relaciones FK de un esquema y renderizarlas como grafos visuales (SVG/PNG) usando Graphviz o Matplotlib, con soporte para recorrido multinivel, paginación y modo solo-memoria.
+Proporciona clases para extraer relaciones FK de un esquema y renderizarlas como grafos visuales (SVG/PNG) usando Graphviz o Matplotlib, o como diagramas entidad-relación de Mermaid en texto (desde 5.3.0, sin Graphviz), con soporte para recorrido multinivel, paginación y modo solo-memoria.
 
 ## 1. Arquitectura y Diseño
 
@@ -10,10 +10,13 @@ flowchart TD
     B --> C{Motor de visualización}
     C -->|Graphviz con columnas| D[GraphvizRelationshipGraphExt]
     C -->|Matplotlib radial| E[MatplotlibRelationshipGraph]
+    C -->|Mermaid erDiagram| MR[MermaidRelationshipGraph]
     B --> F[build_graph_document]
     F --> G[GraphDocument]
     G --> D
     G --> E
+    G --> MR
+    MR --> MT[render_er → MermaidErResult]
     D --> H[generate_single_table_graph_ext → Path]
     D --> I[generate_all_tables_graphs_ext → dict]
     D --> J[pipe_single_table_graph_ext → bytes]
@@ -31,6 +34,16 @@ flowchart TD
 | `analyze_table_relations` | `(table_name: str)` | Relaciones FK directas del primer nivel | `list[TableRelation]` |
 | `build_graph_document` | `(table_name, max_depth, direction)` | Modelo de grafo multinivel agnóstico al renderer | `GraphDocument` |
 | `generate_relationship_report` | `(table_name: str)` | Informe detallado de relaciones | `dict[str, Any]` |
+
+Desde 5.3.0, el recorrido por niveles sigue un orden estable: las aristas de `GraphDocument` salen igual en cualquier
+proceso (antes dependían de `PYTHONHASHSEED`). La cardinalidad, común a todos los renderers, considera **todas** las
+columnas de la FK:
+
+- el lado de la tabla referenciada es siempre «1»;
+- el de la tabla con la FK es «1» si esas columnas son toda su PK o una restricción `UNIQUE` (`1:1`); si no, «N»
+  (`1:N`).
+
+Antes, una FK identificante (por ejemplo, cabecera-detalle) salía `M:N`.
 
 #### Clase `GraphvizRelationshipGraphExt`
 
@@ -69,6 +82,42 @@ grafos = gen.pipe_level_graphs_ext(table_name="pedidos", format="svg")  # ya ren
 | `generate_matplotlib_graph_paginated` | `(table_name, output_dir, format, max_subnodes, ...)` | Grafos paginados → archivos | `list[Path]` |
 | `generate_all_tables_graphs` | `(output_dir=None, format="png", skip_tables_without_relations=True, max_subnodes=10, ...)` | Grafos de todas las tablas | `dict[str, dict]` |
 
+#### Clase `MermaidRelationshipGraph`
+
+Desde 5.3.0. Genera diagramas `erDiagram` de Mermaid en texto, listos para un bloque ```` ```mermaid ```` de Markdown
+(Zensical, MkDocs, GitHub). **No necesita Graphviz** ni el extra `analysis`. Es el generador de los diagramas de la
+documentación Markdown.
+
+| Método | Firma simplificada | Descripción | Retorna |
+|---|---|---|---|
+| `MermaidRelationshipGraph` | `(db_manager, *, show_columns=True, column_mode="relations", max_columns=8, show_constraint_name=False, max_entities=40, max_chars=50_000, schema=None)` | Configura el generador. `column_mode` sigue la política de Graphviz: `relations` (columnas de las relaciones dibujadas), `compact` (esas primero y después las demás hasta `max_columns`) o `all` | `MermaidRelationshipGraph` |
+| `render_er` | `(table_name, *, max_depth=1, direction="both", max_subnodes=10)` | Diagramas de la tabla y sus relaciones | `MermaidErResult` (`blocks`, `document`, `warnings`) |
+
+Reglas de dibujo:
+
+- **Relaciones**: una línea por FK, aunque sea compuesta; las FK sin nombre (SQLite) no se funden. La cardinalidad es
+  la de la base: `1:N` → `||--o{` y `1:1` → `||--o|`.
+- **Opcionalidad**: el lado de la tabla referenciada es `|o` si alguna columna de la FK admite nulos.
+- **Tipo de línea**: continua (`--`) si la FK forma parte de la PK de la tabla hija; si no, discontinua (`..`).
+- **Reparto**: varios bloques cuando hay más de `max_subnodes` relaciones; la tabla central se repite en cada uno.
+- **Guardas de tamaño**: más de `max_entities` entidades o de `max_chars` caracteres (el `maxTextSize` de Mermaid).
+  Primero se quitan las columnas y después se parte el diagrama, con un aviso en `warnings`. En el navegador, un
+  diagrama de 300 entidades tarda entre 12 y 28 s.
+- **Escape**: los nombres y comentarios del catálogo usan códigos de entidad de Mermaid (`#37;`, `#quot;`…); una
+  directiva `%%{init}` queda como texto. Los tipos y nombres de columna se normalizan a la gramática de `erDiagram`
+  (`double precision` → `double_precision`; `PK`, `FK` y `UK` llevan sufijo `_`). Si el nombre cambia, el real va al
+  comentario del atributo.
+- **Determinismo**: la salida es la misma en cualquier proceso. Sintaxis validada con Mermaid 11.17.2 y 12.2.0.
+
+```python
+from util_bbdd.analysis import MermaidRelationshipGraph
+
+result = MermaidRelationshipGraph(manager, show_constraint_name=True).render_er("pedidos", max_depth=2)
+for block in result.blocks:
+    print(f"```mermaid\n{block}\n```")
+print(result.warnings)  # recortes o repartos por tamaño
+```
+
 ### Contrato de entrada
 
 | Parámetro | Tipo | Descripción | Restricciones |
@@ -96,6 +145,7 @@ Lo que `analysis/` exige de `db_manager`; se importa de `util_bbdd.analysis`. `a
   `..` no escribe fuera de `output_dir`.
 - Métodos `pipe_*` → `bytes` del formato solicitado, sin escribir en disco.
 - `build_graph_document` → `GraphDocument` agnóstico al renderer (modelo intermedio reutilizable).
+- `render_er` → `MermaidErResult`: texto `erDiagram` por bloque, sin escribir en disco; sin relaciones, `blocks=()`.
 - `analyze_table_relations` → `list[TableRelation]` (dataclasses frozen).
 
 ### Errores y casos especiales
@@ -112,6 +162,8 @@ Lo que `analysis/` exige de `db_manager`; se importa de `util_bbdd.analysis`. `a
 | `DatabaseRelationshipGraphBase` | Lógica común de extracción FK y construcción del modelo de grafo |
 | `GraphvizRelationshipGraphExt` | Renderización con Graphviz: nodos con columnas, cardinalidad, alta resolución |
 | `MatplotlibRelationshipGraph` | Renderización con Matplotlib: layout radial, dependencias más ligeras |
+| `MermaidRelationshipGraph` | Diagramas `erDiagram` de Mermaid en texto, sin dependencias externas (5.3.0) |
+| `_core/mermaid.py` | Escape y normalización para Mermaid, comunes a `analysis` y `comparar` |
 
 ## 4. Dependencias y Requisitos
 
@@ -125,3 +177,4 @@ Lo que `analysis/` exige de `db_manager`; se importa de `util_bbdd.analysis`. `a
 ## 5. Ejemplos Relacionados
 
 - [Ejemplo: Generación de Grafos de Relaciones](../examples/graph_generation.md) — Uso de `GraphvizRelationshipGraphExt` con distintos niveles de profundidad
+- [Ejemplo: Documentación Markdown](../examples/markdown_documentation.md) — Diagramas `erDiagram` de `MermaidRelationshipGraph` en la documentación Markdown

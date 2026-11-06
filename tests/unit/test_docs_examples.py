@@ -37,6 +37,7 @@ SQLITE_EXAMPLES: tuple[str, ...] = (
     "example_connect_introspect",
     "exception_handling",
     "graph_generation",
+    "markdown_documentation",
     "normalize_records",
     "parallel_bulk_insert",
     "query_execution_example",

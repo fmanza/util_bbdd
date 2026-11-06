@@ -1,7 +1,8 @@
 # Análisis de Relaciones
 
-`util_bbdd.analysis` construye el grafo de relaciones de una tabla (`GraphDocument`) y lo dibuja con Graphviz (extra
-`analysis`) o Matplotlib (extra `analysis-matplotlib`). Referencia curada: [Grafos de Relaciones](analysis.md).
+`util_bbdd.analysis` construye el grafo de relaciones de una tabla (`GraphDocument`) y lo dibuja con Mermaid (texto
+`erDiagram`, sin dependencias), Graphviz (extra `analysis`) o Matplotlib (extra `analysis-matplotlib`). Referencia
+curada: [Grafos de Relaciones](analysis.md).
 
 ---
 
@@ -38,6 +39,23 @@
       members_order: source
       filters:
         - "!^_"
+
+---
+
+## MermaidRelationshipGraph
+
+::: util_bbdd.analysis.mermaid_er.MermaidRelationshipGraph
+    options:
+      show_source: false
+      heading_level: 3
+      members_order: source
+      filters:
+        - "!^_"
+
+::: util_bbdd.analysis.mermaid_er.MermaidErResult
+    options:
+      show_source: false
+      heading_level: 3
 
 ---
 

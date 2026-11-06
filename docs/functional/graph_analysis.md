@@ -6,7 +6,12 @@ Genera representaciones visuales del esquema relacional de una base de datos: ca
 
 Útil para documentar la estructura de una base de datos, identificar dependencias entre entidades y generar diagramas exportables a SVG, PNG u otros formatos gráficos.
 
-Soporta dos motores de visualización: Graphviz (nodos con columnas y cardinalidad, alta resolución) y Matplotlib (layout radial con NetworkX, dependencias más ligeras).
+Soporta tres salidas:
+
+- **Graphviz**: nodos con columnas y cardinalidad, alta resolución.
+- **Matplotlib**: layout radial con NetworkX, dependencias más ligeras.
+- **Mermaid** (desde 5.3.0): diagramas entidad-relación `erDiagram` en texto, sin dependencias externas. Se insertan
+  en Markdown y los dibuja el navegador (Zensical, MkDocs, GitHub). Es la salida de la documentación Markdown.
 
 **Precondiciones:**
 
@@ -24,6 +29,8 @@ Soporta dos motores de visualización: Graphviz (nodos con columnas y cardinalid
 | `direction` filtra el sentido | `OUTGOING` muestra tablas hijas; `INCOMING` tablas padre; `BOTH` ambas | Dirección incorrecta oculta parte del esquema |
 | Paginación automática | Si una tabla supera el límite de relaciones se generan múltiples imágenes | Sin paginación, un grafo único sería ilegible |
 | Graphviz requiere binarios del sistema | Sin el ejecutable `dot` en PATH la generación falla con error | Error de renderización o fichero no encontrado |
+| Cardinalidad por FK completa | La tabla referenciada es siempre «1»; la que tiene la FK es «1» si sus columnas son toda su PK o una `UNIQUE` (desde 5.3.0, en todas las salidas) | Antes, las FK identificantes (cabecera-detalle) aparecían como `M:N` |
+| Mermaid: diagramas acotados | Más de 40 entidades o 50 000 caracteres por diagrama: primero se quitan las columnas y después se parte, con aviso | Diagramas enormes tardan decenas de segundos en dibujarse en el navegador |
 | Los tipos visuales se asignan por heurística | Tablas con dos FK y pocas columnas propias se clasifican como tabla de asociación; resto como entidad | Clasificación incorrecta cambia el color del nodo |
 
 ## 3. Casos de Uso

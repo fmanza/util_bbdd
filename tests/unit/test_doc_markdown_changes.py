@@ -112,6 +112,17 @@ def test_previous_accepts_folder_docs_or_file(sqlite_db: Path, tmp_path: Path, t
     )
 
 
+def test_previous_can_be_the_folder_being_regenerated(sqlite_db: Path, tmp_path: Path) -> None:
+    """Uso con ``fichero_salida`` fijo (versionado con git): el catálogo anterior se lee antes de publicar."""
+    first = _generate(sqlite_db, tmp_path / "out", "docs_bd")
+    _alter(sqlite_db, AFTER)
+    second = _generate(sqlite_db, tmp_path / "out", "docs_bd", {"previous": str(first)})
+
+    assert second == first
+    diff = SchemaDiff.from_dict(json.loads((second / "docs/changes.json").read_text(encoding="utf-8")))
+    assert ("nueva", "added") in [(t.table_name, t.status) for t in diff.table_diffs]
+
+
 def test_unchanged_schema_and_determinism(sqlite_db: Path, tmp_path: Path) -> None:
     first = _generate(sqlite_db, tmp_path / "out", "v1")
     _alter(sqlite_db, AFTER)

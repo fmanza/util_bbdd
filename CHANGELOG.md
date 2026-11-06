@@ -61,7 +61,7 @@ Base de la documentación Markdown con diagramas ER de Mermaid (sesión `2026-11
   de Mermaid de una tabla y sus relaciones. **No necesitan Graphviz** (funcionan sin el extra `analysis`).
   - Una línea por FK, con la cardinalidad de Graphviz. El lado padre es opcional (`|o`) si la FK admite nulos.
   - Línea continua si la FK forma parte de la PK hija.
-  - Columnas `compact`/`relations`/`all`.
+  - Columnas con la política de Graphviz (`relations`, `compact`, `all`) y `show_columns`.
   - Reparto por `max_subnodes` y guardas de 40 entidades y 50 000 caracteres por diagrama.
   - Nombres del catálogo escapados con códigos de entidad de Mermaid y tipos normalizados a la gramática de
     `erDiagram`.
