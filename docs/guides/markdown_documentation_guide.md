@@ -73,6 +73,10 @@ docs_bd/ventas/MARKDOWN/
   docs/catalog.json  docs/llms.txt  docs/llms-full.txt
 ```
 
+Para un visor o una herramienta, `manifest.json` → `pages` (desde 5.4.0) lista todas las páginas con su título en
+texto plano, su sección y su papel (portada, índice, letra, objeto). Con eso se construye un árbol sin deducirlo de
+las carpetas ([contrato](../api/database_documentation.md#contrato-de-salida)).
+
 Cada página de tabla empieza con un **front matter** en una línea JSON:
 
 - `id` estable (`table:public.pedidos`);

@@ -41,12 +41,14 @@ from ._site_pages import (
     database_info_page,
     engine_conditions_page,
     home_page,
+    index_page_titles,
     index_pages,
     storage_page,
 )
 from ._slugs import sort_key, unique_slugs
+from ._text import plain_text
 from ._trace import TracedObject, TraceEntry, TraceMap, Unmatched, match_columns, trace_section, traceability_page
-from ._writer import StagedWriter, TextStream, library_version
+from ._writer import PageEntry, StagedWriter, TextStream, library_version
 
 _ROUTINE_TYPES: frozenset[str] = frozenset({"PROCEDURE", "FUNCTION"})
 _FRONT_MATTER_LINES = 4  # "---", JSON, "---", ""
@@ -119,23 +121,27 @@ class MarkdownGenerator:
             routines=[f"{routine_type}:{name}" for name, routine_type, _ in routine_rows],
         )
         writer = StagedWriter(output_target, self.logger)
+        # manifest.json → pages (5.4.0): cada página .md se anota donde se escribe, con su título sin escapar
+        pages: list[PageEntry] = []
         try:
             entries: list[CatalogEntry] = []
             with self._llms_full(writer, resolved) as full:
                 home, sections = self._write_home(
-                    writer, ctx, tables=table_rows, views=view_rows, routines=routine_rows
+                    writer, ctx, pages, tables=table_rows, views=view_rows, routines=routine_rows
                 )
                 if full is not None:
                     full.write(_join(home))
-                entries += self._write_tables(writer, ctx, table_rows, records, full, tracer)
-                entries += self._write_views(writer, ctx, view_rows, records, full, tracer)
-                entries += self._write_routines(writer, ctx, routine_rows, records, full, tracer)
+                entries += self._write_tables(writer, ctx, table_rows, records, full, tracer, pages)
+                entries += self._write_views(writer, ctx, view_rows, records, full, tracer, pages)
+                entries += self._write_routines(writer, ctx, routine_rows, records, full, tracer, pages)
             nav = [("Inicio", "index.md"), *sections]
             if tracer.enabled:
                 writer.write("docs/traceability.md", _join(traceability_page(tracer.objects, tracer.unmatched)))
+                pages.append(PageEntry("traceability.md", "Trazabilidad", "traceability", "page"))
                 nav.append(("Trazabilidad", "traceability.md"))
             previous = self._write_changes(writer, resolved, records, entries)
             if previous is not None:
+                pages.append(PageEntry("changes.md", "Cambios de esquema", "changes", "page"))
                 nav.append(("Cambios", "changes.md"))
             self._write_machine_files(
                 writer,
@@ -149,7 +155,7 @@ class MarkdownGenerator:
             metadata: dict[str, Any] = {"engine": records.engine, "schema": records.schema, "database": self.database}
             if previous is not None:
                 metadata["previous"] = previous
-            writer.publish(metadata, keep=self._kept_paths(resolved))
+            writer.publish(metadata, keep=self._kept_paths(resolved), pages=pages)
         finally:
             writer.discard()
         self.logger.info(f"✅ Documentación Markdown generada en {output_target}")
@@ -190,9 +196,17 @@ class MarkdownGenerator:
         lines: list[str],
         record: dict[str, Any],
         full: TextStream | None,
+        page: tuple[str, str, list[PageEntry]],
     ) -> CatalogEntry:
-        """Escribe la página ``docs/<path>`` y la añade a ``llms-full.txt`` (sin front matter, con su marcador)."""
+        """Escribe la página ``docs/<path>`` y la añade a ``llms-full.txt`` (sin front matter, con su marcador).
+
+        ``page`` es ``(título sin escapar, sección, páginas)``: la entrada del objeto en ``manifest.json`` → ``pages``.
+        """
         writer.write(f"docs/{path}", _join(lines))
+        title, section, pages = page
+        pages.append(
+            PageEntry(path, plain_text(title), section, "object", object_id=str(record["id"]), kind=str(record["kind"]))
+        )
         if full is not None:
             body = lines[_FRONT_MATTER_LINES:] if ctx.resolved["front_matter"] else lines
             full.write(f"\n{llms_full_marker(record, path)}\n\n{_join(body)}")
@@ -206,6 +220,7 @@ class MarkdownGenerator:
         records: ObjectRecords,
         full: TextStream | None,
         tracer: _Tracer,
+        pages: list[PageEntry],
     ) -> list[CatalogEntry]:
         options: dict[str, Any] = ctx.resolved["diagram_options"]
         # Anclas de columna (las mismas que pone la sección «Columnas»), para enlazar las trazas por columna
@@ -249,10 +264,11 @@ class MarkdownGenerator:
             )
             front = record if ctx.resolved["front_matter"] else None
             lines = table_page(ctx, name, comment, charset, front, diagram) + trace_lines
-            entries.append(self._emit(writer, ctx, f"tables/{slug}.md", lines, record, full))
+            page = (f"Tabla: {name}", "tables", pages)
+            entries.append(self._emit(writer, ctx, f"tables/{slug}.md", lines, record, full, page))
             index.append(IndexEntry(name, f"{slug}.md", comment))
             progress.done(name)
-        self._write_index(writer, "tables", "Tablas", index, ctx)
+        self._write_index(writer, "tables", "Tablas", index, ctx, pages)
         return entries
 
     def _write_views(
@@ -263,6 +279,7 @@ class MarkdownGenerator:
         records: ObjectRecords,
         full: TextStream | None,
         tracer: _Tracer,
+        pages: list[PageEntry],
     ) -> list[CatalogEntry]:
         slugs = unique_slugs(name for name, _ in rows)
         entries: list[CatalogEntry] = []
@@ -271,9 +288,9 @@ class MarkdownGenerator:
             path = f"views/{slugs[name]}.md"
             record, trace_lines = tracer.apply("views", name, "Vistas", name, path, records.view(name, comment))
             lines = view_page(ctx, name, comment, record if ctx.resolved["front_matter"] else None) + trace_lines
-            entries.append(self._emit(writer, ctx, path, lines, record, full))
+            entries.append(self._emit(writer, ctx, path, lines, record, full, (f"Vista: {name}", "views", pages)))
             index.append(IndexEntry(name, f"{slugs[name]}.md", comment))
-        self._write_index(writer, "views", "Vistas", index, ctx)
+        self._write_index(writer, "views", "Vistas", index, ctx, pages)
         return entries
 
     def _write_routines(
@@ -284,6 +301,7 @@ class MarkdownGenerator:
         records: ObjectRecords,
         full: TextStream | None,
         tracer: _Tracer,
+        pages: list[PageEntry],
     ) -> list[CatalogEntry]:
         # Clave TIPO:nombre como en el HTML: un procedure y una función homónimos tienen ficheros distintos
         slugs = unique_slugs(f"{routine_type}:{name}" for name, routine_type, _ in rows)
@@ -298,19 +316,29 @@ class MarkdownGenerator:
             )
             front = record if ctx.resolved["front_matter"] else None
             lines = routine_page(ctx, name, routine_type, comment, front) + trace_lines
-            entries.append(self._emit(writer, ctx, path, lines, record, full))
+            page = (f"{routine_type.title()}: {name}", "routines", pages)
+            entries.append(self._emit(writer, ctx, path, lines, record, full, page))
             index.append(IndexEntry(display, f"{slugs[key]}.md", comment))
-        self._write_index(writer, "routines", "Rutinas", index, ctx)
+        self._write_index(writer, "routines", "Rutinas", index, ctx, pages)
         return entries
 
     @staticmethod
     def _write_index(
-        writer: StagedWriter, folder: str, title: str, entries: list[IndexEntry], ctx: PageContext
+        writer: StagedWriter,
+        folder: str,
+        title: str,
+        entries: list[IndexEntry],
+        ctx: PageContext,
+        pages: list[PageEntry],
     ) -> None:
         if not entries:
             return
-        for file_name, lines in index_pages(title, entries, ctx.resolved["index_page_size"]).items():
+        page_size: int = ctx.resolved["index_page_size"]
+        for file_name, lines in index_pages(title, entries, page_size).items():
             writer.write(f"docs/{folder}/{file_name}", _join(lines))
+        for file_name, (page_title, letter) in index_page_titles(title, entries, page_size).items():
+            role = "index" if letter is None else "letter"
+            pages.append(PageEntry(f"{folder}/{file_name}", plain_text(page_title), folder, role, letter=letter))
 
     # --- Ficheros para máquinas y publicación ---
 
@@ -407,6 +435,7 @@ class MarkdownGenerator:
         self,
         writer: StagedWriter,
         ctx: PageContext,
+        pages: list[PageEntry],
         *,
         tables: list[tuple[str, str, str | None]],
         views: list[tuple[str, str]],
@@ -432,6 +461,7 @@ class MarkdownGenerator:
             if resolved[flag]:
                 sections.append((title, path))
                 writer.write(f"docs/{path}", _join(self._database_page(path, ctx)))
+                pages.append(PageEntry(path, title, "database", "page"))
         inventory = GeneratorInventoryRuntime.build_summary_rows_from_entities(
             tables=list(tables),
             views=list(views),
@@ -443,6 +473,8 @@ class MarkdownGenerator:
         include_legend = bool(resolved["include_diagrams"] and tables)
         lines = home_page(self.database, inventory, sections, include_legend)
         writer.write("docs/index.md", _join(lines))
+        home_title = plain_text(f"Documentación de la Base de Datos - {self.database}")
+        pages.append(PageEntry("index.md", home_title, "home", "home"))
         return lines, sections
 
     def _database_page(self, path: str, ctx: PageContext) -> list[str]:

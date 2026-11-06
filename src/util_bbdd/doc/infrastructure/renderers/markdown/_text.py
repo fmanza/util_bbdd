@@ -77,6 +77,18 @@ def md_code_block(code: Any, language: str = "") -> list[str]:
     return [f"{fence}{language}", *text.rstrip("\n").split("\n"), fence]
 
 
+def plain_text(value: Any) -> str:
+    """Texto del catálogo para contratos JSON (``manifest.json`` → ``pages[].title``, 5.4.0): sin escapes de Markdown
+    ni entidades HTML, en una sola línea. Es texto **no confiable**: quien lo pinte debe escaparlo.
+
+    Examples:
+        >>> plain_text("ACM_AGENDA <x>\\n|y|")
+        'ACM_AGENDA <x> |y|'
+    """
+    text = "" if value is None else str(value)
+    return _LINE_BREAKS.sub(" ", text).strip()
+
+
 def md_link(label: str, target: str) -> str:
     """Enlace relativo generado por la librería: ``label`` es texto del catálogo (escapado); ``target``, una ruta propia."""
     return f"[{md_text(label)}]({target})"
@@ -95,4 +107,4 @@ def admonition(kind: str, title: str, body: str = "") -> list[str]:
     return [*lines, ""]
 
 
-__all__: list[str] = ["admonition", "front_matter", "md_code_block", "md_link", "md_table", "md_text"]
+__all__: list[str] = ["admonition", "front_matter", "md_code_block", "md_link", "md_table", "md_text", "plain_text"]

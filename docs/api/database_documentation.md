@@ -313,7 +313,7 @@ generación continúa con el aviso.
 
   ```text
   MARKDOWN/
-    manifest.json            # versión de util_bbdd, motor, schema, fecha y sha256 de cada fichero
+    manifest.json            # versión de util_bbdd, motor, schema, fecha, sha256 de cada fichero e índice de páginas
     mkdocs.yml               # markdown.mkdocs_yml
     docs/
       index.md               # inventario, enlaces y leyenda de los diagramas
@@ -327,6 +327,26 @@ generación continúa con el aviso.
 
   - **Determinismo**: el contenido de `docs/` es idéntico byte a byte para el mismo catálogo y las mismas opciones; la
     fecha solo va en `manifest.json`.
+  - **`manifest.json`** (contrato versionado, [ADR-006](../adr/ADR-006-catalogo-documentacion-markdown.md)):
+    `format` `util_bbdd.doc.markdown`, `format_version` **2** desde 5.4.0 (antes 1), `util_bbdd_version`,
+    `generated_at`, `engine`, `schema`, `database`, `previous` (con `markdown.previous`), `files` (ruta → `sha256:…`) y
+    `pages`, una entrada por cada `.md` de `docs/`, en el orden de la `nav`:
+
+    | Campo | Valor |
+    |---|---|
+    | `path` | Ruta relativa a `docs/` (POSIX) |
+    | `title` | Título en **texto plano** (el H1 sin escapes ni entidades). Viene de la base de datos: escápalo al pintarlo |
+    | `section` | `home`, `tables`, `views`, `routines`, `database`, `traceability`, `changes` |
+    | `role` | `home` (portada), `index` (índice de sección), `letter` (página de letra), `object` (tabla, vista o rutina), `page` (resto) |
+    | `letter` | Solo en `letter`: la letra (`a`, `0-9`, `otros`) |
+    | `id`, `kind` | Solo en `object`: los mismos que `catalog.json` y el front matter, también con `catalog_json` o `front_matter` desactivados |
+
+    Dentro de cada sección: índice, letras (con sus subpáginas `index-a-2.md`) y objetos en orden alfabético. Ejemplo:
+
+    ```json
+    {"path": "tables/acm-agenda.md", "title": "Tabla: ACM_AGENDA", "section": "tables", "role": "object",
+     "id": "table:main.ACM_AGENDA", "kind": "table"}
+    ```
   - **Escritura**: se escribe en una carpeta temporal y se publica al terminar. Al regenerar se borran solo los
     ficheros que listaba el `manifest.json` anterior y que nadie ha modificado; los ficheros ajenos se conservan.
   - **Seguridad**: el texto del catálogo se escapa (HTML y Markdown) y los nombres de fichero son seguros también en

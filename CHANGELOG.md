@@ -17,6 +17,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   - Si el fichero falta al publicar, `zensical build --strict` y `mkdocs build --strict` no avisan y el tema carga
     Mermaid 11 de unpkg (verificado; documentado en la API).
   - Al pasar de `mermaid_js` a `mermaid_js_ref` en la misma carpeta y la misma ruta, la copia anterior no se borra.
+- **doc**: `manifest.json` de la documentación Markdown con `pages` (G51 de util_bbdd_web): `format_version` pasa a
+  2. Es el índice de **todas** las páginas `.md`, en el orden de la `nav`.
+  - Campos: `path`, `title` en texto plano (sin escapes de Markdown), `section`, `role` y `letter` o `id` + `kind`
+    (los mismos que `catalog.json`).
+  - Un visor puede construir su árbol sin deducirlo de las carpetas.
+  - Aditivo: un manifiesto 1 se sigue leyendo para limpiar huérfanos. Enmienda de ADR-006.
 
 ## [5.3.0] - 2026-11-06
 

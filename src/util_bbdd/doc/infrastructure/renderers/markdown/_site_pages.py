@@ -61,6 +61,50 @@ def home_page(
     return lines
 
 
+@dataclass(frozen=True)
+class _LetterPage:
+    """Una página de letra de un índice: fichero, título sin escapar y entradas."""
+
+    file_name: str
+    heading: str
+    entries: list[IndexEntry]
+
+
+def _letter_pages(title: str, entries: list[IndexEntry], page_size: int) -> list[tuple[str, int, list[_LetterPage]]]:
+    """Paginación por letra (común a :func:`index_pages` e :func:`index_page_titles`): ``(letra, total, páginas)``."""
+    by_letter: dict[str, list[IndexEntry]] = {}
+    for entry in entries:
+        by_letter.setdefault(index_letter(entry.name), []).append(entry)
+    letters = sorted(by_letter, key=lambda letter: (letter == "otros", letter == "0-9", letter))
+    result: list[tuple[str, int, list[_LetterPage]]] = []
+    for letter in letters:
+        chunks = [by_letter[letter][i : i + page_size] for i in range(0, len(by_letter[letter]), page_size)]
+        pages = [
+            _LetterPage(
+                f"index-{letter}.md" if number == 1 else f"index-{letter}-{number}.md",
+                f"{title}: {letter.upper()}" + (f" ({number} de {len(chunks)})" if len(chunks) > 1 else ""),
+                chunk,
+            )
+            for number, chunk in enumerate(chunks, start=1)
+        ]
+        result.append((letter, len(by_letter[letter]), pages))
+    return result
+
+
+def index_page_titles(title: str, entries: list[IndexEntry], page_size: int) -> dict[str, tuple[str, str | None]]:
+    """Título (sin escapar) y letra de cada página de :func:`index_pages`, para ``manifest.json`` → ``pages`` (5.4.0).
+
+    Returns:
+        Nombre de fichero → ``(título, letra)``; el ``index.md`` de la sección lleva letra ``None``. Mismo orden que
+        el índice: ``index.md`` y luego las letras con sus subpáginas.
+    """
+    titles: dict[str, tuple[str, str | None]] = {"index.md": (title, None)}
+    for letter, _, letter_pages in _letter_pages(title, entries, page_size):
+        for page in letter_pages:
+            titles[page.file_name] = (page.heading, letter)
+    return titles
+
+
 def index_pages(title: str, entries: list[IndexEntry], page_size: int) -> dict[str, list[str]]:
     """Índice de una sección: ``index.md`` con las letras y una página por letra (``index-a.md``, ``index-a-2.md``…).
 
@@ -72,19 +116,13 @@ def index_pages(title: str, entries: list[IndexEntry], page_size: int) -> dict[s
     Returns:
         Nombre de fichero (relativo a la carpeta de la sección) → líneas.
     """
-    by_letter: dict[str, list[IndexEntry]] = {}
-    for entry in entries:
-        by_letter.setdefault(index_letter(entry.name), []).append(entry)
-    letters = sorted(by_letter, key=lambda letter: (letter == "otros", letter == "0-9", letter))
-
     pages: dict[str, list[str]] = {}
     summary: list[list[Any]] = []
-    for letter in letters:
-        chunks = [by_letter[letter][i : i + page_size] for i in range(0, len(by_letter[letter]), page_size)]
-        names = [f"index-{letter}.md" if n == 1 else f"index-{letter}-{n}.md" for n in range(1, len(chunks) + 1)]
-        summary.append([letter, len(by_letter[letter]), names[0]])
-        for number, (chunk, file_name) in enumerate(zip(chunks, names, strict=True), start=1):
-            heading = f"{title}: {letter.upper()}" + (f" ({number} de {len(chunks)})" if len(chunks) > 1 else "")
+    for letter, total, letter_pages in _letter_pages(title, entries, page_size):
+        names = [page.file_name for page in letter_pages]
+        summary.append([letter, total, names[0]])
+        for page in letter_pages:
+            chunk, file_name, heading = page.entries, page.file_name, page.heading
             nav = [md_link(f"Página {n}", other) for n, other in enumerate(names, start=1) if other != file_name]
             pages[file_name] = [
                 f"# {md_text(heading)}",
@@ -182,6 +220,7 @@ __all__: list[str] = [
     "database_info_page",
     "engine_conditions_page",
     "home_page",
+    "index_page_titles",
     "index_pages",
     "storage_page",
 ]

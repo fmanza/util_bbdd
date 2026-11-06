@@ -76,4 +76,19 @@ Cada generación Markdown escribe `docs/catalog.json`. Por defecto está activad
 Redactado en el grupo C de la sesión `2026-11-05-doc-markdown` y aprobado por el usuario el 2026-11-06 (condición
 CC1 del grupo).
 
+### Enmienda 2026-11-06 (5.4.0): `manifest.json` → `pages`
+
+`catalog.json` sigue siendo el catálogo de **objetos**; no gana páginas auxiliares. El índice de **todas** las
+páginas (portada, índices, letras, objetos, base de datos, trazabilidad y cambios) va en `manifest.json`, que pasa a
+ser también un contrato versionado (`format: util_bbdd.doc.markdown`, `format_version` 2; G51 de util_bbdd_web):
+
+- `pages`: una entrada por cada `.md` de `docs/`, en el orden de la `nav`; `path`, `title` (texto plano, sin escapes:
+  texto no confiable de la BD), `section`, `role` y, según el papel, `letter` o `id` + `kind` (los mismos que
+  `catalog.json`).
+- Aditivo: un lector del v1 sigue funcionando y util_bbdd sigue leyendo un manifiesto v1 para limpiar huérfanos.
+- Se descartó un `nav.json` aparte en `docs/` (un fichero más en el sitio publicado) y ampliar `catalog.json` (rompería
+  su sentido de catálogo de objetos y su comparación entre generaciones).
+
+Sesión `2026-11-06-gaps-g50-g51`.
+
 Fecha de última revisión: 2026-11-06

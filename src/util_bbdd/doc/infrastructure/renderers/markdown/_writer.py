@@ -16,7 +16,8 @@ import shutil
 import time
 import uuid
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -24,10 +25,49 @@ from typing import Any
 
 MANIFEST_NAME = "manifest.json"
 MANIFEST_FORMAT = "util_bbdd.doc.markdown"
-MANIFEST_FORMAT_VERSION = 1
+#: 2 desde 5.4.0: añade ``pages`` (aditivo; un manifiesto 1 se sigue leyendo para limpiar huérfanos)
+MANIFEST_FORMAT_VERSION = 2
+
+#: Orden de las secciones y de los papeles en ``pages`` (el de la ``nav`` del sitio)
+PAGE_SECTIONS: tuple[str, ...] = ("home", "tables", "views", "routines", "database", "traceability", "changes")
+PAGE_ROLES: tuple[str, ...] = ("home", "index", "letter", "object", "page")
 
 _REPLACE_ATTEMPTS = 3
 _REPLACE_PAUSE_SECONDS = 0.2
+
+
+@dataclass(frozen=True)
+class PageEntry:
+    """Una página de ``manifest.json`` → ``pages`` (5.4.0, G51 de util_bbdd_web).
+
+    Attributes:
+        path: Ruta relativa a ``docs/`` (POSIX).
+        title: Título en texto plano (sin escapes de Markdown): texto no confiable de la base de datos.
+        section: Una de :data:`PAGE_SECTIONS`.
+        role: Una de :data:`PAGE_ROLES`.
+        letter: Letra de una página ``letter``.
+        object_id: ``id`` del objeto (el de ``catalog.json`` y el front matter) de una página ``object``.
+        kind: Tipo del objeto (``table``, ``view``, ``procedure``…) de una página ``object``.
+    """
+
+    path: str
+    title: str
+    section: str
+    role: str
+    letter: str | None = None
+    object_id: str | None = None
+    kind: str | None = None
+
+    def to_dict(self) -> dict[str, str]:
+        """Entrada JSON; las claves opcionales que no aplican no se escriben."""
+        data = {"path": self.path, "title": self.title, "section": self.section, "role": self.role}
+        optional = {"letter": self.letter, "id": self.object_id, "kind": self.kind}
+        return {**data, **{key: value for key, value in optional.items() if value is not None}}
+
+
+def ordered_pages(pages: Sequence[PageEntry]) -> list[PageEntry]:
+    """Orden de la ``nav``: sección, papel y, dentro de cada uno, el de escritura (estable)."""
+    return sorted(pages, key=lambda page: (PAGE_SECTIONS.index(page.section), PAGE_ROLES.index(page.role)))
 
 
 def library_version() -> str:
@@ -89,13 +129,17 @@ class StagedWriter:
         target.parent.mkdir(parents=True, exist_ok=True)
         return target
 
-    def publish(self, metadata: dict[str, Any], *, keep: frozenset[str] = frozenset()) -> Path:
+    def publish(
+        self, metadata: dict[str, Any], *, keep: frozenset[str] = frozenset(), pages: Sequence[PageEntry] = ()
+    ) -> Path:
         """Escribe ``manifest.json``, borra los huérfanos de la generación anterior y mueve lo nuevo a su sitio.
 
         Args:
             metadata: Datos de la generación para el manifiesto (motor, schema, base de datos).
             keep: Rutas (relativas a la carpeta, POSIX) que no se borran aunque las listara el manifiesto anterior y
                 ya no se generen; p. ej. el Mermaid de ``mermaid_js_ref`` que copió antes ``mermaid_js`` (5.4.0).
+            pages: Páginas ``.md`` escritas (``manifest.json`` → ``pages``, 5.4.0); se ordenan con
+                :func:`ordered_pages`.
 
         Returns:
             La carpeta de salida.
@@ -107,6 +151,7 @@ class StagedWriter:
             "util_bbdd_version": library_version(),
             "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "files": dict(sorted(self._hashes.items())),
+            "pages": [page.to_dict() for page in ordered_pages(pages)],
         }
         (self._staging / MANIFEST_NAME).write_bytes(
             (json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
@@ -218,4 +263,14 @@ class TextStream:
         self._on_close(f"sha256:{self._digest.hexdigest()}")
 
 
-__all__: list[str] = ["MANIFEST_FORMAT", "MANIFEST_NAME", "StagedWriter", "TextStream", "library_version"]
+__all__: list[str] = [
+    "MANIFEST_FORMAT",
+    "MANIFEST_NAME",
+    "PAGE_ROLES",
+    "PAGE_SECTIONS",
+    "PageEntry",
+    "StagedWriter",
+    "TextStream",
+    "library_version",
+    "ordered_pages",
+]
