@@ -79,7 +79,7 @@ sequenceDiagram
 
 **Documentación Markdown para publicar:** con `formatos=["markdown"]` se genera la carpeta `MARKDOWN` con un
 `mkdocs.yml` listo para `zensical build`. Con `markdown.mermaid_js` (un `mermaid.min.js` local), el sitio dibuja los
-diagramas sin Internet.
+diagramas sin Internet; con `markdown.mermaid_js_ref` (desde 5.4.0) lo referencia sin copiarlo en cada generación.
 
 **Trazabilidad con código y documentos:** con `markdown.trace_map`, un fichero TOML o JSON que relaciona tablas y
 columnas con código, documentos funcionales y técnicos y requisitos, cada página lleva su sección «Trazabilidad», y

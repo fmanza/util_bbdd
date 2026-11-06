@@ -7,6 +7,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **doc**: `imprimir["markdown"]["mermaid_js_ref"]` (G50 de util_bbdd_web). Referencia un Mermaid ya publicado sin
+  copiarlo en cada generación: una ruta relativa a `docs/` o una URL `https://`.
+  - Se escribe en `extra_javascript` de `mkdocs.yml`; con una ruta relativa pone también `theme.font: false`.
+  - Es excluyente con `mermaid_js` y se valida al construir: no admite `..`, rutas absolutas, `http:`, `javascript:`
+    ni `data:`.
+  - Si el fichero falta al publicar, `zensical build --strict` y `mkdocs build --strict` no avisan y el tema carga
+    Mermaid 11 de unpkg (verificado; documentado en la API).
+  - Al pasar de `mermaid_js` a `mermaid_js_ref` en la misma carpeta y la misma ruta, la copia anterior no se borra.
+
 ## [5.3.0] - 2026-11-06
 
 SemVer: MINOR, sin cambios incompatibles (sesión `2026-11-05-doc-markdown`). La documentación de la base de datos

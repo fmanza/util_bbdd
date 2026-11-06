@@ -149,7 +149,7 @@ class MarkdownGenerator:
             metadata: dict[str, Any] = {"engine": records.engine, "schema": records.schema, "database": self.database}
             if previous is not None:
                 metadata["previous"] = previous
-            writer.publish(metadata)
+            writer.publish(metadata, keep=self._kept_paths(resolved))
         finally:
             writer.discard()
         self.logger.info(f"✅ Documentación Markdown generada en {output_target}")
@@ -380,10 +380,26 @@ class MarkdownGenerator:
         mermaid_js: Path | None = resolved["mermaid_js"]
         if mermaid_js is not None:
             writer.copy(f"docs/{MERMAID_JS_PATH}", Path(mermaid_js).expanduser())
+        mermaid_ref: str | None = resolved["mermaid_js_ref"]
         if resolved["mkdocs_yml"]:
             site_name = resolved["site_name"] or f"Documentación de {self.database}"
-            text = mkdocs_yml(site_name, version=library_version(), with_mermaid_js=mermaid_js is not None, nav=nav)
+            text = mkdocs_yml(
+                site_name,
+                version=library_version(),
+                with_mermaid_js=mermaid_js is not None,
+                nav=nav,
+                mermaid_ref=mermaid_ref,
+            )
             writer.write("mkdocs.yml", text)
+        elif mermaid_ref is not None:
+            self.logger.warning("⚠️ markdown.mermaid_js_ref no tiene efecto sin mkdocs.yml (markdown.mkdocs_yml=False)")
+
+    @staticmethod
+    def _kept_paths(resolved: dict[str, Any]) -> frozenset[str]:
+        """Rutas que no se borran como huérfanas: el Mermaid referenciado (``mermaid_js_ref`` relativo), que una
+        generación anterior con ``mermaid_js`` pudo copiar en esa misma ruta."""
+        ref: str | None = resolved["mermaid_js_ref"]
+        return frozenset() if ref is None or "://" in ref else frozenset({f"docs/{ref}"})
 
     # --- Portada y base de datos ---
 

@@ -164,8 +164,29 @@ Desde 5.3.0. Solo aplica con `formatos=["markdown"]`. Las rutas se aceptan como 
 | `mkdocs_yml` | `True` | `mkdocs.yml` listo para `zensical build` (o `mkdocs build`), con `nav` corta: portada e índices |
 | `site_name` | `None` | Título del sitio; `None`: «Documentación de <base de datos>» |
 | `mermaid_js` | `None` | Ruta a un `mermaid.min.js` local. Se copia al sitio y se carga en lugar del de unpkg, así que los diagramas se dibujan **sin Internet**; además pone `theme.font: false`. Debe existir: si no, `DocumentationConfigError` al construir |
+| `mermaid_js_ref` | `None` | Desde 5.4.0. Mermaid **ya publicado**, sin copiarlo: ruta relativa a `docs/` (`assets/javascripts/mermaid.min.js`) o URL `https://`. Se escribe en `extra_javascript`; con una ruta relativa pone también `theme.font: false` (sitio sin Internet). Excluyente con `mermaid_js`. Solo afecta a `mkdocs.yml` (con `mkdocs_yml: False`, aviso en el log). Ver [Mermaid referenciado](#mermaid-referenciado-mermaid_js_ref) |
 | `trace_map` | `None` | Mapa de trazabilidad `.toml` (recomendado) o `.json`: objeto o columna → código, documentos funcionales y técnicos, requisitos ([guía](../guides/markdown_documentation_guide.md#35-mapa-de-trazabilidad)). Se valida al construir |
 | `previous` | `None` | Generación anterior (carpeta `MARKDOWN`, su `docs/` o su `catalog.json`): añade `docs/changes.md` y `docs/changes.json` con los cambios de esquema, sin conexión a la base de datos. Se valida al construir |
+
+##### Mermaid referenciado (`mermaid_js_ref`)
+
+Para publicar muchas documentaciones con un único `mermaid.min.js` (p. ej. un servidor que guarda cada generación):
+la librería no copia nada y **no comprueba** que el fichero exista, porque la ruta es la del sitio publicado. Valores
+admitidos: ruta POSIX relativa a `docs/` sin `\`, sin `/` inicial, sin `:` y sin segmentos vacíos, `.` ni `..`, o URL
+`https://` con host. Sin espacios ni caracteres de control. Cualquier otro valor (`http:`, `javascript:`, `data:`,
+`//host`, rutas absolutas o de Windows) → `DocumentationConfigError` al construir.
+
+Si al publicar falta el fichero de una ruta relativa (verificado con Zensical 0.0.71 y MkDocs 1.6.1 + Material 9.7.7):
+
+| Paso | Qué pasa |
+|---|---|
+| `zensical build --strict` / `mkdocs build --strict` | Termina **sin error ni aviso**: el build no detecta la referencia rota |
+| Página publicada | Pide `assets/javascripts/mermaid.min.js` (404); como `window.mermaid` no existe, el tema carga `mermaid@11` de `unpkg.com` |
+| Navegador con Internet | Los diagramas se dibujan (con Mermaid 11 de unpkg) |
+| Navegador sin Internet | Los diagramas se quedan como bloque de código `erDiagram` |
+
+Al regenerar en la misma carpeta una documentación que antes copiaba Mermaid (`mermaid_js`) y ahora lo referencia en la
+misma ruta, la copia **no se borra**: queda como fichero ajeno (fuera de `manifest.json`).
 
 Las secciones de cada página son las de Word (mismos flags, cabeceras de `headers_file` y mensajes), con estas
 diferencias:
@@ -369,7 +390,7 @@ doc = DatabaseDocumentation(manager, Path("out")).generate()
 
 | Error | Cuándo ocurre |
 |---|---|
-| `DocumentationConfigError` (también `ValueError`) | Al crear la instancia: formato no soportado, `imprimir` que no es un diccionario, fichero de cabeceras inexistente o mal formado, plantilla Word que no existe (solo si se pide Word). Con Markdown (5.3.0): `markdown.mermaid_js` que no es un fichero, mapa de trazabilidad inválido (todos los errores juntos: extensión, sintaxis, sección o campo desconocido, tipo) o `markdown.previous` sin un `catalog.json` legible y de una versión soportada |
+| `DocumentationConfigError` (también `ValueError`) | Al crear la instancia: formato no soportado, `imprimir` que no es un diccionario, fichero de cabeceras inexistente o mal formado, plantilla Word que no existe (solo si se pide Word). Con Markdown (5.3.0): `markdown.mermaid_js` que no es un fichero, `markdown.mermaid_js_ref` inválido o junto con `mermaid_js` (5.4.0), mapa de trazabilidad inválido (todos los errores juntos: extensión, sintaxis, sección o campo desconocido, tipo) o `markdown.previous` sin un `catalog.json` legible y de una versión soportada |
 | `DocumentationConfigError` en `generate()` | Markdown con `previous` de otro motor de base de datos (los tipos no son comparables) |
 | `DocumentationRenderError` | En `generate()`: falla la creación de la carpeta de salida (desde 1.1.1; antes, `OSError`) o la escritura de un formato; la causa queda en `__cause__` |
 | Error de `SyncDatabaseManager` (`DatabaseException`) | En `generate()`: conexión caída o permisos insuficientes al leer el catálogo; no se envuelve |

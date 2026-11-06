@@ -96,6 +96,7 @@ def test_markdown_config_defaults_and_effective_depth() -> None:
         "mkdocs_yml": True,
         "site_name": None,
         "mermaid_js": None,
+        "mermaid_js_ref": None,
         "trace_map": None,
         "previous": None,
     }

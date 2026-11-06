@@ -101,6 +101,15 @@ zensical build --strict     # o: zensical serve
 
   Se copia a `docs/assets/javascripts/mermaid.min.js` y se carga desde el sitio: Zensical solo va a unpkg si no hay
   ninguno cargado. El `mkdocs.yml` lleva además `theme.font: false`, para no pedir Google Fonts.
+- **Un solo Mermaid para muchas documentaciones** (desde 5.4.0): con `mermaid_js_ref` no se copia nada y `mkdocs.yml`
+  lo referencia; pon tú el fichero en esa ruta antes de publicar (o usa una URL `https://`):
+
+  ```python
+  imprimir["markdown"]["mermaid_js_ref"] = "assets/javascripts/mermaid.min.js"
+  ```
+
+  Si falta, el build no avisa y el sitio vuelve a cargar Mermaid de unpkg (sin Internet, sin diagramas): ver
+  [Mermaid referenciado](../api/database_documentation.md#mermaid-referenciado-mermaid_js_ref).
 - **Configuración propia**: con `mkdocs_yml: False` no se genera el `mkdocs.yml`; usa el tuyo con
   `pymdownx.superfences` y la `custom_fence` de Mermaid.
 
@@ -201,6 +210,7 @@ cd <directorio_salida>/<nombre>/MARKDOWN && zensical build --strict
 | Escenario/Error | Causa probable | Solución |
 |---|---|---|
 | El sitio muestra el código `erDiagram` en lugar del diagrama | Sin Internet: Zensical no puede cargar Mermaid de unpkg | `markdown.mermaid_js` con un `mermaid.min.js` local |
+| Con `mermaid_js_ref`, el sitio sin Internet no dibuja los diagramas y el build no avisó | El fichero referenciado no está en `docs/<ruta>` | Copia `mermaid.min.js` a esa ruta antes de publicar; el build no lo comprueba |
 | `DocumentationConfigError: markdown.trace_map (...) no es válido: ...` | Errata o tipo incorrecto en el mapa | El mensaje lista todos los errores con su ruta (`tables.X.requirement`) |
 | `DocumentationConfigError: ... la generación anterior es de otro motor` | `previous` apunta a una documentación de otro motor | Compara solo generaciones del mismo motor; entre motores, usa `SchemaComparator` |
 | Una tabla cambió y no aparece en `changes.md` | Solo cambiaron restricciones únicas, identidad o columnas calculadas: el modelo `SchemaDiff` no las recoge | Revisa el `hash` de la tabla en `catalog.json` o la página de la tabla |

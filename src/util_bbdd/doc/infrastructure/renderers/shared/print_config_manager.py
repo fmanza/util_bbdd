@@ -91,6 +91,8 @@ class PrintConfigManager:
         "mkdocs_yml": True,
         "site_name": None,
         "mermaid_js": None,
+        # 5.4.0 (G50 de util_bbdd_web): Mermaid ya publicado (ruta relativa a docs/ o URL https), sin copiarlo
+        "mermaid_js_ref": None,
         # Grupo D: mapa de trazabilidad (.toml o .json)
         "trace_map": None,
         # Grupo E: generación anterior (carpeta MARKDOWN, su docs/ o su catalog.json) para changes.md
@@ -274,6 +276,8 @@ class PrintConfigManager:
             "mkdocs_yml": bool(cfg.get("mkdocs_yml", defaults["mkdocs_yml"])),
             "site_name": PrintConfigManager._normalize_non_empty_str(cfg.get("site_name"), fallback="") or None,
             "mermaid_js": PrintConfigManager._normalize_path_value(cfg.get("mermaid_js")),
+            "mermaid_js_ref": PrintConfigManager._normalize_non_empty_str(cfg.get("mermaid_js_ref"), fallback="")
+            or None,
             "trace_map": PrintConfigManager._normalize_path_value(cfg.get("trace_map")),
             "previous": PrintConfigManager._normalize_path_value(cfg.get("previous")),
         }
@@ -464,6 +468,7 @@ class PrintConfigManager:
             "mkdocs_yml": bool(markdown_cfg["mkdocs_yml"]),
             "site_name": markdown_cfg["site_name"],
             "mermaid_js": markdown_cfg["mermaid_js"],
+            "mermaid_js_ref": markdown_cfg["mermaid_js_ref"],
             "trace_map": markdown_cfg["trace_map"],
             "previous": markdown_cfg["previous"],
         }

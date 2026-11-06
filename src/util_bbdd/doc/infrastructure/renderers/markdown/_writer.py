@@ -89,11 +89,13 @@ class StagedWriter:
         target.parent.mkdir(parents=True, exist_ok=True)
         return target
 
-    def publish(self, metadata: dict[str, Any]) -> Path:
+    def publish(self, metadata: dict[str, Any], *, keep: frozenset[str] = frozenset()) -> Path:
         """Escribe ``manifest.json``, borra los huérfanos de la generación anterior y mueve lo nuevo a su sitio.
 
         Args:
             metadata: Datos de la generación para el manifiesto (motor, schema, base de datos).
+            keep: Rutas (relativas a la carpeta, POSIX) que no se borran aunque las listara el manifiesto anterior y
+                ya no se generen; p. ej. el Mermaid de ``mermaid_js_ref`` que copió antes ``mermaid_js`` (5.4.0).
 
         Returns:
             La carpeta de salida.
@@ -110,7 +112,7 @@ class StagedWriter:
             (json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
         )
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self._remove_orphans(set(self._hashes))
+        self._remove_orphans(set(self._hashes) | set(keep))
         for relative in sorted(self._hashes):
             self._move(relative)
         # El manifiesto, el último: si algo falla antes, el anterior sigue describiendo la carpeta

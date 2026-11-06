@@ -40,6 +40,13 @@ Variante para un sitio sin Internet (Mermaid local y sin Google Fonts):
 imprimir["markdown"]["mermaid_js"] = "node_modules/mermaid/dist/mermaid.min.js"
 ```
 
+Variante con un Mermaid ya publicado, sin copiarlo en cada generación (desde 5.4.0; pon el fichero en esa ruta antes de
+publicar):
+
+```python
+imprimir["markdown"]["mermaid_js_ref"] = "assets/javascripts/mermaid.min.js"
+```
+
 ## 4. Ejecución y Pruebas
 
 ```bash

@@ -73,6 +73,8 @@ class DatabaseDocumentation:
             - markdown.catalog_json / llms_txt / llms_full_txt / mkdocs_yml: ``catalog.json`` (ADR-006), ficheros
               para LLM y ``mkdocs.yml`` con ``nav`` corta (default ``True``); markdown.site_name: título del sitio
             - markdown.mermaid_js: ``mermaid.min.js`` local para publicar sin Internet
+            - markdown.mermaid_js_ref: Mermaid ya publicado (ruta relativa a ``docs/`` o URL ``https://``), sin
+              copiarlo; excluyente con ``mermaid_js``. Desde 5.4.0
             - markdown.trace_map: mapa de trazabilidad ``.toml`` o ``.json`` (objeto o columna → código, documentos
               funcionales y técnicos, requisitos); se valida al construir
             - markdown.previous: generación anterior (carpeta ``MARKDOWN``, su ``docs/`` o su ``catalog.json``):
@@ -97,8 +99,8 @@ class DatabaseDocumentation:
             en curso puede quedar incompleto (el HTML escribe página a página). Desde 4.1.0.
 
     Raises:
-        DocumentationConfigError: Configuración inválida (mapa de trazabilidad o ``mermaid_js`` del Markdown
-            inválidos, formato no soportado, ``imprimir`` que no es un diccionario,
+        DocumentationConfigError: Configuración inválida (mapa de trazabilidad, ``mermaid_js`` o ``mermaid_js_ref`` del
+            Markdown inválidos, formato no soportado, ``imprimir`` que no es un diccionario,
             cabeceras inexistentes o mal formadas, plantilla Word que no existe, ``batch_window_seconds`` que no es un
             entero ≥ 0). También es ``ValueError``.
 

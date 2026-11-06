@@ -7,6 +7,7 @@ from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlsplit
 
 if TYPE_CHECKING:
     from ....analysis.graphviz_ext import GraphvizRelationshipGraphExt
@@ -88,7 +89,9 @@ class DocumentationBootstrap:
             DocumentationConfigError: ``imprimir`` no es un diccionario, un formato no está soportado, el fichero de
                 cabeceras no existe o está mal formado, o la plantilla Word indicada no es un fichero (o, con
                 ``word_template_check``, no se puede abrir o le faltan estilos), la plantilla Excel no existe o no se
-                puede usar (``excel_template_check``), o ``markdown.mermaid_js`` no es un fichero (5.3.0).
+                puede usar (``excel_template_check``), ``markdown.mermaid_js`` no es un fichero (5.3.0) o
+                ``markdown.mermaid_js_ref`` no es una ruta relativa ni una URL ``https://`` válidas, o viene junto con
+                ``mermaid_js`` (5.4.0).
         """
         try:
             print_config = self._print_config_policy.normalize(self._imprimir)
@@ -127,11 +130,46 @@ class DocumentationBootstrap:
         """Ficheros que usa el Markdown y que da el usuario (5.3.0): deben existir antes de generar nada."""
         if "markdown" not in formatos:
             return
-        mermaid_js: Any = dict(print_config.get("markdown") or {}).get("mermaid_js")
+        markdown_cfg: dict[str, Any] = dict(print_config.get("markdown") or {})
+        mermaid_js: Any = markdown_cfg.get("mermaid_js")
         if mermaid_js is not None and not Path(mermaid_js).expanduser().is_file():
             raise DocumentationConfigError(
                 f"markdown.mermaid_js no es un fichero: {mermaid_js}", operation="DOCUMENTATION"
             )
+        mermaid_ref: Any = markdown_cfg.get("mermaid_js_ref")
+        if mermaid_ref is not None:
+            if mermaid_js is not None:
+                raise DocumentationConfigError(
+                    "markdown.mermaid_js y markdown.mermaid_js_ref son excluyentes: copia un fichero o referencia uno "
+                    "ya publicado",
+                    operation="DOCUMENTATION",
+                )
+            reason = DocumentationBootstrap._mermaid_ref_error(str(mermaid_ref))
+            if reason is not None:
+                raise DocumentationConfigError(
+                    f"markdown.mermaid_js_ref no válido ({reason}): {mermaid_ref!r}", operation="DOCUMENTATION"
+                )
+
+    @staticmethod
+    def _mermaid_ref_error(ref: str) -> str | None:
+        """Motivo por el que ``markdown.mermaid_js_ref`` (5.4.0) no vale, o None.
+
+        Vale una URL ``https://`` con host o una ruta POSIX relativa a ``docs/`` que no salga de ella (sin ``\\``, sin
+        ``/`` inicial, sin ``:`` —letras de unidad y esquemas como ``javascript:``— y sin segmentos vacíos, ``.`` ni
+        ``..``). Sin espacios ni caracteres de control en ningún caso.
+        """
+        if not ref or any(char.isspace() or not char.isprintable() for char in ref):
+            return "vacío, con espacios o con caracteres de control"
+        if "://" in ref or ref.startswith("//"):
+            parts = urlsplit(ref)
+            if parts.scheme != "https" or not parts.netloc or "\\" in ref:
+                return "solo se admiten URL https:// con host"
+            return None
+        if "\\" in ref or ":" in ref or ref.startswith("/"):
+            return "debe ser una ruta relativa a docs/ en formato POSIX o una URL https://"
+        if any(segment in {"", ".", ".."} for segment in ref.split("/")):
+            return "la ruta no puede tener segmentos vacíos, '.' ni '..'"
+        return None
 
     def build(self, settings: DocumentationSettings) -> DocumentationBootstrapState:
         """Nombre de salida (reutilizado entre generaciones seguidas) e inventario del catálogo (lee la BD)."""
