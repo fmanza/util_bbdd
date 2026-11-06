@@ -29,6 +29,7 @@ from typing import Any
 from urllib.parse import quote
 
 from ....._core.exceptions import DocumentationConfigError
+from ....._core.markdown import code_span  # común con el informe de comparar (5.3.0)
 from ._text import md_link, md_table, md_text
 
 #: Tipos de referencia, en el orden en que se muestran
@@ -43,7 +44,6 @@ _OBJECT_FIELDS: frozenset[str] = _LIST_FIELDS | {"notes", "columns"}
 _COLUMN_FIELDS: frozenset[str] = _LIST_FIELDS | {"notes"}
 SECTIONS: tuple[str, ...] = ("tables", "views", "routines")
 MAX_BYTES: int = 1_000_000
-_BACKTICK_RUN: re.Pattern[str] = re.compile(r"`+")
 _URL: re.Pattern[str] = re.compile(r"^https?://[^\s]+$", re.IGNORECASE)
 
 
@@ -231,15 +231,6 @@ def reference(ref: str, *, in_table: bool = False) -> str:
     if _URL.match(ref):
         return md_link(ref, quote(ref, safe=":/?#[]@!$&'*+,;=%~-._").replace("(", "%28").replace(")", "%29"))
     return code_span(ref, in_table=in_table)
-
-
-def code_span(text: str, *, in_table: bool = False) -> str:
-    """*Code span* con más backticks que cualquier racha del texto; ``|`` escapado dentro de tablas (GFM)."""
-    longest = max((len(run) for run in _BACKTICK_RUN.findall(text)), default=0)
-    fence = "`" * (longest + 1)
-    padded = f" {text} " if text.startswith("`") or text.endswith("`") else text
-    span = f"{fence}{padded}{fence}"
-    return span.replace("|", "\\|") if in_table else span
 
 
 def _reference_rows(entry: TraceEntry) -> list[list[Any]]:

@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from util_bbdd._core.markdown import escape_html
 from util_bbdd._core.mermaid import escape_mermaid_label  # movida a _core en 5.3.0 (común con analysis)
 from util_bbdd.comparar._ddl import DdlNormalizer
 
@@ -111,10 +112,13 @@ def escape_markdown_table_cell(value: str) -> str:
     tabla), backticks (abren un code span sin cerrar) o saltos de línea
     (terminan la fila antes de tiempo). Se escapan con backslash por ser
     caracteres de puntuación ASCII válidos para backslash-escape en CommonMark.
+
+    5.3.0: también ``&``, ``<`` y ``>`` como entidades; el HTML de un comentario llegaba tal cual a la vista previa o
+    al sitio que publica el informe.
     """
     if not value:
         return value
-    escaped = value.replace("\\", "\\\\").replace("|", "\\|").replace("`", "\\`")
+    escaped = escape_html(value).replace("\\", "\\\\").replace("|", "\\|").replace("`", "\\`")
     return escaped.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
 
 

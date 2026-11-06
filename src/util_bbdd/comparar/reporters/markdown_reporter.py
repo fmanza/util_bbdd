@@ -6,6 +6,7 @@ import logging
 
 from typing import TYPE_CHECKING, ClassVar
 
+from util_bbdd._core.markdown import code_span
 from util_bbdd._core.mermaid import mermaid_node_id as _mermaid_node_id  # movida a _core en 5.3.0
 
 if TYPE_CHECKING:
@@ -23,6 +24,17 @@ from ._base import (
     escape_markdown_table_cell,
     escape_mermaid_label,
 )
+
+
+def _cell(value: object) -> str:
+    """Valor del catálogo como código en una celda de tabla: backticks y ``|`` seguros (5.3.0); vacío, celda vacía."""
+    text = "" if value is None else str(value)
+    return code_span(text, in_table=True) if text else ""
+
+
+def _code(value: object) -> str:
+    """Nombre del catálogo como código fuera de tablas (títulos), con backticks seguros (5.3.0)."""
+    return code_span("" if value is None else str(value))
 
 
 class MarkdownDiffReporter:
@@ -79,8 +91,8 @@ class MarkdownDiffReporter:
             "",
             "| | |",
             "|---|---|",
-            f"| **Origen** | `{diff.source_label}` |",
-            f"| **Destino** | `{diff.target_label}` |",
+            f"| **Origen** | {_cell(diff.source_label)} |",
+            f"| **Destino** | {_cell(diff.target_label)} |",
             f"| **Tablas con diferencias** | {summary.total_tables} "
             f"({summary.tables_added} añadidas, "
             f"{summary.tables_removed} eliminadas, "
@@ -150,7 +162,7 @@ class MarkdownDiffReporter:
             self._TABLE_SEPARATOR_4COL,
         ]
         lines.extend(
-            f"| `{cd.column_name}` | {cd.attribute} | `{cd.source_value}` | `{cd.target_value}` |"
+            f"| {_cell(cd.column_name)} | {cd.attribute} | {_cell(cd.source_value)} | {_cell(cd.target_value)} |"
             for cd in column_diffs
         )
         lines.append("")
@@ -166,7 +178,9 @@ class MarkdownDiffReporter:
         ]
         for idx in index_diffs:
             estado_idx: str | None = STATUS_ES.get(idx.status, idx.status)
-            lines.append(f"| `{idx.index_name}` | {estado_idx} | `{idx.source_columns}` | `{idx.target_columns}` |")
+            lines.append(
+                f"| {_cell(idx.index_name)} | {estado_idx} | {_cell(idx.source_columns)} | {_cell(idx.target_columns)} |"
+            )
         lines.append("")
         return lines
 
@@ -181,9 +195,9 @@ class MarkdownDiffReporter:
         for fk in fk_diffs:
             estado_fk: str | None = STATUS_ES.get(fk.status, fk.status)
             lines.append(
-                f"| `{fk.fk_name}` | {estado_fk} "
-                f"| `{fk.source_columns}` | `{fk.source_referred_table}` "
-                f"| `{fk.target_columns}` | `{fk.target_referred_table}` |",
+                f"| {_cell(fk.fk_name)} | {estado_fk} "
+                f"| {_cell(fk.source_columns)} | {_cell(fk.source_referred_table)} "
+                f"| {_cell(fk.target_columns)} | {_cell(fk.target_referred_table)} |",
             )
         lines.append("")
         return lines
@@ -198,10 +212,10 @@ class MarkdownDiffReporter:
             "|---|---|---|---|",
         ]
         for cm in comment_diffs:
-            col_label: str = f"`{cm.column_name}`" if cm.column_name else "*(tabla)*"
+            col_label: str = f"{_cell(cm.column_name)}" if cm.column_name else "*(tabla)*"
             source_comment: str = escape_markdown_table_cell(cm.source_comment)
             target_comment: str = escape_markdown_table_cell(cm.target_comment)
-            lines.append(f"| `{cm.object_name}` | {col_label} | {source_comment} | {target_comment} |")
+            lines.append(f"| {_cell(cm.object_name)} | {col_label} | {source_comment} | {target_comment} |")
         lines.append("")
         return lines
 
@@ -225,7 +239,7 @@ class MarkdownDiffReporter:
         for td in table_diffs:
             emoji: str = STATUS_EMOJI.get(td.status, "")
             estado: str = STATUS_ES.get(td.status, td.status)
-            lines.append(f"### {emoji} `{td.table_name}` — {estado}")
+            lines.append(f"### {emoji} {_code(td.table_name)} — {estado}")
             lines.append("")
             lines += self._render_table_details(td)
         return lines
@@ -237,7 +251,7 @@ class MarkdownDiffReporter:
         for vd in view_diffs:
             emoji: str = STATUS_EMOJI.get(vd.status, "")
             estado: str = STATUS_ES.get(vd.status, vd.status)
-            lines.append(f"### {emoji} `{vd.view_name}` — {estado}")
+            lines.append(f"### {emoji} {_code(vd.view_name)} — {estado}")
             lines.append("")
             if vd.status == "modified" and (vd.source_definition or vd.target_definition):
                 lines.append("<details><summary>Ver definiciones</summary>")
@@ -259,7 +273,7 @@ class MarkdownDiffReporter:
         for rd in routine_diffs:
             emoji: str = STATUS_EMOJI.get(rd.status, "")
             estado: str = STATUS_ES.get(rd.status, rd.status)
-            lines.append(f"### {emoji} `{rd.routine_name}` ({rd.routine_type}) — {estado}")
+            lines.append(f"### {emoji} {_code(rd.routine_name)} ({rd.routine_type}) — {estado}")
             lines.append("")
             if rd.status == "modified" and (rd.source_definition or rd.target_definition):
                 lines.append("<details><summary>Ver definiciones</summary>")

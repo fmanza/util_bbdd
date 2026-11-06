@@ -68,6 +68,11 @@ Base de la documentación Markdown con diagramas ER de Mermaid (sesión `2026-11
 
 ### Fixed
 
+- **comparar** (informe Markdown de diferencias): los nombres, tipos, valores por defecto y etiquetas iban entre
+  backticks sin tratar su contenido. Un nombre con un backtick cerraba el bloque de código y dejaba pasar HTML a la
+  vista previa o al sitio que publica el informe, y un `|` partía la fila de la tabla. Ahora usan
+  `_core.markdown.code_span`, común con la documentación Markdown, y `escape_markdown_table_cell` escapa también el
+  HTML de los comentarios.
 - **analysis** (diagramas de Graphviz en Word y HTML, y de Mermaid): la cardinalidad de las relaciones miraba una sola
   columna. Errores que producía:
   - Toda FK identificante (la columna dentro de la PK hija, el patrón cabecera-detalle) salía `M:N`.
