@@ -57,7 +57,7 @@ LEVEL = {name: LEVEL_OF_LAYER[layer] for name, layer in LAYER.items()}
 
 # Every arrow drawn between packages. Arrows into Foundation from levels 2 and 3 are collapsed into one.
 DRAWN = {
-    ("dump", "bulk"), ("doc", "analysis"), ("analysis", "metadata"), ("doc", "metadata"), ("dump", "metadata"),
+    ("dump", "bulk"), ("doc", "analysis"), ("doc", "comparar"), ("analysis", "metadata"), ("doc", "metadata"), ("dump", "metadata"),
     ("bulk", "connection"), ("dump", "connection"), ("bulk", "metadata"), ("comparar", "metadata"), ("migrate", "metadata"),
     ("metadata", "results"), ("executors", "query"), ("executors", "results"),
     ("query", "validators"), ("factory", "connection"), ("_drivers", "_core"), ("progress", "_core"),
@@ -325,6 +325,7 @@ def render_svg(f: _Facts) -> str:
     # edges (before the nodes so the node fill covers any overlap)
     s.edge(f"M{c[1]} 83 H{c[0] + NODE_W}")  # dump -> bulk
     s.edge(f"M{c[3] + NODE_W} 83 H{c[4]}")  # doc -> analysis
+    s.edge(f"M{c[3]} 83 H{c[2] + NODE_W}")  # doc -> comparar (changes.md de la documentación Markdown, 5.3.0)
     s.edge(f"M86 {Y3 + NODE_H} V{Y2A}", "lazy" if f.bulk_connection_lazy else "")  # bulk -> connection
     s.edge(f"M180 {Y3 + NODE_H} V{Y2A + 6} H{c[0] + NODE_W}")  # dump -> connection (EngineReadinessAdvisor)
     s.edge(f"M736 {Y3 + NODE_H} V214")  # managers -> level 2 band

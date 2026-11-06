@@ -46,6 +46,17 @@ Base de la documentación Markdown con diagramas ER de Mermaid (sesión `2026-11
   - **Índices del sitio**: entrada en `llms.txt` y en la `nav`.
   - **Seguridad**: las referencias nunca se leen del disco. Solo las URL `http(s)` se enlazan; el resto se muestra
     como código literal.
+- **doc** (Markdown): cambios de esquema respecto de una generación anterior con `markdown.previous`, que admite la
+  carpeta `MARKDOWN`, su `docs/` o su `catalog.json`.
+  - **Salida**: `docs/changes.md` y `docs/changes.json`, este en formato `util_bbdd.schema_diff` (`SchemaDiff`, el
+    que muestra el visor de util_bbdd_web).
+  - **Qué compara**: los `catalog.json`, **sin conexión a la base de datos**:
+    - columnas: existencia, tipo, nulos, PK y valor por defecto;
+    - índices, FK y comentarios;
+    - vistas y rutinas, por el hash de su definición.
+  - **Generaciones distintas**: un schema distinto se compara con un aviso; un motor distinto es error. Si un tipo de
+    objeto no se documentó en las dos generaciones, no se compara y se avisa.
+  - **Enlaces**: a la página de cada objeto añadido o modificado. Entrada «Cambios» en `llms.txt` y en la `nav`.
 - **analysis**: `MermaidRelationshipGraph` y `MermaidErResult` (`util_bbdd.analysis`). Generan diagramas `erDiagram`
   de Mermaid de una tabla y sus relaciones. **No necesitan Graphviz** (funcionan sin el extra `analysis`).
   - Una línea por FK, con la cardinalidad de Graphviz. El lado padre es opcional (`|o`) si la FK admite nulos.

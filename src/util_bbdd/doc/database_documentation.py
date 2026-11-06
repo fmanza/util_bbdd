@@ -22,6 +22,7 @@ from .infrastructure.adapters.sync_database_manager_adapter import SyncDatabaseM
 from .infrastructure.renderers.excel_generator import ExcelGenerator
 from .infrastructure.renderers.excel_template import ExcelTemplate
 from .infrastructure.renderers.html_generator import HtmlGenerator
+from .infrastructure.renderers.markdown._changes import load_previous
 from .infrastructure.renderers.markdown._trace import TraceMap
 from .infrastructure.renderers.registry import build_default_renderer_registry
 from .infrastructure.renderers.shared.generator_shared import build_graph_generator_from_options
@@ -74,6 +75,9 @@ class DatabaseDocumentation:
             - markdown.mermaid_js: ``mermaid.min.js`` local para publicar sin Internet
             - markdown.trace_map: mapa de trazabilidad ``.toml`` o ``.json`` (objeto o columna → código, documentos
               funcionales y técnicos, requisitos); se valida al construir
+            - markdown.previous: generación anterior (carpeta ``MARKDOWN``, su ``docs/`` o su ``catalog.json``):
+              añade ``changes.md`` y ``changes.json`` (``SchemaDiff``) con los cambios de esquema, sin conectarse a la
+              base de datos; se valida al construir y el motor debe ser el mismo
         formatos: Formatos a generar: 'word', 'excel', 'html', 'markdown' (alias 'md', desde 5.3.0; una carpeta con un
             ``.md`` por tabla, vista y rutina, diagramas ER de Mermaid sin Graphviz y ``manifest.json``). Por defecto
             ``["word"]``.
@@ -146,7 +150,7 @@ class DatabaseDocumentation:
         )
         self._settings: DocumentationSettings = self._bootstrap.settings()
         self._source.imprimir_config = self._settings.print_config
-        self._check_trace_map(self._settings)
+        self._check_markdown_inputs(self._settings)
 
     @classmethod
     def _batch_window(cls, value: int | None) -> int:
@@ -163,11 +167,15 @@ class DatabaseDocumentation:
         return value
 
     @staticmethod
-    def _check_trace_map(settings: DocumentationSettings) -> None:
-        """Valida el mapa de trazabilidad del Markdown antes de generar nada (5.3.0); el error lleva todos los fallos."""
-        trace_map: Any = dict(settings.print_config.get("markdown") or {}).get("trace_map")
-        if "markdown" in settings.formatos and trace_map is not None:
-            TraceMap.load(trace_map)
+    def _check_markdown_inputs(settings: DocumentationSettings) -> None:
+        """Valida antes de generar nada (5.3.0) el mapa de trazabilidad y el catálogo anterior del Markdown."""
+        if "markdown" not in settings.formatos:
+            return
+        markdown: dict[str, Any] = dict(settings.print_config.get("markdown") or {})
+        if markdown.get("trace_map") is not None:
+            TraceMap.load(markdown["trace_map"])
+        if markdown.get("previous") is not None:
+            load_previous(markdown["previous"])
 
     def generate(self) -> DocumentationResult:
         """Lee el catálogo y genera los documentos de todos los formatos pedidos.

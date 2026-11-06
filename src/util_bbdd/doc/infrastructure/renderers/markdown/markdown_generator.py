@@ -32,6 +32,7 @@ from ..shared.generator_shared import GeneratorInventoryRuntime, GeneratorRoutin
 from ..shared.print_config_manager import PrintConfigManager
 from ..shared.table_progress import TableProgress
 from ._catalog import CatalogEntry, catalog_json, llms_full_marker, llms_txt
+from ._changes import build_changes, changes_json, changes_page, load_previous
 from ._front_matter import RECORD_KINDS, ObjectRecords
 from ._pages import PageContext, routine_page, table_page, view_page
 from ._site import MERMAID_JS_PATH, mkdocs_yml
@@ -133,8 +134,22 @@ class MarkdownGenerator:
             if tracer.enabled:
                 writer.write("docs/traceability.md", _join(traceability_page(tracer.objects, tracer.unmatched)))
                 nav.append(("Trazabilidad", "traceability.md"))
-            self._write_machine_files(writer, resolved, records, entries, nav, with_traceability=tracer.enabled)
-            writer.publish({"engine": records.engine, "schema": records.schema, "database": self.database})
+            previous = self._write_changes(writer, resolved, records, entries)
+            if previous is not None:
+                nav.append(("Cambios", "changes.md"))
+            self._write_machine_files(
+                writer,
+                resolved,
+                records,
+                entries,
+                nav,
+                with_traceability=tracer.enabled,
+                with_changes=previous is not None,
+            )
+            metadata: dict[str, Any] = {"engine": records.engine, "schema": records.schema, "database": self.database}
+            if previous is not None:
+                metadata["previous"] = previous
+            writer.publish(metadata)
         finally:
             writer.discard()
         self.logger.info(f"✅ Documentación Markdown generada en {output_target}")
@@ -298,6 +313,36 @@ class MarkdownGenerator:
 
     # --- Ficheros para máquinas y publicación ---
 
+    @staticmethod
+    def _selection(resolved: dict[str, Any]) -> dict[str, bool]:
+        """Tipos de objeto pedidos (``selection`` de ``catalog.json``)."""
+        return {
+            "tables": bool(resolved["include_tables"]),
+            "views": bool(resolved["include_views"]),
+            "procedures": bool(resolved["include_procedures"]),
+            "functions": bool(resolved["include_functions"]),
+        }
+
+    def _write_changes(
+        self, writer: StagedWriter, resolved: dict[str, Any], records: ObjectRecords, entries: list[CatalogEntry]
+    ) -> dict[str, Any] | None:
+        """``changes.md`` y ``changes.json`` respecto de ``markdown.previous``; devuelve sus datos para el manifiesto."""
+        if resolved["previous"] is None:
+            return None
+        previous = load_previous(resolved["previous"])
+        changes = build_changes(
+            previous,
+            entries,
+            engine=records.engine,
+            schema=records.schema,
+            database=self.database,
+            selection=self._selection(resolved),
+        )
+        links = {(str(e.record["kind"]), str(e.record["name"])): e.path for e in entries}
+        writer.write("docs/changes.md", _join(changes_page(changes, links)))
+        writer.write("docs/changes.json", changes_json(changes))
+        return previous.manifest_entry()
+
     def _write_machine_files(
         self,
         writer: StagedWriter,
@@ -307,17 +352,16 @@ class MarkdownGenerator:
         nav: list[tuple[str, str]],
         *,
         with_traceability: bool,
+        with_changes: bool,
     ) -> None:
         """``catalog.json``, ``llms.txt``, ``mkdocs.yml`` (con ``nav``) y el Mermaid local, según ``imprimir["markdown"]``."""
         if resolved["catalog_json"]:
-            selection = {
-                "tables": resolved["include_tables"],
-                "views": resolved["include_views"],
-                "procedures": resolved["include_procedures"],
-                "functions": resolved["include_functions"],
-            }
             text = catalog_json(
-                entries, engine=records.engine, schema=records.schema, database=self.database, selection=selection
+                entries,
+                engine=records.engine,
+                schema=records.schema,
+                database=self.database,
+                selection=self._selection(resolved),
             )
             writer.write("docs/catalog.json", text)
         if resolved["llms_txt"]:
@@ -329,6 +373,7 @@ class MarkdownGenerator:
                 with_catalog=resolved["catalog_json"],
                 with_full=resolved["llms_full_txt"],
                 with_traceability=with_traceability,
+                with_changes=with_changes,
             )
             writer.write("docs/llms.txt", text)
         mermaid_js: Path | None = resolved["mermaid_js"]

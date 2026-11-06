@@ -97,6 +97,7 @@ def test_markdown_config_defaults_and_effective_depth() -> None:
         "site_name": None,
         "mermaid_js": None,
         "trace_map": None,
+        "previous": None,
     }
     assert resolved["diagram_options"]["max_depth"] == 2
     assert resolved["diagram_options"]["configured_max_depth"] == 5
@@ -136,12 +137,15 @@ def test_tree_pages_and_manifest(sqlite_db: Path, tmp_path: Path) -> None:
     assert [fk["ref"] for fk in front["fk_out"]] == ["table:main.clientes", "table:main.clientes"]
     assert '<a id="col-cliente-id"></a>cliente_id' in page
     assert "[clientes](clientes.md)" in page
-    assert "## Índices" in page and "ix\\_pedidos\\_cliente" not in page and "ix_pedidos_cliente" in page
+    assert "## Índices" in page
+    assert "ix_pedidos_cliente" in page  # «_» entre letras sin escapar
+    assert "ix\\_pedidos\\_cliente" not in page
     assert '!!! warning "Profundidad limitada a 2 (configurada 3)"' in page
     assert '    e2 ||..o{ e1 : ""' in page  # cliente_id NOT NULL
     assert '    e2 |o..o{ e1 : ""' in page  # vendedor_id nullable
     assert '    e1 ||--o{ e3 : ""' in page  # lineas: identificante, 1:N
-    assert page.endswith("\n") and not page.endswith("\n\n")
+    assert page.endswith("\n")
+    assert not page.endswith("\n\n")
     assert "\r" not in page
 
     rara = files["docs/tables/tabla-b-rara-b.md"].decode("utf-8")

@@ -93,6 +93,8 @@ class PrintConfigManager:
         "mermaid_js": None,
         # Grupo D: mapa de trazabilidad (.toml o .json)
         "trace_map": None,
+        # Grupo E: generación anterior (carpeta MARKDOWN, su docs/ o su catalog.json) para changes.md
+        "previous": None,
     }
 
     @staticmethod
@@ -273,6 +275,7 @@ class PrintConfigManager:
             "site_name": PrintConfigManager._normalize_non_empty_str(cfg.get("site_name"), fallback="") or None,
             "mermaid_js": PrintConfigManager._normalize_path_value(cfg.get("mermaid_js")),
             "trace_map": PrintConfigManager._normalize_path_value(cfg.get("trace_map")),
+            "previous": PrintConfigManager._normalize_path_value(cfg.get("previous")),
         }
 
     @staticmethod
@@ -461,6 +464,7 @@ class PrintConfigManager:
             "site_name": markdown_cfg["site_name"],
             "mermaid_js": markdown_cfg["mermaid_js"],
             "trace_map": markdown_cfg["trace_map"],
+            "previous": markdown_cfg["previous"],
         }
 
     @staticmethod

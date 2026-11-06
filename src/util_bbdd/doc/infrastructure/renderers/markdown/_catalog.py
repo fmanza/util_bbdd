@@ -69,6 +69,7 @@ def llms_txt(
     with_catalog: bool,
     with_full: bool,
     with_traceability: bool = False,
+    with_changes: bool = False,
 ) -> str:
     """``llms.txt``: título, resumen, una sección por tipo de objeto con enlaces y la sección ``Optional``."""
     tables = [e for e in entries if e.record["kind"] == "table"]
@@ -94,6 +95,8 @@ def llms_txt(
         optional.append(
             "- [Trazabilidad](traceability.md): objetos ↔ código, documentos funcionales y técnicos y requisitos"
         )
+    if with_changes:
+        optional.append("- [Cambios](changes.md): cambios de esquema respecto de la generación anterior")
     if optional:
         lines += ["## Optional", "", *optional, ""]
     return "\n".join(lines).rstrip("\n") + "\n"
