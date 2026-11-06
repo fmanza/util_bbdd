@@ -119,7 +119,7 @@ def test_build_diagram_legend_payload_matches_current_contract() -> None:
     assert legend["table_type_items"][2]["label"] == "Jerarquía"
     assert legend["cardinality_items"][0]["marker"] == "1"
     assert legend["cardinality_items"][1]["marker"] == "N"
-    assert legend["cardinality_items"][2]["marker"] == "M"
+    assert len(legend["cardinality_items"]) == 2  # sin «M» desde 5.3.0: la cardinalidad ya no da M:N (A-2)
     assert legend["relation_type_items"][0]["label"] == "FK"
     assert "clave foránea" in legend["relation_type_items"][0]["description"]
     assert "tipología visual heurística" in legend["notes"][1].lower()

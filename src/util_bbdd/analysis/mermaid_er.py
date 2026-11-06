@@ -58,8 +58,9 @@ class MermaidRelationshipGraph(DatabaseRelationshipGraphBase):
 
     El resultado es determinista: mismas entidades, atributos y relaciones en el mismo orden en cualquier proceso.
 
-    - Una línea por FK (restricción), con la cardinalidad de Graphviz: ``1:N`` → ``||--o{``, ``1:1`` → ``||--o|``,
-      ``M:N`` → ``}o--o{``; el lado padre es opcional (``|o``) si alguna columna de la FK admite nulos.
+    - Una línea por FK (restricción), con la cardinalidad de Graphviz: ``1:N`` → ``||--o{`` y ``1:1`` (las columnas
+      de la FK son la PK o una ``UNIQUE`` de la hija) → ``||--o|``; el lado padre es opcional (``|o``) si alguna
+      columna de la FK admite nulos.
     - Línea continua (``--``, identificante) si las columnas de la FK forman parte de la PK de la tabla hija; si no,
       discontinua (``..``).
     - Nombres y comentarios del catálogo escapados con códigos de entidad de Mermaid; tipos y nombres de columna

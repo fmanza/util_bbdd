@@ -530,34 +530,44 @@ class DatabaseRelationshipGraphBase:
         return column_name.lower() in self._get_unique_columns(table_name)
 
     def _determine_cardinality(self, source_col: str, target_col: str, source_table: str, target_table: str) -> str:
-        """Determina la cardinalidad de una relación.
+        """Cardinalidad de la FK de ``source_table`` (hija) a ``target_table`` (padre) que contiene ``source_col``.
 
-        Lógica de detección:
-        - Si ambos son PK: M:N (tabla de unión)
-        - Si target_col es PK y source_col es UNIQUE: 1:1
-        - Si target_col es PK: 1:N
-        - En otros casos: N:1
+        Una FK apunta siempre a una clave del padre (PK o ``UNIQUE``), así que el lado padre es siempre «1». El lado hijo
+        es «1» si las columnas de la FK, **todas** (también en las compuestas), son exactamente la PK de la hija o una
+        restricción ``UNIQUE`` suya; si no, «N».
+
+        5.3.0 (A-2 de la sesión ``2026-11-05-doc-markdown``): antes se miraba una sola columna. Toda FK identificante
+        (la columna de la FK dentro de la PK hija, el patrón cabecera-detalle) salía ``M:N``, y una FK a una clave única
+        que no es la PK, ``N:1``, con la «N» en el lado padre.
 
         Returns:
-            String con cardinalidad (``"1:N"``, ``"N:1"``, ``"1:1"``, ``"M:N"``).
+            ``"1:1"`` o ``"1:N"`` (``"1:N"`` también si falla la lectura de metadatos).
         """
         try:
-            target_is_pk: bool = self._is_primary_key(target_table, target_col)
-            source_is_pk: bool = self._is_primary_key(source_table, source_col)
-            source_is_uk: bool = self._is_unique_column(source_table, source_col)
+            fk_columns: frozenset[str] = self._fk_columns(source_table, source_col, target_table)
+            primary_key: frozenset[str] = frozenset(self._get_primary_keys(source_table))
+            unique_keys: list[frozenset[str]] = [
+                frozenset(column.lower() for column in unique.columns)
+                for unique in self._snapshot({Kind.UNIQUES}).uniques(source_table)
+            ]
         except DatabaseException as e:
             self.logger.warning(f"⚠️ Error determinando cardinalidad: {e}, usando 1:N por defecto")
             return "1:N"
-        if source_is_pk and target_is_pk:
-            result = "M:N"
-        elif target_is_pk and source_is_uk:
-            result = "1:1"
-        elif target_is_pk:
-            result = "1:N"
-        else:
-            result = "N:1"
+        result = "1:1" if fk_columns == primary_key or fk_columns in unique_keys else "1:N"
         self.logger.debug(f"📊 Cardinalidad {source_table}.{source_col} → {target_table}.{target_col}: {result}")
         return result
+
+    def _fk_columns(self, source_table: str, source_col: str, target_table: str) -> frozenset[str]:
+        """Columnas (en minúsculas) de la FK de ``source_table`` a ``target_table`` que contiene ``source_col``.
+
+        Si no se encuentra (p. ej. la relación no viene del catálogo), solo ``source_col``.
+        """
+        column = source_col.lower()
+        for fk in self._snapshot({Kind.FOREIGN_KEYS}).foreign_keys(source_table):
+            columns = frozenset(c.lower() for c in fk.columns)
+            if fk.ref_table.lower() == target_table.lower() and column in columns:
+                return columns
+        return frozenset({column})
 
     def _build_cardinality_markers(self, cardinality: str) -> CardinalityEndMarker:
         """Convierte la cardinalidad textual a marcadores por extremo."""

@@ -31,6 +31,17 @@ Base de la documentación Markdown con diagramas ER de Mermaid (sesión `2026-11
 - **comparar**: `escape_mermaid_label` y el id de nodo del informe Markdown se mueven a `_core/mermaid.py`, común con
   `analysis`. Se siguen importando desde `comparar.reporters._base` sin cambios.
 
+### Fixed
+
+- **analysis** (diagramas de Graphviz en Word y HTML, y de Mermaid): la cardinalidad de las relaciones miraba una sola
+  columna. Errores que producía:
+  - Toda FK identificante (la columna dentro de la PK hija, el patrón cabecera-detalle) salía `M:N`.
+  - Una FK que es toda la PK de la hija también salía `M:N`, cuando es `1:1`.
+  - Una FK a una clave única del padre salía `N:1`, con la «N» en el lado padre.
+
+  Ahora el lado padre es siempre «1». El lado hijo es «1» solo si las columnas de la FK, todas también en las
+  compuestas, son toda su PK o una `UNIQUE`. La leyenda de los diagramas ya no incluye el marcador «M».
+
 ## [5.2.0] - 2026-10-30
 
 SemVer: MINOR (D10-1 de util_bbdd_web). Ola 10 del plan de huecos de util_bbdd_web (Grupo 10, U-10.1 a U-10.4): el

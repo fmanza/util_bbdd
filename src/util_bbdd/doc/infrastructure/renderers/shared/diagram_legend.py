@@ -125,7 +125,6 @@ def build_diagram_legend_payload() -> dict[str, Any]:
         "cardinality_items": [
             {"marker": "1", "description": "Un registro relacionado."},
             {"marker": "N", "description": "Muchos registros relacionados."},
-            {"marker": "M", "description": "Muchos registros en relaciones de tabla intermedia."},
         ],
         "relation_type_items": [
             {

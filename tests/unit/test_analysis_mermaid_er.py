@@ -105,19 +105,27 @@ def test_compact_and_all_modes() -> None:
     assert '    e2 ||..o{ e1 : ""' in full  # sin show_constraint_name, etiqueta vacía
 
 
-def test_identifying_relation_keeps_graphviz_cardinality() -> None:
-    """FK dentro de la PK hija → línea continua. La cardinalidad es la heredada de Graphviz (deuda F3: ``M:N``)."""
+def test_identifying_relations() -> None:
+    """FK dentro de la PK hija → línea continua: cabecera-detalle ``1:N``; FK que es toda la PK (extensión) ``1:1``.
+
+    Antes de 5.3.0 (A-2) las dos salían ``M:N`` (``}o--o{``).
+    """
     manager = _manager(
         columns={
             "pedidos": [("id", "INTEGER", False)],
             "lineas": [("pedido_id", "INTEGER", False), ("n", "INT", False)],
+            "pedidos_ext": [("pedido_id", "INTEGER", False)],
         },
-        fks={"lineas": [("fk_lin_ped", "pedido_id", "pedidos", "id")]},
-        pks={"pedidos": ("id",), "lineas": ("pedido_id", "n")},
+        fks={
+            "lineas": [("fk_lin_ped", "pedido_id", "pedidos", "id")],
+            "pedidos_ext": [("fk_ext_ped", "pedido_id", "pedidos", "id")],
+        },
+        pks={"pedidos": ("id",), "lineas": ("pedido_id", "n"), "pedidos_ext": ("pedido_id",)},
     )
-    block = MermaidRelationshipGraph(manager).render_er("lineas").blocks[0]
+    block = MermaidRelationshipGraph(manager, show_constraint_name=True).render_er("pedidos").blocks[0]
 
-    assert '    e2 }o--o{ e1 : ""' in block
+    assert '    e1 ||--o{ e2 : "fk_lin_ped"' in block
+    assert '    e1 ||--o| e3 : "fk_ext_ped"' in block
     assert "        INTEGER pedido_id PK, FK" in block
 
 
@@ -190,7 +198,8 @@ def test_hostile_names_are_escaped_and_normalized() -> None:
     assert '["50#37; #quot;x#quot; #37;#37;{init}#37;#37;"]' in block
     assert '        double_precision PK_ PK "PK"' in block
     assert ': "fk#91;1#93;"' in block
-    assert "%%" not in block and "\n%" not in block
+    assert "%%" not in block
+    assert "\n%" not in block
 
 
 def test_table_without_relations_has_no_blocks() -> None:

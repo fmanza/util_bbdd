@@ -1,8 +1,7 @@
 """Cardinalidad de las relaciones en ``DatabaseRelationshipGraphBase`` (movida desde ``graphviz_ext.py`` en 5.3.0).
 
-Debe funcionar sin Graphviz, porque la usa también ``MermaidRelationshipGraph``. La lógica no cambia: estos casos fijan
-el comportamiento heredado, incluida la deuda conocida (dos PK → ``M:N``; ver AUDIT_PLAN F3 de la sesión
-``2026-11-05-doc-markdown``).
+Debe funcionar sin Graphviz, porque la usa también ``MermaidRelationshipGraph``. Estos casos fijan la regla corregida en 5.3.0 (A-2 de la sesión ``2026-11-05-doc-markdown``): el padre es siempre «1» y la hija es «1»
+solo si las columnas de la FK son toda su PK o una ``UNIQUE``.
 """
 
 from __future__ import annotations
@@ -21,9 +20,25 @@ pytestmark = pytest.mark.unit
 
 def _graph() -> DatabaseRelationshipGraphBase:
     data = build_catalog(
-        tables=["clientes", "pedidos", "perfiles", "codigos"],
-        pk_by_table={"clientes": ("id",), "pedidos": ("id",), "perfiles": ("cliente_id",), "codigos": ("id",)},
+        tables=["clientes", "pedidos", "perfiles", "codigos", "lineas", "cab", "det", "ext"],
+        pk_by_table={
+            "clientes": ("id",),
+            "pedidos": ("id",),
+            "perfiles": ("cliente_id",),
+            "codigos": ("id",),
+            "lineas": ("pedido_id", "n"),
+            "cab": ("a", "b"),
+            "det": ("a", "b", "n"),
+            "ext": ("a", "b"),
+        },
         uniques_by_table={"pedidos": [("numero",)], "codigos": [("codigo",)]},
+        fk_by_table={
+            "pedidos": [("fk_ped_cli", "cliente_id", "clientes", "id"), ("fk_ped_cod", "codigo", "codigos", "codigo")],
+            "perfiles": [("fk_per_cli", "cliente_id", "clientes", "id")],
+            "lineas": [("fk_lin_ped", "pedido_id", "pedidos", "id")],
+            "det": [("fk_det_cab", "a", "cab", "a"), ("fk_det_cab", "b", "cab", "b")],
+            "ext": [("fk_ext_cab", "a", "cab", "a"), ("fk_ext_cab", "b", "cab", "b")],
+        },
     )
     return DatabaseRelationshipGraphBase(cast(SyncDatabaseManager, FakeCatalogManager(data=data)))
 
@@ -31,10 +46,13 @@ def _graph() -> DatabaseRelationshipGraphBase:
 @pytest.mark.parametrize(
     ("source_col", "target_col", "source_table", "target_table", "expected"),
     [
-        ("cliente_id", "id", "pedidos", "clientes", "1:N"),  # destino PK
-        ("numero", "id", "pedidos", "clientes", "1:1"),  # origen UNIQUE + destino PK
-        ("cliente_id", "id", "perfiles", "clientes", "M:N"),  # ambos PK (deuda heredada: en realidad 1:1)
-        ("cliente_id", "codigo", "pedidos", "codigos", "N:1"),  # destino no PK
+        ("cliente_id", "id", "pedidos", "clientes", "1:N"),  # FK simple
+        ("numero", "id", "pedidos", "clientes", "1:1"),  # columna UNIQUE de la hija (relación no catalogada)
+        ("cliente_id", "id", "perfiles", "clientes", "1:1"),  # la FK es toda la PK (antes de 5.3.0, M:N)
+        ("pedido_id", "id", "lineas", "pedidos", "1:N"),  # parte de la PK: cabecera-detalle (antes M:N)
+        ("codigo", "codigo", "pedidos", "codigos", "1:N"),  # a una UNIQUE del padre (antes N:1, «N» en el padre)
+        ("a", "a", "det", "cab", "1:N"),  # FK compuesta dentro de una PK más larga
+        ("b", "b", "ext", "cab", "1:1"),  # FK compuesta que es toda la PK
     ],
 )
 def test_determine_cardinality_without_graphviz(

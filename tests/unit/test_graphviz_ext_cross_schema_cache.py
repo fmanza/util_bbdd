@@ -77,5 +77,5 @@ def test_determine_cardinality_does_not_leak_across_schemas_for_homonymous_table
     archive_result = graph._determine_cardinality("id", "id", "orders", "orders")
 
     # 'sales.orders.id' es PK ('id' existe en _pks_by_context["sales"]); 'archive.orders.id' no.
-    assert sales_result == "M:N"  # ambos lados son PK en sales → M:N
-    assert archive_result == "N:1"  # ninguno es PK en archive → fallback N:1
+    assert sales_result == "1:1"  # en sales la columna es toda la PK de la hija → 1:1 (antes de 5.3.0, M:N)
+    assert archive_result == "1:N"  # en archive no hay PK → 1:N (antes de 5.3.0, N:1)
