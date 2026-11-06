@@ -7,6 +7,30 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Base de la documentación Markdown con diagramas ER de Mermaid (sesión `2026-11-05-doc-markdown`, grupo A).
+
+### Added
+
+- **analysis**: `MermaidRelationshipGraph` y `MermaidErResult` (`util_bbdd.analysis`). Generan diagramas `erDiagram`
+  de Mermaid de una tabla y sus relaciones. **No necesitan Graphviz** (funcionan sin el extra `analysis`).
+  - Una línea por FK, con la cardinalidad de Graphviz. El lado padre es opcional (`|o`) si la FK admite nulos.
+  - Línea continua si la FK forma parte de la PK hija.
+  - Columnas `compact`/`relations`/`all`.
+  - Reparto por `max_subnodes` y guardas de 40 entidades y 50 000 caracteres por diagrama.
+  - Nombres del catálogo escapados con códigos de entidad de Mermaid y tipos normalizados a la gramática de
+    `erDiagram`.
+  - Validado con Mermaid 11.17.2 y 12.2.0.
+
+### Changed
+
+- **analysis**: el recorrido por niveles del grafo de relaciones sigue un orden estable. Antes, el orden de las
+  aristas dependía de `PYTHONHASHSEED`, como los ciclos de G47. Los diagramas de Graphviz (Word, HTML) colocan las
+  tablas siempre igual. Puede variar la posición de los nodos respecto de 5.2.0.
+- **analysis**: la cardinalidad (`_determine_cardinality` y auxiliares) pasa de `GraphvizRelationshipGraphExt` a
+  `DatabaseRelationshipGraphBase`. No cambia el comportamiento.
+- **comparar**: `escape_mermaid_label` y el id de nodo del informe Markdown se mueven a `_core/mermaid.py`, común con
+  `analysis`. Se siguen importando desde `comparar.reporters._base` sin cambios.
+
 ## [5.2.0] - 2026-10-30
 
 SemVer: MINOR (D10-1 de util_bbdd_web). Ola 10 del plan de huecos de util_bbdd_web (Grupo 10, U-10.1 a U-10.4): el

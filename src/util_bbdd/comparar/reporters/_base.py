@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from util_bbdd._core.mermaid import escape_mermaid_label  # movida a _core en 5.3.0 (común con analysis)
 from util_bbdd.comparar._ddl import DdlNormalizer
 
 if TYPE_CHECKING:
@@ -102,23 +103,6 @@ def build_output_stem(diff: SchemaDiff) -> str:
     return f"{src}_vs_{tgt}_diff"
 
 
-# Saltos de línea y caracteres de control (C0, DEL, C1), más los separadores de línea y párrafo de Unicode, que el
-# parser de Mermaid (JavaScript) también trata como fin de línea.
-_MERMAID_LINE_BREAKS: re.Pattern[str] = re.compile(r"[\x00-\x1f\x7f-\x9f  ]")
-_MERMAID_DIRECTIVE: re.Pattern[str] = re.compile(r"%(?=%)")
-
-
-def escape_mermaid_label(name: str) -> str:
-    """Escapa un nombre para usarlo como label en un diagrama Mermaid.
-
-    Las comillas y los corchetes cerrarían el label. G46 de util_bbdd_web (U-10.3): los saltos de línea y caracteres de
-    control pasan a espacio, porque añadían sentencias o directivas (``%%{init: …}%%``) al diagrama, y ``%%`` se
-    neutraliza (``% %``) porque Mermaid busca las directivas en cualquier parte del texto.
-    """
-    escaped = name.replace('"', "'").replace("[", "(").replace("]", ")")
-    return _MERMAID_DIRECTIVE.sub("% ", _MERMAID_LINE_BREAKS.sub(" ", escaped))
-
-
 def escape_markdown_table_cell(value: str) -> str:
     """Escapa texto libre (p.ej. comentarios de BD) para una celda de tabla Markdown.
 
@@ -143,6 +127,6 @@ __all__: list[str] = [
     "build_diff_summary",
     "build_output_stem",
     "escape_markdown_table_cell",
-    "escape_mermaid_label",
+    "escape_mermaid_label",  # reexportado desde _core/mermaid.py
     "sanitize_filename",
 ]

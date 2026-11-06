@@ -1,13 +1,14 @@
 """Módulo analysis: Análisis de relaciones entre tablas de bases de datos.
 
 Proporciona visualización y análisis de relaciones mediante grafos usando
-Graphviz y Matplotlib.
+Graphviz, Matplotlib y Mermaid (texto ``erDiagram``).
 
 Consolidación de:
 - contracts.py - Protocol RelationshipGraphSource (lo que se exige de la fuente de metadatos)
 - base.py - Clase base DatabaseRelationshipGraphBase y TableRelation
 - graphviz_ext.py - Implementación extendida con Graphviz (con columnas)
 - matplotlib_graph.py - Implementación con Matplotlib y NetworkX
+- mermaid_er.py - Diagramas entidad-relación de Mermaid, sin Graphviz (desde 5.3.0)
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
     from .contracts import RelationshipGraphSource
     from .graphviz_ext import GraphvizRelationshipGraphExt
     from .matplotlib_graph import MatplotlibRelationshipGraph
+    from .mermaid_er import MermaidErResult, MermaidRelationshipGraph
 
 __all__: list[str] = [
     # Contrato de la fuente de metadatos
@@ -51,6 +53,8 @@ __all__: list[str] = [
     # Implementaciones
     "GraphvizRelationshipGraphExt",
     "MatplotlibRelationshipGraph",
+    "MermaidErResult",
+    "MermaidRelationshipGraph",
 ]
 
 _SYMBOL_TO_MODULE: dict[str, str] = {
@@ -68,6 +72,8 @@ _SYMBOL_TO_MODULE: dict[str, str] = {
     "GraphDocument": "base",
     "GraphvizRelationshipGraphExt": "graphviz_ext",
     "MatplotlibRelationshipGraph": "matplotlib_graph",
+    "MermaidErResult": "mermaid_er",
+    "MermaidRelationshipGraph": "mermaid_er",
 }
 
 

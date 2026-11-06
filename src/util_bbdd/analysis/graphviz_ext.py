@@ -141,67 +141,6 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         """Columnas de la tabla con su tipo declarado ``(nombre, tipo)``, del schema leído por lotes."""
         return [(c.name, c.data_type) for c in self._snapshot({Kind.COLUMNS}).columns(table_name)]
 
-    def _get_primary_keys(self, table_name: str) -> list[str]:
-        """Columnas de la clave primaria de la tabla, en minúsculas."""
-        primary_key = self._snapshot({Kind.PRIMARY_KEYS}).primary_key(table_name)
-        return [column.lower() for column in primary_key.columns] if primary_key else []
-
-    def _get_unique_columns(self, table_name: str) -> list[str]:
-        """Columnas con restricción ``UNIQUE`` de un solo campo, en minúsculas.
-
-        Antes se leía la primera posición de cada fila de ``get_unique_constraints`` (el nombre de la restricción en la
-        mayoría de motores), así que ninguna columna salía como única y no se detectaban relaciones 1:1.
-        """
-        uniques = self._snapshot({Kind.UNIQUES}).uniques(table_name)
-        return [u.columns[0].lower() for u in uniques if len(u.columns) == 1]
-
-    def _is_primary_key(self, table_name: str, column_name: str) -> bool:
-        """Si la columna es (parte de) la clave primaria."""
-        return column_name.lower() in self._get_primary_keys(table_name)
-
-    def _is_unique_column(self, table_name: str, column_name: str) -> bool:
-        """Si la columna tiene una restricción ``UNIQUE`` propia."""
-        return column_name.lower() in self._get_unique_columns(table_name)
-
-    def _determine_cardinality(self, source_col: str, target_col: str, source_table: str, target_table: str) -> str:
-        """Determina la cardinalidad de una relación.
-
-        Lógica de detección:
-        - Si ambos son PK: M:N (tabla de unión)
-        - Si target_col es PK y source_col es UNIQUE: 1:1
-        - Si target_col es PK: 1:N
-        - En otros casos: N:1
-
-        Returns:
-            String con cardinalidad (``"1:N"``, ``"N:1"``, ``"1:1"``, ``"M:N"``).
-        """
-        try:
-            target_is_pk: bool = self._is_primary_key(target_table, target_col)
-            source_is_pk: bool = self._is_primary_key(source_table, source_col)
-            source_is_uk: bool = self._is_unique_column(source_table, source_col)
-        except DatabaseException as e:
-            self.logger.warning(f"⚠️ Error determinando cardinalidad: {e}, usando 1:N por defecto")
-            return "1:N"
-        if source_is_pk and target_is_pk:
-            result = "M:N"
-        elif target_is_pk and source_is_uk:
-            result = "1:1"
-        elif target_is_pk:
-            result = "1:N"
-        else:
-            result = "N:1"
-        self.logger.debug(f"📊 Cardinalidad {source_table}.{source_col} → {target_table}.{target_col}: {result}")
-        return result
-
-    def _build_cardinality_markers(self, cardinality: str) -> CardinalityEndMarker:
-        """Convierte la cardinalidad textual a marcadores por extremo."""
-        raw_parts = [part.strip() for part in cardinality.split(":", maxsplit=1)]
-        if len(raw_parts) != 2:
-            return CardinalityEndMarker(source_marker="N", target_marker="1", label=cardinality)
-
-        target_marker, source_marker = raw_parts
-        return CardinalityEndMarker(source_marker=source_marker, target_marker=target_marker, label=cardinality)
-
     def _build_related_columns_lookup(self, document: GraphDocument) -> dict[str, set[str]]:
         """Precalcula columnas relacionadas por tabla para evitar recorrer todas las aristas por nodo."""
         related_columns_by_table: dict[str, set[str]] = {table_name: set() for table_name in document.nodes}

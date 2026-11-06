@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
-import re
 
 from typing import TYPE_CHECKING, ClassVar
+
+from util_bbdd._core.mermaid import mermaid_node_id as _mermaid_node_id  # movida a _core en 5.3.0
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -22,25 +23,6 @@ from ._base import (
     escape_markdown_table_cell,
     escape_mermaid_label,
 )
-
-_NON_ID_CHARS: re.Pattern[str] = re.compile(r"[^A-Za-z0-9_]")
-
-
-def _mermaid_node_id(prefix: str, name: str, used: set[str]) -> str:
-    """Id de nodo Mermaid de una tabla: ``prefix_nombre`` con solo ``[A-Za-z0-9_]`` (el resto, ``_``).
-
-    G46 de util_bbdd_web (U-10.3): el id se construía con el escape del label y un nombre con saltos de línea o ``-->``
-    añadía sentencias al diagrama. Si dos nombres dan el mismo id, el segundo lleva un sufijo (``_2``, ``_3``…); ``used``
-    acumula los ids del diagrama.
-    """
-    base = f"{prefix}_{_NON_ID_CHARS.sub('_', name)}"
-    node_id = base
-    suffix = 2
-    while node_id in used:
-        node_id = f"{base}_{suffix}"
-        suffix += 1
-    used.add(node_id)
-    return node_id
 
 
 class MarkdownDiffReporter:
