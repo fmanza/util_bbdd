@@ -2,7 +2,7 @@
 
 Librería Python para **operaciones de base de datos** sobre múltiples motores (sync/async): CRUD en lote, migración DDL, comparación de esquemas y documentación automática.
 
-**Version:** 5.3.0 | **Status:** ✅ Production/Stable | **Python:** 3.12+
+**Version:** 5.4.0 | **Status:** ✅ Production/Stable | **Python:** 3.12+
 
 ---
 
@@ -52,7 +52,7 @@ la API 3.0](guides/api_3_0_migration.md) (opciones de `BulkCrud` y `ParallelBulk
 ## 3. Quick Start
 
 ```bash
-pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v5.3.0"
+pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v5.4.0"
 ```
 
 ```python

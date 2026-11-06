@@ -7,6 +7,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.4.0] - 2026-11-06
+
+SemVer: MINOR, sin cambios incompatibles (sesión `2026-11-06-gaps-g50-g51`, ola 11 del plan de huecos de
+util_bbdd_web). La documentación Markdown puede referenciar un Mermaid ya publicado sin copiarlo (G50), y su
+`manifest.json` lista todas las páginas con título, sección y papel (G51).
+
 ### Added
 
 - **doc**: `imprimir["markdown"]["mermaid_js_ref"]` (G50 de util_bbdd_web). Referencia un Mermaid ya publicado sin
