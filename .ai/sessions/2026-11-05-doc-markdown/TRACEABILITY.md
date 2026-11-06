@@ -111,10 +111,18 @@ Prompt de `.github/prompts/doc_markdown_feature.prompt.md`. Pedía:
 
 ## Veredicto final
 
-Veredicto: GO (grupos A–F completados; pendiente el cierre de versión 5.3.0)
+Veredicto: CLOSED, versión **v5.3.0** (2026-11-06).
+
+Cierre de versión aplicado:
+
+- `pyproject.toml` 5.3.0, CHANGELOG `[5.3.0] - 2026-11-06` y pines `@v5.3.0`;
+- README, `docs/index.md`, `docs/roadmap.md` y pie de figura de `docs/architecture.md` (371 ficheros);
+- `.ai/CURRENT_STATE.md`, `SESSIONS_DIGEST.md` e `INDEX.md`;
+- commit `release:` y tag anotado `v5.3.0` en local.
 
 Pendientes al cierre:
 
-- `/version-closure` 5.3.0: `pyproject.toml`, CHANGELOG `[5.3.0]`, pie de figura de `docs/architecture.md` (v5.3.0,
-  fecha, 371 ficheros), commit `release:` y tag anotado en local; el push, el usuario.
-- util_bbdd_web: aplicar `WEB_HANDOFF.md` en ese proyecto.
+- Push de `develop` y del tag `v5.3.0`, y avance de `main`: lo hace el usuario.
+- util_bbdd_web: aplicar `WEB_HANDOFF.md` en ese proyecto (W-1 a W-10).
+- Opcional: ejecutar `-m integration` con el banco. El formato Markdown no añade SQL (lee el snapshot por lotes), así
+  que no se ejecutó en este cierre.

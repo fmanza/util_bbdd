@@ -7,7 +7,24 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Base de la documentación Markdown con diagramas ER de Mermaid (sesión `2026-11-05-doc-markdown`, grupo A).
+## [5.3.0] - 2026-11-06
+
+SemVer: MINOR, sin cambios incompatibles (sesión `2026-11-05-doc-markdown`). La documentación de la base de datos
+gana el formato **Markdown**:
+
+- un fichero por tabla, vista y rutina, con las secciones de Word;
+- diagramas entidad-relación de Mermaid **sin Graphviz**;
+- para la IA: front matter con ids estables, `catalog.json` (ADR-006) y `llms.txt`;
+- `mkdocs.yml` listo para Zensical, también sin Internet;
+- mapa de trazabilidad hacia el código y los documentos;
+- cambios de esquema respecto de la generación anterior.
+
+`util_bbdd.analysis` añade `MermaidRelationshipGraph`. Correcciones:
+
+- la cardinalidad de las FK identificantes en todos los diagramas;
+- el escape del informe Markdown de la comparación.
+
+Guía: `docs/guides/markdown_documentation_guide.md`.
 
 ### Added
 
