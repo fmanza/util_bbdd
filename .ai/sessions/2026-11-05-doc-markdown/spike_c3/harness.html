@@ -1,0 +1,46 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>harness</title></head>
+<body>
+<div id="work"></div>
+<script>
+  const src = new URLSearchParams(location.search).get("src");
+  const s = document.createElement("script");
+  s.src = src;
+  s.onload = async () => {
+    window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict" });
+    const cfg = window.mermaid.mermaidAPI.getConfig();
+    const cases = await (await fetch("cases.json")).json();
+    const results = [];
+    for (const c of cases) {
+      const r = { id: c.id, expect: c.expect, chars: c.text.length };
+      try {
+        await window.mermaid.parse(c.text);
+        r.parse = "ok";
+      } catch (e) {
+        r.parse = "fail";
+        r.error = String(e && e.message || e).split("\n").slice(0, 3).join(" | ");
+      }
+      if (r.parse === "ok") {
+        const t0 = performance.now();
+        try {
+          const out = await window.mermaid.render("d_" + c.id, c.text);
+          r.render = out.svg.includes("Syntax error") ? "error-svg" : "ok";
+          r.svgBytes = out.svg.length;
+          r.injected = /<script|onerror=/i.test(out.svg);
+        } catch (e) {
+          r.render = "fail";
+          r.error = String(e && e.message || e).split("\n").slice(0, 3).join(" | ");
+        }
+        r.ms = Math.round(performance.now() - t0);
+      }
+      results.push(r);
+    }
+    window.__done = {
+      version: window.mermaid.version ? window.mermaid.version : "?",
+      maxTextSize: cfg.maxTextSize, maxEdges: cfg.maxEdges, erLayout: cfg.layout, look: cfg.look, results,
+    };
+  };
+  s.onerror = () => { window.__done = { loadError: src }; };
+  document.head.appendChild(s);
+</script>
+</body></html>

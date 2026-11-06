@@ -1,0 +1,2072 @@
+{
+  "harness": {
+    "mermaid-12.2.0": {
+      "version": "?",
+      "maxTextSize": 50000,
+      "maxEdges": 500,
+      "erLayout": "elk",
+      "look": "classic",
+      "results": [
+        {
+          "id": "alias_00",
+          "expect": "?",
+          "chars": 64,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16283,
+          "injected": false,
+          "ms": 175
+        },
+        {
+          "id": "label_00",
+          "expect": "?",
+          "chars": 69,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10536,
+          "injected": false,
+          "ms": 29
+        },
+        {
+          "id": "alias_01",
+          "expect": "?",
+          "chars": 63,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16270,
+          "injected": false,
+          "ms": 16
+        },
+        {
+          "id": "label_01",
+          "expect": "?",
+          "chars": 68,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10520,
+          "injected": false,
+          "ms": 29
+        },
+        {
+          "id": "alias_02",
+          "expect": "?",
+          "chars": 56,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16269,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "label_02",
+          "expect": "?",
+          "chars": 61,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10510,
+          "injected": false,
+          "ms": 26
+        },
+        {
+          "id": "alias_03",
+          "expect": "?",
+          "chars": 57,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16268,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "label_03",
+          "expect": "?",
+          "chars": 62,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10508,
+          "injected": false,
+          "ms": 25
+        },
+        {
+          "id": "alias_04",
+          "expect": "?",
+          "chars": 62,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16270,
+          "injected": false,
+          "ms": 24
+        },
+        {
+          "id": "label_04",
+          "expect": "?",
+          "chars": 67,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10516,
+          "injected": false,
+          "ms": 24
+        },
+        {
+          "id": "alias_05",
+          "expect": "?",
+          "chars": 53,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16263,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "label_05",
+          "expect": "?",
+          "chars": 58,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10506,
+          "injected": false,
+          "ms": 24
+        },
+        {
+          "id": "alias_06",
+          "expect": "?",
+          "chars": 53,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16265,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "label_06",
+          "expect": "?",
+          "chars": 58,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10506,
+          "injected": false,
+          "ms": 26
+        },
+        {
+          "id": "alias_07",
+          "expect": "?",
+          "chars": 54,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16263,
+          "injected": false,
+          "ms": 21
+        },
+        {
+          "id": "label_07",
+          "expect": "?",
+          "chars": 59,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10505,
+          "injected": false,
+          "ms": 25
+        },
+        {
+          "id": "alias_08",
+          "expect": "?",
+          "chars": 53,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16259,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "label_08",
+          "expect": "?",
+          "chars": 58,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10506,
+          "injected": false,
+          "ms": 26
+        },
+        {
+          "id": "alias_09",
+          "expect": "?",
+          "chars": 76,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16256,
+          "injected": false,
+          "ms": 22
+        },
+        {
+          "id": "label_09",
+          "expect": "?",
+          "chars": 81,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10506,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "alias_10",
+          "expect": "?",
+          "chars": 77,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16344,
+          "injected": false,
+          "ms": 25
+        },
+        {
+          "id": "label_10",
+          "expect": "?",
+          "chars": 82,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10529,
+          "injected": false,
+          "ms": 24
+        },
+        {
+          "id": "alias_11",
+          "expect": "?",
+          "chars": 80,
+          "parse": "fail",
+          "error": "Parse error on line 2: | erDiagram    e1[\"% %{init: {'theme':... | ----------------^"
+        },
+        {
+          "id": "label_11",
+          "expect": "?",
+          "chars": 85,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10563,
+          "injected": false,
+          "ms": 25
+        },
+        {
+          "id": "alias_12",
+          "expect": "?",
+          "chars": 52,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16274,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "label_12",
+          "expect": "?",
+          "chars": 57,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10507,
+          "injected": false,
+          "ms": 24
+        },
+        {
+          "id": "alias_13",
+          "expect": "?",
+          "chars": 56,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16272,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "label_13",
+          "expect": "?",
+          "chars": 61,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10507,
+          "injected": false,
+          "ms": 24
+        },
+        {
+          "id": "alias_14",
+          "expect": "?",
+          "chars": 70,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16292,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "label_14",
+          "expect": "?",
+          "chars": 75,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10554,
+          "injected": false,
+          "ms": 25
+        },
+        {
+          "id": "alias_15",
+          "expect": "?",
+          "chars": 60,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16264,
+          "injected": false,
+          "ms": 27
+        },
+        {
+          "id": "label_15",
+          "expect": "?",
+          "chars": 65,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10500,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "alias_16",
+          "expect": "?",
+          "chars": 54,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16225,
+          "injected": false,
+          "ms": 22
+        },
+        {
+          "id": "label_16",
+          "expect": "?",
+          "chars": 59,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10503,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "alias_17",
+          "expect": "?",
+          "chars": 53,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16265,
+          "injected": false,
+          "ms": 21
+        },
+        {
+          "id": "label_17",
+          "expect": "?",
+          "chars": 58,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10497,
+          "injected": false,
+          "ms": 24
+        },
+        {
+          "id": "alias_18",
+          "expect": "?",
+          "chars": 52,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16257,
+          "injected": false,
+          "ms": 22
+        },
+        {
+          "id": "label_18",
+          "expect": "?",
+          "chars": 57,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10507,
+          "injected": false,
+          "ms": 28
+        },
+        {
+          "id": "alias_19",
+          "expect": "?",
+          "chars": 57,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16268,
+          "injected": false,
+          "ms": 37
+        },
+        {
+          "id": "label_19",
+          "expect": "?",
+          "chars": 62,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10514,
+          "injected": false,
+          "ms": 25
+        },
+        {
+          "id": "alias_char_00_'%'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "fail",
+          "error": "Parse error on line 2: | erDiagram    e1[\"a%b\"] | ----------------^"
+        },
+        {
+          "id": "alias_char_01_'%{'",
+          "expect": "?",
+          "chars": 24,
+          "parse": "fail",
+          "error": "Parse error on line 2: | erDiagram    e1[\"a%{b\"] | ----------------^"
+        },
+        {
+          "id": "alias_char_02_'{'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_02_'{'' is not a valid selector.",
+          "ms": 3
+        },
+        {
+          "id": "alias_char_03_'}'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_03_'}'' is not a valid selector.",
+          "ms": 2
+        },
+        {
+          "id": "alias_char_04_':'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_04_':'' is not a valid selector.",
+          "ms": 2
+        },
+        {
+          "id": "alias_char_05_';'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_05_';'' is not a valid selector.",
+          "ms": 2
+        },
+        {
+          "id": "alias_char_06_\"'\"",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_06_\"'\"' is not a valid selector.",
+          "ms": 2
+        },
+        {
+          "id": "alias_char_07_'#'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_07_'#'' is not a valid selector.",
+          "ms": 2
+        },
+        {
+          "id": "alias_char_08_'#quot;'",
+          "expect": "?",
+          "chars": 28,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_08_'#quot;'' is not a valid selector.",
+          "ms": 2
+        },
+        {
+          "id": "alias_char_09_'&'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_09_'&'' is not a valid selector.",
+          "ms": 2
+        },
+        {
+          "id": "alias_char_10_'<'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_10_'<'' is not a valid selector.",
+          "ms": 2
+        },
+        {
+          "id": "alias_char_11_'>'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_11_'>'' is not a valid selector.",
+          "ms": 2
+        },
+        {
+          "id": "alias_char_12_'|'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_12_'|'' is not a valid selector.",
+          "ms": 2
+        },
+        {
+          "id": "alias_char_13_'`'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_13_'`'' is not a valid selector.",
+          "ms": 2
+        },
+        {
+          "id": "alias_char_14_'\\\\'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "fail",
+          "error": "Parse error on line 2: | erDiagram    e1[\"a\\b\"] | ----------------^"
+        },
+        {
+          "id": "alias_char_15_'/'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_15_'/'' is not a valid selector.",
+          "ms": 2
+        },
+        {
+          "id": "alias_char_16_'('",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_16_'('' is not a valid selector.",
+          "ms": 2
+        },
+        {
+          "id": "alias_char_17_')'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_17_')'' is not a valid selector.",
+          "ms": 2
+        },
+        {
+          "id": "colname_PK",
+          "expect": "?",
+          "chars": 48,
+          "parse": "fail",
+          "error": "Parse error on line 3: | ...] {        INTEGER PK    } | ----------------------^"
+        },
+        {
+          "id": "typename_PK",
+          "expect": "?",
+          "chars": 44,
+          "parse": "fail",
+          "error": "Parse error on line 2: | ...  e1[\"t\"] {        PK col    } | ----------------------^"
+        },
+        {
+          "id": "colname_FK",
+          "expect": "?",
+          "chars": 48,
+          "parse": "fail",
+          "error": "Parse error on line 3: | ...] {        INTEGER FK    } | ----------------------^"
+        },
+        {
+          "id": "typename_FK",
+          "expect": "?",
+          "chars": 44,
+          "parse": "fail",
+          "error": "Parse error on line 2: | ...  e1[\"t\"] {        FK col    } | ----------------------^"
+        },
+        {
+          "id": "colname_UK",
+          "expect": "?",
+          "chars": 48,
+          "parse": "fail",
+          "error": "Parse error on line 3: | ...] {        INTEGER UK    } | ----------------------^"
+        },
+        {
+          "id": "typename_UK",
+          "expect": "?",
+          "chars": 44,
+          "parse": "fail",
+          "error": "Parse error on line 2: | ...  e1[\"t\"] {        UK col    } | ----------------------^"
+        },
+        {
+          "id": "colname_erDiagram",
+          "expect": "?",
+          "chars": 55,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15975,
+          "injected": false,
+          "ms": 22
+        },
+        {
+          "id": "typename_erDiagram",
+          "expect": "?",
+          "chars": 51,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16226,
+          "injected": false,
+          "ms": 22
+        },
+        {
+          "id": "colname_end",
+          "expect": "?",
+          "chars": 49,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15432,
+          "injected": false,
+          "ms": 22
+        },
+        {
+          "id": "typename_end",
+          "expect": "?",
+          "chars": 45,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15667,
+          "injected": false,
+          "ms": 21
+        },
+        {
+          "id": "colname_style",
+          "expect": "?",
+          "chars": 51,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15578,
+          "injected": false,
+          "ms": 22
+        },
+        {
+          "id": "typename_style",
+          "expect": "?",
+          "chars": 47,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15838,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "colname_classDef",
+          "expect": "?",
+          "chars": 54,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16027,
+          "injected": false,
+          "ms": 24
+        },
+        {
+          "id": "typename_classDef",
+          "expect": "?",
+          "chars": 50,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16000,
+          "injected": false,
+          "ms": 22
+        },
+        {
+          "id": "colname_class",
+          "expect": "?",
+          "chars": 51,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15792,
+          "injected": false,
+          "ms": 22
+        },
+        {
+          "id": "typename_class",
+          "expect": "?",
+          "chars": 47,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15554,
+          "injected": false,
+          "ms": 21
+        },
+        {
+          "id": "colname_direction",
+          "expect": "?",
+          "chars": 55,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15908,
+          "injected": false,
+          "ms": 21
+        },
+        {
+          "id": "typename_direction",
+          "expect": "?",
+          "chars": 51,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16234,
+          "injected": false,
+          "ms": 22
+        },
+        {
+          "id": "colname_accTitle",
+          "expect": "?",
+          "chars": 54,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16022,
+          "injected": false,
+          "ms": 25
+        },
+        {
+          "id": "typename_accTitle",
+          "expect": "?",
+          "chars": 50,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15706,
+          "injected": false,
+          "ms": 20
+        },
+        {
+          "id": "colname_title",
+          "expect": "?",
+          "chars": 51,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15586,
+          "injected": false,
+          "ms": 22
+        },
+        {
+          "id": "typename_title",
+          "expect": "?",
+          "chars": 47,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15848,
+          "injected": false,
+          "ms": 22
+        },
+        {
+          "id": "colname_string",
+          "expect": "?",
+          "chars": 52,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15697,
+          "injected": false,
+          "ms": 21
+        },
+        {
+          "id": "typename_string",
+          "expect": "?",
+          "chars": 48,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15928,
+          "injected": false,
+          "ms": 21
+        },
+        {
+          "id": "colname_INTEGER",
+          "expect": "?",
+          "chars": 53,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15812,
+          "injected": false,
+          "ms": 21
+        },
+        {
+          "id": "typename_INTEGER",
+          "expect": "?",
+          "chars": 49,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16047,
+          "injected": false,
+          "ms": 20
+        },
+        {
+          "id": "colname_u",
+          "expect": "?",
+          "chars": 47,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15219,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "typename_u",
+          "expect": "?",
+          "chars": 43,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15517,
+          "injected": false,
+          "ms": 22
+        },
+        {
+          "id": "colname_o",
+          "expect": "?",
+          "chars": 47,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15229,
+          "injected": false,
+          "ms": 24
+        },
+        {
+          "id": "typename_o",
+          "expect": "?",
+          "chars": 43,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15513,
+          "injected": false,
+          "ms": 22
+        },
+        {
+          "id": "colname_x",
+          "expect": "?",
+          "chars": 47,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15418,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "typename_x",
+          "expect": "?",
+          "chars": 43,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15359,
+          "injected": false,
+          "ms": 22
+        },
+        {
+          "id": "entityid_end",
+          "expect": "?",
+          "chars": 22,
+          "parse": "fail",
+          "error": "Parse error on line 2: | erDiagram    end[\"t\"] | -------------^"
+        },
+        {
+          "id": "entityid_style",
+          "expect": "?",
+          "chars": 24,
+          "parse": "fail",
+          "error": "Lexical error on line 2. Unrecognized text. | erDiagram    style[\"t\"] | ------------------^"
+        },
+        {
+          "id": "entityid_erDiagram",
+          "expect": "?",
+          "chars": 28,
+          "parse": "fail",
+          "error": "Parse error on line 2: | erDiagram    erDiagram[\"t\"] | -------------^"
+        },
+        {
+          "id": "entityid_PK",
+          "expect": "?",
+          "chars": 21,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 9288,
+          "injected": false,
+          "ms": 20
+        },
+        {
+          "id": "entityid_class",
+          "expect": "?",
+          "chars": 24,
+          "parse": "fail",
+          "error": "Parse error on line 2: | erDiagram    class[\"t\"] | ------------------^"
+        }
+      ]
+    },
+    "mermaid@11.17.2": {
+      "version": "?",
+      "maxTextSize": 50000,
+      "maxEdges": 500,
+      "erLayout": "dagre",
+      "look": "classic",
+      "results": [
+        {
+          "id": "alias_00",
+          "expect": "?",
+          "chars": 64,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 14280,
+          "injected": false,
+          "ms": 33
+        },
+        {
+          "id": "label_00",
+          "expect": "?",
+          "chars": 69,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8131,
+          "injected": false,
+          "ms": 14
+        },
+        {
+          "id": "alias_01",
+          "expect": "?",
+          "chars": 63,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13929,
+          "injected": false,
+          "ms": 9
+        },
+        {
+          "id": "label_01",
+          "expect": "?",
+          "chars": 68,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8017,
+          "injected": false,
+          "ms": 9
+        },
+        {
+          "id": "alias_02",
+          "expect": "?",
+          "chars": 56,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13904,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "label_02",
+          "expect": "?",
+          "chars": 61,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8012,
+          "injected": false,
+          "ms": 8
+        },
+        {
+          "id": "alias_03",
+          "expect": "?",
+          "chars": 57,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13907,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "label_03",
+          "expect": "?",
+          "chars": 62,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8017,
+          "injected": false,
+          "ms": 9
+        },
+        {
+          "id": "alias_04",
+          "expect": "?",
+          "chars": 62,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13909,
+          "injected": false,
+          "ms": 8
+        },
+        {
+          "id": "label_04",
+          "expect": "?",
+          "chars": 67,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8022,
+          "injected": false,
+          "ms": 9
+        },
+        {
+          "id": "alias_05",
+          "expect": "?",
+          "chars": 53,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13904,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "label_05",
+          "expect": "?",
+          "chars": 58,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8013,
+          "injected": false,
+          "ms": 8
+        },
+        {
+          "id": "alias_06",
+          "expect": "?",
+          "chars": 53,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13907,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "label_06",
+          "expect": "?",
+          "chars": 58,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8013,
+          "injected": false,
+          "ms": 8
+        },
+        {
+          "id": "alias_07",
+          "expect": "?",
+          "chars": 54,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13905,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "label_07",
+          "expect": "?",
+          "chars": 59,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8010,
+          "injected": false,
+          "ms": 8
+        },
+        {
+          "id": "alias_08",
+          "expect": "?",
+          "chars": 53,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13902,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "label_08",
+          "expect": "?",
+          "chars": 58,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8003,
+          "injected": false,
+          "ms": 9
+        },
+        {
+          "id": "alias_09",
+          "expect": "?",
+          "chars": 76,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13886,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "label_09",
+          "expect": "?",
+          "chars": 81,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8009,
+          "injected": false,
+          "ms": 9
+        },
+        {
+          "id": "alias_10",
+          "expect": "?",
+          "chars": 77,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13694,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "label_10",
+          "expect": "?",
+          "chars": 82,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8144,
+          "injected": false,
+          "ms": 8
+        },
+        {
+          "id": "alias_11",
+          "expect": "?",
+          "chars": 80,
+          "parse": "fail",
+          "error": "Parse error on line 2: | erDiagram    e1[\"% %{init: {'theme':... | ----------------^"
+        },
+        {
+          "id": "label_11",
+          "expect": "?",
+          "chars": 85,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8147,
+          "injected": false,
+          "ms": 9
+        },
+        {
+          "id": "alias_12",
+          "expect": "?",
+          "chars": 52,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13896,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "label_12",
+          "expect": "?",
+          "chars": 57,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8009,
+          "injected": false,
+          "ms": 8
+        },
+        {
+          "id": "alias_13",
+          "expect": "?",
+          "chars": 56,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13908,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "label_13",
+          "expect": "?",
+          "chars": 61,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8010,
+          "injected": false,
+          "ms": 8
+        },
+        {
+          "id": "alias_14",
+          "expect": "?",
+          "chars": 70,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 14439,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "label_14",
+          "expect": "?",
+          "chars": 75,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8104,
+          "injected": false,
+          "ms": 8
+        },
+        {
+          "id": "alias_15",
+          "expect": "?",
+          "chars": 60,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13908,
+          "injected": false,
+          "ms": 12
+        },
+        {
+          "id": "label_15",
+          "expect": "?",
+          "chars": 65,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8013,
+          "injected": false,
+          "ms": 9
+        },
+        {
+          "id": "alias_16",
+          "expect": "?",
+          "chars": 54,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13879,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "label_16",
+          "expect": "?",
+          "chars": 59,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8010,
+          "injected": false,
+          "ms": 9
+        },
+        {
+          "id": "alias_17",
+          "expect": "?",
+          "chars": 53,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13906,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "label_17",
+          "expect": "?",
+          "chars": 58,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8012,
+          "injected": false,
+          "ms": 8
+        },
+        {
+          "id": "alias_18",
+          "expect": "?",
+          "chars": 52,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13910,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "label_18",
+          "expect": "?",
+          "chars": 57,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8007,
+          "injected": false,
+          "ms": 8
+        },
+        {
+          "id": "alias_19",
+          "expect": "?",
+          "chars": 57,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13902,
+          "injected": false,
+          "ms": 19
+        },
+        {
+          "id": "label_19",
+          "expect": "?",
+          "chars": 62,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8017,
+          "injected": false,
+          "ms": 12
+        },
+        {
+          "id": "alias_char_00_'%'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "fail",
+          "error": "Parse error on line 2: | erDiagram    e1[\"a%b\"] | ----------------^"
+        },
+        {
+          "id": "alias_char_01_'%{'",
+          "expect": "?",
+          "chars": 24,
+          "parse": "fail",
+          "error": "Parse error on line 2: | erDiagram    e1[\"a%{b\"] | ----------------^"
+        },
+        {
+          "id": "alias_char_02_'{'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_02_'{'' is not a valid selector.",
+          "ms": 1
+        },
+        {
+          "id": "alias_char_03_'}'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_03_'}'' is not a valid selector.",
+          "ms": 1
+        },
+        {
+          "id": "alias_char_04_':'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_04_':'' is not a valid selector.",
+          "ms": 1
+        },
+        {
+          "id": "alias_char_05_';'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_05_';'' is not a valid selector.",
+          "ms": 1
+        },
+        {
+          "id": "alias_char_06_\"'\"",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_06_\"'\"' is not a valid selector.",
+          "ms": 1
+        },
+        {
+          "id": "alias_char_07_'#'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_07_'#'' is not a valid selector.",
+          "ms": 1
+        },
+        {
+          "id": "alias_char_08_'#quot;'",
+          "expect": "?",
+          "chars": 28,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_08_'#quot;'' is not a valid selector.",
+          "ms": 1
+        },
+        {
+          "id": "alias_char_09_'&'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_09_'&'' is not a valid selector.",
+          "ms": 1
+        },
+        {
+          "id": "alias_char_10_'<'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_10_'<'' is not a valid selector.",
+          "ms": 1
+        },
+        {
+          "id": "alias_char_11_'>'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_11_'>'' is not a valid selector.",
+          "ms": 1
+        },
+        {
+          "id": "alias_char_12_'|'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_12_'|'' is not a valid selector.",
+          "ms": 1
+        },
+        {
+          "id": "alias_char_13_'`'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_13_'`'' is not a valid selector.",
+          "ms": 1
+        },
+        {
+          "id": "alias_char_14_'\\\\'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "fail",
+          "error": "Parse error on line 2: | erDiagram    e1[\"a\\b\"] | ----------------^"
+        },
+        {
+          "id": "alias_char_15_'/'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_15_'/'' is not a valid selector.",
+          "ms": 1
+        },
+        {
+          "id": "alias_char_16_'('",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_16_'('' is not a valid selector.",
+          "ms": 1
+        },
+        {
+          "id": "alias_char_17_')'",
+          "expect": "?",
+          "chars": 23,
+          "parse": "ok",
+          "render": "fail",
+          "error": "Failed to execute 'querySelector' on 'Element': '#dd_alias_char_17_')'' is not a valid selector.",
+          "ms": 1
+        },
+        {
+          "id": "colname_PK",
+          "expect": "?",
+          "chars": 48,
+          "parse": "fail",
+          "error": "Parse error on line 3: | ...] {        INTEGER PK    } | ----------------------^"
+        },
+        {
+          "id": "typename_PK",
+          "expect": "?",
+          "chars": 44,
+          "parse": "fail",
+          "error": "Parse error on line 2: | ...  e1[\"t\"] {        PK col    } | ----------------------^"
+        },
+        {
+          "id": "colname_FK",
+          "expect": "?",
+          "chars": 48,
+          "parse": "fail",
+          "error": "Parse error on line 3: | ...] {        INTEGER FK    } | ----------------------^"
+        },
+        {
+          "id": "typename_FK",
+          "expect": "?",
+          "chars": 44,
+          "parse": "fail",
+          "error": "Parse error on line 2: | ...  e1[\"t\"] {        FK col    } | ----------------------^"
+        },
+        {
+          "id": "colname_UK",
+          "expect": "?",
+          "chars": 48,
+          "parse": "fail",
+          "error": "Parse error on line 3: | ...] {        INTEGER UK    } | ----------------------^"
+        },
+        {
+          "id": "typename_UK",
+          "expect": "?",
+          "chars": 44,
+          "parse": "fail",
+          "error": "Parse error on line 2: | ...  e1[\"t\"] {        UK col    } | ----------------------^"
+        },
+        {
+          "id": "colname_erDiagram",
+          "expect": "?",
+          "chars": 55,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13325,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "typename_erDiagram",
+          "expect": "?",
+          "chars": 51,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13372,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "colname_end",
+          "expect": "?",
+          "chars": 49,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 12765,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "typename_end",
+          "expect": "?",
+          "chars": 45,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 12792,
+          "injected": false,
+          "ms": 5
+        },
+        {
+          "id": "colname_style",
+          "expect": "?",
+          "chars": 51,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13281,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "typename_style",
+          "expect": "?",
+          "chars": 47,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13305,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "colname_classDef",
+          "expect": "?",
+          "chars": 54,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13155,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "typename_classDef",
+          "expect": "?",
+          "chars": 50,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13256,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "colname_class",
+          "expect": "?",
+          "chars": 51,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13266,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "typename_class",
+          "expect": "?",
+          "chars": 47,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13294,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "colname_direction",
+          "expect": "?",
+          "chars": 55,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13270,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "typename_direction",
+          "expect": "?",
+          "chars": 51,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13314,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "colname_accTitle",
+          "expect": "?",
+          "chars": 54,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13244,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "typename_accTitle",
+          "expect": "?",
+          "chars": 50,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13339,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "colname_title",
+          "expect": "?",
+          "chars": 51,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13009,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "typename_title",
+          "expect": "?",
+          "chars": 47,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13032,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "colname_string",
+          "expect": "?",
+          "chars": 52,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13340,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "typename_string",
+          "expect": "?",
+          "chars": 48,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13345,
+          "injected": false,
+          "ms": 5
+        },
+        {
+          "id": "colname_INTEGER",
+          "expect": "?",
+          "chars": 53,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13230,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "typename_INTEGER",
+          "expect": "?",
+          "chars": 49,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13273,
+          "injected": false,
+          "ms": 5
+        },
+        {
+          "id": "colname_u",
+          "expect": "?",
+          "chars": 47,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13035,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "typename_u",
+          "expect": "?",
+          "chars": 43,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13094,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "colname_o",
+          "expect": "?",
+          "chars": 47,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13022,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "typename_o",
+          "expect": "?",
+          "chars": 43,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13087,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "colname_x",
+          "expect": "?",
+          "chars": 47,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 12524,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "typename_x",
+          "expect": "?",
+          "chars": 43,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 12590,
+          "injected": false,
+          "ms": 5
+        },
+        {
+          "id": "entityid_end",
+          "expect": "?",
+          "chars": 22,
+          "parse": "fail",
+          "error": "Parse error on line 2: | erDiagram    end[\"t\"] | -------------^"
+        },
+        {
+          "id": "entityid_style",
+          "expect": "?",
+          "chars": 24,
+          "parse": "fail",
+          "error": "Lexical error on line 2. Unrecognized text. | erDiagram    style[\"t\"] | ------------------^"
+        },
+        {
+          "id": "entityid_erDiagram",
+          "expect": "?",
+          "chars": 28,
+          "parse": "fail",
+          "error": "Parse error on line 2: | erDiagram    erDiagram[\"t\"] | -------------^"
+        },
+        {
+          "id": "entityid_PK",
+          "expect": "?",
+          "chars": 21,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 6686,
+          "injected": false,
+          "ms": 5
+        },
+        {
+          "id": "entityid_class",
+          "expect": "?",
+          "chars": 24,
+          "parse": "fail",
+          "error": "Parse error on line 2: | erDiagram    class[\"t\"] | ------------------^"
+        }
+      ]
+    }
+  },
+  "site": {
+    "blocks": [
+      {
+        "id": "base",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 543,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "card_all",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 292,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "self_ref",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 330,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "multi_edge",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 335,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "no_attrs",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 268,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "empty_block",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 268,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "type_parens",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 234,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "type_comma_raw",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 106,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "type_comma_norm",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 106,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "type_space_raw",
+        "tag": "PRE",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 98,
+        "hasSvgChild": false,
+        "rawTextVisible": true,
+        "dataProcessed": null
+      },
+      {
+        "id": "type_space_norm",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 277,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "type_digit_first",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 148,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "type_unicode_raw",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 106,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "type_unicode_norm",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 106,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "attr_unicode_raw",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 106,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "attr_space_norm",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 191,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "attr_keys",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 234,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "attr_reserved",
+        "tag": "PRE",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 175,
+        "hasSvgChild": false,
+        "rawTextVisible": true,
+        "dataProcessed": null
+      },
+      {
+        "id": "attr_reserved_norm",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 191,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "alias_hostile",
+        "tag": "PRE",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 1556,
+        "hasSvgChild": false,
+        "rawTextVisible": true,
+        "dataProcessed": null
+      },
+      {
+        "id": "alias_unquoted_dot",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 106,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "comment_hostile",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 918,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "comment_quote_raw",
+        "tag": "PRE",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 98,
+        "hasSvgChild": false,
+        "rawTextVisible": true,
+        "dataProcessed": null
+      },
+      {
+        "id": "label_unquoted_space",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 289,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "big_80x8_160",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 1677,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      },
+      {
+        "id": "big_300_598",
+        "tag": "DIV",
+        "cls": "mermaid",
+        "shadow": false,
+        "height": 1208,
+        "hasSvgChild": false,
+        "rawTextVisible": false,
+        "dataProcessed": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,166 @@
+{
+ "v12": [
+  {
+   "id": "alias_ent37",
+   "parse": "ok",
+   "text": "a%bINTEGERidPK"
+  },
+  {
+   "id": "comment_ent37",
+   "parse": "ok",
+   "text": "tINTEGERidPKa%b"
+  },
+  {
+   "id": "alias_ent92",
+   "parse": "ok",
+   "text": "a\\bINTEGERidPK"
+  },
+  {
+   "id": "comment_ent92",
+   "parse": "ok",
+   "text": "tINTEGERidPKa\\b"
+  },
+  {
+   "id": "alias_full",
+   "parse": "ok",
+   "text": "a％b＼cINTEGERidPK"
+  },
+  {
+   "id": "comment_full",
+   "parse": "ok",
+   "text": "tINTEGERidPKa％b＼c"
+  },
+  {
+   "id": "alias_pct_space",
+   "parse": "fail: Parse error on line 2:",
+   "text": ""
+  },
+  {
+   "id": "comment_pct_space",
+   "parse": "ok",
+   "text": "tINTEGERidPKa % b"
+  },
+  {
+   "id": "alias_pct_end",
+   "parse": "fail: Parse error on line 2:",
+   "text": ""
+  },
+  {
+   "id": "comment_pct_end",
+   "parse": "ok",
+   "text": "tINTEGERidPKab%"
+  },
+  {
+   "id": "alias_bs_dbl",
+   "parse": "fail: Parse error on line 2:",
+   "text": ""
+  },
+  {
+   "id": "comment_bs_dbl",
+   "parse": "ok",
+   "text": "tINTEGERidPKa\\b"
+  },
+  {
+   "id": "alias_init_ent",
+   "parse": "ok",
+   "text": "%%{init: {'theme':'dark'}}%%INTEGERidPK"
+  },
+  {
+   "id": "comment_init_ent",
+   "parse": "ok",
+   "text": "tINTEGERidPK%%{init: {'theme':'dark'}}%%"
+  },
+  {
+   "id": "alias_ent_quot",
+   "parse": "ok",
+   "text": "x \" yINTEGERidPK"
+  },
+  {
+   "id": "comment_ent_quot",
+   "parse": "ok",
+   "text": "tINTEGERidPKx \" y"
+  }
+ ],
+ "v11": [
+  {
+   "id": "alias_ent37",
+   "parse": "ok",
+   "text": "a%bINTEGERidPK"
+  },
+  {
+   "id": "comment_ent37",
+   "parse": "ok",
+   "text": "tINTEGERidPKa%b"
+  },
+  {
+   "id": "alias_ent92",
+   "parse": "ok",
+   "text": "a\\bINTEGERidPK"
+  },
+  {
+   "id": "comment_ent92",
+   "parse": "ok",
+   "text": "tINTEGERidPKa\\b"
+  },
+  {
+   "id": "alias_full",
+   "parse": "ok",
+   "text": "a％b＼cINTEGERidPK"
+  },
+  {
+   "id": "comment_full",
+   "parse": "ok",
+   "text": "tINTEGERidPKa％b＼c"
+  },
+  {
+   "id": "alias_pct_space",
+   "parse": "fail: Parse error on line 2:",
+   "text": ""
+  },
+  {
+   "id": "comment_pct_space",
+   "parse": "ok",
+   "text": "tINTEGERidPKa % b"
+  },
+  {
+   "id": "alias_pct_end",
+   "parse": "fail: Parse error on line 2:",
+   "text": ""
+  },
+  {
+   "id": "comment_pct_end",
+   "parse": "ok",
+   "text": "tINTEGERidPKab%"
+  },
+  {
+   "id": "alias_bs_dbl",
+   "parse": "fail: Parse error on line 2:",
+   "text": ""
+  },
+  {
+   "id": "comment_bs_dbl",
+   "parse": "ok",
+   "text": "tINTEGERidPKa\\b"
+  },
+  {
+   "id": "alias_init_ent",
+   "parse": "ok",
+   "text": "%%{init: {'theme':'dark'}}%%INTEGERidPK"
+  },
+  {
+   "id": "comment_init_ent",
+   "parse": "ok",
+   "text": "tINTEGERidPK%%{init: {'theme':'dark'}}%%"
+  },
+  {
+   "id": "alias_ent_quot",
+   "parse": "ok",
+   "text": "x \" yINTEGERidPK"
+  },
+  {
+   "id": "comment_ent_quot",
+   "parse": "ok",
+   "text": "tINTEGERidPKx \" y"
+  }
+ ]
+}

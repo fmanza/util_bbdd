@@ -232,6 +232,7 @@ Personalizaciones por contexto:
   - Documentación: arquetipos `functional_doc`, `technical_doc`, `guide_doc`, `example_doc`, `architecture_doc`, `landing_doc`, `onboarding_dev`, `normative_traceability`, y `documentation_review`
   - Proyectos derivados: `web_project_bootstrap` (crea `util_bbdd_web`, la aplicación web multiusuario que consume esta librería, con su configuración IA y su roadmap por fases)
   - Apoyo: `bootstrap_ai_config`, `engine_readiness_integration` (pre-requisito de las auditorías de rendimiento) y el análisis de reutilización `code_reusability_architecture` (+ `_quick`; guía en `docs/guides/code_reusability_analysis_guide.md`)
+  - Diseño acotado (solo PLAN + AUDIT_PLAN): `doc_markdown_feature` (formato Markdown de `DatabaseDocumentation` con Mermaid ER, paginación, trazabilidad para IA, Zensical, descarga y versionado)
   - Diseño acotado (**ejecutado en v0.29.0**, se conserva como referencia): `audit_module` (módulo de auditoría centralizado para `bulk`/`dump`/`migrate`; ADR-002; línea base en `.ai/audit/audit_module_baseline_inventory.md`, con las rutas anteriores al traslado)
   - Sin conteos fijos: el listado real es la carpeta.
 - **Instrucciones**: `.github/instructions/*.instructions.md` — reglas por tipo de archivo
@@ -252,4 +253,4 @@ Gobernanza entre plataformas: [`SHARED_INSTRUCTIONS.md`](SHARED_INSTRUCTIONS.md)
 
 ---
 
-*Actualizado: 2026-10-19*
+*Actualizado: 2026-11-05*

@@ -1,0 +1,694 @@
+{
+  "harness": {
+    "mermaid-12.2.0": {
+      "version": "?",
+      "maxTextSize": 50000,
+      "maxEdges": 500,
+      "erLayout": "elk",
+      "look": "classic",
+      "results": [
+        {
+          "id": "base",
+          "expect": "ok",
+          "chars": 273,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 38154,
+          "injected": false,
+          "ms": 256
+        },
+        {
+          "id": "card_all",
+          "expect": "ok",
+          "chars": 271,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 32807,
+          "injected": false,
+          "ms": 41
+        },
+        {
+          "id": "self_ref",
+          "expect": "ok",
+          "chars": 115,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 19680,
+          "injected": false,
+          "ms": 24
+        },
+        {
+          "id": "multi_edge",
+          "expect": "ok",
+          "chars": 196,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 29375,
+          "injected": false,
+          "ms": 34
+        },
+        {
+          "id": "no_attrs",
+          "expect": "ok",
+          "chars": 55,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10068,
+          "injected": false,
+          "ms": 33
+        },
+        {
+          "id": "empty_block",
+          "expect": "ok",
+          "chars": 71,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 10347,
+          "injected": false,
+          "ms": 25
+        },
+        {
+          "id": "type_parens",
+          "expect": "ok",
+          "chars": 124,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 22541,
+          "injected": false,
+          "ms": 32
+        },
+        {
+          "id": "type_comma_raw",
+          "expect": "fail?",
+          "chars": 58,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15691,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "type_comma_norm",
+          "expect": "ok",
+          "chars": 58,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15978,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "type_space_raw",
+          "expect": "fail?",
+          "chars": 60,
+          "parse": "fail",
+          "error": "Parse error on line 3: | ...precision valor    } | ----------------------^"
+        },
+        {
+          "id": "type_space_norm",
+          "expect": "ok",
+          "chars": 188,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 25174,
+          "injected": false,
+          "ms": 31
+        },
+        {
+          "id": "type_digit_first",
+          "expect": "ok",
+          "chars": 72,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 18184,
+          "injected": false,
+          "ms": 25
+        },
+        {
+          "id": "type_unicode_raw",
+          "expect": "fail?",
+          "chars": 54,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16045,
+          "injected": false,
+          "ms": 20
+        },
+        {
+          "id": "type_unicode_norm",
+          "expect": "ok",
+          "chars": 54,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16145,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "attr_unicode_raw",
+          "expect": "?",
+          "chars": 49,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15875,
+          "injected": false,
+          "ms": 21
+        },
+        {
+          "id": "attr_space_norm",
+          "expect": "ok",
+          "chars": 117,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 21623,
+          "injected": false,
+          "ms": 25
+        },
+        {
+          "id": "attr_keys",
+          "expect": "ok",
+          "chars": 139,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 23633,
+          "injected": false,
+          "ms": 28
+        },
+        {
+          "id": "attr_reserved",
+          "expect": "?",
+          "chars": 141,
+          "parse": "fail",
+          "error": "Parse error on line 3: | ...] {        INTEGER PK PK        INTEGE | ----------------------^"
+        },
+        {
+          "id": "attr_reserved_norm",
+          "expect": "ok",
+          "chars": 112,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 22486,
+          "injected": false,
+          "ms": 26
+        },
+        {
+          "id": "alias_hostile",
+          "expect": "ok",
+          "chars": 1604,
+          "parse": "fail",
+          "error": "Parse error on line 35: | ...id PK    }    e12[\"% %{init: {'theme':... | ---------------------^"
+        },
+        {
+          "id": "alias_unquoted_dot",
+          "expect": "?",
+          "chars": 55,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 16250,
+          "injected": false,
+          "ms": 24
+        },
+        {
+          "id": "comment_hostile",
+          "expect": "ok",
+          "chars": 681,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 58389,
+          "injected": false,
+          "ms": 78
+        },
+        {
+          "id": "comment_quote_raw",
+          "expect": "fail?",
+          "chars": 59,
+          "parse": "fail",
+          "error": "Parse error on line 3: | ... INTEGER c \"di \"hola\"\"    } | -----------------------^"
+        },
+        {
+          "id": "label_unquoted_space",
+          "expect": "fail?",
+          "chars": 59,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 12221,
+          "injected": false,
+          "ms": 32
+        },
+        {
+          "id": "big_80x8_160",
+          "expect": "ok",
+          "chars": 30938,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 2526473,
+          "injected": false,
+          "ms": 1601
+        },
+        {
+          "id": "big_300_598",
+          "expect": "?",
+          "chars": 28523,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 6401787,
+          "injected": false,
+          "ms": 12621
+        }
+      ]
+    },
+    "mermaid@11 (unpkg, como Zensical)": {
+      "version": "?",
+      "maxTextSize": 50000,
+      "maxEdges": 500,
+      "erLayout": "dagre",
+      "look": "classic",
+      "results": [
+        {
+          "id": "base",
+          "expect": "ok",
+          "chars": 273,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 37197,
+          "injected": false,
+          "ms": 57
+        },
+        {
+          "id": "card_all",
+          "expect": "ok",
+          "chars": 271,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 27829,
+          "injected": false,
+          "ms": 23
+        },
+        {
+          "id": "self_ref",
+          "expect": "ok",
+          "chars": 115,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 18959,
+          "injected": false,
+          "ms": 18
+        },
+        {
+          "id": "multi_edge",
+          "expect": "ok",
+          "chars": 196,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 27059,
+          "injected": false,
+          "ms": 16
+        },
+        {
+          "id": "no_attrs",
+          "expect": "ok",
+          "chars": 55,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 7940,
+          "injected": false,
+          "ms": 9
+        },
+        {
+          "id": "empty_block",
+          "expect": "ok",
+          "chars": 71,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 8132,
+          "injected": false,
+          "ms": 9
+        },
+        {
+          "id": "type_parens",
+          "expect": "ok",
+          "chars": 124,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 20179,
+          "injected": false,
+          "ms": 15
+        },
+        {
+          "id": "type_comma_raw",
+          "expect": "fail?",
+          "chars": 58,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13335,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "type_comma_norm",
+          "expect": "ok",
+          "chars": 58,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13244,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "type_space_raw",
+          "expect": "fail?",
+          "chars": 60,
+          "parse": "fail",
+          "error": "Parse error on line 3: | ...precision valor    } | ----------------------^"
+        },
+        {
+          "id": "type_space_norm",
+          "expect": "ok",
+          "chars": 188,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 22919,
+          "injected": false,
+          "ms": 15
+        },
+        {
+          "id": "type_digit_first",
+          "expect": "ok",
+          "chars": 72,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 15836,
+          "injected": false,
+          "ms": 8
+        },
+        {
+          "id": "type_unicode_raw",
+          "expect": "fail?",
+          "chars": 54,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13298,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "type_unicode_norm",
+          "expect": "ok",
+          "chars": 54,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13358,
+          "injected": false,
+          "ms": 6
+        },
+        {
+          "id": "attr_unicode_raw",
+          "expect": "?",
+          "chars": 49,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13270,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "attr_space_norm",
+          "expect": "ok",
+          "chars": 117,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 19044,
+          "injected": false,
+          "ms": 10
+        },
+        {
+          "id": "attr_keys",
+          "expect": "ok",
+          "chars": 139,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 22937,
+          "injected": false,
+          "ms": 12
+        },
+        {
+          "id": "attr_reserved",
+          "expect": "?",
+          "chars": 141,
+          "parse": "fail",
+          "error": "Parse error on line 3: | ...] {        INTEGER PK PK        INTEGE | ----------------------^"
+        },
+        {
+          "id": "attr_reserved_norm",
+          "expect": "ok",
+          "chars": 112,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 20202,
+          "injected": false,
+          "ms": 10
+        },
+        {
+          "id": "alias_hostile",
+          "expect": "ok",
+          "chars": 1604,
+          "parse": "fail",
+          "error": "Parse error on line 35: | ...id PK    }    e12[\"% %{init: {'theme':... | ---------------------^"
+        },
+        {
+          "id": "alias_unquoted_dot",
+          "expect": "?",
+          "chars": 55,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 13420,
+          "injected": false,
+          "ms": 7
+        },
+        {
+          "id": "comment_hostile",
+          "expect": "ok",
+          "chars": 681,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 62232,
+          "injected": false,
+          "ms": 60
+        },
+        {
+          "id": "comment_quote_raw",
+          "expect": "fail?",
+          "chars": 59,
+          "parse": "fail",
+          "error": "Parse error on line 3: | ... INTEGER c \"di \"hola\"\"    } | -----------------------^"
+        },
+        {
+          "id": "label_unquoted_space",
+          "expect": "fail?",
+          "chars": 59,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 9342,
+          "injected": false,
+          "ms": 11
+        },
+        {
+          "id": "big_80x8_160",
+          "expect": "ok",
+          "chars": 30938,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 2778049,
+          "injected": false,
+          "ms": 1386
+        },
+        {
+          "id": "big_300_598",
+          "expect": "?",
+          "chars": 28523,
+          "parse": "ok",
+          "render": "ok",
+          "svgBytes": 11560392,
+          "injected": false,
+          "ms": 27861
+        }
+      ]
+    }
+  },
+  "site": {
+    "cases": [
+      {
+        "i": 0,
+        "heading": "base",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 1,
+        "heading": "card_all",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 2,
+        "heading": "self_ref",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 3,
+        "heading": "multi_edge",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 4,
+        "heading": "no_attrs",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 5,
+        "heading": "empty_block",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 6,
+        "heading": "type_parens",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 7,
+        "heading": "type_comma_raw",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 8,
+        "heading": "type_comma_norm",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 9,
+        "heading": "type_space_raw",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 10,
+        "heading": "type_space_norm",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 11,
+        "heading": "type_digit_first",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 12,
+        "heading": "type_unicode_raw",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 13,
+        "heading": "type_unicode_norm",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 14,
+        "heading": "attr_unicode_raw",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 15,
+        "heading": "attr_space_norm",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 16,
+        "heading": "attr_keys",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 17,
+        "heading": "attr_reserved",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 18,
+        "heading": "attr_reserved_norm",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 19,
+        "heading": "alias_hostile",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 20,
+        "heading": "alias_unquoted_dot",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 21,
+        "heading": "comment_hostile",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 22,
+        "heading": "comment_quote_raw",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 23,
+        "heading": "label_unquoted_space",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 24,
+        "heading": "big_80x8_160",
+        "svg": false,
+        "error": null
+      },
+      {
+        "i": 25,
+        "heading": "big_300_598",
+        "svg": false,
+        "error": null
+      }
+    ],
+    "pedidos": {
+      "title": "pedidos \"x\": --- y - Spike erDiagram",
+      "h1": "Tabla: pedidos¶",
+      "anchor": true,
+      "scriptsInContent": 0,
+      "imgInContent": 0,
+      "admonition": true,
+      "codeBlock": "CREATE TABLE t (c TEXT DEFAULT '```');\n",
+      "commentHtml": "<strong>Comentario:</strong> a&lt;script&gt;alert(1)&lt;/script&gt; &amp; &lt;img src=x onerror=alert(2)&gt; | `x` <em>y</em>"
+    },
+    "dialogs": [],
+    "mermaidRequests": [
+      "https://unpkg.com/mermaid@11/dist/mermaid.min.js",
+      "https://unpkg.com/mermaid@11.17.2/dist/mermaid.min.js"
+    ],
+    "consoleErrors": []
+  }
+}

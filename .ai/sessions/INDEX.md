@@ -311,6 +311,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-10-29-web-gaps-ola8 | **v5.0.0**: ola 8 del plan de huecos de util_bbdd_web (valores por defecto seguros): `truncate_target=False`, `bulk_*_from_df` ejecuta, documentación sin ventana, `execute_custom_result`, versión completa del servidor, retiradas D8-8 | develop | new_feature + version-closure | CLOSED | `2026-10-29-web-gaps-ola8/TRACEABILITY.md` |
 | 2026-10-29-web-gaps-ola9 | **v5.1.0**: ola 9 del plan de huecos de util_bbdd_web (G44): `NUMBER` de Oracle sin pasar por `float` en `execute_custom_*` y `execute_query_*` | develop | new_feature + version-closure | CLOSED | `2026-10-29-web-gaps-ola9/TRACEABILITY.md` |
 | 2026-10-30-web-gaps-ola10 | **v5.2.0**: ola 10 del plan de huecos de util_bbdd_web (G45-G48): Mermaid 12 por defecto, escape de diagramas Mermaid, ciclos de FK en orden estable y fechas en texto en el modo seco de bulk | develop | new_feature + version-closure | CLOSED | `2026-10-30-web-gaps-ola10/TRACEABILITY.md` |
+| 2026-11-05-doc-markdown | Formato Markdown de `DatabaseDocumentation` (ER Mermaid, un fichero por objeto, trazabilidad para IA, `catalog.json`, `CHANGES.md`): PLAN + AUDIT_PLAN (`GO_CONDICIONAL`) | develop | new_feature (solo PLAN) | IN_PROGRESS | `2026-11-05-doc-markdown/AUDIT_PLAN.md` |
 
 ## Crear nueva sesión
 
