@@ -68,7 +68,9 @@ class MermaidRelationshipGraph(DatabaseRelationshipGraphBase):
 
     Args:
         db_manager: Fuente de metadatos por lotes (``RelationshipGraphSource``), p. ej. un ``SyncDatabaseManager``.
-        column_mode: ``compact`` (sin columnas), ``relations`` (PK y columnas de las FK dibujadas) o ``all``.
+        show_columns: Columnas dentro de las entidades (``grafo.show_columns``); ``False``, solo los nombres de tabla.
+        column_mode: Qué columnas, como en Graphviz: ``relations`` (las de las relaciones dibujadas), ``compact`` (esas
+            primero y después las demás hasta ``max_columns``) o ``all`` (todas, en su orden).
         max_columns: Columnas por entidad como máximo (``relations`` y ``all``).
         show_constraint_name: Etiqueta de cada relación con el nombre de la FK; si no, sin etiqueta.
         max_entities: Entidades por diagrama como máximo; por encima, se parte (el dibujo de 300 entidades tarda entre
@@ -93,6 +95,7 @@ class MermaidRelationshipGraph(DatabaseRelationshipGraphBase):
         self,
         db_manager: RelationshipGraphSource,
         *,
+        show_columns: bool = True,
         column_mode: ColumnVisualizationMode | str = ColumnVisualizationMode.RELATIONS,
         max_columns: int = 8,
         show_constraint_name: bool = False,
@@ -101,6 +104,7 @@ class MermaidRelationshipGraph(DatabaseRelationshipGraphBase):
         schema: str | None = None,
     ) -> None:
         super().__init__(db_manager, schema=schema)
+        self.show_columns: bool = bool(show_columns)
         try:
             self.column_mode = ColumnVisualizationMode(str(column_mode).strip().lower())
         except ValueError as exc:
@@ -202,7 +206,7 @@ class MermaidRelationshipGraph(DatabaseRelationshipGraphBase):
     ) -> None:
         """Añade el bloque del trozo; si excede los límites, lo rehace sin columnas o lo parte en dos."""
         tables = self._chunk_tables(root, chunk)
-        with_columns = self.column_mode != ColumnVisualizationMode.COMPACT
+        with_columns = self.show_columns
         text = self._block(snapshot, tables, chunk, with_columns)
         if len(tables) <= self.max_entities and len(text) <= self.max_chars:
             blocks.append(text)
@@ -246,10 +250,15 @@ class MermaidRelationshipGraph(DatabaseRelationshipGraphBase):
         """Líneas de atributo de la entidad según ``column_mode``, en el orden de las columnas de la tabla."""
         columns = list(snapshot.columns(table))
         pk = set(self._get_primary_keys(table))
+        # Misma política que Graphviz (``_select_columns_for_table``): relations = solo las de las relaciones dibujadas;
+        # compact = esas primero y después las demás hasta ``max_columns``; all = todas en su orden
+        drawn = {c.lower() for r in chunk if r.child == table for c in r.child_columns}
+        drawn |= {c.lower() for r in chunk if r.parent == table for c in r.parent_columns}
+        related = [c for c in columns if c.name.lower() in drawn]
         if self.column_mode == ColumnVisualizationMode.RELATIONS:
-            drawn = {c.lower() for r in chunk if r.child == table for c in r.child_columns}
-            drawn |= {c.lower() for r in chunk if r.parent == table for c in r.parent_columns}
-            columns = [c for c in columns if c.name.lower() in pk or c.name.lower() in drawn]
+            columns = related
+        elif self.column_mode == ColumnVisualizationMode.COMPACT:
+            columns = related + [c for c in columns if c.name.lower() not in drawn]
         fk_columns = {c.lower() for fk in snapshot.foreign_keys(table) for c in fk.columns}
         uk_columns = set(self._get_unique_columns(table))
         return [self._attribute(c, pk, fk_columns, uk_columns) for c in columns[: self.max_columns]]

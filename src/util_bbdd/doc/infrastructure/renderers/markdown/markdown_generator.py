@@ -213,6 +213,7 @@ class MarkdownGenerator:
         graph = (
             MermaidRelationshipGraph(
                 ctx.data_provider,
+                show_columns=options["show_columns"],
                 column_mode=options["column_mode"],
                 max_columns=options["max_columns"],
                 show_constraint_name=options["show_constraint_name"],

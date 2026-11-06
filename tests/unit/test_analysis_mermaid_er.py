@@ -70,6 +70,7 @@ def _ventas(**kwargs: Any) -> MermaidRelationshipGraph:
 
 
 def test_render_er_relations_mode() -> None:
+    """``relations``: solo las columnas de las relaciones dibujadas, como Graphviz (``facturas.id`` no aparece)."""
     result = _ventas(show_constraint_name=True).render_er("pedidos")
 
     assert isinstance(result, MermaidErResult)
@@ -85,7 +86,6 @@ def test_render_er_relations_mode() -> None:
         "        INTEGER id PK\n"
         "    }\n"
         '    e3["facturas"] {\n'
-        "        INTEGER id PK\n"
         "        INTEGER pedido_id FK, UK\n"
         "    }\n"
         '    e2 ||..o{ e1 : "fk_ped_cli"\n'
@@ -94,10 +94,23 @@ def test_render_er_relations_mode() -> None:
     )
 
 
-def test_compact_and_all_modes() -> None:
-    compact = _ventas(column_mode="compact").render_er("pedidos").blocks[0]
-    assert "{" not in compact.split("\n", 1)[1].replace("o{", "")
-    assert '    e1["pedidos"]\n' in compact
+def test_column_modes_like_graphviz_and_show_columns() -> None:
+    # compact: las de las relaciones primero y después las demás hasta max_columns
+    compact = _ventas(column_mode="compact", max_columns=4).render_er("pedidos").blocks[0]
+    assert (
+        '    e1["pedidos"] {\n'
+        "        INTEGER id PK\n"
+        "        INTEGER cliente_id FK\n"
+        "        INTEGER vendedor_id FK\n"
+        "        VARCHAR(20) numero UK\n"
+        "    }\n"
+    ) in compact
+    assert '    e3["facturas"] {\n        INTEGER pedido_id FK, UK\n        INTEGER id PK\n    }\n' in compact
+
+    # show_columns=False (grafo.show_columns): solo los nombres de tabla
+    plain = _ventas(show_columns=False).render_er("pedidos").blocks[0]
+    assert "{" not in plain.split("\n", 1)[1].replace("o{", "")
+    assert '    e1["pedidos"]\n' in plain
 
     full = _ventas(column_mode="all", max_columns=4).render_er("pedidos").blocks[0]
     assert "        VARCHAR(20) numero UK" in full
@@ -177,7 +190,7 @@ def test_size_guards_drop_columns_then_split() -> None:
     assert all(block.count('["') <= 4 for block in by_entities.blocks)
     assert by_entities.warnings == ("Diagrama partido: superaba 4 entidades o 50000 caracteres.",)
 
-    plain_size = len(MermaidRelationshipGraph(manager, column_mode="compact").render_er("p").blocks[0])
+    plain_size = len(MermaidRelationshipGraph(manager, show_columns=False).render_er("p").blocks[0])
     by_chars = MermaidRelationshipGraph(manager, max_chars=plain_size).render_er("p")
     assert len(by_chars.blocks) == 1
     assert "INT" not in by_chars.blocks[0]

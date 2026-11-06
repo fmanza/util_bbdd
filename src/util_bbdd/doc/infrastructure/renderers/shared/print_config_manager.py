@@ -435,6 +435,7 @@ class PrintConfigManager:
             "configured_max_depth": configured_depth,
             "direction": PrintConfigManager._normalize_graph_direction(graph_cfg.get("direction", "both")),
             "max_subnodes": PrintConfigManager._to_positive_int(graph_cfg.get("max_subnodes", 10), fallback=10),
+            "show_columns": bool(graph_cfg.get("show_columns", PrintConfigManager.DEFAULT_GRAPH["show_columns"])),
             "column_mode": PrintConfigManager._normalize_graph_column_mode(columns_cfg.get("mode", "relations")),
             "max_columns": PrintConfigManager._to_positive_int(columns_cfg.get("max_items", 8), fallback=8),
             "show_constraint_name": bool(dict(graph_cfg.get("cardinality", {})).get("show_constraint_name", False)),
