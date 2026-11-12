@@ -7,7 +7,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-SemVer previsto: MINOR, sin cambios incompatibles (sesión `2026-11-12-doc-filtro-relaciones`, a partir de lo que
+## [5.5.0] - 2026-11-12
+
+SemVer: MINOR, sin cambios incompatibles (sesión `2026-11-12-doc-filtro-relaciones`, a partir de lo que
 pidió util_bbdd_web: excluir tablas por patrón, enlaces entre tablas relacionadas, instrucciones en la exportación
 Markdown y la profundidad de los diagramas).
 
