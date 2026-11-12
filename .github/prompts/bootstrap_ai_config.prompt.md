@@ -255,11 +255,10 @@ Este enlace facilita navegación y retroalimentación de IA (agentes pueden vali
        - Node.js: `package.json`
        - Go: `go.mod` (extraer versión del tag o var)
        - Java: `pom.xml`
-     - Línea 43: `[builder, "build"]` → comando build del destino
-       - Python: `zensical build` / `mkdocs build`
+     - `_build()`: `["zensical", "build"]` → comando build del destino
+       - Python: `zensical build`
        - Node.js: `docusaurus build` / `npm run build:docs`
        - Go: `hugo` / `make docs`
-     - Línea 21: builder default (`zensical`) → el del destino (`mkdocs`, `docusaurus`, etc.)
 
 3. **`.github/workflows/docs-zip-release.yml`** — Workflow CI/CD
    - **Copiar y adaptar**:
@@ -289,7 +288,7 @@ Este enlace facilita navegación y retroalimentación de IA (agentes pueden vali
 | Componente | Python + MkDocs | Node.js + Docusaurus | Go + Hugo |
 |---|---|---|---|
 | Versión desde | `pyproject.toml` | `package.json` | `git describe` o var |
-| Builder | `zensical` / `mkdocs` | `docusaurus` | `hugo` |
+| Builder | `zensical` | `docusaurus` | `hugo` |
 | Build cmd | `zensical build --strict` | `docusaurus build` | `hugo` |
 | Output dir | `site/` | `build/` | `public/` |
 | ZIP script | `python scripts/build_docs_zip.py` | `node scripts/build-docs-zip.js` | `./scripts/build-docs-zip.sh` |

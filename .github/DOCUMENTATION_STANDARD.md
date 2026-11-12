@@ -1,6 +1,6 @@
 # 📚 Estándar de Documentación
 
-Estándar canónico de la documentación de **util_bbdd**: arquetipos, configuración de `mkdocs.yml`,
+Estándar canónico de la documentación de **util_bbdd**: arquetipos, configuración de `zensical.toml`,
 roles de los agentes de documentación y criterios de completitud. Reglas de edición por ruta
 (Markdown, Mermaid, snippets, `nav`): `.github/instructions/docs.instructions.md`. Reglas comunes a
 todas las plataformas IA: `.github/SHARED_INSTRUCTIONS.md` § «Documentación obligatoria».
@@ -94,7 +94,7 @@ Diagrama Mermaid (flowchart TD, classDiagram, sequenceDiagram o architecture-bet
 según los criterios de docs.instructions.md § Mermaid). Máximo 12 nodos.
 
 ## 2. Modelo de Datos / Contratos
-Sin directivas autodoc: van en docs/api/[area]_autodoc.md (sección «Autodoc (mkdocstrings)» de mkdocs.yml).
+Sin directivas autodoc: van en docs/api/[area]_autodoc.md (sección «Autodoc (mkdocstrings)» de zensical.toml).
 ### API pública y contratos
 Tabla API pública: | Función/Clase | Firma simplificada | Descripción | Retorna |
 Tabla entrada:     | Parámetro | Tipo | Descripción | Restricciones |
@@ -385,11 +385,12 @@ Tabla: | Norma | Objeto | Cobertura en el sistema |
 | ❌ | Gap — no implementado o sin documentación verificable |
 | 🔍 | A verificar — evidencia insuficiente para determinar cobertura |
 
-**Sección MkDocs** (solo si el arquetipo aplica):
+**Sección en `zensical.toml`** (solo si el arquetipo aplica; en el `nav`, entre "Funcional" y "Arquitectura"):
 
-```yaml
-- Normativa:                                                     # Entre "Funcional" y "Arquitectura"
-    - Trazabilidad <Nombre norma>: normativa/<codigo>_traceability.md
+```toml
+{ "Normativa" = [
+  { "Trazabilidad <Nombre norma>" = "normativa/<codigo>_traceability.md" },
+] },
 ```
 
 **Cuándo crear**: al comenzar el proyecto si la normativa es conocida desde el inicio, o en la
@@ -439,17 +440,21 @@ Esta sección define el contrato mínimo y las reglas de nomenclatura para **tod
 | Aplicación con servidor | `deployment_guide.md` |
 | Cualquier proyecto con herramientas IA | Subsección "Herramientas IA" en Guías: claude_code_guide.md, codex_guide.md, etc. |
 
-#### Estructura de la sección en `mkdocs.yml`
+#### Estructura de la sección en `zensical.toml`
 
-```yaml
-- Guías:
-    - Incorporación para Desarrolladores: guides/onboarding_dev.md   # Siempre primero
-    - [Grupos operativos según el proyecto]:                           # Conexión, Despliegue, etc.
-        - [Guía específica]: guides/[nombre_guia].md
-    - Errores y Diagnóstico:
-        - Troubleshooting: guides/troubleshooting.md                  # Siempre en esta subsección
-    - Herramientas IA:                                                 # Si el proyecto usa herramientas IA
-        - [Nombre herramienta]: guides/[tool]_guide.md
+```toml
+{ "Guías" = [
+  { "Incorporación para Desarrolladores" = "guides/onboarding_dev.md" },   # Siempre primero
+  { "[Grupos operativos según el proyecto]" = [                               # Conexión, Despliegue, etc.
+    { "[Guía específica]" = "guides/[nombre_guia].md" },
+  ] },
+  { "Errores y Diagnóstico" = [
+    { "Troubleshooting" = "guides/troubleshooting.md" },                  # Siempre en esta subsección
+  ] },
+  { "Herramientas IA" = [                                                 # Si el proyecto usa herramientas IA
+    { "[Nombre herramienta]" = "guides/[tool]_guide.md" },
+  ] },
+] },
 ```
 
 #### Cuándo actualizar
@@ -461,122 +466,101 @@ Esta sección define el contrato mínimo y las reglas de nomenclatura para **tod
 
 ---
 
-## 4. Configuración Recomendada mkdocs.yml
+## 4. Configuración Recomendada zensical.toml
 
 La siguiente configuración es la **referencia estándar** para todos los proyectos.
-Adapta los valores de `site_*`, `extra.version` y `nav` a cada proyecto; el resto es la base común.
+Es el formato nativo de Zensical (`zensical.toml`, ámbito `[project]`). Adapta `site_*` y `nav` a cada
+proyecto; el resto es la base común.
 
 ### 4.1 Configuración Completa (Referencia)
 
-```yaml
+```toml
 # ── Metadatos del sitio ──────────────────────────────────────────────────────
-site_name: [Nombre del Proyecto]
-site_description: [Descripción breve del proyecto]
-site_author: [Autor / Equipo]
-site_url: https://[usuario].github.io/[repo]
-
-# ── Tema ─────────────────────────────────────────────────────────────────────
-theme:
-  name: material
-  language: es
-  features:
-    # Navegación
-    - navigation.tabs           # Pestañas principales en la barra superior
-    - navigation.sections       # Agrupa entradas en secciones colapsables
-    - navigation.top            # Botón "volver arriba"
-    - toc.follow                # TOC sigue el scroll
-    # Búsqueda
-    - search.suggest
-    - search.highlight
-    # Código
-    - content.code.copy         # Botón copiar en bloques de código
-    - content.code.annotate     # Anotaciones en código
-    - content.tabs.link         # Tabs de código sincronizadas
-
-# ── Plugins ──────────────────────────────────────────────────────────────────
-plugins:
-  - search:
-      lang: es
-
-  # Opcional: muestra fecha de última modificación
-  - git-revision-date-localized:  # pip install mkdocs-git-revision-date-localized
-      type: date
-
-  # Obligatorio si el proyecto es Python (docstrings → HTML)
-  - mkdocstrings:               # pip install mkdocstrings[python]
-      handlers:
-        python:
-          paths: [src]
-          options:
-            show_source: true
-            show_root_heading: true
-
-# ── Extensiones Markdown ─────────────────────────────────────────────────────
-markdown_extensions:
-  - admonition                  # Bloques de nota, warning, tip, etc.
-  - tables
-  - toc:
-      permalink: true           # Anclas en encabezados
-
-  # Resaltado de código
-  - pymdownx.highlight:
-      use_pygments: true
-      anchor_linenums: true
-  - pymdownx.inlinehilite
-
-  # Bloques de código con Mermaid
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
-
-  - pymdownx.snippets           # Incluir fragmentos de otros archivos
-  - pymdownx.emoji:             # Emojis :material-check:
-      emoji_index: !!python/name:pymdownx.emoji.twemoji
-      emoji_generator: !!python/name:pymdownx.emoji.to_svg
-
-# ── Extras ───────────────────────────────────────────────────────────────────
-extra:
-  version:
-    provider: mike              # pip install mike (versionado multi-versión)
-  # Publicar versión: mike deploy [X.Y.Z] latest --update-aliases
-  social:                       # Opcional
-    - icon: fontawesome/brands/github
-      link: https://github.com/[usuario]/[repo]
+[project]
+site_name = "[Nombre del Proyecto]"
+site_description = "[Descripción breve del proyecto]"
+site_author = "[Autor / Equipo]"
+site_url = "https://[usuario].github.io/[repo]/"
+docs_dir = "docs"
+site_dir = "site"
 
 # ── Navegación (Obligatoria) ─────────────────────────────────────────────────
-nav:
-  - Inicio: index.md                       # Arquetipo 6, Variante A
-  - Instalación: installation.md           # Arquetipo 6, Variante B
-  - Documentación Funcional:
-      - [Área]:
-          - [Módulo]: functional/[modulo].md
-  - Referencia Técnica:
-      - [Área]:
-          - [Módulo]: api/[modulo].md
-  - Guías:
-      - Incorporación para Desarrolladores: guides/onboarding_dev.md
-      - [Tema]:
-          - [Guía]: guides/[nombre_guia].md
-      - Errores y Diagnóstico:
-          - Troubleshooting: guides/troubleshooting.md
-  - Ejemplos:
-      - [Área]:
-          - [Ejemplo]: examples/[nombre].md
-  - Arquitectura:
-      - Arquitectura del sistema: architecture.md   # Arquetipo 6, Variante C
-      - [ADR-NNN]: adr/[ADR-NNN-nombre].md         # Arquetipo 5
-  - Historia y Planes:
-      - Versiones Históricas: legacy_versions.md
-      - Roadmap: roadmap.md
+nav = [
+  { "Inicio" = "index.md" },                       # Arquetipo 6, Variante A
+  { "Instalación" = "installation.md" },           # Arquetipo 6, Variante B
+  { "Documentación Funcional" = [
+    { "[Área]" = [{ "[Módulo]" = "functional/[modulo].md" }] },
+  ] },
+  { "Referencia Técnica" = [
+    { "[Área]" = [{ "[Módulo]" = "api/[modulo].md" }] },
+  ] },
+  { "Guías" = [
+    { "Incorporación para Desarrolladores" = "guides/onboarding_dev.md" },
+    { "[Tema]" = [{ "[Guía]" = "guides/[nombre_guia].md" }] },
+    { "Errores y Diagnóstico" = [{ "Troubleshooting" = "guides/troubleshooting.md" }] },
+  ] },
+  { "Ejemplos" = [
+    { "[Área]" = [{ "[Ejemplo]" = "examples/[nombre].md" }] },
+  ] },
+  { "Arquitectura" = [
+    { "Arquitectura del sistema" = "architecture.md" },  # Arquetipo 6, Variante C
+    { "[ADR-NNN]" = "adr/[ADR-NNN-nombre].md" },         # Arquetipo 5
+  ] },
+  { "Historia y Planes" = [
+    { "Versiones Históricas" = "legacy_versions.md" },
+    { "Roadmap" = "roadmap.md" },
+  ] },
+]
+
+# ── Tema ─────────────────────────────────────────────────────────────────────
+[project.theme]
+language = "es"
+features = [
+  "navigation.tabs",        # Pestañas principales en la barra superior
+  "navigation.top",         # Botón "volver arriba"
+  "toc.follow",             # TOC sigue el scroll
+  "search.highlight",
+  "content.code.copy",      # Botón copiar en bloques de código
+  "content.code.annotate",  # Anotaciones en código
+  "content.tabs.link",      # Tabs de código sincronizadas
+]
+
+[[project.extra.social]]    # Opcional
+icon = "fontawesome/brands/github"
+link = "https://github.com/[usuario]/[repo]"
+
+# ── Extensiones Markdown ─────────────────────────────────────────────────────
+[project.markdown_extensions]
+admonition = {}                     # Bloques de nota, warning, tip, etc.
+tables = {}
+toc.permalink = true                # Anclas en encabezados
+pymdownx.highlight.anchor_linenums = true
+pymdownx.inlinehilite = {}
+pymdownx.snippets.base_path = ["docs"]   # Incluir fragmentos de otros archivos (--8<--)
+pymdownx.emoji.emoji_index = "zensical.extensions.emoji.twemoji"
+pymdownx.emoji.emoji_generator = "zensical.extensions.emoji.to_svg"
+pymdownx.superfences.custom_fences = [   # Bloques de código con Mermaid (Zensical lo dibuja sin plugin)
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+
+# ── API de referencia (obligatorio si el proyecto es Python: docstrings → HTML) ──
+[project.plugins.mkdocstrings.handlers.python]   # pip install mkdocstrings[python]
+paths = ["src"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+show_source = true
+show_root_heading = true
 ```
+
+La búsqueda es nativa (sin plugin `search`) y usa `project.theme.language`. Zensical **no ejecuta plugins arbitrarios
+de MkDocs** (solo sus reimplementaciones nativas, como mkdocstrings): cualquier paso posterior al build, como el ZIP
+offline, va en un script.
 
 ---
 
 ### 4.2 Navegación de util_bbdd
 
-La navegación real está **solo** en `mkdocs.yml` (no se copia aquí para que no diverja). Secciones de
+La navegación real está **solo** en `zensical.toml` (no se copia aquí para que no diverja). Secciones de
 primer nivel y agrupación en subsecciones: `docs.instructions.md` § «Generador estático».
 
 ---
@@ -604,12 +588,12 @@ primer nivel y agrupación en subsecciones: `docs.instructions.md` § «Generado
 
 | Fase | Agente | Tarea | Entrada | Salida |
 |------|--------|-------|---------|--------|
-| **1. Planificación** | `Plan Architect` | Validar estructura actual vs propuesta | `mkdocs.yml` + código fuente | `PLAN` + `AUDIT_PLAN` |
+| **1. Planificación** | `Plan Architect` | Validar estructura actual vs propuesta | `zensical.toml` + código fuente | `PLAN` + `AUDIT_PLAN` |
 | **2. Validación IA** | `config-reviewer` | Revisar coherencia en `CLAUDE.md`, `copilot-instructions.md` | Archivos IA | Findings + recomendaciones |
 | **3. Exploración** | `Explore` | Mapear módulos existentes vs faltantes | `src/`, `docs/` | Matriz de cobertura |
-| **4. Generación** | `documentation-generator` | Crear/actualizar docs funcional + técnica | Código fuente + prompts | Archivos en `docs/` + `mkdocs.yml` |
+| **4. Generación** | `documentation-generator` | Crear/actualizar docs funcional + técnica | Código fuente + prompts | Archivos en `docs/` + `zensical.toml` |
 | **5. Auditoría** | `documentation-reviewer` | Validar completitud, ejemplos, coherencia | Docs generadas | Findings + mejoras |
-| **6. Verificación de config** (opt-in `--verify-tools`) | `documentation-generator` | Fetch webs oficiales — validar plugins y versiones en `mkdocs.yml` | Config + webs MkDocs/Zensical/PyPI | Discrepancias por severidad |
+| **6. Verificación de config** (opt-in `--verify-tools`) | `documentation-generator` | Fetch webs oficiales — validar plugins y versiones en `zensical.toml` | Config + webs Zensical/PyPI | Discrepancias por severidad |
 | **6b. Verificación de build** (opt-in `--verify-build`) | `documentation-generator` | Build + inspección HTML generado — alias bug, snippets, Mermaid, nav | `site/` (Modo A) o `localhost:8000` (Modo B `--serve`) | Hallazgos por página + acciones recomendadas |
 | **7. Cierre** | `Version Closer` | Escribe `CHANGELOG.md` y el `TRACEABILITY.md` de la sesión; verifica `pyproject.toml` | Cambios completados | Release notes |
 
@@ -620,7 +604,7 @@ primer nivel y agrupación en subsecciones: `docs.instructions.md` § «Generado
 | `documentation-generator` | Generar docs por primera vez o actualizar módulo completo | `/doc-generator` o lenguaje natural (Claude Code) · `@Documentation Generator` (Copilot) | `src/` → `docs/` |
 | `documentation-reviewer` | Auditar docs existentes (calidad, ejemplos, claridad) | Sin slash command: lenguaje natural (Claude Code) · `@Documentation Reviewer` (Copilot) | `docs/` |
 | `config-reviewer` | Sincronizar instrucciones IA entre archivos de configuración | `/config-review` (Claude Code) · `@Config Reviewer` (Copilot) | `SHARED_INSTRUCTIONS.md`, entry points, agentes, prompts |
-| `Plan Architect` | Cambio estructural en `mkdocs.yml` o nuevo módulo importante | `/new-feature` o `/refactor` | `mkdocs.yml` |
+| `Plan Architect` | Cambio estructural en `zensical.toml` o nuevo módulo importante | `/new-feature` o `/refactor` | `zensical.toml` |
 
 ---
 
@@ -628,8 +612,8 @@ primer nivel y agrupación en subsecciones: `docs.instructions.md` § «Generado
 
 ### Restricciones Generales
 
-- ✅ **Zensical** (por defecto, CI) o **MkDocs Material** — mismo `mkdocs.yml`; no se usa `zensical.toml`
-- ✅ **Diagramas Mermaid** — Agnóstico a Graphviz, integrado en mkdocs
+- ✅ **Zensical** — único generador, configurado en `zensical.toml` (sin `mkdocs.yml` ni plugins de MkDocs)
+- ✅ **Diagramas Mermaid** — Agnóstico a Graphviz, nativo en Zensical
 - ✅ **NO inventar código** — Todos los ejemplos deben validarse contra `src/`
 - ✅ **Encoding UTF-8** — Todos los archivos markdown
 - ❌ **Sin APIs de IA externas** para generar documentación (`SHARED_INSTRUCTIONS.md` § «Estándar de generación documental»)
@@ -650,9 +634,9 @@ primer nivel y agrupación en subsecciones: `docs.instructions.md` § «Generado
      En `nav:` **se agrupan en subsecciones temáticas** (Incorporación, Conexión y Drivers, Errores y Diagnóstico,
      Rendimiento, Migración de Versión, Herramientas IA…), no por módulo.
 
-3. **Actualización de mkdocs.yml**: la hace el agente `documentation-generator` al crear, mover o retirar páginas (`mkdocstrings` solo genera el contenido de las páginas autodoc, no el `nav`)
+3. **Actualización de zensical.toml**: la hace el agente `documentation-generator` al crear, mover o retirar páginas (`mkdocstrings` solo genera el contenido de las páginas autodoc, no el `nav`)
 
-4. **Build CI/CD**: `zensical build --strict` en CI (`.github/workflows/docs-zip-release.yml`); en local, `zensical build --strict` o `mkdocs build --strict`
+4. **Build CI/CD**: `zensical build --strict` en CI (`.github/workflows/docs-zip-release.yml`); en local, el mismo `zensical build --strict`
 
 5. **Versionamiento**: Sincronizar CHANGELOG.md + `pyproject.toml` según `.github/instructions/sync.instructions.md`
 
@@ -662,7 +646,7 @@ primer nivel y agrupación en subsecciones: `docs.instructions.md` § «Generado
 
 La estandarización se considera **completa** cuando:
 
-- [ ] `zensical build --strict` (o `mkdocs build --strict`) finaliza sin errores ni warnings de links rotos
+- [ ] `zensical build --strict` finaliza sin errores ni warnings de links rotos
 - [ ] Todos los módulos en `src/` tienen doc funcional (`docs/functional/`) y técnica (`docs/api/`)
 - [ ] Todos los archivos referenciados en `docs/examples/` existen en disco
 - [ ] `CHANGELOG.md` refleja la versión actual de `pyproject.toml`
@@ -680,6 +664,6 @@ La estandarización se considera **completa** cuando:
 - [`instructions/sync.instructions.md`](instructions/sync.instructions.md) — Sincronización de versiones
 - [`AGENTS.md`](AGENTS.md) — Registro de agentes y prompts de documentación
 - [`../CLAUDE.md`](../CLAUDE.md) y [`copilot-instructions.md`](copilot-instructions.md) — Entry points por plataforma
-- [`../mkdocs.yml`](../mkdocs.yml) — Navegación y configuración real
+- [`../zensical.toml`](../zensical.toml) — Navegación y configuración real
 - [`../pyproject.toml`](../pyproject.toml) — Versión actual del proyecto
 - [`../.ai/product.md`](../.ai/product.md) — Contexto de producto

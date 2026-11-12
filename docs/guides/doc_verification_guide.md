@@ -10,14 +10,14 @@ Existen dos opciones complementarias, ambas opt-in, que se activan incluyéndola
 
 | Opción | Qué comprueba | Cuándo usarla |
 |---|---|---|
-| `--verify-tools` | Compatibilidad de plugins y directivas de `mkdocs.yml` contra las webs oficiales | Tras actualizar el generador o añadir un plugin nuevo |
+| `--verify-tools` | Compatibilidad de plugins y directivas de `zensical.toml` contra las webs oficiales | Tras actualizar el generador o añadir un plugin nuevo |
 | `--verify-build` | Calidad del HTML generado: autodoc expandido, snippets resueltos, Mermaid presente, nav sin huérfanos | Tras generar o actualizar documentación |
 | `--verify-build --serve` | Lo mismo que `--verify-build`, pero con el servidor activo para ver Mermaid como SVG | Cuando necesitas confirmar el renderizado final completo |
 
 ## 2. Requisitos Previos
 
-- Repositorio `util_bbdd` con `zensical` o `mkdocs-material` instalado en el entorno virtual.
-- `mkdocs.yml` (fuente única; el proyecto no usa `zensical.toml`).
+- Repositorio `util_bbdd` con `zensical` instalado en el entorno virtual.
+- `zensical.toml` (fuente única; el proyecto no usa `zensical.toml`).
 - Un asistente con acceso al agente `Documentation Generator` (Claude Code o Copilot Chat).
 - Para `--verify-build --serve`: puerto `8000` libre en localhost.
 
@@ -37,9 +37,9 @@ El agente hace fetch de las webs oficiales y contrasta las directivas presentes 
 
 | Fuente | URL consultada |
 |---|---|
-| MkDocs | `https://www.mkdocs.org/about/release-notes/` |
-| Material for MkDocs | `https://squidfunk.github.io/mkdocs-material/plugins/` |
-| Zensical | `https://zensical.org/` |
+| Zensical (versiones) | `https://github.com/zensical/zensical/releases` |
+| Zensical (configuración) | `https://zensical.org/docs/setup/basics/` |
+| Zensical (plugins compatibles) | `https://zensical.org/docs/compatibility/mkdocs/plugins/` |
 
 El resultado es una lista de discrepancias clasificadas por severidad:
 
@@ -58,7 +58,7 @@ Verifica el output del build. --verify-build
 El agente ejecuta:
 
 ```bash
-zensical build --strict   # o: mkdocs build --strict
+zensical build --strict
 ```
 
 A continuación lee los ficheros HTML de `site/` y comprueba:
@@ -83,7 +83,7 @@ Verifica el sitio con el servidor activo. --verify-build --serve
 El agente solicitará confirmación antes de arrancar el servidor:
 
 ```bash
-zensical serve   # o: mkdocs serve
+zensical serve
 ```
 
 Una vez activo, usa `WebFetch` sobre `http://localhost:8000/` para comprobar las mismas páginas que en el Modo A. Los diagramas Mermaid aparecen como SVG (renderizado completo con JavaScript). Detén el servidor cuando la verificación haya finalizado.
@@ -126,7 +126,7 @@ Un resultado limpio muestra todas las verificaciones en ✅ OK y ninguna entrada
 |---|---|---|
 | `--strict` falla con WARNING en plugin desconocido | Plugin no instalado o nombre cambiado en la versión activa | Ejecutar `--verify-tools` para obtener el nombre correcto |
 | Sección autodoc sin métodos (alias bug) | Directiva `:::` apunta a un alias de variable, no a la clase real | Cambiar `util_bbdd.modulo.alias` → `util_bbdd.modulo.ClaseReal` (ver [Referencia Técnica](../api/bulk_crud.md)) |
-| `--8<--` aparece en el HTML como texto literal | El plugin `snippets` no está habilitado en `mkdocs.yml` | Añadir `- pymdownx.snippets` en `markdown_extensions` |
-| Puerto 8000 ocupado en Modo B | Otro proceso usa el puerto | Detener el proceso o cambiar el puerto: `mkdocs serve --dev-addr=127.0.0.1:8001` |
+| `--8<--` aparece en el HTML como texto literal | El plugin `snippets` no está habilitado en `zensical.toml` | Añadir `pymdownx.snippets.base_path = ["docs"]` en `[project.markdown_extensions]` |
+| Puerto 8000 ocupado en Modo B | Otro proceso usa el puerto | Detener el proceso o cambiar el puerto: `dev_addr = "localhost:8001"` en `[project]` de `zensical.toml` |
 | Mermaid no aparece como SVG en Modo A | Correcto — en build estático Mermaid requiere JS en cliente | Usar Modo B (`--serve`) para ver el SVG renderizado |
 | El agente no encuentra `site/` | El build no se ha ejecutado aún | El agente lo ejecuta automáticamente con `--verify-build` |

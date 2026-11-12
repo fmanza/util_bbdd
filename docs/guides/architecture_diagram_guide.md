@@ -18,7 +18,7 @@ La colocación de los nodos, la capa de cada paquete y las marcas numeradas (hoy
 
 - Python 3.12 o superior. El script usa solo la biblioteca estándar.
 - Repositorio `util_bbdd` clonado. Las rutas son relativas a la raíz del repositorio, así que puede lanzarse desde cualquier directorio.
-- Para la verificación de la sección 4: `zensical` o `mkdocs` instalado (`pip install -e ".[docs]"`).
+- Para la verificación de la sección 4: `zensical` instalado (`pip install -e ".[docs]"`).
 
 ---
 
@@ -101,7 +101,7 @@ __init__      -> async_utils        1     0       0
 
 - El `__init__.py` raíz: solo re-exporta la API pública.
 - Las flechas de los niveles 2 y 3 hacia Foundation: se resumen en una sola flecha con el número de paquetes que importan de allí.
-- Los módulos de `EXCLUDED`, hoy `docs_build_plugin` (plugin de MkDocs) y `exceptions` (re-exporta `_core/exceptions.py`).
+- Los módulos de `EXCLUDED`, hoy `exceptions` (re-exporta `_core/exceptions.py`).
 
 ### Mensajes de error
 

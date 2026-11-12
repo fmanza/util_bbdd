@@ -24,7 +24,7 @@ métrica de duplicación y modo bootstrap). Este prompt define el formato de sal
 - Estrategia elegida (Opción A / Opción B):
 - Contenido a unificar o separar:
 - Restricciones de compatibilidad (romper contratos públicos: sí/no):
-- Alcance documental: incluir agentes/prompts de documentación y `mkdocs.yml` cuando aplique:
+- Alcance documental: incluir agentes/prompts de documentación y `zensical.toml` cuando aplique:
 
 ## Instrucciones previas obligatorias
 
@@ -40,7 +40,7 @@ Lee los siguientes ficheros **antes** de emitir cualquier propuesta:
 - `.github/prompts/functional_doc.prompt.md` — prompt funcional
 - `.github/prompts/technical_doc.prompt.md` — prompt técnico
 - `.github/prompts/documentation_review.prompt.md` — prompt de revisión documental
-- `mkdocs.yml` — navegación y configuración documental, si el cambio afecta docs
+- `zensical.toml` — navegación y configuración documental, si el cambio afecta docs
 
 ## Análisis previo que debes hacer
 
@@ -81,7 +81,7 @@ Volver a esta opción desde la vigente exige justificarlo en el PLAN.
 - Formato: markdown estructurado con secciones etiquetadas
 - Los prompts de documentación separan funcional, técnico, ejemplos y revisión final
 - La creación y actualización de documentación comparten un único flujo de entrada siempre que sea posible
-- `mkdocs.yml` se incluye cuando se creen, muevan o retiren páginas
+- `zensical.toml` se incluye cuando se creen, muevan o retiren páginas
 - No se incluyen instrucciones de generación mediante APIs externas mientras esté excluido
 
 ## Formato de salida esperado
@@ -111,7 +111,7 @@ Volver a esta opción desde la vigente exige justificarlo en el PLAN.
 - Cobertura de reglas clave: las reglas canónicas (SOLID, OOP, multibase, políticas por tarea) siguen alcanzables desde cada entry point, sin copiarlas
 - Secciones ausentes o incompletas
 - Referencias: todas las rutas existen, sin ciclos de «lee primero», `% duplicación` final
-- **Verificación documental:** Confirma separación funcional/técnica/ejemplos, actualización de `mkdocs.yml`, uso de Mermaid y regla de no inventar
+- **Verificación documental:** Confirma separación funcional/técnica/ejemplos, actualización de `zensical.toml`, uso de Mermaid y regla de no inventar
 - **Verificación de APIs externas:** Bloquea instrucciones o ejemplos de generación documental mediante API por estar fuera de alcance temporal
 - Veredicto: `APROBADO | APROBADO CON CONDICIONES | RECHAZADO`
 

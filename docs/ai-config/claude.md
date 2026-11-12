@@ -40,11 +40,11 @@ implementación hay que ejecutar `ruff format`, el `mypy` completo y `pytest` (v
 
 ### Build de la documentación
 
-Ejecutar manualmente antes de publicar documentación (Zensical es el generador del CI; MkDocs, equivalente):
+Ejecutar manualmente antes de publicar documentación (Zensical, el único generador, también en el CI):
 
 ```bash
-zensical build --strict   # o: python -m mkdocs build --strict
-zensical serve            # preview local (o: python -m mkdocs serve)
+zensical build --strict
+zensical serve            # preview local
 ```
 
 ## 4. Slash Commands Disponibles

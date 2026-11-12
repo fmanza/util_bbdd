@@ -5,7 +5,7 @@
 Genera la documentación de un schema en Markdown (desde 5.3.0) y conviértela en un recurso vivo, en este orden:
 
 1. Generarla: un fichero por tabla, vista y rutina, con diagramas entidad-relación de Mermaid.
-2. Publicarla como sitio con Zensical o MkDocs, también sin Internet.
+2. Publicarla como sitio con Zensical, también sin Internet.
 3. Versionarla con git.
 4. Enlazarla con el código y los documentos funcionales y técnicos mediante un mapa de trazabilidad.
 5. Ver qué cambió respecto de la generación anterior.
@@ -18,8 +18,7 @@ Es una guía *how-to*. La referencia completa de opciones está en
 
 - util_bbdd 5.3.0 o posterior y un `SyncDatabaseManager` conectado, con permiso de lectura sobre el catálogo.
 - **No hace falta Graphviz**: los diagramas son texto Mermaid.
-- Para publicar: Zensical (`pip install zensical`) o MkDocs Material. Lo usa el CI de este proyecto y es opcional
-  para generar.
+- Para publicar: Zensical (`pip install zensical`). Lo usa el CI de este proyecto y es opcional para generar.
 - Para publicar sin Internet: un `mermaid.min.js` local, por ejemplo el de `npm install mermaid` en
   `node_modules/mermaid/dist/`.
 
@@ -65,8 +64,8 @@ print(result.outputs["markdown"])  # docs_bd/ventas/MARKDOWN
 
 ```text
 docs_bd/ventas/MARKDOWN/
-  manifest.json      mkdocs.yml
-  README.md                         # cómo verla (VS Code, Zensical, MkDocs) y qué es cada fichero (5.5.0)
+  manifest.json      zensical.toml  # configuración del sitio (5.6.0; antes, mkdocs.yml)
+  README.md                         # cómo verla (VS Code, Zensical) y qué es cada fichero (5.5.0)
   docs/index.md                     # inventario, alcance del filtro, enlaces y leyenda de los diagramas
   docs/tables/index.md              # letras → index-a.md, index-a-2.md… (200 entradas por página)
   docs/tables/pedidos.md            # una página por tabla
@@ -88,14 +87,14 @@ Cada página de tabla empieza con un **front matter** en una línea JSON:
 
 Cada columna tiene un ancla (`pedidos.md#col-cliente-id`).
 
-### 3.3 Publicar con Zensical (o MkDocs)
+### 3.3 Publicar con Zensical
 
 ```bash
 cd docs_bd/ventas/MARKDOWN
 zensical build --strict     # o: zensical serve
 ```
 
-- **Navegación**: el `mkdocs.yml` generado tiene una `nav` corta (Inicio, Tablas, Vistas, Rutinas…). A cada objeto se
+- **Navegación**: el `zensical.toml` generado tiene una `nav` corta (Inicio, Tablas, Vistas, Rutinas…). A cada objeto se
   llega por los índices por letra o por el buscador; con cientos de tablas, la barra lateral sigue siendo usable.
 - **Sin Internet**: Zensical carga Mermaid de `unpkg.com`, y sin Internet los diagramas no se dibujan. Pasa un Mermaid
   local:
@@ -105,8 +104,8 @@ zensical build --strict     # o: zensical serve
   ```
 
   Se copia a `docs/assets/javascripts/mermaid.min.js` y se carga desde el sitio: Zensical solo va a unpkg si no hay
-  ninguno cargado. El `mkdocs.yml` lleva además `theme.font: false`, para no pedir Google Fonts.
-- **Un solo Mermaid para muchas documentaciones** (desde 5.4.0): con `mermaid_js_ref` no se copia nada y `mkdocs.yml`
+  ninguno cargado. El `zensical.toml` lleva además `font = false` en `[project.theme]`, para no pedir Google Fonts.
+- **Un solo Mermaid para muchas documentaciones** (desde 5.4.0): con `mermaid_js_ref` no se copia nada y `zensical.toml`
   lo referencia; pon tú el fichero en esa ruta antes de publicar (o usa una URL `https://`):
 
   ```python
@@ -115,8 +114,12 @@ zensical build --strict     # o: zensical serve
 
   Si falta, el build no avisa y el sitio vuelve a cargar Mermaid de unpkg (sin Internet, sin diagramas): ver
   [Mermaid referenciado](../api/database_documentation.md#mermaid-referenciado-mermaid_js_ref).
-- **Configuración propia**: con `mkdocs_yml: False` no se genera el `mkdocs.yml`; usa el tuyo con
+- **Configuración propia**: con `zensical_toml: False` no se genera el `zensical.toml`; usa el tuyo con
   `pymdownx.superfences` y la `custom_fence` de Mermaid.
+- **`mkdocs.yml` (en desuso)**: hasta 5.5.0 la carpeta traía `mkdocs.yml`. Desde 5.6.0 solo se genera con
+  `mkdocs_yml: True` (aviso en el log; se retirará en 6.0.0). Al regenerar sobre una carpeta anterior, el
+  `mkdocs.yml` sin tocar se borra como cualquier fichero generado que ya no se produce; si lo editaste, se
+  conserva. Zensical lee primero `zensical.toml`.
 
 ### 3.4 Versionar con git
 
@@ -265,7 +268,7 @@ cd <directorio_salida>/<nombre>/MARKDOWN && zensical build --strict
 | Una FK aparece «modificada» con las mismas columnas | Cambió solo `ON DELETE`/`ON UPDATE` (el modelo no tiene esos campos) | La página de la tabla muestra las acciones actuales |
 | Un `PACKAGE` de Oracle aparece en `changes.md` pero no en `changes.json` | `SchemaDiff` solo admite `PROCEDURE` y `FUNCTION` | Comportamiento esperado |
 | Dos funciones sobrecargadas comparten página | El catálogo de rutinas no las distingue (igual que Word y HTML) | Comportamiento esperado |
-| `manifest.json` o `mkdocs.yml` indican una versión de util_bbdd antigua | Instalación editable con metadatos de otra versión | `pip install -e .` para refrescar los metadatos |
+| `manifest.json` o `zensical.toml` indican una versión de util_bbdd antigua | Instalación editable con metadatos de otra versión | `pip install -e .` para refrescar los metadatos |
 | Un fichero generado que edité no se borra al dejar de generarse | Se conserva a propósito: su hash ya no es el del manifiesto | Bórralo a mano si ya no lo quieres |
 | Con 1 nivel de relación el diagrama muestra tres tablas en cadena | Los niveles se cuentan en cada sentido: con `direction: "both"`, 1 nivel enseña la tabla de la que depende y la que depende de ella | Es lo esperado; `direction: "outgoing"` o `"incoming"` para un solo sentido. El resumen dice «Niveles por sentido» desde 5.5.0 |
 | Una tabla relacionada sale sin enlace, marcada «frontera» o «excluida» | El `filtro` la deja fuera: no tiene ficha | Amplía `filtro.incluir` si la necesitas documentada |

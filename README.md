@@ -318,7 +318,7 @@ centraliza en `util_bbdd.metadata` (ADR-003). Detalle y diagrama de capas: [docs
 | Solución de problemas | [docs/guides/troubleshooting.md](docs/guides/troubleshooting.md) |
 | Ejemplos | [docs/examples/](docs/examples/) |
 
-El sitio se construye con `zensical build` (o `mkdocs build`) a partir de `mkdocs.yml`.
+El sitio se construye con `zensical build` a partir de `zensical.toml`.
 
 ---
 

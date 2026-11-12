@@ -1,10 +1,12 @@
-"""``catalog.json`` (ADR-006), ``llms.txt``/``llms-full.txt`` y ``mkdocs.yml`` de la documentación Markdown (5.3.0, grupo C)."""
+"""``catalog.json`` (ADR-006), ``llms.txt``/``llms-full.txt`` y ``zensical.toml``/``mkdocs.yml`` de la documentación
+Markdown (5.3.0, grupo C; ``zensical.toml`` desde 5.6.0)."""
 
 from __future__ import annotations
 
 import hashlib
 import json
 import sqlite3
+import tomllib
 
 from pathlib import Path
 from typing import Any
@@ -133,33 +135,66 @@ def test_llms_full_txt_streams_every_page(sqlite_db: Path, tmp_path: Path) -> No
     assert manifest["files"]["docs/llms-full.txt"] == f"sha256:{hashlib.sha256(full).hexdigest()}"
 
 
-# --- mkdocs.yml y Mermaid local ---
+# --- zensical.toml (y mkdocs.yml en desuso) y Mermaid local ---
+
+HOSTILE_SITE_NAME = 'Ventas "prod": a\nb: !!python/object x\n[project]\nsite_name = "otro" # \\ é'
+SHORT_NAV = [{"Inicio": "index.md"}, {"Tablas": "tables/index.md"}, {"Vistas": "views/index.md"}]
+MERMAID_FENCE = {"name": "mermaid", "class": "mermaid", "format": "pymdownx.superfences.fence_code_format"}
 
 
-def test_mkdocs_yml_with_hostile_site_name_and_local_mermaid(sqlite_db: Path, tmp_path: Path) -> None:
+def test_zensical_toml_with_hostile_site_name_and_local_mermaid(sqlite_db: Path, tmp_path: Path) -> None:
     mermaid = tmp_path / "mermaid.min.js"
     mermaid.write_text("window.mermaid = {};\n", encoding="utf-8")
-    site_name = 'Ventas "prod": a\nb: !!python/object x'
     root = _generate(
-        sqlite_db, tmp_path / "out", {**IMPRIMIR, "markdown": {"site_name": site_name, "mermaid_js": str(mermaid)}}
+        sqlite_db,
+        tmp_path / "out",
+        {**IMPRIMIR, "markdown": {"site_name": HOSTILE_SITE_NAME, "mermaid_js": str(mermaid)}},
     )
 
-    config = yaml.unsafe_load((root / "mkdocs.yml").read_text(encoding="utf-8"))  # el tag !!python/name lo exige
-    assert config["site_name"] == site_name
-    assert config["docs_dir"] == "docs"
-    assert config["extra_javascript"] == ["assets/javascripts/mermaid.min.js"]
+    project = tomllib.loads((root / "zensical.toml").read_text(encoding="utf-8"))["project"]
+    assert project["site_name"] == HOSTILE_SITE_NAME  # sin inyección: una sola tabla [project]
+    assert project["docs_dir"] == "docs"
+    assert project["extra_javascript"] == ["assets/javascripts/mermaid.min.js"]
     assert (root / "docs/assets/javascripts/mermaid.min.js").read_bytes() == mermaid.read_bytes()
     # nav corta (portada e índices) y, con Mermaid local (sitio sin Internet), sin Google Fonts
-    assert config["nav"] == [{"Inicio": "index.md"}, {"Tablas": "tables/index.md"}, {"Vistas": "views/index.md"}]
-    assert config["theme"] == {"name": "material", "font": False}
+    assert project["nav"] == SHORT_NAV
+    assert project["theme"] == {"font": False}
+    assert project["markdown_extensions"]["pymdownx"]["superfences"]["custom_fences"] == [MERMAID_FENCE]
+    assert not (root / "mkdocs.yml").exists()  # en desuso: solo si se pide
 
 
-def test_mkdocs_yml_without_local_mermaid_keeps_theme_fonts(sqlite_db: Path, tmp_path: Path) -> None:
+def test_zensical_toml_without_local_mermaid_keeps_theme_fonts(sqlite_db: Path, tmp_path: Path) -> None:
     root = _generate(sqlite_db, tmp_path / "out")
-    config = yaml.unsafe_load((root / "mkdocs.yml").read_text(encoding="utf-8"))
+    project = tomllib.loads((root / "zensical.toml").read_text(encoding="utf-8"))["project"]
 
-    assert config["theme"] == {"name": "material"}
-    assert "extra_javascript" not in config
+    assert "theme" not in project
+    assert "extra_javascript" not in project
+
+
+def test_deprecated_mkdocs_yml_describes_the_same_site(
+    sqlite_db: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    mermaid = tmp_path / "mermaid.min.js"
+    mermaid.write_text("window.mermaid = {};\n", encoding="utf-8")
+    markdown = {"site_name": HOSTILE_SITE_NAME, "mermaid_js": str(mermaid), "mkdocs_yml": True}
+    with caplog.at_level("WARNING"):
+        root = _generate(sqlite_db, tmp_path / "out", {**IMPRIMIR, "markdown": markdown})
+
+    assert "markdown.mkdocs_yml está en desuso" in caplog.text
+    config = yaml.unsafe_load((root / "mkdocs.yml").read_text(encoding="utf-8"))  # el tag !!python/name lo exige
+    assert config["site_name"] == HOSTILE_SITE_NAME
+    assert config["docs_dir"] == "docs"
+    assert config["extra_javascript"] == ["assets/javascripts/mermaid.min.js"]
+    assert config["nav"] == SHORT_NAV
+    assert config["theme"] == {"name": "material", "font": False}
+    assert (root / "zensical.toml").is_file()  # el estándar se sigue generando
+
+
+def test_no_site_config_when_both_are_disabled(sqlite_db: Path, tmp_path: Path) -> None:
+    root = _generate(sqlite_db, tmp_path / "out", {**IMPRIMIR, "markdown": {"zensical_toml": False}})
+
+    assert not (root / "zensical.toml").exists()
+    assert not (root / "mkdocs.yml").exists()
 
 
 def test_missing_mermaid_js_fails_before_generating(sqlite_db: Path, tmp_path: Path) -> None:

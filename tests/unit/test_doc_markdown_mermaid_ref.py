@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import tomllib
 
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,11 @@ def _generate(db: Path, out: Path, markdown: dict[str, Any]) -> Path:
 
 
 def _config(root: Path) -> dict[str, Any]:
+    """``[project]`` de ``zensical.toml``, la configuración del sitio por defecto (5.6.0)."""
+    return dict(tomllib.loads((root / "zensical.toml").read_text(encoding="utf-8"))["project"])
+
+
+def _mkdocs_config(root: Path) -> dict[str, Any]:
     return dict(yaml.unsafe_load((root / "mkdocs.yml").read_text(encoding="utf-8")))  # !!python/name lo exige
 
 
@@ -57,7 +63,7 @@ def test_relative_ref_is_referenced_without_copying(sqlite_db: Path, tmp_path: P
 
     config = _config(root)
     assert config["extra_javascript"] == [LOCAL]
-    assert config["theme"] == {"name": "material", "font": False}  # sitio sin Internet: sin Google Fonts
+    assert config["theme"] == {"font": False}  # sitio sin Internet: sin Google Fonts
     assert not (root / "docs/assets").exists()
     assert not any(name.startswith("docs/assets/") for name in _manifest_files(root))
 
@@ -68,16 +74,17 @@ def test_https_ref_keeps_theme_fonts(sqlite_db: Path, tmp_path: Path) -> None:
 
     config = _config(root)
     assert config["extra_javascript"] == [url]
-    assert config["theme"] == {"name": "material"}
+    assert "theme" not in config
     assert not (root / "docs/assets").exists()
 
 
-def test_ref_is_written_as_yaml_string(sqlite_db: Path, tmp_path: Path) -> None:
-    # Comillas y «#» no rompen el YAML ni añaden claves (se escribe con json.dumps; «:» ya se rechaza en las rutas)
+def test_ref_is_written_as_a_quoted_string(sqlite_db: Path, tmp_path: Path) -> None:
+    # Comillas y «#» no rompen el TOML ni el YAML ni añaden claves (se escribe con json.dumps; «:» ya se rechaza)
     ref = 'js/m"x"#y\'z.js'
-    root = _generate(sqlite_db, tmp_path / "out", {"mermaid_js_ref": ref})
+    root = _generate(sqlite_db, tmp_path / "out", {"mermaid_js_ref": ref, "mkdocs_yml": True})
 
     assert _config(root)["extra_javascript"] == [ref]
+    assert _mkdocs_config(root)["extra_javascript"] == [ref]
 
 
 @pytest.mark.parametrize(
@@ -168,9 +175,10 @@ def test_switching_to_https_ref_removes_the_old_copy(sqlite_db: Path, tmp_path: 
     assert not (root / "docs" / LOCAL).exists()
 
 
-def test_ref_without_mkdocs_yml_only_warns(sqlite_db: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+def test_ref_without_site_config_only_warns(sqlite_db: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING):
-        root = _generate(sqlite_db, tmp_path / "out", {"mermaid_js_ref": LOCAL, "mkdocs_yml": False})
+        root = _generate(sqlite_db, tmp_path / "out", {"mermaid_js_ref": LOCAL, "zensical_toml": False})
 
+    assert not (root / "zensical.toml").exists()
     assert not (root / "mkdocs.yml").exists()
     assert "mermaid_js_ref no tiene efecto" in caplog.text

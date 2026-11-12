@@ -80,7 +80,7 @@ usando .github/prompts/technical_doc.prompt.md
 Detalles obligatorios:
 - Tipo de diagrama: classDiagram (AdvisoryFinding + EngineReadinessAdvisor)
 - Ubicación: docs/api/engine_readiness_advisor.md (NUEVA)
-- Actualizar mkdocs.yml: Agregar bajo "Técnica > API > Connection"
+- Actualizar zensical.toml: Agregar bajo "Técnica > API > Connection"
 - Ejemplos: Llamada básica, integración en BulkCrud, con conexión explícita
 
 Validación:
@@ -94,7 +94,7 @@ Validación:
 - ✅ Tabla de checks disponibles por motor (PostgreSQL, MySQL, MariaDB, Oracle, SQL Server, SQLite, Snowflake)
 - ✅ 3 ejemplos prácticos (básico, integración bulk, con conexión)
 - ✅ Contratos de entrada/salida
-- ✅ Integración en mkdocs.yml
+- ✅ Integración en zensical.toml
 
 **Archivo generado**:
 - `docs/api/engine_readiness_advisor.md` (nueva)
@@ -203,7 +203,7 @@ usando .github/prompts/technical_doc.prompt.md
 
 Tipo de diagrama: classDiagram
 Ubicación: docs/api/engine_readiness_advisor.md
-Actualizar: mkdocs.yml → Agregar bajo "Técnica > API > Connection"
+Actualizar: zensical.toml → Agregar bajo "Técnica > API > Connection"
 
 Validación:
 - Diagrama Mermaid válido (zensical build --strict)
@@ -212,7 +212,7 @@ Validación:
 
 Entregables:
 - docs/api/engine_readiness_advisor.md (NUEVA)
-- mkdocs.yml actualizado
+- zensical.toml actualizado
 - Diagrama Mermaid validado
 ```
 
@@ -317,8 +317,8 @@ Antes de iniciar cualquier auditoría (bulk, dump o documentación), verifica:
 - [ ] He localizado el código fuente a auditar (`src/util_bbdd/bulk/crud.py`, `dump/orchestrator.py`, `connection/performance_advisor.py`)
 - [ ] He preparado inputs: baseline, dialects, timeline
 - [ ] Solicito a usuario: ¿Se ejecuta `report_once()` en el código? (Sí/No)
-- [ ] Documentación: Confirmo que `docs/api/` será generado y `mkdocs.yml` será actualizado
+- [ ] Documentación: Confirmo que `docs/api/` será generado y `zensical.toml` será actualizado
 
 ---
 
-*Última actualización: 2026-10-15*
+*Última actualización: 2026-11-13*

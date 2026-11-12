@@ -65,9 +65,8 @@ DRAWN = {
 } | {("managers", t) for t in ("connection", "factory", "executors", "metadata", "query", "results")}  # fmt: skip
 
 # Top-level modules deliberately left out of the figure.
-# docs_build_plugin: MkDocs plugin (documentation ZIP); not part of the runtime library.
 # exceptions: public re-export of _core.exceptions (API 1.0), a facade like __init__.py; nothing in the library imports it.
-EXCLUDED = {"docs_build_plugin", "exceptions"}
+EXCLUDED = {"exceptions"}
 
 
 # --------------------------------------------------------------------------------------------------------------------

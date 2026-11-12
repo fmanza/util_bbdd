@@ -10,7 +10,7 @@ Actúa como arquitecto de software senior especializado en Python, documentació
 
 Analiza el módulo [NOMBRE_MÓDULO] de util_bbdd y la documentación existente relacionada.
 No asumas dependencias, motores, APIs ni capacidades que no aparezcan en el código real,
-`pyproject.toml`, README, `docs/` o `mkdocs.yml`.
+`pyproject.toml`, README, `docs/` o `zensical.toml`.
 
 Genera documentación técnica en Markdown siguiendo el Arquetipo 2 con estas secciones en este orden exacto:
 
@@ -38,7 +38,7 @@ Ver restricciones de sintaxis en docs.instructions.md.
 ## 2. Modelo de Datos / Contratos
 
 Sin directivas autodoc en esta página: el autodoc (`::: util_bbdd.[modulo].[Clase]`, solo lo exportado en
-`__all__`) va en la página `docs/api/[area]_autodoc.md` de la sección «Autodoc (mkdocstrings)» de `mkdocs.yml`;
+`__all__`) va en la página `docs/api/[area]_autodoc.md` de la sección «Autodoc (mkdocstrings)» de `zensical.toml`;
 créala o amplíala si el módulo no tiene.
 
 ### API pública
@@ -96,7 +96,7 @@ Restricciones:
 ```
 Lee el archivo [ruta_del_módulo] y genera documentación técnica con diagrama Mermaid
 usando el prompt en .github/prompts/technical_doc.prompt.md.
-Guarda el resultado en docs/api/[nombre_módulo].md y actualiza mkdocs.yml.
+Guarda el resultado en docs/api/[nombre_módulo].md y actualiza zensical.toml.
 ```
 
 Ejemplo concreto:
@@ -105,7 +105,7 @@ Ejemplo concreto:
 Lee src/util_bbdd/dump/orchestrator.py y genera documentación técnica
 usando .github/prompts/technical_doc.prompt.md.
 Tipo de diagrama: sequenceDiagram.
-Guarda en docs/api/dump_orchestrator.md y añade la entrada en mkdocs.yml bajo "Técnica:".
+Guarda en docs/api/dump_orchestrator.md y añade la entrada en zensical.toml bajo "Técnica:".
 ```
 
 ### Modo módulo único — Copilot Chat
@@ -131,7 +131,7 @@ Fase 2 — Para cada módulo (o área), aplica technical_doc.prompt.md:
    Elige el tipo de diagrama según el patrón del módulo (ver tabla más abajo).
    Marca como pendiente lo no verificable."
 
-Fase 3 — Actualizar mkdocs.yml:
+Fase 3 — Actualizar zensical.toml:
   Añade o actualiza entradas en la sección docs/api/ del nav.
 
 Fase 4 — Revisión cruzada:

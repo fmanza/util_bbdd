@@ -39,7 +39,7 @@
 - **Volcado de datos**: `DumpOrchestrator` copia datos entre motores con gestión de constraints, paralelización por niveles FK, `DumpAuditSummary` integrado
 - **Sincronización de PK**: `PKSequenceSyncer` ajusta contadores PK post-bulk (PostgreSQL/SQL Server/MariaDB/Oracle ≥12c)
 - **Variables MySQL/MariaDB**: `MySQLVariableValidator` + `MySQLOptimalConfig` detectan y recomiendan configuración óptima para bulk
-- **Documentación offline**: Plugin MkDocs `documentation_zip` genera ZIP con SHA256; auto-publicación en GitHub Releases
+- **Documentación offline**: `scripts/build_docs_zip.py` genera el ZIP con SHA256 tras `zensical build`; auto-publicación en GitHub Releases
 
 ## Migración y compatibilidad
 

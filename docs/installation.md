@@ -34,7 +34,7 @@ pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git
 | `analysis` | Grafos de relaciones entre tablas (Graphviz) |
 | `analysis-matplotlib` | `MatplotlibRelationshipGraph` (matplotlib + networkx) |
 | `doc-svg` | Render de SVG a otros formatos (CairoSVG) |
-| `docs` | Construir el sitio de documentación (Zensical + MkDocs Material + mkdocstrings) |
+| `docs` | Construir el sitio de documentación (Zensical + mkdocstrings) |
 | `dev` | Toolchain de desarrollo (pytest, ruff, mypy, build) |
 
 !!! note
@@ -53,25 +53,21 @@ python -m venv venv
 pip install -e ".[dev]"
 ```
 
-### Construir la documentación (Zensical ↔ MkDocs)
+### Construir la documentación (Zensical)
 
-La documentación usa **`mkdocs.yml` como única fuente de configuración**. El extra `docs`
-instala dos generadores **compatibles de forma recíproca**, y ambos leen ese mismo
-`mkdocs.yml`:
+El sitio se genera con **Zensical**, el único generador, a partir de **`zensical.toml`** (su formato nativo).
+El extra `docs` instala Zensical y mkdocstrings (la referencia de la API):
 
 ```bash
 pip install -e ".[docs]"
+zensical serve            # servidor local en http://localhost:8000
+zensical build --strict   # sitio estático en site/ (el mismo comando que el CI)
+python scripts/build_docs_zip.py --no-build --in-site   # opcional: ZIP offline dentro de site/
 ```
 
-| Generador | Servidor local | Build estático | Notas |
-|---|---|---|---|
-| **Zensical** (por defecto, lo usa el CI) | `zensical serve` | `zensical build` | Más rápido; lee `mkdocs.yml` nativamente |
-| **MkDocs Material** (clásico) | `mkdocs serve` | `mkdocs build` | Compatibilidad recíproca con el mismo `mkdocs.yml` |
-
 !!! note
-    No existe un `zensical.toml` activo: Zensical lo priorizaría sobre `mkdocs.yml` si
-    estuviera presente. La configuración se mantiene **solo en `mkdocs.yml`** para evitar
-    duplicación. Ver [ZENICAL.md](https://github.com/fmanza/util_bbdd/blob/main/ZENICAL.md).
+    Zensical no ejecuta plugins de MkDocs: el ZIP offline lo genera el script, no el build. Ver
+    [ZENSICAL.md](https://github.com/fmanza/util_bbdd/blob/main/ZENSICAL.md).
 
 ## 3. Drivers por Motor
 

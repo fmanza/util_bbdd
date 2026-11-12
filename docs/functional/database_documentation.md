@@ -8,7 +8,7 @@ Soporta MariaDB, MySQL, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB. Puede g
 
 La salida **Markdown** está pensada para tres usos:
 
-- **Publicarla** como sitio con Zensical o MkDocs, también sin Internet.
+- **Publicarla** como sitio con Zensical, también sin Internet.
 - **Versionarla** con git: la salida es idéntica para el mismo esquema y se puede comparar con la generación anterior.
 - **Que una IA la interprete** y la trace con el código y con la documentación funcional y técnica: ids estables,
   `catalog.json`, `llms.txt` y mapa de trazabilidad.
@@ -78,7 +78,7 @@ sequenceDiagram
 **Generación con grafos:** Si Graphviz está disponible y se habilita la opción de diagramas de relaciones, el módulo genera un grafo por tabla y los embebe en la salida Word o HTML. Los diagramas se renderizan por lotes en paralelo (`grafo.workers`), y cada formato produce lo mismo pida o no los demás.
 
 **Documentación Markdown para publicar:** con `formatos=["markdown"]` se genera la carpeta `MARKDOWN` con un
-`mkdocs.yml` listo para `zensical build`. Con `markdown.mermaid_js` (un `mermaid.min.js` local), el sitio dibuja los
+`zensical.toml` listo para `zensical build`. Con `markdown.mermaid_js` (un `mermaid.min.js` local), el sitio dibuja los
 diagramas sin Internet; con `markdown.mermaid_js_ref` (desde 5.4.0) lo referencia sin copiarlo en cada generación.
 
 **Trazabilidad con código y documentos:** con `markdown.trace_map`, un fichero TOML o JSON que relaciona tablas y
@@ -121,7 +121,7 @@ Derivados de los tests de la generación de documentación.
 | AC-10 | Sin el paquete `graphviz` | Se genera en Markdown con diagramas | Los diagramas se generan igual (`test_diagrams_without_graphviz`) |
 | AC-11 | Un mapa de trazabilidad con campos desconocidos | Se crea el generador | Error de configuración con todos los errores y sin escribir nada (`test_doc_markdown_trace.py`) |
 | AC-12 | Una generación anterior y cambios de columnas, índices, tablas y vistas | Se genera con `previous` | `changes.md` y `changes.json` (legible con `SchemaDiff.from_dict`) recogen los cambios; con otro motor, error (`test_doc_markdown_changes.py`) |
-| AC-13 | La salida Markdown con `mkdocs.yml`, trazabilidad y cambios | Se ejecuta `zensical build --strict` | Termina sin incidencias (tests `integration`) |
+| AC-13 | La salida Markdown con `zensical.toml`, trazabilidad y cambios | Se ejecuta `zensical build --strict` | Termina sin incidencias (tests `integration`) |
 
 ## 5. Glosario y Términos
 

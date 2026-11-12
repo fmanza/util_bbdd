@@ -123,18 +123,15 @@ util_bbdd-docs-X.Y.Z.zip
 
 ### Generar ZIP Localmente
 
-Zensical (el generador de CI) **no ejecuta plugins de MkDocs**, así que el ZIP se genera con
-`scripts/build_docs_zip.py`, que empaqueta igual que el plugin `DocumentationZipPlugin` (misma función):
+Zensical, el único generador, **no ejecuta plugins de MkDocs**: el ZIP lo genera `scripts/build_docs_zip.py`
+después del build:
 
 ```bash
 # ZIP versionado, como el de GitHub Releases → dist/util_bbdd-docs-<versión>.zip (+ .sha256 y CHECKSUMS.txt)
 python scripts/build_docs_zip.py
 
 # ZIP dentro del sitio, como el publicado → site/util_bbdd-docs-latest.zip (+ .sha256)
-zensical build && python scripts/build_docs_zip.py --no-build --in-site
-
-# Con MkDocs, el plugin lo genera en el propio build → site/util_bbdd-docs-latest.zip (+ .sha256)
-python -m mkdocs build
+zensical build --strict && python scripts/build_docs_zip.py --no-build --in-site
 ```
 
 El archivo ZIP incluye:
@@ -154,18 +151,6 @@ sha256sum site/util_bbdd-docs-latest.zip
 # Comparar manualmente con el SHA256 publicado en GitHub Releases
 # ✅ Si coinciden, el archivo está íntegro
 ```
-
-### Plugin de Documentación
-
-Con `mkdocs build`, el ZIP lo genera el plugin `DocumentationZipPlugin` declarado en `mkdocs.yml`
-(con Zensical, `scripts/build_docs_zip.py`):
-
-```ini
-[project.entry-points."mkdocs.plugins"]
-documentation_zip = "util_bbdd.docs_build_plugin:DocumentationZipPlugin"
-```
-
-**Configuración**: Automática, no requiere parámetros. El plugin se ejecuta en el hook `on_post_build` de mkdocs.
 
 ---
 
@@ -200,11 +185,11 @@ Todas las versiones publicadas están disponibles en:
 
 ## 🔗 Enlaces Relacionados
 
-- [Configuración Zensical](https://github.com/fmanza/util_bbdd/blob/develop/ZENICAL.md) — Generadores de documentación
+- [Configuración Zensical](https://github.com/fmanza/util_bbdd/blob/develop/ZENSICAL.md) — Generador de la documentación
 - [Guía de Instalación CI/CD](https://github.com/fmanza/util_bbdd/blob/develop/.github/docs-zip-setup-guide.md) — GitHub Actions y automatización
 - [Guía offline ZIP](guides/docs_offline_zip_guide.md) — Documentación técnica del sistema
 - [GitHub Repository](https://github.com/fmanza/util_bbdd) — Código fuente
 
 ---
 
-*Última actualización: 2026-10-11*
+*Última actualización: 2026-11-13*

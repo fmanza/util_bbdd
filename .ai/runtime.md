@@ -18,7 +18,7 @@ python -m venv venv
 source venv/bin/activate       # Linux/Mac
 # venv\Scripts\activate        # Windows
 pip install -e ".[dev]"
-pip install -e ".[docs]"       # Para mkdocs build
+pip install -e ".[docs]"       # Para zensical build
 ```
 
 ### Project Root
@@ -28,7 +28,7 @@ pip install -e ".[docs]"       # Para mkdocs build
 | `src/util_bbdd/` | Código fuente (namespace package) |
 | `tests/` | Tests pytest (discovery automático) |
 | `scripts/` | Utilidades: `build_docs_zip.py`, `gen_arquitectura_capas.py`, `start-server.py` |
-| `docs/` | Documentación MkDocs (fuente) |
+| `docs/` | Documentación del sitio (fuente; Zensical, `zensical.toml`) |
 | `site/` | Salida de build (git-ignored) |
 | `dist/` | ZIP offline + checksums |
 | `.ai/` | Contexto persistente para IAs |
@@ -53,10 +53,8 @@ python -m mypy src tests/unit/test_protocol_conformance.py
 python -m build
 
 # Documentación
-python -m mkdocs build --strict   # Build completo
-python -m mkdocs serve            # Preview local en http://127.0.0.1:8000
-zensical build                    # Alternativa (mismo mkdocs.yml)
-zensical serve
+zensical build --strict           # Build completo (el del CI)
+zensical serve                    # Preview local en http://localhost:8000
 
 # Distribución offline
 python scripts/build_docs_zip.py  # Genera dist/util_bbdd-docs-{version}.zip + SHA256
@@ -86,7 +84,7 @@ python scripts/gen_arquitectura_capas.py  # Regenera SVG + CSS; falla si el dibu
 
 - **`.github/workflows/`**: GitHub Actions — test, lint, mypy, coverage, docs build/deploy, docs-zip-release
 - **Branches**: `main` (estable), `develop` (integración), `feature/*` (trabajo en curso)
-- **Gate de merge**: ≥90% coverage + all checks pass + `mkdocs build --strict` limpio
+- **Gate de merge**: ≥90% coverage + all checks pass + `zensical build --strict` limpio
 - **Docs publish**: `github-pages` en cada push a `main` con cambios en `docs/`
 - **ZIP release**: Workflow `docs-zip-release.yml` publica release `docs-vX.Y.Z` automáticamente
 
@@ -113,7 +111,7 @@ Ver `CLAUDE.md` para:
 ```bash
 pip install -e ".[analysis]"   # graphviz≥0.20 (grafos de relaciones)
 pip install -e ".[doc-svg]"    # cairosvg≥2.7 (SVG→PNG en doc/)
-pip install -e ".[docs]"       # zensical + mkdocs-material + mkdocstrings[python]
+pip install -e ".[docs]"       # zensical + mkdocstrings[python]
 pip install -e ".[dev]"        # pytest + ruff + mypy + build + tipos
 ```
 

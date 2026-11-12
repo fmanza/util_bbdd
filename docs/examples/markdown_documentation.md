@@ -20,7 +20,7 @@ datos versionada en git, publicable con Zensical y legible por una IA.
 Aspectos críticos:
 
 - **`formatos=["markdown"]`**: la salida es la carpeta `MARKDOWN` (`result.outputs["markdown"]`), con `docs/`,
-  `manifest.json` y un `mkdocs.yml` listo para `zensical build`.
+  `manifest.json` y un `zensical.toml` listo para `zensical build`.
 - **Diagramas sin Graphviz**: con `grafo.enabled`, cada tabla lleva bloques `erDiagram`.
   - `||..o{`: FK obligatoria y no identificante.
   - `|o..o{`: la FK admite nulos.
@@ -63,7 +63,7 @@ Documentación en demo_markdown/salida/ventas/MARKDOWN
   docs/tables/pedidos.md
   docs/traceability.md
   manifest.json
-  mkdocs.yml
+  zensical.toml
 
 Front matter de pedidos: id=table:main.pedidos fk_in=['table:main.lineas']
 ```

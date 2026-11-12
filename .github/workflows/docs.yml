@@ -5,13 +5,13 @@ on:
     branches: [main, develop]
     paths:
       - "docs/**"
-      - "mkdocs.yml"
+      - "zensical.toml"
       - "src/**/*.py"
       - "pyproject.toml"
   pull_request:
     paths:
       - "docs/**"
-      - "mkdocs.yml"
+      - "zensical.toml"
       - "src/**/*.py"
   workflow_dispatch:
 
@@ -40,8 +40,8 @@ jobs:
         run: pip install -e ".[docs]"
 
       - name: Build docs (validate)
-        # Zenical build is faster than MkDocs (80ms vs 300ms)
-        run: zensical build
+        # Zensical es el único generador (zensical.toml); --strict convierte los avisos en error.
+        run: zensical build --strict
         env:
           PYTHONPATH: src
 
@@ -72,7 +72,7 @@ jobs:
         env:
           PYTHONPATH: src
 
-      # Zensical no ejecuta el plugin documentation_zip: el ZIP offline se añade al sitio aparte.
+      # El ZIP offline no es un plugin (Zensical no ejecuta plugins de MkDocs): se añade al sitio tras el build.
       - name: Add offline ZIP to site
         run: python scripts/build_docs_zip.py --no-build --in-site
 

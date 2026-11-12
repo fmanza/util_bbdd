@@ -414,7 +414,7 @@ Scope: Proponer cambios arquitectónicos con esfuerzo + riesgo estimados
    - Motor-specific guides (if doc/ API changes)
    - Architecture guide (new structure, abstraction layer)
    - Migration notes (for end users)
-   - Update `mkdocs.yml`
+   - Update `zensical.toml`
 
 ### Validation During IMPLEMENT
 

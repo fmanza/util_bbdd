@@ -1,270 +1,63 @@
-# 📦 Descarga de Documentación como ZIP
+# 📦 ZIP offline de la documentación — guía de mantenimiento
 
-Esta guía explica cómo generar y distribuir la documentación de util_bbdd como ZIP, compatible con **mkdocs** y **zensical**.
-
----
-
-## 🚀 Quick Start
-
-### 1. Build + Generar ZIP (Local)
-
-```bash
-# Opción A: Zensical (recomendado) + ZIP
-zensical build
-python scripts/build_docs_zip.py
-
-# Opción B: MkDocs Material + ZIP (recíproco)
-mkdocs build
-python scripts/build_docs_zip.py
-
-# Opción C: Todo en una línea (VS Code Task)
-# Terminal → Run Task → "docs: build + zip"
-```
-
-**Resultado**: `dist/util_bbdd-docs-{version}-{date}.zip` (~2-3 MB)
+Cómo se genera y publica el ZIP offline del sitio de util_bbdd y qué tocar al cambiarlo. El uso (comandos y opciones)
+está en [`docs/guides/docs_offline_zip_guide.md`](../docs/guides/docs_offline_zip_guide.md).
 
 ---
 
-## 📂 Estructura de Archivos
+## Piezas
 
-```
-util_bbdd/
-├── mkdocs.yml                 # Configuración compartida (mkdocs + zensical)
-├── docs_build_plugin.py       # Plugin Python para generar ZIP automático
-├── scripts/
-│   └── build_docs_zip.py      # Script para generar ZIP (alternativa)
-├── .vscode/
-│   └── tasks.json             # Tasks de VS Code
-├── site/                      # Build output (generado por mkdocs/zensical)
-└── dist/
-    └── util_bbdd-docs-*.zip   # ZIP final (generado por plugin o script)
+| Pieza | Papel |
+|---|---|
+| `zensical.toml` | Configuración del sitio. **Zensical es el único generador** |
+| `scripts/build_docs_zip.py` | Build (`zensical build --strict`) + ZIP con SHA256. Único punto que empaqueta |
+| `scripts/start-server.py` | Servidor local que va dentro del ZIP (el buscador necesita HTTP) |
+| `scripts/OFFLINE_README.txt` | Instrucciones que van dentro del ZIP como `README_OFFLINE.txt` |
+| `docs/assets/js/vendor/mermaid-12.3.0.min.js` | Mermaid local (MIT, licencia al lado): el ZIP dibuja los diagramas sin Internet |
+| `.github/workflows/docs.yml` | Valida el sitio (`--strict`) y, en `main`, lo publica en GitHub Pages con `site/util_bbdd-docs-latest.zip` (`--no-build --in-site`) |
+| `.github/workflows/docs-zip-release.yml` | En `main`/`develop`: build + ZIP versionado en la release `docs-v<versión>` |
+| `.github/workflows/docs-release.yml` | En cada tag `v*`: ZIP versionado adjunto a la release |
+| `tests/unit/test_build_docs_zip_script.py` | Contenido del ZIP, que no se incluya a sí mismo (DOC-02) ni el de un build anterior |
+
+Zensical **no ejecuta plugins de MkDocs**: el ZIP no se genera durante el build sino con el script. El antiguo plugin
+`documentation_zip` (`util_bbdd.docs_build_plugin`) se retiró al pasar a Zensical como único generador y la lógica
+quedó en el script; el paquete publicado ya no depende de MkDocs.
+
+---
+
+## Flujo
+
+```mermaid
+flowchart LR
+    A[zensical.toml + docs/] -->|zensical build --strict| B[site/]
+    B -->|build_docs_zip.py| C[dist/util_bbdd-docs-X.Y.Z.zip + .sha256]
+    B -->|build_docs_zip.py --no-build --in-site| D[site/util_bbdd-docs-latest.zip]
+    C --> E[GitHub Releases]
+    D --> F[GitHub Pages]
 ```
 
 ---
 
-## ⚙️ Configuración en mkdocs.yml
+## Al cambiar algo
 
-El plugin se activa automáticamente después de cada build de mkdocs:
-
-```yaml
-plugins:
-  - search:
-      lang: es
-  - documentation_zip       # ← Plugin para generar ZIP
-  - mkdocstrings:
-      handlers:
-        python:
-          paths: [src]
-```
-
-**Compatible con**:
-- ✅ `zensical build` (lee mkdocs.yml, no ejecuta plugins de mkdocs nativamente, pero el script sigue funcionando)
-- ✅ `mkdocs build` (ejecuta el plugin automáticamente)
+- [ ] Nuevo fichero que deba ir en el ZIP → añadirlo en `build_offline_zip()` y en el test del script.
+- [ ] Cambio de rutas o del nombre del ZIP → revisar `docs/downloads.md`, la guía de uso y los tres workflows.
+- [ ] Subir Zensical (`.[docs]`, hoy `>=0.1.1,<0.2`) → `zensical build --strict` limpio, el ZIP abierto con
+      `start-server.py` y el Mermaid local igualado a la versión que cargaría Zensical (`ZENSICAL.md` §6).
+- [ ] Ejecutar `python -m pytest tests/unit/test_build_docs_zip_script.py`.
 
 ---
 
-## 📜 Script `build_docs_zip.py`
+## Mermaid sin conexión
 
-Genera ZIP de forma **independiente** después de cualquier build:
+Zensical carga Mermaid de `unpkg.com` solo si `window.mermaid` no existe. El sitio declara en `extra_javascript`
+un `mermaid.min.js` local con la misma versión (12.3.0, idéntico byte a byte al de unpkg), así que el ZIP dibuja los
+diagramas sin Internet (verificado en Chromium sin red, sesión `2026-11-13-zensical-only`). Coste: 5,5 MB que se
+cargan en todas las páginas (y quedan en la caché del navegador).
 
-```bash
-# Uso básico (lee site/, genera dist/)
-python scripts/build_docs_zip.py
-
-# Opciones
-python scripts/build_docs_zip.py --builder zensical  # Especificar builder
-python scripts/build_docs_zip.py --no-build          # Solo zip (no rebuild)
-python scripts/build_docs_zip.py --output-dir /tmp   # Output personalizado
-
-# Comando completo (build + zip)
-zensical build && python scripts/build_docs_zip.py
-```
-
-**Salida esperada**:
-```
-[build_docs_zip] Built with builder: zensical
-[build_docs_zip] Created: dist/util_bbdd-docs-0.10.0-20260604.zip
-[build_docs_zip] Files: 150+
-```
+Se descartó el plugin `privacy` de Zensical 0.1.1: reescribe las URL con la ruta de `site_url`
+(`/util_bbdd/assets/external/…`), que el servidor local del ZIP no sirve, y añade unos 8 MB de terceros.
 
 ---
 
-## 🔧 VS Code Tasks
-
-En `.vscode/tasks.json` se incluyen 4 tareas:
-
-### `docs: build (zensical)`
-- Ejecuta: `zensical build --strict`
-- Output: `site/`
-
-### `docs: serve (zensical)`
-- Ejecuta: `zensical serve --open`
-- Server local con hot-reload
-
-### `docs: build + zip`
-- Ejecuta: `zensical build` + `python scripts/build_docs_zip.py`
-- Output: `site/` + `dist/util_bbdd-docs-*.zip`
-- **Recomendado para distribución local**
-
-### `docs: zip only`
-- Ejecuta: `python scripts/build_docs_zip.py`
-- Usa `site/` existente (no rebuilds)
-
-**Invocar**:
-- Ctrl+Shift+P → "Run Task" → seleccionar tarea
-- O: Terminal → Run Task
-
----
-
-## 🔄 Integración en CI/CD
-
-### GitHub Actions
-
-```yaml
-# .github/workflows/docs.yml
-name: Build & Publish Docs
-
-on:
-  push:
-    branches:
-      - main
-      - develop
-
-jobs:
-  docs:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - uses: actions/setup-python@v4
-        with:
-          python-version: "3.12"
-      
-      # Build docs + ZIP
-      - name: Build documentation
-        run: |
-          pip install -e ".[docs]"
-          zensical build --strict
-          python scripts/build_docs_zip.py
-      
-      # Publicar en GitHub Pages
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./site
-      
-      # Subir ZIP como artifact
-      - name: Upload ZIP as release artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: documentation-zip
-          path: dist/util_bbdd-docs-*.zip
-          retention-days: 30
-```
-
----
-
-## 📋 Contenido del ZIP
-
-```
-util_bbdd-docs-0.10.0-20260604.zip
-├── index.html
-├── installation.html
-├── css/
-│   ├── material.css
-│   ├── mermaid.css
-│   └── nav.css
-├── js/
-│   ├── mermaid.js
-│   ├── search.js
-│   └── instant.js
-├── assets/
-│   └── images/
-├── api/
-│   ├── managers_sync.html
-│   ├── bulk_crud.html
-│   └── ...
-├── functional/
-│   ├── managers_sync.html
-│   ├── bulk_operations.html
-│   └── ...
-├── examples/
-│   ├── bulk-insert-csv.html
-│   └── ...
-└── search/
-    └── search_index.json
-```
-
-**Características**:
-- ✅ HTML completo con CSS/JS
-- ✅ Búsqueda offline (search_index.json)
-- ✅ Diagramas Mermaid renderizados
-- ✅ Navegación interactiva
-- ✅ Responsive (funciona en móvil)
-
----
-
-## 🌐 Distribución
-
-### Opción 1: GitHub Releases
-
-Adjunta el ZIP a cada release:
-
-```bash
-# Crear release con ZIP
-gh release create v0.10.0 \
-  --title "v0.10.0: Release" \
-  --notes "Incluye documentación offline" \
-  dist/util_bbdd-docs-*.zip
-```
-
-### Opción 2: PyPI (en future)
-
-```toml
-# pyproject.toml (future enhancement)
-[project.urls]
-"Offline Docs" = "https://github.com/fmanza/util_bbdd/releases/download/v0.10.0/util_bbdd-docs-0.10.0.zip"
-```
-
-### Opción 3: Website personalizado
-
-Servir desde GitHub Pages con listado:
-
-```html
-<!-- docs/downloads.html -->
-<h1>Descargas</h1>
-<a href="../util_bbdd-docs-latest.zip">Documentación Offline (ZIP)</a>
-```
-
----
-
-## 🔗 Enlaces Relacionados
-
-- [ZENICAL.md](../ZENICAL.md) — Configuración de Zensical
-- [mkdocs.yml](../mkdocs.yml) — Navegación y plugins
-- [scripts/build_docs_zip.py](../scripts/build_docs_zip.py) — Script de generación
-- [docs_build_plugin.py](../src/util_bbdd/docs_build_plugin.py) — Plugin de mkdocs
-
----
-
-## ❓ FAQ
-
-**P: ¿El ZIP es compatible con zensical y mkdocs?**
-R: Sí. El script funciona con cualquier build HTML. Zensical no ejecuta plugins nativamente, pero el script se invoca por separado.
-
-**P: ¿Puedo servir el ZIP en GitHub Pages?**
-R: Sí. Publícalo en `site/docs.zip` después del build.
-
-**P: ¿Qué tamaño tiene el ZIP?**
-R: ~2-3 MB (comprimido). La documentación HTML sin comprimir es ~8-10 MB.
-
-**P: ¿Incluye búsqueda offline?**
-R: Sí. El `search_index.json` se incluye en el ZIP.
-
-**P: ¿Cómo actualizar el ZIP?**
-R: Ejecuta `python scripts/build_docs_zip.py` después de cualquier build.
-
----
-
-*Actualizado: 2026-06-04*
+*Actualizado: 2026-11-13*

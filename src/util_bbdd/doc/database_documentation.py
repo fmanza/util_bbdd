@@ -70,8 +70,10 @@ class DatabaseDocumentation:
             - markdown.index_page_size: Entradas por página de los índices por letra (default 200)
             - markdown.front_matter / markdown.column_anchors: Front matter (id estable, PK, FK, hash) y anclas
               ``col-…`` por columna (default ``True``)
-            - markdown.catalog_json / llms_txt / llms_full_txt / mkdocs_yml: ``catalog.json`` (ADR-006), ficheros
-              para LLM y ``mkdocs.yml`` con ``nav`` corta (default ``True``); markdown.site_name: título del sitio
+            - markdown.catalog_json / llms_txt / llms_full_txt / zensical_toml: ``catalog.json`` (ADR-006), ficheros
+              para LLM y ``zensical.toml`` con ``nav`` corta (default ``True``); markdown.site_name: título del sitio
+            - markdown.mkdocs_yml: ``mkdocs.yml`` con el mismo sitio (default ``False``; en desuso desde 5.6.0, se
+              retirará en 6.0.0: Zensical lee ``zensical.toml``)
             - markdown.mermaid_js: ``mermaid.min.js`` local para publicar sin Internet
             - markdown.mermaid_js_ref: Mermaid ya publicado (ruta relativa a ``docs/`` o URL ``https://``), sin
               copiarlo; excluyente con ``mermaid_js``. Desde 5.4.0
@@ -80,7 +82,7 @@ class DatabaseDocumentation:
             - markdown.previous: generación anterior (carpeta ``MARKDOWN``, su ``docs/`` o su ``catalog.json``):
               añade ``changes.md`` y ``changes.json`` (``SchemaDiff``) con los cambios de esquema, sin conectarse a la
               base de datos; se valida al construir y el motor debe ser el mismo
-            - markdown.readme: ``README.md`` en la raíz de la salida con cómo verla (VS Code, Zensical, MkDocs) y qué
+            - markdown.readme: ``README.md`` en la raíz de la salida con cómo verla (VS Code, Zensical) y qué
               contiene cada fichero (default ``True``). Desde 5.5.0
             - filtro.incluir / filtro.excluir: patrones *glob* (``MVG_*``, ``*_BAK``; sin distinguir mayúsculas) de las
               tablas y vistas que se documentan, en todos los formatos; un patrón no válido es

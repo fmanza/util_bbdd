@@ -129,7 +129,7 @@ def check_zip_generation() -> bool:
     try:
         DIST.mkdir(exist_ok=True)
         result = subprocess.run(
-            ["python", "scripts/build_docs_zip.py", "--builder", "zensical", "--output-dir", "dist"],
+            ["python", "scripts/build_docs_zip.py", "--output-dir", "dist"],
             cwd=ROOT,
             capture_output=True,
             text=True,

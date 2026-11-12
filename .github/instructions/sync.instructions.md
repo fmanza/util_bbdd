@@ -4,7 +4,7 @@ applyTo: "CHANGELOG.md,docs/**,.ai/**"
 # Sincronización de versiones — CHANGELOG, pyproject y documentación
 
 > **TL;DR** — Antes de cerrar una versión, verifica que CHANGELOG.md, `pyproject.toml` y docs/
-> estén sincronizados. Ejecuta `zensical build` (o `mkdocs build`) sin errores.
+> estén sincronizados. Ejecuta `zensical build` sin errores.
 
 ---
 
@@ -59,11 +59,11 @@ que puede editar **Version Closer** (`.github/agents/version-closer.agent.md`):
 `README.md` (los dos), `docs/index.md`, `docs/roadmap.md` y el pie de figura de `docs/architecture.md`. Los dos
 ficheros de `.ai/` no los comprueba: revísalos a mano.
 
-### 5. Documentación (Zensical / MkDocs)
+### 5. Documentación (Zensical)
 
-- [ ] `zensical build` (o `mkdocs build`) pasa sin errores ni warnings de links rotos
-- [ ] Si se crearon páginas nuevas, están en `mkdocs.yml` bajo `nav:`
-- [ ] Si se eliminaron páginas, se retiraron de `mkdocs.yml`
+- [ ] `zensical build` pasa sin errores ni warnings de links rotos
+- [ ] Si se crearon páginas nuevas, están en `zensical.toml` bajo `nav:`
+- [ ] Si se eliminaron páginas, se retiraron de `zensical.toml`
 
 ---
 
@@ -106,12 +106,12 @@ ficheros de `.ai/` no los comprueba: revísalos a mano.
 ## Comando de validación final
 
 ```bash
-zensical build --strict    # o: python -m mkdocs build --strict
+zensical build --strict 
 ```
 
 El flag `--strict` convierte warnings en errores, garantizando que no queden links rotos
-ni referencias a páginas inexistentes en `mkdocs.yml`.
+ni referencias a páginas inexistentes en `zensical.toml`.
 
 ---
 
-*Actualizado: 2026-10-02*
+*Actualizado: 2026-11-13*

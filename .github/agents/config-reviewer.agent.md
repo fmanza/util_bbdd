@@ -27,7 +27,7 @@ Lee antes de responder:
 | Método | `.github/agents/*.agent.md`, `.github/prompts/*.prompt.md`, `.claude/commands/*.md` |
 | Reglas por ruta | `.github/instructions/*.instructions.md` |
 | Contexto persistente | `.ai/{product,architecture,runtime,glossary,standards}.md`, `.ai/sessions/TEMPLATE/` |
-| Documentación | `.github/DOCUMENTATION_STANDARD.md`, `mkdocs.yml` (solo si el cambio toca docs) |
+| Documentación | `.github/DOCUMENTATION_STANDARD.md`, `zensical.toml` (solo si el cambio toca docs) |
 | Hooks | `.claude/settings.json` (versionado, solo hooks; nunca `settings.local.json`) |
 
 Excluye `.ai/sessions/<fechas>/`, `.ai/doc_old/`, `doc_old/` y `site/`: son histórico, no configuración viva.
@@ -47,20 +47,20 @@ Clasifica cada sección o regla en una sola categoría:
 |---|---|---|
 | `shared` | Vale para todas las plataformas y vive en `SHARED_INSTRUCTIONS.md` | Mantener |
 | `<plataforma>-only` | Específica de una plataforma (`claude-only`, `copilot-only`, `gemini-only`, `cursor-only`, `codex-only`) | Mantener en su entry point |
-| `docs-shared` | Regla documental común (arquetipos, Mermaid, no invención, `mkdocs.yml`) | Canónica en `DOCUMENTATION_STANDARD.md` / `docs.instructions.md` |
+| `docs-shared` | Regla documental común (arquetipos, Mermaid, no invención, `zensical.toml`) | Canónica en `DOCUMENTATION_STANDARD.md` / `docs.instructions.md` |
 | `duplicado` | Regla `shared` repetida (literal o parafraseada) fuera del canónico | Sustituir por referencia |
 | `divergente` | La misma regla con valores distintos entre ficheros (versiones, comandos, conteos, fechas) | Corregir hacia el canónico |
 | `huérfano` | Referencia a algo que no existe en el repo: fichero, comando, módulo, agente o término de otro proyecto | Eliminar o crear |
 
 ## Comprobaciones obligatorias
 1. **DRY**: reglas `shared` repetidas en entry points, agentes o prompts. Una referencia de una línea al canónico no es duplicación.
-2. **Divergencia**: comandos (`ruff`, `mypy`, `pytest`, `zensical`/`mkdocs`), versión de Python, fechas «Actualizado», conteos de agentes/prompts en `AGENTS.md`.
+2. **Divergencia**: comandos (`ruff`, `mypy`, `pytest`, `zensical`), versión de Python, fechas «Actualizado», conteos de agentes/prompts en `AGENTS.md`.
 3. **Referencias**: cada ruta enlazada existe; no hay ciclos de «lee primero»; las rutas son relativas.
 4. **Paridad de métodos**: cada `.claude/commands/<x>.md` tiene su `.github/prompts/<x>.prompt.md` y aparece en la tabla de slash commands de `CLAUDE.md`; cada agente de `.github/agents/` está en `AGENTS.md`.
 5. **Frontmatter de agentes**: `description`, `name`, `tools`, `user-invocable` presentes; las `tools` son coherentes con lo que el cuerpo dice que hace (un agente de solo lectura no declara `edit`/`execute`).
 6. **Contaminación de dominio**: términos de otros proyectos (nombres de módulos, scripts o repos que no están en `src/util_bbdd/`).
 7. **Markdown**: bloques de código cerrados, tablas bien formadas, listas con `-` (ver `SHARED_INSTRUCTIONS.md` § «Validación de Markdown en documentación»).
-8. **Documentación**: separación funcional/técnica/ejemplos, Zensical (o MkDocs Material) como generador y punto único de entrada en **Documentation Generator**.
+8. **Documentación**: separación funcional/técnica/ejemplos, Zensical como único generador y punto único de entrada en **Documentation Generator**.
 
 ## Métrica de duplicación
 `% duplicación = líneas en categoría duplicado / líneas totales auditadas` — **menor es mejor**.
@@ -107,7 +107,7 @@ ANÁLISIS + PLAN + AUDIT_PLAN y espera aprobación.
 |---|---|---|
 | **Plan Architect** | PLAN con impacto en código o en contratos | Contrastar el plan con el código real |
 | **Feature Implementer** | Tras AUDIT_PLAN aprobado | Aplicar los cambios propuestos |
-| **Documentation Reviewer** | Si el cambio toca `docs/`, `DOCUMENTATION_STANDARD.md` o `mkdocs.yml` | Revisar la coherencia documental |
+| **Documentation Reviewer** | Si el cambio toca `docs/`, `DOCUMENTATION_STANDARD.md` o `zensical.toml` | Revisar la coherencia documental |
 | **Version Closer** | Final | Propone el commit `docs(config): …`; escribe CHANGELOG y `.ai/sessions/<fecha>/TRACEABILITY.md`; rollback |
 
 ## Ejemplo de invocación

@@ -202,7 +202,8 @@ def test_readme_explains_how_to_view_and_lists_generated_files(sqlite_db: Path, 
     ]
     readme = (root / "README.md").read_text(encoding="utf-8")
 
-    assert "zensical serve" in readme and "mkdocs serve" in readme
+    assert "zensical serve" in readme and "`zensical.toml`" in readme
+    assert "mkdocs" not in readme.lower()  # 5.6.0: solo Zensical
     assert "bierner.markdown-mermaid" in readme
     assert "`docs/catalog.json`" in readme
     assert "llms-full.txt" not in readme
@@ -211,9 +212,15 @@ def test_readme_explains_how_to_view_and_lists_generated_files(sqlite_db: Path, 
 
 
 def test_readme_without_site_and_disabled(sqlite_db: Path, tmp_path: Path) -> None:
-    root = _generate(sqlite_db, tmp_path / "a", {**IMPRIMIR, "markdown": {"mkdocs_yml": False}}).outputs["markdown"]
+    root = _generate(sqlite_db, tmp_path / "a", {**IMPRIMIR, "markdown": {"zensical_toml": False}}).outputs["markdown"]
     readme = (root / "README.md").read_text(encoding="utf-8")
     assert "zensical" not in readme and "mkdocs.yml" not in readme
+
+    only_yml = {**IMPRIMIR, "markdown": {"zensical_toml": False, "mkdocs_yml": True}}
+    root = _generate(sqlite_db, tmp_path / "c", only_yml).outputs["markdown"]
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    assert "zensical serve" in readme and "(la que tiene `mkdocs.yml`)" in readme  # Zensical lee también mkdocs.yml
+    assert "en desuso" in readme
 
     root = _generate(sqlite_db, tmp_path / "b", {**IMPRIMIR, "markdown": {"readme": False}}).outputs["markdown"]
     assert not (root / "README.md").exists()

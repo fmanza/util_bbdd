@@ -40,7 +40,7 @@ jobs:
       - name: Build docs & create ZIP
         run: |
           mkdir -p dist
-          python scripts/build_docs_zip.py --builder zensical --output-dir dist
+          python scripts/build_docs_zip.py --output-dir dist
         env:
           PYTHONPATH: src
 

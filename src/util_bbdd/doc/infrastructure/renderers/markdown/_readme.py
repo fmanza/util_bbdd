@@ -1,6 +1,6 @@
 """``README.md`` de la documentación Markdown (5.5.0): cómo verla y qué contiene cada fichero.
 
-Va en la raíz de la carpeta ``MARKDOWN`` (junto a ``mkdocs.yml``), fuera de ``docs/``: no es una página del sitio. Es
+Va en la raíz de la carpeta ``MARKDOWN`` (junto a ``zensical.toml``), fuera de ``docs/``: no es una página del sitio. Es
 determinista (sin fecha ni rutas locales) para que la carpeta siga siendo versionable con git; solo describe los
 ficheros que se han generado.
 """
@@ -17,6 +17,7 @@ class ReadmeContents:
     """Qué se ha generado: el ``README.md`` describe solo eso."""
 
     version: str
+    zensical_toml: bool
     mkdocs_yml: bool
     catalog_json: bool
     llms_txt: bool
@@ -48,7 +49,7 @@ def readme_md(contents: ReadmeContents) -> str:
         "GitHub y GitLab muestran también las páginas y los diagramas si subes la carpeta a un repositorio.",
         "",
     ]
-    if contents.mkdocs_yml:
+    if contents.zensical_toml or contents.mkdocs_yml:
         lines += _site_section(contents)
     lines += ["## Qué contiene", "", "| Fichero | Contenido |", "|---|---|"]
     lines += [f"| {path} | {text} |" for path, text in _files(contents)]
@@ -62,22 +63,16 @@ def readme_md(contents: ReadmeContents) -> str:
 
 
 def _site_section(contents: ReadmeContents) -> list[str]:
+    config = "zensical.toml" if contents.zensical_toml else "mkdocs.yml"
     lines = [
         "### Opción 2: como sitio web (buscador y menú lateral)",
         "",
-        "Necesitas Python. En esta carpeta (la que tiene `mkdocs.yml`):",
+        f"Necesitas Python. En esta carpeta (la que tiene `{config}`), con [Zensical](https://zensical.org):",
         "",
         "```bash",
         "pip install zensical",
         "zensical serve        # sitio en http://localhost:8000",
         "zensical build        # genera el sitio estático en site/",
-        "```",
-        "",
-        "También funciona con MkDocs Material, con el mismo `mkdocs.yml`:",
-        "",
-        "```bash",
-        "pip install mkdocs-material",
-        "mkdocs serve",
         "```",
         "",
     ]
@@ -116,8 +111,10 @@ def _files(contents: ReadmeContents) -> list[tuple[str, str]]:
         files.append(("`docs/llms.txt`", "Índice para asistentes de IA (formato llmstxt.org)"))
     if contents.llms_full_txt:
         files.append(("`docs/llms-full.txt`", "Todas las páginas en un solo fichero"))
+    if contents.zensical_toml:
+        files.append(("`zensical.toml`", "Configuración del sitio (Zensical)"))
     if contents.mkdocs_yml:
-        files.append(("`mkdocs.yml`", "Configuración del sitio (Zensical o MkDocs Material)"))
+        files.append(("`mkdocs.yml`", "Configuración del sitio en el formato de MkDocs (en desuso)"))
     files.append(("`manifest.json`", "Ficheros generados con su hash, índice de páginas y versión del formato"))
     return files
 

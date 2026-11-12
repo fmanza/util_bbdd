@@ -7,9 +7,12 @@ Generar un fichero ZIP con el sitio de documentación compilado para su distribu
 
 El script `scripts/build_docs_zip.py` encadena dos pasos en un solo comando:
 
-1. **Build** — ejecuta `zensical build` o `mkdocs build` sobre el `mkdocs.yml` del proyecto.
-2. **ZIP** — empaqueta el directorio `site/` resultante en `dist/util_bbdd-docs-{version}.zip`,
-   donde `{version}` se lee automáticamente de `pyproject.toml`.
+1. **Build** — ejecuta `zensical build --strict` sobre el `zensical.toml` del proyecto.
+2. **ZIP** — empaqueta el directorio `site/` resultante, más `start-server.py` y `README_OFFLINE.txt`
+   (en `scripts/`), en `dist/util_bbdd-docs-{version}.zip`, donde `{version}` se lee de `pyproject.toml`.
+
+Zensical no ejecuta plugins de MkDocs, así que el ZIP no se genera durante el build: este script es el único
+que lo empaqueta (el antiguo plugin `documentation_zip` se retiró al pasar a Zensical como único generador).
 
 ---
 
@@ -22,7 +25,7 @@ El script `scripts/build_docs_zip.py` encadena dos pasos en un solo comando:
     pip install -e ".[docs]"
     ```
 
-- `zensical` o `mkdocs` disponible en el `PATH` del entorno.
+- `zensical` disponible en el `PATH` del entorno.
 
 ---
 
@@ -35,12 +38,6 @@ python scripts/build_docs_zip.py
 ```
 
 Ejecuta `zensical build --strict` y genera `dist/util_bbdd-docs-{version}.zip`.
-
-### Cambiar el builder a MkDocs
-
-```bash
-python scripts/build_docs_zip.py --builder mkdocs
-```
 
 ### Desactivar `--strict`
 
@@ -73,7 +70,6 @@ Acepta rutas absolutas y relativas a la raíz del repositorio.
 
 | Opción | Valor por defecto | Descripción |
 |---|---|---|
-| `--builder` | `zensical` | Builder a utilizar: `zensical` o `mkdocs` |
 | `--no-strict` | _(strict activo)_ | Omite `--strict` en el comando de build |
 | `--no-build` | _(build activo)_ | Salta el build; zipea `site/` existente |
 | `--output-dir DIR` | `dist/` | Directorio de salida del ZIP |
@@ -93,8 +89,11 @@ dist/
 Comprobar la integridad: `sha256sum -c util_bbdd-docs-1.1.0.zip.sha256` (Linux/macOS) o
 `Get-FileHash util_bbdd-docs-1.1.0.zip -Algorithm SHA256` (PowerShell).
 
-El ZIP replica la estructura de `site/` en su raíz. Para usar offline, basta descomprimirlo
-y abrir `index.html` en un navegador.
+El ZIP replica la estructura de `site/` en su raíz. Para usarlo offline, descomprímelo y ejecuta
+`python start-server.py` (las páginas y el buscador necesitan servirse por HTTP).
+
+Los diagramas Mermaid se dibujan sin Internet: el sitio incluye su propio `mermaid.min.js`
+(`assets/js/vendor/`), y Zensical no lo descarga de `unpkg.com` cuando ya está cargado.
 
 El directorio `dist/` está excluido de git (`.gitignore`), por lo que el ZIP nunca se commitará
 accidentalmente.
@@ -117,14 +116,14 @@ git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-Aparte, `.github/workflows/docs-zip-release.yml`, en cada push a `main` o `develop` que toque `docs/`, `mkdocs.yml` o
+Aparte, `.github/workflows/docs-zip-release.yml`, en cada push a `main` o `develop` que toque `docs/`, `zensical.toml` o
 `pyproject.toml`, genera el ZIP como artefacto del workflow y crea o actualiza la release `docs-v<versión>` con el ZIP,
 su `.sha256` y `CHECKSUMS.txt`.
 
 El workflow:
 
 1. Instala las dependencias de documentación.
-2. Ejecuta `python scripts/build_docs_zip.py --builder zensical`.
+2. Ejecuta `python scripts/build_docs_zip.py` (build con Zensical + ZIP).
 3. Sube `dist/util_bbdd-docs-*.zip` y su `.sha256` como adjuntos de la release correspondiente al tag.
 
 El ZIP queda disponible en la pestaña **Releases** de GitHub para cualquier usuario del proyecto.

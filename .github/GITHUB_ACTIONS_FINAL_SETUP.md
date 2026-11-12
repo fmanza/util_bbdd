@@ -160,7 +160,7 @@ python -m pytest tests/unit -v --tb=short -x
 **Causa**: Build de Zensical falló
 
 **Solución**:
-1. Verifica que `docs/` y `mkdocs.yml` existen
+1. Verifica que `docs/` y `zensical.toml` existen
 2. Ejecuta localmente: `zensical build --strict`
 3. Revisa el log en GitHub Actions para el error específico
 
@@ -206,6 +206,6 @@ Si los workflows siguen fallando:
 
 ---
 
-*Última actualización: 2026-09-25*  
+*Última actualización: 2026-11-13*
 *Versión: 0.29.0*  
 *Python requerido: 3.12+*

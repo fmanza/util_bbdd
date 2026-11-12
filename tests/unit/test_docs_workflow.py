@@ -50,7 +50,7 @@ def test_deploy_job_builds_site_before_publishing_it() -> None:
 
 
 def test_deploy_job_adds_offline_zip_between_build_and_publish() -> None:
-    # Zensical no ejecuta el plugin documentation_zip: sin este paso el sitio publicado no lleva el ZIP offline.
+    # Zensical no ejecuta plugins de MkDocs (el ZIP lo hace el script): sin este paso el sitio publicado no lleva el ZIP.
     if not DOCS_WORKFLOW.is_file():
         pytest.skip(".github/workflows/docs.yml no está en el árbol")
     steps = yaml.safe_load(DOCS_WORKFLOW.read_text(encoding="utf-8"))["jobs"]["deploy"]["steps"]

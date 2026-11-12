@@ -75,37 +75,33 @@ Usando el prompt en .github/prompts/technical_doc.prompt.md, genera documentaci�
 técnica para src/util_bbdd/bulk/crud.py. Guarda en docs/api/bulk_crud.md.
 ```
 
-### Paso 4 — Actualizar mkdocs.yml
+### Paso 4 — Actualizar zensical.toml
 
-Tras crear o mover una página, añadir la entrada correspondiente en `mkdocs.yml` bajo `nav:`:
+Tras crear o mover una página, añadir la entrada correspondiente en `zensical.toml` bajo `nav:`:
 
-```yaml
-- Referencia Técnica:
-    - Bulk Operations:
-        - CRUD Masivo: api/bulk_crud.md
+```toml
+{ "Referencia Técnica" = [
+  { "Bulk Operations" = [
+    { "CRUD Masivo" = "api/bulk_crud.md" },
+  ] },
+] },
 ```
 
 ### Paso 5 — Validar el build
 
 ```bash
 # En el terminal integrado (Ctrl + `)
-# Zensical es el generador por defecto (lee mkdocs.yml)
-zensical build
-
-# Validación estricta de enlaces con MkDocs Material (recíproco, mismo mkdocs.yml)
-python -m mkdocs build --strict
+# Zensical es el único generador (lee zensical.toml)
+zensical build --strict
 ```
 
 ## 4. Verificación
 
 ```bash
-# Construir el sitio y comprobar que no hay errores (Zensical por defecto)
-zensical build
+# Construir el sitio y comprobar que no hay errores ni enlaces rotos
+zensical build --strict
 
-# Validación estricta de enlaces con MkDocs Material (recíproco, mismo mkdocs.yml)
-python -m mkdocs build --strict
-
-# Si pasa, servir localmente para revisión visual (Zensical por defecto)
+# Si pasa, servir localmente para revisión visual 
 zensical serve
 ```
 
@@ -124,5 +120,5 @@ No issues found
 | `Aborted with N warnings in strict mode` | Links rotos en la documentación generada | Revisar los links del fichero `.md` generado; corregir rutas relativas |
 | La herramienta IA inventa capacidades | El prompt no referencia el código real | Añadir `#file:src/...` al prompt o especificar la ruta del módulo explícitamente |
 | Diagrama Mermaid no se renderiza | Sintaxis Mermaid inválida | Validar el bloque `mermaid` en [mermaid.live](https://mermaid.live) antes de guardar |
-| La página no aparece en el sitio | Entrada faltante en `mkdocs.yml` | Añadir la ruta bajo `nav:` en `mkdocs.yml` |
-| `zensical: command not found` / `mkdocs: command not found` | Extra de documentación no instalado | `pip install -e ".[docs]"` (zensical, mkdocs-material, mkdocstrings) |
+| La página no aparece en el sitio | Entrada faltante en `zensical.toml` | Añadir la ruta bajo `nav:` en `zensical.toml` |
+| `zensical: command not found` | Extra de documentación no instalado | `pip install -e ".[docs]"` (zensical, mkdocstrings) |

@@ -1,8 +1,10 @@
 """Tests de ``scripts/build_docs_zip.py``: el ZIP offline de Releases y el que se publica dentro del sitio.
 
 Antes, el script comprimía solo ``site/`` (``shutil.make_archive``) y el ZIP de GitHub Releases salía sin
-``start-server.py`` ni ``README_OFFLINE.txt``, que ``docs/downloads.md`` pide usar. Además, Zensical no ejecuta el
-plugin ``documentation_zip``, así que el sitio publicado no llevaba ZIP: ``--in-site`` lo genera tras el build.
+``start-server.py`` ni ``README_OFFLINE.txt``, que ``docs/downloads.md`` pide usar. Además, Zensical no ejecuta
+plugins de MkDocs, así que el sitio publicado no llevaba ZIP: ``--in-site`` lo genera tras el build. Desde que Zensical
+es el único generador, el script es el único que empaqueta (el plugin ``documentation_zip`` se retiró) y aquí viven
+también sus regresiones (DOC-02: el ZIP no se incluye a sí mismo).
 """
 
 from __future__ import annotations
@@ -17,8 +19,6 @@ from types import ModuleType
 import pytest
 
 pytestmark = pytest.mark.unit
-
-pytest.importorskip("mkdocs")  # el script empaqueta con util_bbdd.docs_build_plugin, que depende de mkdocs
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "build_docs_zip.py"
 OFFLINE_EXTRAS = {"start-server.py", "README_OFFLINE.txt"}
@@ -66,3 +66,43 @@ def test_in_site_zip_is_written_inside_site_without_containing_itself(script: Mo
         assert zipf.testzip() is None
     assert OFFLINE_EXTRAS <= set(names)
     assert not any(name.startswith("util_bbdd-docs-") for name in names)
+
+
+def test_in_site_zip_does_not_contain_itself(script: ModuleType, site_dir: Path) -> None:
+    """DOC-02 (AUDIT_CODE 2026-09-22): escrito dentro de ``site/`` mientras se recorre, el ZIP se incluía a sí mismo."""
+    archive = script._zip_in_site(site_dir)
+
+    with zipfile.ZipFile(archive) as zipf:
+        names = zipf.namelist()
+        assert zipf.testzip() is None
+    assert not any(name.endswith(".zip") for name in names)
+
+
+def test_zip_from_a_previous_build_is_not_packaged_again(script: ModuleType, site_dir: Path) -> None:
+    # Zensical no vacía site/ entre builds: el ZIP y el .sha256 del build anterior siguen ahí.
+    (site_dir / "util_bbdd-docs-latest.zip").write_bytes(b"zip anterior")
+    (site_dir / "util_bbdd-docs-latest.zip.sha256").write_text("hash anterior", encoding="utf-8")
+
+    archive = script._zip_in_site(site_dir)
+
+    with zipfile.ZipFile(archive) as zipf:
+        names = zipf.namelist()
+    assert not any(name.startswith("util_bbdd-docs-") for name in names)
+    sha_line = (site_dir / "util_bbdd-docs-latest.zip.sha256").read_text(encoding="utf-8")
+    assert sha_line == f"{script._sha256_file(archive)}  {archive.name}\n"
+
+
+def test_build_uses_zensical_only(script: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[list[str]] = []
+
+    class _Done:
+        returncode = 0
+
+    def fake_run(cmd: list[str], cwd: Path) -> _Done:
+        calls.append(cmd)
+        return _Done()
+
+    monkeypatch.setattr(script.subprocess, "run", fake_run)
+    script._build(strict=True)
+
+    assert calls == [["zensical", "build", "--strict"]]

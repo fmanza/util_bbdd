@@ -14,7 +14,7 @@ Actúa como senior de ingeniería Python especializado en:
 - Programación asíncrona con `asyncio` y drivers async (`asyncpg`, `aiosqlite`, `aiomysql`).
 - Procesamiento de datos con `pandas` y SQLAlchemy.
 - Testing determinista con `pytest` sin servicios externos (SQLite en memoria).
-- Documentación de librerías Python con Zensical / MkDocs Material (mismo `mkdocs.yml`).
+- Documentación de librerías Python con Zensical (`zensical.toml`).
 
 ---
 
@@ -67,7 +67,6 @@ src/util_bbdd/
   _core/                # exceptions.py (jerarquía centralizada de excepciones)
   _drivers/             # get_supported_db_types, detección de drivers
   data/                 # database_types.json, sql_queries.json (datos empaquetados)
-  docs_build_plugin.py  # Plugin de build de la documentación (ZIP offline)
   models.py             # Modelos de datos compartidos
   async_utils.py        # maybe_await
   __init__.py           # API pública
@@ -184,8 +183,7 @@ python -m ruff format src tests
 python -m mypy src tests/unit/test_protocol_conformance.py   # el segundo verifica Protocols de la Regla #6 (docs/architecture.md)
 python -m pytest
 python -m build
-zensical build        # generador por defecto (CI); lee mkdocs.yml
-mkdocs build          # equivalente recíproco con el mismo mkdocs.yml
+zensical build --strict   # único generador (CI); lee zensical.toml
 python scripts/build_docs_zip.py   # build + ZIP offline en dist/util_bbdd-docs-{version}.zip
 python scripts/gen_arquitectura_capas.py   # regenera el diagrama de capas e imports (falla si no coincide con el código)
 # Onboarding: generar/actualizar guía de incorporación para nuevos desarrolladores
@@ -210,7 +208,7 @@ Actualizar los prompts de agentes y comandos de Claude Code para redirigir la sa
 - ✅ Nueva clase pública → docstring Google-style + ejemplo
 - ✅ Cambio de API pública → actualizar guías en `docs/`
 - ✅ Refactor con breaking changes → guía de migración en CHANGELOG.md
-- ✅ Antes de cerrar versión → `zensical build` (o `mkdocs build`) sin errores ni links rotos
+- ✅ Antes de cerrar versión → `zensical build` sin errores ni links rotos
 - ✅ Cambios en instrucciones IA → sincronizar todos los ficheros afectados
 - ✅ Nuevo archivo generado o copiado → actualizar README y/o docs de uso
 - ✅ Cambio de CLI → actualizar ejemplos en README, `docs/` y `.ai/runtime.md`
@@ -219,15 +217,15 @@ Actualizar los prompts de agentes y comandos de Claude Code para redirigir la sa
 
 #### Configuración de documentación — cuándo actualizar
 
-> **Fuente única**: `mkdocs.yml`. Dos generadores recíprocamente compatibles lo consumen:
-> **Zensical** (`zensical serve` / `zensical build`, usado por el CI) y **MkDocs Material**
-> (`mkdocs serve` / `mkdocs build`). No se usa `zensical.toml`. Ver `ZENICAL.md`.
+> **Fuente única**: `zensical.toml` (formato nativo de Zensical, ámbito `[project]`). **Zensical** es el único
+> generador (`zensical serve` / `zensical build --strict`, también en el CI); no hay `mkdocs.yml` ni plugins de
+> MkDocs (el ZIP offline lo genera `scripts/build_docs_zip.py`). Ver `ZENSICAL.md`.
 
-- ✅ Módulo o clase pública nueva → entrada en `mkdocs.yml` bajo `nav:`
-- ✅ Página nueva, movida o eliminada en `docs/` → actualizar `mkdocs.yml`
+- ✅ Módulo o clase pública nueva → entrada en el `nav` de `zensical.toml`
+- ✅ Página nueva, movida o eliminada en `docs/` → actualizar `zensical.toml`
 - ✅ Reorganización funcional/técnica/ejemplos → validar que `nav:` mantiene apartados separados
-- ✅ Ejecutar `zensical serve` (o `mkdocs serve`) localmente antes de publicar
-- ✅ Verificar que `zensical build` (o `mkdocs build`) pase sin warnings
+- ✅ Ejecutar `zensical serve` localmente antes de publicar
+- ✅ Verificar que `zensical build --strict` pase sin incidencias
 
 #### Convención de nombres en `docs/`
 
@@ -237,21 +235,21 @@ Actualizar los prompts de agentes y comandos de Claude Code para redirigir la sa
   un cambio solo de mayúsculas se hace en dos pasos (`git mv A.md tmp && git mv tmp a.md`).
 - **Guías** → siempre en `docs/guides/`, nunca en la raíz de `docs/`.
 - **Conjunto mínimo obligatorio en `guides/`**: `onboarding_dev.md` + `troubleshooting.md`.
-- Sección `Guías:` en `mkdocs.yml`: `onboarding_dev.md` siempre primero; `troubleshooting.md` siempre en subsección "Errores y Diagnóstico".
+- Sección `Guías:` en `zensical.toml`: `onboarding_dev.md` siempre primero; `troubleshooting.md` siempre en subsección "Errores y Diagnóstico".
 
 #### 📦 Distribución de documentación offline
 
-ZIP offline con SHA256 (`scripts/build_docs_zip.py`, plugin `src/util_bbdd/docs_build_plugin.py`),
+ZIP offline con SHA256 (`scripts/build_docs_zip.py`, tras `zensical build`; no hay plugin),
 página `docs/downloads.md` y publicación en GitHub Releases (`.github/workflows/docs-zip-release.yml`).
 Uso y comandos: `docs/guides/docs_offline_zip_guide.md`; mantenimiento: `.github/docs-zip-setup-guide.md`.
 Traslado a otros proyectos: `bootstrap_ai_config.prompt.md` § «Sección Especial: Descarga de Documentación Offline (Capa B)».
 
 #### Estándar de generación documental
 
-- Usa Zensical (o MkDocs con Material for MkDocs, recíprocamente compatibles) como salida estática de referencia.
+- Usa Zensical como única salida estática (`zensical.toml`).
 - Usa Mermaid.js para diagramas de flujo, secuencia o clases cuando aporte claridad.
 - Unifica creación y actualización: busca primero documentación existente y actualízala si es el punto de entrada correcto.
-- Para documentación de proyecto completo, revisa README, `docs/`, `docs/examples/`, docstrings públicos, prompts/agentes IA y `mkdocs.yml`.
+- Para documentación de proyecto completo, revisa README, `docs/`, `docs/examples/`, docstrings públicos, prompts/agentes IA y `zensical.toml`.
 - Separa claramente documentación funcional, técnica y ejemplos.
 - No inventes capacidades, módulos, APIs, salidas, reglas ni dependencias. Si falta información, márcala como pendiente de verificación.
 - No uses ejemplos heredados de otros repositorios: valida nombres de proyecto, rutas, clases y tests contra el árbol real antes de documentarlos.
@@ -299,7 +297,7 @@ class SyncDatabaseManager:
 
 Reglas y errores conocidos (líneas en blanco antes de listas y tablas, viñetas reales, fences
 anidados, enlaces a artefactos generados): `.github/instructions/docs.instructions.md` § «Reglas
-Markdown (CRÍTICAS)». Validación: `zensical build --strict` (o `python -m mkdocs build --strict`).
+Markdown (CRÍTICAS)». Validación: `zensical build --strict`.
 
 ### Formato de commits
 
@@ -396,4 +394,4 @@ especializaciones afectadas (`CLAUDE.md`, `.github/copilot-instructions.md`, `GE
 
 ---
 
-*Actualizado: 2026-11-06*
+*Actualizado: 2026-11-13*

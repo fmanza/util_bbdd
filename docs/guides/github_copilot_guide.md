@@ -57,7 +57,7 @@ Copilot Chat puede recibir contexto explícito con `#file:`:
 
 (con el agente Documentation Generator seleccionado)
 Genera la documentación funcional del módulo indicado siguiendo las instrucciones del prompt.
-Guarda en docs/functional/managers_sync.md y actualiza mkdocs.yml.
+Guarda en docs/functional/managers_sync.md y actualiza zensical.toml.
 ```
 
 ### Paso 5 — Generar documentación técnica con Mermaid
@@ -73,13 +73,10 @@ Guarda en docs/api/bulk_crud.md.
 ## 4. Verificación
 
 ```bash
-# Validar build de documentación — Zensical es el generador por defecto (lee mkdocs.yml)
-zensical build
+# Validar build de documentación — Zensical es el único generador (lee zensical.toml)
+zensical build --strict
 
-# Validación estricta de enlaces con MkDocs Material (recíproco, mismo mkdocs.yml)
-python -m mkdocs build --strict
-
-# Servir localmente para revisión visual (Zensical por defecto)
+# Servir localmente para revisión visual (Zensical)
 zensical serve
 ```
 
@@ -92,5 +89,5 @@ Navegar a `http://127.0.0.1:8000` y verificar que la nueva página aparece en la
 | El agente no respeta el prompt | No se ha referenciado con `#file:` | Añadir `#file:.github/prompts/[nombre].prompt.md` al inicio del prompt |
 | Copilot no encuentra el archivo | Ruta incorrecta en `#file:` | Usar ruta relativa desde la raíz del repositorio |
 | La documentación generada inventa APIs | Prompt sin contexto de código real | Añadir `#file:src/...` con el archivo del módulo |
-| `mkdocs build` falla con links rotos | Links a `.github/` incluidos en el Markdown generado | Reemplazar los links externos por referencias en texto plano |
+| `zensical build` falla con links rotos | Links a `.github/` incluidos en el Markdown generado | Reemplazar los links externos por referencias en texto plano |
 | Agente no disponible | Copilot Chat no actualizado | Actualizar la extensión GitHub Copilot Chat a la última versión |

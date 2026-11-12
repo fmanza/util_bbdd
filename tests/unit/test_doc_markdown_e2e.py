@@ -94,7 +94,8 @@ def test_markdown_config_defaults_and_effective_depth() -> None:
         "llms_txt": True,
         "llms_full_txt": True,
         "readme": True,
-        "mkdocs_yml": True,
+        "zensical_toml": True,
+        "mkdocs_yml": False,
         "site_name": None,
         "mermaid_js": None,
         "mermaid_js_ref": None,
@@ -218,13 +219,13 @@ def test_foreign_manifest_deletes_nothing(sqlite_db: Path, tmp_path: Path) -> No
 def test_modified_orphan_is_kept(sqlite_db: Path, tmp_path: Path) -> None:
     """Un fichero generado que el usuario editó no se borra aunque deje de generarse (grupo C, C4)."""
     root = _generate(sqlite_db, tmp_path / "out")
-    (root / "mkdocs.yml").write_text("site_name: mío\n", encoding="utf-8")
+    (root / "zensical.toml").write_text('[project]\nsite_name = "mío"\n', encoding="utf-8")
     llms = (root / "docs" / "llms.txt").read_bytes()
 
-    imprimir = {**IMPRIMIR, "markdown": {"mkdocs_yml": False, "llms_txt": False}}
+    imprimir = {**IMPRIMIR, "markdown": {"zensical_toml": False, "llms_txt": False}}
     root = _generate(sqlite_db, tmp_path / "out", imprimir=imprimir)
 
-    assert (root / "mkdocs.yml").read_text(encoding="utf-8") == "site_name: mío\n"  # editado: se conserva
+    assert (root / "zensical.toml").read_text(encoding="utf-8") == '[project]\nsite_name = "mío"\n'  # editado
     assert not (root / "docs" / "llms.txt").exists()  # intacto: se borra
     assert llms  # se había generado
 
@@ -272,7 +273,7 @@ def test_diagrams_without_graphviz(sqlite_db: Path, tmp_path: Path) -> None:
 @pytest.mark.integration
 @pytest.mark.skipif(shutil.which("zensical") is None, reason="zensical no está instalado")
 def test_zensical_strict_build(sqlite_db: Path, tmp_path: Path) -> None:
-    root = _generate(sqlite_db, tmp_path / "out")  # con el mkdocs.yml generado (grupo C)
+    root = _generate(sqlite_db, tmp_path / "out")  # con el zensical.toml generado (5.6.0)
     result = subprocess.run(
         ["zensical", "build", "--strict"], cwd=root, capture_output=True, text=True, timeout=300, check=False
     )

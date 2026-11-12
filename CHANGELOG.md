@@ -7,6 +7,48 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+SemVer: MINOR, sin cambios incompatibles en la API pública (sesión `2026-11-13-zensical-only`). Zensical 0.1.x pasa a
+ser el único generador de la documentación, con su formato nativo `zensical.toml`.
+
+### Added
+
+- **doc**: `imprimir["markdown"]["zensical_toml"]` (por defecto `True`). La documentación Markdown escribe
+  `zensical.toml`, el formato nativo de Zensical, con la misma `nav` corta, Mermaid local o referenciado y
+  `font = false` que tenía el `mkdocs.yml`.
+
+### Changed
+
+- **doc**: `imprimir["markdown"]["mkdocs_yml"]` pasa a valer `False` por defecto y queda **en desuso**. Si se activa,
+  se avisa en el log. Se retirará en 6.0.0.
+  - **Migración**: Zensical lee `zensical.toml` antes que `mkdocs.yml`, así que basta con `zensical build`.
+  - Para seguir generando `mkdocs.yml`, pasa `mkdocs_yml: True`.
+  - Al regenerar sobre una carpeta anterior, el `mkdocs.yml` sin tocar se borra como cualquier fichero generado que ya
+    no se produce. Si lo editaste, se conserva.
+- **doc**: el `README.md` de la documentación Markdown explica solo Zensical.
+- **docs**: el sitio del proyecto se configura en `zensical.toml`, que sustituye a `mkdocs.yml`.
+  - El sitio generado es idéntico: se compararon por página 140 páginas, los bloques autodoc, los diagramas Mermaid y
+    los enlaces de `nav`.
+  - Mermaid 12.3.0 se sirve desde el propio sitio (`docs/assets/js/vendor/`, MIT), la misma versión que Zensical
+    cargaría de unpkg. Se retiran el `mermaid@11` de jsDelivr y `docs/assets/js/mermaid.js`.
+- **docs**: el extra `docs` pide `zensical>=0.1.1,<0.2` (antes `>=0.0.71`) y ya no instala `mkdocs-material`.
+- **docs**: el CI construye con `zensical build --strict` también en el job de validación.
+- **docs**: `ZENICAL.md` se reescribe como `ZENSICAL.md`; describía la 0.0.44 con cifras sin medir.
+- **docs**: el prompt `mkdocs_nav_update` pasa a llamarse `zensical_nav_update`, con ejemplos en TOML.
+- **docs**: se actualizan las instrucciones IA y las guías para quitar «o `mkdocs build`».
+
+### Removed
+
+- **docs**: el plugin de MkDocs `documentation_zip` (`util_bbdd.docs_build_plugin`), su entry point
+  `mkdocs.plugins` y la opción `--builder` de `scripts/build_docs_zip.py`. Zensical no ejecuta plugins de MkDocs; el
+  ZIP offline lo genera solo el script, y el paquete ya no incluye un módulo que importaba `mkdocs` sin declararlo.
+  `OFFLINE_README.txt` pasa de `src/util_bbdd/` a `scripts/`.
+- **docs**: `.github/docs-zip-validation-checklist.md` y `.github/docs-download-fragment.md`, que describían el plugin.
+
+### Fixed
+
+- **docs**: los diagramas Mermaid del ZIP offline del sitio se dibujan sin Internet. Antes se veían como código,
+  porque Mermaid se cargaba de un CDN.
+
 ## [5.5.0] - 2026-11-12
 
 SemVer: MINOR, sin cambios incompatibles (sesión `2026-11-12-doc-filtro-relaciones`, a partir de lo que

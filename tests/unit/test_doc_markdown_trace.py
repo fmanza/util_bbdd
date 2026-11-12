@@ -222,7 +222,7 @@ def test_pages_front_matter_catalog_and_traceability(sqlite_db: Path, toml_map: 
     assert "| columns | pedidos.no_existe | la tabla no tiene ninguna columna con ese nombre |" in trace
 
     assert "- [Trazabilidad](traceability.md)" in (docs / "llms.txt").read_text(encoding="utf-8")
-    assert '  - "Trazabilidad": traceability.md' in (root / "mkdocs.yml").read_text(encoding="utf-8")
+    assert '  { "Trazabilidad" = "traceability.md" },' in (root / "zensical.toml").read_text(encoding="utf-8")
 
 
 def test_trace_does_not_change_hash_and_without_map_nothing_changes(

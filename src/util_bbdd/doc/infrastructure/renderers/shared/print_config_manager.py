@@ -86,11 +86,13 @@ class PrintConfigManager:
         "index_page_size": 200,
         "front_matter": True,
         "column_anchors": True,
-        # Grupo C: catálogo JSON, ficheros para LLM, mkdocs.yml y Mermaid local (sitios sin Internet)
+        # Grupo C: catálogo JSON, ficheros para LLM, configuración del sitio y Mermaid local (sitios sin Internet)
         "catalog_json": True,
         "llms_txt": True,
         "llms_full_txt": True,
-        "mkdocs_yml": True,
+        # 5.6.0: zensical.toml (formato nativo de Zensical) por defecto; mkdocs.yml en desuso, solo si se pide
+        "zensical_toml": True,
+        "mkdocs_yml": False,
         "site_name": None,
         "mermaid_js": None,
         # 5.4.0 (G50 de util_bbdd_web): Mermaid ya publicado (ruta relativa a docs/ o URL https), sin copiarlo
@@ -290,6 +292,7 @@ class PrintConfigManager:
             "llms_txt": bool(cfg.get("llms_txt", defaults["llms_txt"])),
             "llms_full_txt": bool(cfg.get("llms_full_txt", defaults["llms_full_txt"])),
             "readme": bool(cfg.get("readme", defaults["readme"])),
+            "zensical_toml": bool(cfg.get("zensical_toml", defaults["zensical_toml"])),
             "mkdocs_yml": bool(cfg.get("mkdocs_yml", defaults["mkdocs_yml"])),
             "site_name": PrintConfigManager._normalize_non_empty_str(cfg.get("site_name"), fallback="") or None,
             "mermaid_js": PrintConfigManager._normalize_path_value(cfg.get("mermaid_js")),
@@ -484,6 +487,7 @@ class PrintConfigManager:
             "llms_txt": bool(markdown_cfg["llms_txt"]),
             "llms_full_txt": bool(markdown_cfg["llms_full_txt"]),
             "readme": bool(markdown_cfg["readme"]),
+            "zensical_toml": bool(markdown_cfg["zensical_toml"]),
             "mkdocs_yml": bool(markdown_cfg["mkdocs_yml"]),
             "site_name": markdown_cfg["site_name"],
             "mermaid_js": markdown_cfg["mermaid_js"],

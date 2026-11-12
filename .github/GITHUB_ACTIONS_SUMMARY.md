@@ -59,7 +59,7 @@ ignore_missing_imports = true  # Ignorar módulos opcionales sin stubs
 ## 🧪 Validación Local
 
 ✅ **Python 3.14 (local)**: Python 3.14.2  
-✅ **Dependencias**: Zensical 0.0.67, MkDocs 1.6.1, todas instaladas  
+✅ **Dependencias**: Zensical (`.[docs]`, `>=0.1.1,<0.2`) y mkdocstrings, todas instaladas  
 ✅ **Linting**: `ruff check` pasa  
 ✅ **Type-checking**: `mypy` pasa (sin errores lógicos)  
 ✅ **Tests**: 5547+ tests ejecutados, todos pasan  

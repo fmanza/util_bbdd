@@ -70,7 +70,7 @@ El flag `-e` instala en modo editable: los cambios en `src/` se reflejan sin rei
 | Extra | Comando | Incluye |
 |---|---|---|
 | Desarrollo | `pip install -e ".[dev]"` | pytest, pytest-cov, pytest-asyncio, aiosqlite, ruff, mypy, build, stubs de tipos (pandas, networkx, PyMySQL, openpyxl), sqlglot, psycopg2-binary, oracledb, black, isort |
-| Documentación | `pip install -e ".[docs]"` | zensical, mkdocs-material, mkdocstrings |
+| Documentación | `pip install -e ".[docs]"` | zensical, mkdocstrings |
 | Drivers por motor | `pip install -e ".[postgresql]"` / `".[mariadb]"` / `".[mysql]"` / `".[oracle]"` | psycopg 3 + psycopg-pool + asyncpg / mariadb + aiomysql / pymysql + aiomysql / oracledb |
 | Migración DDL (vistas) | `pip install -e ".[migrate]"` | sqlglot |
 | Grafos (Graphviz) | `pip install -e ".[analysis]"` | graphviz >= 0.21 |
@@ -150,7 +150,6 @@ src/util_bbdd/
 ├── exceptions.py       # Módulo público de excepciones (re-exporta _core/exceptions.py)
 ├── async_utils.py      # maybe_await() — helper transparente sync/async
 ├── models.py           # Modelos de datos compartidos
-├── docs_build_plugin.py  # Plugin de build de la documentación (ZIP offline)
 └── data/               # database_types.json, sql_queries.json (datos empaquetados)
 ```
 
@@ -197,7 +196,7 @@ python -m ruff check src tests --fix
 python -m mypy src tests/unit/test_protocol_conformance.py
 ```
 
-Configurado en `pyproject.toml [tool.mypy]`: Python 3.12, `warn_return_any`, `check_untyped_defs`. Los drivers externos (oracledb, openpyxl, psycopg, asyncpg, etc.) tienen `ignore_missing_imports = true`; `docs_build_plugin.py` (plugin de MkDocs) está excluido. El segundo argumento verifica, con firmas incluidas, que las implementaciones reales cumplen los Protocols que sustituyen a un import de capa superior (Regla #6, `docs/architecture.md`); `mypy src` por sí solo no lo cubre.
+Configurado en `pyproject.toml [tool.mypy]`: Python 3.12, `warn_return_any`, `check_untyped_defs`. Los drivers externos (oracledb, openpyxl, psycopg, asyncpg, etc.) tienen `ignore_missing_imports = true`; El segundo argumento verifica, con firmas incluidas, que las implementaciones reales cumplen los Protocols que sustituyen a un import de capa superior (Regla #6, `docs/architecture.md`); `mypy src` por sí solo no lo cubre.
 
 ### Tests
 
@@ -337,7 +336,7 @@ Si este comando termina con código 0 y sin errores, el entorno está operativo.
 
 ```bash
 pip install -e ".[docs]"
-zensical build --strict   # el del CI; mkdocs build --strict es equivalente
+zensical build --strict   # el del CI
 ```
 
 Output esperado: `No issues found`.
@@ -348,7 +347,7 @@ Output esperado: `No issues found`.
 
 ### Documentación del proyecto
 
-- [Documentación online](https://fmanza.github.io/util_bbdd/) — generada con Zensical / MkDocs Material
+- [Documentación online](https://fmanza.github.io/util_bbdd/) — generada con Zensical
 - [Instalación](../installation.md) — guía de instalación completa
 - [Arquitectura del sistema](../architecture.md) — arquitectura detallada del sistema
 - [Programación asíncrona](async_guide.md) — patrones y drivers async

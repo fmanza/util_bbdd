@@ -243,7 +243,7 @@ class BulkCrud:
 ### Dónde integrar
 **Documentación técnica de `connection/performance_advisor.py`:**
 - Archivo destino: `docs/api/engine_readiness_advisor.md` (nuevo)
-- Actualizar: `mkdocs.yml` → Agregar bajo `Técnica > API > Connection`
+- Actualizar: `zensical.toml` → Agregar bajo `Técnica > API > Connection`
 
 ### Contenido esperado (esquema `technical_doc.prompt.md`)
 
@@ -296,7 +296,7 @@ usando `.github/prompts/technical_doc.prompt.md`
 Detalles obligatorios:
 - Tipo de diagrama: `classDiagram` (verificador + hallazgos)
 - Ubicación: `docs/api/engine_readiness_advisor.md` (NUEVA)
-- Actualizar: `mkdocs.yml` → Agregar entrada bajo "Técnica > API > Connection"
+- Actualizar: `zensical.toml` → Agregar entrada bajo "Técnica > API > Connection"
 - Ejemplos: 3 ejemplos verificables (básico, integración bulk, con conexión)
 - Validación: Diagrama Mermaid válido (zensical build --strict)
 
@@ -314,7 +314,7 @@ Marcar como pendiente si no es verificable contra código real.
 ### Deliverables (obligatorios)
 
 - ✅ Fichero nuevo: `docs/api/engine_readiness_advisor.md` (OBLIGATORIO)
-- ✅ Entrada en `mkdocs.yml` bajo `Técnica > API > Connection` (OBLIGATORIO)
+- ✅ Entrada en `zensical.toml` bajo `Técnica > API > Connection` (OBLIGATORIO)
 - ✅ Diagrama Mermaid válido (sin errores de sintaxis) (OBLIGATORIO)
 - ✅ 3 ejemplos con código real verificable (OBLIGATORIO)
 - ✅ Tabla de checks por motor (PostgreSQL, MySQL, MariaDB, Oracle, SQL Server, SQLite, Snowflake) (OBLIGATORIO)
@@ -503,7 +503,7 @@ class DumpOrchestrator:
 ### Para Documentación de Doc ✅ (OBLIGATORIO)
 
 - [ ] Generar `docs/api/engine_readiness_advisor.md` con diagrama y ejemplos
-- [ ] Actualizar `mkdocs.yml` con entrada nueva bajo "Técnica > API > Connection"
+- [ ] Actualizar `zensical.toml` con entrada nueva bajo "Técnica > API > Connection"
 - [ ] Validar que diagrama Mermaid es válido (zensical build --strict)
 - [ ] Verificar 3 ejemplos contra código real
 - [ ] Tabla de checks por motor completa (7 motors)
@@ -525,4 +525,4 @@ class DumpOrchestrator:
 
 ---
 
-*Actualizado: 2026-10-14*
+*Actualizado: 2026-11-13*

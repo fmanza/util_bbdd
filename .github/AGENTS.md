@@ -79,7 +79,7 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 ### 6b. **Documentation Generator** (`documentation-generator.agent.md`)
 - **Propósito**: GENERAR documentación funcional y técnica con diagramas Mermaid para módulos de util_bbdd
 - **Entrada**: Módulo Python objetivo, tipo (`functional` | `technical` | `examples` | `both`), directorio destino
-- **Salida**: Archivos `.md` en `docs/` + entrada sugerida para `mkdocs.yml`
+- **Salida**: Archivos `.md` en `docs/` + entrada sugerida para `zensical.toml`
 - **Herramientas**: read, write, search, web (`--verify-tools`), execute (`--verify-build`)
 - **Invocable**: Sí (generación activa, escribe archivos)
 - **Diferencia con Reviewer**: Reviewer audita, Generator crea contenido nuevo
@@ -182,7 +182,7 @@ Input: Necesito una auditoría completa de documentación de util_bbdd incluyend
 
 El definido en `.github/prompts/documentation_review.prompt.md` § «Formato de salida completo»: PLAN, AUDIT_PLAN
 (veredicto `GO | GO_CONDICIONAL | NO_GO`), AUDIT_CODE con sus subsecciones (README, funcional, técnica, ejemplos,
-MkDocs, docstrings, prompts IA) y VERSION con hallazgos por nivel y readiness `PRODUCTION_READY | NEAR_READY | BLOCKED`.
+Zensical, docstrings, prompts IA) y VERSION con hallazgos por nivel y readiness `PRODUCTION_READY | NEAR_READY | BLOCKED`.
 
 ---
 
@@ -253,4 +253,4 @@ Gobernanza entre plataformas: [`SHARED_INSTRUCTIONS.md`](SHARED_INSTRUCTIONS.md)
 
 ---
 
-*Actualizado: 2026-11-05*
+*Actualizado: 2026-11-13*

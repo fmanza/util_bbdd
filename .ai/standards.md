@@ -29,11 +29,10 @@
 ## Documentation
 
 - **Docstrings:** Google-style (module, class, function)
-- **Zensical:** generador por defecto (CI; `zensical build` / `zensical serve`)
-- **MkDocs Material:** generador recíprocamente compatible (mismo `mkdocs.yml`)
+- **Zensical:** único generador (`zensical.toml`; `zensical build --strict` / `zensical serve`, también en el CI)
 - **CHANGELOG.md:** Semver ([major.minor.patch]) con Conventional Commits
 - **Arquitectura:** `.ai/architecture.md` actualizado con cambios estructurales
-- **Build limpio:** `zensical build --strict` (o `mkdocs build --strict`) sin errores ni warnings antes de publicar
+- **Build limpio:** `zensical build --strict` sin errores ni warnings antes de publicar
 
 ## Commits & Versioning
 

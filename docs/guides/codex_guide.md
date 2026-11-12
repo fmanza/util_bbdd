@@ -55,7 +55,7 @@ Guarda el resultado en docs/functional/managers_sync.md.
 ```text
 Usando el prompt en .github/prompts/technical_doc.prompt.md, genera documentación
 técnica para src/util_bbdd/bulk/crud.py. Tipo de diagrama: flowchart TD.
-Guarda en docs/api/bulk_crud.md y añade la entrada en mkdocs.yml.
+Guarda en docs/api/bulk_crud.md y añade la entrada en zensical.toml.
 ```
 
 ### Paso 6 — Diferencias con Claude Code y Copilot Chat
@@ -70,21 +70,15 @@ Guarda en docs/api/bulk_crud.md y añade la entrada en mkdocs.yml.
 ## 4. Verificación
 
 ```bash
-# Validar build de documentación — Zensical es el generador por defecto (lee mkdocs.yml)
-zensical build
-
-# Validación estricta de enlaces con MkDocs Material (recíproco, mismo mkdocs.yml)
-python -m mkdocs build --strict
+# Validar build de documentación — Zensical es el único generador (lee zensical.toml)
+zensical build --strict
 ```
 
 Si el build pasa sin errores, la documentación generada es válida. Revisar visualmente con:
 
 ```bash
-# Servidor local por defecto (Zensical)
+# Servidor local (Zensical)
 zensical serve
-
-# Alternativa recíproca con MkDocs Material
-python -m mkdocs serve
 ```
 
 Navegar a `http://127.0.0.1:8000` y comprobar la nueva página.
@@ -95,5 +89,5 @@ Navegar a `http://127.0.0.1:8000` y comprobar la nueva página.
 |---|---|---|
 | Error de autenticación | API Key incorrecta o expirada | Regenerar la API Key en `platform.openai.com` y actualizar la configuración de VS Code |
 | Codex inventa módulos o APIs | Prompt sin contexto del código real | Incluir el contenido del archivo fuente en el prompt o pegar el código directamente |
-| `mkdocs build` falla | Documentación con rutas incorrectas o links rotos | Revisar las rutas relativas del `.md` generado; corregir referencias a archivos fuera de `docs/` |
+| `zensical build` falla | Documentación con rutas incorrectas o links rotos | Revisar las rutas relativas del `.md` generado; corregir referencias a archivos fuera de `docs/` |
 | Diagrama Mermaid no válido | Sintaxis incorrecta generada por el modelo | Validar en [mermaid.live](https://mermaid.live); pedir regeneración con restricciones más explícitas |

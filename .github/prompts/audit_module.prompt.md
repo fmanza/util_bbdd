@@ -205,7 +205,7 @@ deuda técnica) **más**:
   con diagrama Mermaid del flujo origen → adaptador → evento → sink
 - actualizar `docs/functional/bulk_audit.md`, `docs/api/bulk_audit.md`, `docs/api/dump_reporter.md`
   y `docs/api/exceptions.md` para remitir al punto canónico
-- entradas en `mkdocs.yml` (`nav:`) y `zensical build --strict` sin errores
+- entradas en `zensical.toml` (`nav:`) y `zensical build --strict` sin errores
 - pie de figura de `docs/architecture.md` tras regenerar el diagrama de capas
 
 ## Sesión

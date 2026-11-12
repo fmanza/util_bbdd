@@ -50,7 +50,7 @@ on:
     branches: [main, develop]
     paths:
       - 'docs/**'
-      - 'mkdocs.yml'
+      - 'zensical.toml'
       - 'pyproject.toml'
       - '.github/workflows/docs-zip-release.yml'
 ```
@@ -65,7 +65,7 @@ on:
 # Workflow Steps:
 ✓ Checkout code
 ✓ Setup Python 3.12
-✓ Install dependencies (zensical, mkdocs-material, etc.)
+✓ Install dependencies (zensical, mkdocstrings)
 ✓ zensical build --strict
   ├─ Parse 150+ markdown files
   ├─ Render Mermaid diagrams
@@ -81,7 +81,7 @@ on:
 
 ```bash
 # Script: scripts/build_docs_zip.py
-python scripts/build_docs_zip.py --builder zensical
+python scripts/build_docs_zip.py
 
 # Output:
 dist/
@@ -90,7 +90,7 @@ dist/
 └── CHECKSUMS.txt                     (200 bytes)
 
 # Log:
-[build_docs_zip] Built with builder: zensical
+[build_docs_zip] Building with: zensical build --strict
 [build_docs_zip] Created: dist/util_bbdd-docs-0.10.0.zip
 [build_docs_zip] 🔐 SHA256: abc123def456...
 [build_docs_zip] 📄 Checksum saved to: util_bbdd-docs-0.10.0.zip.sha256
@@ -265,8 +265,8 @@ git push origin develop
 - [DOCS_ZIP_WORKFLOW.md](DOCS_ZIP_WORKFLOW.md) — Guía del workflow
 - [../scripts/build_docs_zip.py](../scripts/build_docs_zip.py) — Script
 - [../docs/downloads.md](../docs/downloads.md) — Página de descargas
-- [../mkdocs.yml](../mkdocs.yml) — Configuración
+- [../zensical.toml](../zensical.toml) — Configuración
 
 ---
 
-*Última actualización: 2026-06-06*
+*Última actualización: 2026-11-13*

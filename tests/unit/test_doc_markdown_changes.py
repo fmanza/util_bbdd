@@ -95,7 +95,7 @@ def test_changes_between_two_generations(sqlite_db: Path, tmp_path: Path) -> Non
     assert manifest["previous"]["catalog_sha256"].startswith("sha256:")
     assert manifest["previous"]["generated_at"]
     assert "- [Cambios](changes.md)" in (second / "docs/llms.txt").read_text(encoding="utf-8")
-    assert '  - "Cambios": changes.md' in (second / "mkdocs.yml").read_text(encoding="utf-8")
+    assert '  { "Cambios" = "changes.md" },' in (second / "zensical.toml").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("target", ["root", "docs", "file"])

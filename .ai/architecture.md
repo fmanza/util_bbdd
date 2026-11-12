@@ -172,7 +172,6 @@
 │    └── (Jinja2 templates → HTML/Word/Excel)
 │
 │    __init__.py                     # API pública (re-exports); módulo raíz sin nivel
-│    docs_build_plugin.py            # Plugin MkDocs: documentation_zip (ZIP + SHA256); fuera de la librería
 ```
 
 ---

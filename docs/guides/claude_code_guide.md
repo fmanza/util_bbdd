@@ -51,7 +51,7 @@ Escribe el comando en el chat para activar el flujo estructurado:
 | `/performance-audit-bulk` / `-dump` / `-constraints` | Quieres auditar el rendimiento de `bulk/`, `dump/` o la desactivación de constraints |
 | `/metadata-centralization` | Trabajas en la extracción de metadatos |
 | `/documentation-architecture-audit` | Quieres auditar la arquitectura de `doc/` y `analysis/` |
-| `/doc-generator` | Quieres generar o actualizar documentación en `docs/` y `mkdocs.yml` |
+| `/doc-generator` | Quieres generar o actualizar documentación en `docs/` y `zensical.toml` |
 | `/config-review` | Cambias la configuración IA del repositorio |
 | `/version-closure` | Cierras una versión o bloque de cambios |
 
@@ -73,17 +73,14 @@ No empezar por código si el objetivo no está definido.
 Lee src/util_bbdd/managers/sync_mgr.py y genera documentación funcional
 usando el prompt en .github/prompts/functional_doc.prompt.md.
 Guarda el resultado en docs/functional/managers_sync.md.
-Actualiza mkdocs.yml si la página es nueva.
+Actualiza zensical.toml si la página es nueva.
 ```
 
 ## 4. Verificación
 
 ```bash
-# Validar el build de documentación — Zensical es el generador por defecto (lee mkdocs.yml)
-zensical build
-
-# Validación estricta de enlaces con MkDocs Material (recíproco, mismo mkdocs.yml)
-python -m mkdocs build --strict
+# Validar el build de documentación — Zensical es el único generador (lee zensical.toml)
+zensical build --strict
 
 # Ejecutar los tests para verificar que el código sigue funcionando
 python -m pytest
@@ -91,7 +88,7 @@ python -m pytest
 # Generar ZIP de la documentación para distribución offline o release de GitHub
 python scripts/build_docs_zip.py
 # → dist/util_bbdd-docs-{version}.zip
-# Opciones: --builder mkdocs | --no-strict | --no-build | --output-dir <dir>
+# Opciones: --no-strict | --no-build | --output-dir <dir> | --in-site
 # Ver docs/guides/docs_offline_zip_guide.md para la guía completa.
 
 # Regenerar el diagrama de capas e imports de docs/architecture.md tras cambiar imports entre paquetes de src/
@@ -112,4 +109,4 @@ bloquean ni ejecutan la suite.
 | Slash command no disponible | Claude Code no instalado o no activado | Verificar que la extensión está activa y autenticada |
 | El hook de ruff muestra errores tras una edición | Código con errores de lint | Corregirlos; el hook informa pero no bloquea |
 | Claude inventa APIs o módulos | Prompt sin contexto de código real | Añadir la ruta del archivo al prompt (`Lee src/...`) |
-| `mkdocs build` falla con links rotos | Documentación generada con rutas incorrectas | Revisar las rutas relativas del `.md` generado |
+| `zensical build` falla con links rotos | Documentación generada con rutas incorrectas | Revisar las rutas relativas del `.md` generado |

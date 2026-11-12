@@ -9,7 +9,8 @@ Salida en la carpeta del formato (``<directorio_salida>/<nombre>/MARKDOWN``)::
 
     manifest.json
     README.md                                   # markdown.readme (5.5.0): cómo verla y qué contiene
-    mkdocs.yml                                  # markdown.mkdocs_yml
+    zensical.toml                               # markdown.zensical_toml (5.6.0, por defecto)
+    mkdocs.yml                                  # markdown.mkdocs_yml (en desuso desde 5.6.0, desactivado)
     docs/index.md
     docs/tables/index.md, index-<letra>.md, <slug>.md
     docs/views/…, docs/routines/…
@@ -38,7 +39,7 @@ from ._changes import build_changes, changes_json, changes_page, load_previous
 from ._front_matter import RECORD_KINDS, ObjectRecords
 from ._pages import PageContext, routine_page, table_page, view_page
 from ._readme import ReadmeContents, readme_md
-from ._site import MERMAID_JS_PATH, mkdocs_yml
+from ._site import MERMAID_JS_PATH, mkdocs_yml, zensical_toml
 from ._site_pages import (
     FilterScope,
     IndexEntry,
@@ -67,7 +68,7 @@ class MarkdownGenerator:
 
     Example:
         >>> result = DatabaseDocumentation(manager, Path("out"), formatos=["markdown"]).generate()
-        >>> result.outputs["markdown"]  # …/MARKDOWN con docs/, manifest.json y mkdocs.yml
+        >>> result.outputs["markdown"]  # …/MARKDOWN con docs/, manifest.json y zensical.toml
     """
 
     def __init__(self, database: str, headers: dict[str, list[str]]) -> None:
@@ -405,7 +406,8 @@ class MarkdownGenerator:
         with_changes: bool,
         frontier: list[str],
     ) -> None:
-        """``catalog.json``, ``llms.txt``, ``mkdocs.yml`` (con ``nav``) y el Mermaid local, según ``imprimir["markdown"]``."""
+        """``catalog.json``, ``llms.txt``, ``zensical.toml``/``mkdocs.yml`` (con ``nav``) y el Mermaid local, según
+        ``imprimir["markdown"]``."""
         if resolved["catalog_json"]:
             text = catalog_json(
                 entries,
@@ -433,18 +435,26 @@ class MarkdownGenerator:
         if mermaid_js is not None:
             writer.copy(f"docs/{MERMAID_JS_PATH}", Path(mermaid_js).expanduser())
         mermaid_ref: str | None = resolved["mermaid_js_ref"]
+        site_name = resolved["site_name"] or f"Documentación de {self.database}"
+        site_args: dict[str, Any] = {
+            "version": library_version(),
+            "with_mermaid_js": mermaid_js is not None,
+            "nav": nav,
+            "mermaid_ref": mermaid_ref,
+        }
+        if resolved["zensical_toml"]:
+            writer.write("zensical.toml", zensical_toml(site_name, **site_args))
         if resolved["mkdocs_yml"]:
-            site_name = resolved["site_name"] or f"Documentación de {self.database}"
-            text = mkdocs_yml(
-                site_name,
-                version=library_version(),
-                with_mermaid_js=mermaid_js is not None,
-                nav=nav,
-                mermaid_ref=mermaid_ref,
+            self.logger.warning(
+                "⚠️ markdown.mkdocs_yml está en desuso desde 5.6.0: zensical.toml (markdown.zensical_toml) es el "
+                "formato estándar del sitio y mkdocs.yml se retirará en 6.0.0"
             )
-            writer.write("mkdocs.yml", text)
-        elif mermaid_ref is not None:
-            self.logger.warning("⚠️ markdown.mermaid_js_ref no tiene efecto sin mkdocs.yml (markdown.mkdocs_yml=False)")
+            writer.write("mkdocs.yml", mkdocs_yml(site_name, **site_args))
+        if mermaid_ref is not None and not (resolved["zensical_toml"] or resolved["mkdocs_yml"]):
+            self.logger.warning(
+                "⚠️ markdown.mermaid_js_ref no tiene efecto sin configuración del sitio "
+                "(markdown.zensical_toml=False y markdown.mkdocs_yml=False)"
+            )
 
     @staticmethod
     def _readme_contents(
@@ -453,6 +463,7 @@ class MarkdownGenerator:
         """Qué ficheros se han generado, para que el ``README.md`` describa solo esos."""
         return ReadmeContents(
             version=library_version(),
+            zensical_toml=bool(resolved["zensical_toml"]),
             mkdocs_yml=bool(resolved["mkdocs_yml"]),
             catalog_json=bool(resolved["catalog_json"]),
             llms_txt=bool(resolved["llms_txt"]),

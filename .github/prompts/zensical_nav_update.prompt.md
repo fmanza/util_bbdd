@@ -1,12 +1,12 @@
-# Prompt: mkdocs_nav_update — Actualizar mkdocs.yml con nuevas páginas
+# Prompt: zensical_nav_update — Actualizar zensical.toml con nuevas páginas
 
 <!--
-  Prompt especializado para actualizar navegación de mkdocs.yml tras generar nuevas páginas.
+  Prompt especializado para actualizar navegación de zensical.toml tras generar nuevas páginas.
   Uso: Documentation Generator debe ejecutar este prompt después de crear cualquier página nueva.
   Última revisión: 2026-10-06
 -->
 
-Actualiza la navegación de `mkdocs.yml` para publicar nuevas páginas de documentación y asegurar
+Actualiza la navegación de `zensical.toml` para publicar nuevas páginas de documentación y asegurar
 que sean accesibles vía el navegador del sitio (evitar páginas "huérfanas").
 
 ---
@@ -14,23 +14,24 @@ que sean accesibles vía el navegador del sitio (evitar páginas "huérfanas").
 ## Especialización de dominio
 
 - **Proyecto**: util_bbdd — librería Python multimotor de bases de datos
-- **Archivo objetivo**: `mkdocs.yml` en la raíz del proyecto
+- **Archivo objetivo**: `zensical.toml` en la raíz del proyecto
 - **Secciones de navegación**: Funcional, Técnica, Guías, Ejemplos, Config IA, Arquitectura
-- **Formato YAML**: Indentación exacta (2 espacios), orden alfabético dentro de subsecciones
+- **Formato TOML**: `nav` de `[project]` (lista de tablas en línea `{ "Título" = "ruta.md" }`), orden
+  alfabético dentro de subsecciones
 
 ---
 
 ## Instrucción al modelo
 
 ```
-Eres un especialista en estructura de sitios de documentación y YAML.
+Eres un especialista en estructura de sitios de documentación y TOML (Zensical).
 
 Lee:
 1. El listado de nuevas páginas (rutas relativas desde `docs/`)
-2. La estructura actual de `mkdocs.yml` (seción `nav`)
+2. La estructura actual de `zensical.toml` (seción `nav`)
 3. Las categorías existentes en el proyecto
 
-Tarea: Proponer o aplicar cambios a `mkdocs.yml` siguiendo estas reglas:
+Tarea: Proponer o aplicar cambios a `zensical.toml` siguiendo estas reglas:
 
 ### Reglas de clasificación
 
@@ -58,10 +59,11 @@ Tarea: Proponer o aplicar cambios a `mkdocs.yml` siguiendo estas reglas:
   → Sección: "Guías → Auditoría" (si es constraints) o "Guías → Rendimiento" (si es performance)
   → O integrar en "Historia y Planes" si es un roadmap/plan de versión
 
-### Reglas de formato YAML
+### Reglas de formato TOML
 
-1. **Indentación**: 2 espacios exactos (no tabs)
-2. **Referencias a archivos**: `- Título: ruta/relativa/archivo.md` (desde `docs/` hacia abajo)
+1. **Indentación**: 2 espacios por nivel de anidamiento (no tabs); coma final en cada elemento
+2. **Referencias a archivos**: `{ "Título" = "ruta/relativa/archivo.md" },` (desde `docs/` hacia abajo);
+   un grupo es `{ "Grupo" = [ ... ] },`
 3. **Nombres de secciones**: Español, PascalCase si es título compuesto
 4. **Ordenamiento**: Alfabético dentro de cada subsección (excepto grupos lógicos)
 5. **Sin duplicados**: Verificar que no aparece la misma ruta en dos lugares
@@ -73,19 +75,20 @@ Entrada:
 - Tipo: Guía operacional
 - Descripción: "Guía de drivers por motor de BD"
 
-Ubicación en `mkdocs.yml`:
-```yaml
-- Guías:
-    - Drivers por Motor: guides/drivers.md
+Ubicación en `zensical.toml`:
+```toml
+{ "Guías" = [
+  { "Drivers por Motor" = "guides/drivers.md" },
+] },
 ```
 (Bajo la subsección "Conexión y Drivers" si existe, o como ítems independientes)
 
 ### Checklist de salida
 
 Antes de finalizar, verifica:
-- ✅ Todas las nuevas páginas están en `mkdocs.yml`
+- ✅ Todas las nuevas páginas están en `zensical.toml`
 - ✅ No hay duplicados (misma ruta en dos lugares)
-- ✅ Indentación YAML correcta (2 espacios)
+- ✅ TOML válido (`python -c "import tomllib; tomllib.load(open('zensical.toml','rb'))"`)
 - ✅ Referencias a archivos son rutas relativas desde `docs/`
 - ✅ Nombres de secciones son descriptivos y en español
 - ✅ Ordenamiento alfabético dentro de subsecciones
@@ -97,7 +100,7 @@ Antes de finalizar, verifica:
 ## Entrada esperada
 
 ```
-Archivo: mkdocs.yml
+Archivo: zensical.toml
 Nuevas páginas a publicar (rutas desde docs/):
   - [lista de rutas separadas por línea]
 
@@ -110,12 +113,12 @@ Contexto adicional (opcional):
 
 ## Salida esperada
 
-**Modificación a `mkdocs.yml`**: YAML válido con nuevas entradas bajo las secciones apropiadas.
+**Modificación a `zensical.toml`**: TOML válido con nuevas entradas bajo las secciones apropiadas.
 
 **Reporte de cambios**:
 - Listado de nuevas referencias añadidas
 - Ubicación en navegación (sección → subsección)
-- Validación de sintaxis YAML
+- Validación de sintaxis TOML y `zensical build --strict`
 - Confirmación de que archivos existen en disco
 
 ---
@@ -135,17 +138,17 @@ Nuevas páginas (huérfanas post-auditoría v0.32.1):
 ```
 
 **Salida esperada**:
-```yaml
+```toml
 # En Arquitectura → Decisiones Arquitectónicas (ADRs):
-- ADR-004 (Lazy Oracle Version): adr/ADR-004-lazy-oracle-version-resolution.md
+{ "ADR-004 (Lazy Oracle Version)" = "adr/ADR-004-lazy-oracle-version-resolution.md" },
 
 # En Guías → Rendimiento:
-- Performance Audit (General): guides/performance_audit_guide.md
-- Performance Audit (Constraints): guides/performance_audit_constraints_guide.md
+{ "Performance Audit (General)" = "guides/performance_audit_guide.md" },
+{ "Performance Audit (Constraints)" = "guides/performance_audit_constraints_guide.md" },
 
 # En Guías:
-- Drivers por Motor: guides/drivers.md
-- Reutilización de Código: guides/code_reusability_analysis_guide.md
+{ "Drivers por Motor" = "guides/drivers.md" },
+{ "Reutilización de Código" = "guides/code_reusability_analysis_guide.md" },
 ```
 
 ### Caso 2: Generar nueva documentación funcional
@@ -157,9 +160,9 @@ Nueva página funcional:
 ```
 
 **Salida esperada**:
-```yaml
+```toml
 # En Documentación Funcional → Managers:
-- Connection Pooling: functional/connection_pooling.md
+{ "Connection Pooling" = "functional/connection_pooling.md" },
 ```
 
 ---
@@ -168,7 +171,7 @@ Nueva página funcional:
 
 El agente `documentation-generator.agent.md` debe invocar este prompt **DESPUÉS**
 de generar cualquier página nueva, pasando:
-1. El archivo `mkdocs.yml` existente (lectura)
+1. El archivo `zensical.toml` existente (lectura)
 2. Lista de nuevas rutas generadas
 3. Contexto: tipo de documento (funcional/técnica/ejemplo/guía) y módulo relacionado
 
@@ -177,8 +180,8 @@ de generar cualquier página nueva, pasando:
 [Documentation Generator inicia]
   → Genera página (p.ej. docs/functional/nueva_feature.md)
   → [Invoca este prompt]
-  → Actualiza mkdocs.yml con nueva entrada
-  → Valida YAML y enlaces
+  → Actualiza zensical.toml con nueva entrada
+  → Valida el TOML y los enlaces (zensical build --strict)
   → Confirma cambios al usuario
 ```
 

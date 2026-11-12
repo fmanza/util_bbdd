@@ -23,7 +23,7 @@ flowchart TD
     I --> N[Fichero .docx]
     J --> O[Fichero .xlsx]
     K --> P[Ficheros .html]
-    MD --> MF["Carpeta MARKDOWN<br/>(docs/, manifest.json, mkdocs.yml)"]
+    MD --> MF["Carpeta MARKDOWN<br/>(docs/, manifest.json, zensical.toml)"]
     F --> Q{grafo.enabled?}
     Q -->|Sí| R["GraphvizRelationshipGraphExt<br/>(uno para Word y HTML; prefetch por lotes)"]
     R --> N & P
@@ -198,13 +198,14 @@ Desde 5.3.0. Solo aplica con `formatos=["markdown"]`. Las rutas se aceptan como 
 | `catalog_json` | `True` | `docs/catalog.json`: catálogo de los objetos documentados, contrato versionado ([ADR-006](../adr/ADR-006-catalogo-documentacion-markdown.md)) |
 | `llms_txt` | `True` | `docs/llms.txt` (formato de llmstxt.org) |
 | `llms_full_txt` | `True` | `docs/llms-full.txt`: todas las páginas en un fichero, cada una precedida de su id y su ruta |
-| `mkdocs_yml` | `True` | `mkdocs.yml` listo para `zensical build` (o `mkdocs build`), con `nav` corta: portada e índices |
+| `zensical_toml` | `True` | Desde 5.6.0. `zensical.toml` (formato nativo de Zensical) listo para `zensical build`, con `nav` corta: portada e índices |
+| `mkdocs_yml` | `False` | **En desuso** desde 5.6.0 (se retirará en 6.0.0; aviso en el log si se activa). `mkdocs.yml` con el mismo sitio. Hasta 5.5.0 era `True` y la única configuración generada |
 | `site_name` | `None` | Título del sitio; `None`: «Documentación de <base de datos>» |
-| `mermaid_js` | `None` | Ruta a un `mermaid.min.js` local. Se copia al sitio y se carga en lugar del de unpkg, así que los diagramas se dibujan **sin Internet**; además pone `theme.font: false`. Debe existir: si no, `DocumentationConfigError` al construir |
-| `mermaid_js_ref` | `None` | Desde 5.4.0. Mermaid **ya publicado**, sin copiarlo: ruta relativa a `docs/` (`assets/javascripts/mermaid.min.js`) o URL `https://`. Se escribe en `extra_javascript`; con una ruta relativa pone también `theme.font: false` (sitio sin Internet). Excluyente con `mermaid_js`. Solo afecta a `mkdocs.yml` (con `mkdocs_yml: False`, aviso en el log). Ver [Mermaid referenciado](#mermaid-referenciado-mermaid_js_ref) |
+| `mermaid_js` | `None` | Ruta a un `mermaid.min.js` local. Se copia al sitio y se carga en lugar del de unpkg, así que los diagramas se dibujan **sin Internet**; además pone `font = false` en el tema. Debe existir: si no, `DocumentationConfigError` al construir |
+| `mermaid_js_ref` | `None` | Desde 5.4.0. Mermaid **ya publicado**, sin copiarlo: ruta relativa a `docs/` (`assets/javascripts/mermaid.min.js`) o URL `https://`. Se escribe en `extra_javascript`; con una ruta relativa pone también `font = false` en el tema (sitio sin Internet). Excluyente con `mermaid_js`. Solo afecta a la configuración del sitio (`zensical.toml` y, si se pide, `mkdocs.yml`); sin ninguna, aviso en el log. Ver [Mermaid referenciado](#mermaid-referenciado-mermaid_js_ref) |
 | `trace_map` | `None` | Mapa de trazabilidad `.toml` (recomendado) o `.json`: objeto o columna → código, documentos funcionales y técnicos, requisitos ([guía](../guides/markdown_documentation_guide.md#35-mapa-de-trazabilidad)). Se valida al construir |
 | `previous` | `None` | Generación anterior (carpeta `MARKDOWN`, su `docs/` o su `catalog.json`): añade `docs/changes.md` y `docs/changes.json` con los cambios de esquema, sin conexión a la base de datos. Se valida al construir |
-| `readme` | `True` | Desde 5.5.0. `README.md` en la raíz de la carpeta: cómo ver la documentación (vista previa de VS Code con la extensión de Mermaid, `zensical serve` o `mkdocs serve`) y qué contiene cada fichero generado. Sin fecha ni rutas locales |
+| `readme` | `True` | Desde 5.5.0. `README.md` en la raíz de la carpeta: cómo ver la documentación (vista previa de VS Code con la extensión de Mermaid o `zensical serve`) y qué contiene cada fichero generado. Sin fecha ni rutas locales |
 
 ##### Mermaid referenciado (`mermaid_js_ref`)
 
@@ -214,13 +215,13 @@ admitidos: ruta POSIX relativa a `docs/` sin `\`, sin `/` inicial, sin `:` y sin
 `https://` con host. Sin espacios ni caracteres de control. Cualquier otro valor (`http:`, `javascript:`, `data:`,
 `//host`, rutas absolutas o de Windows) → `DocumentationConfigError` al construir.
 
-Si al publicar falta el fichero de una ruta relativa (verificado con Zensical 0.0.71 y MkDocs 1.6.1 + Material 9.7.7):
+Si al publicar falta el fichero de una ruta relativa (verificado con Zensical 0.0.71 y 0.1.1):
 
 | Paso | Qué pasa |
 |---|---|
-| `zensical build --strict` / `mkdocs build --strict` | Termina **sin error ni aviso**: el build no detecta la referencia rota |
-| Página publicada | Pide `assets/javascripts/mermaid.min.js` (404); como `window.mermaid` no existe, el tema carga `mermaid@11` de `unpkg.com` |
-| Navegador con Internet | Los diagramas se dibujan (con Mermaid 11 de unpkg) |
+| `zensical build --strict` | Termina **sin error ni aviso**: el build no detecta la referencia rota |
+| Página publicada | Pide `assets/javascripts/mermaid.min.js` (404); como `window.mermaid` no existe, Zensical carga Mermaid de `unpkg.com` (`mermaid@12` desde 0.0.73) |
+| Navegador con Internet | Los diagramas se dibujan (con el Mermaid de unpkg) |
 | Navegador sin Internet | Los diagramas se quedan como bloque de código `erDiagram` |
 
 Al regenerar en la misma carpeta una documentación que antes copiaba Mermaid (`mermaid_js`) y ahora lo referencia en la
@@ -356,7 +357,7 @@ generación continúa con el aviso.
   MARKDOWN/
     manifest.json            # versión de util_bbdd, motor, schema, fecha, sha256 de cada fichero e índice de páginas
     README.md                # markdown.readme (5.5.0): cómo verla y qué contiene
-    mkdocs.yml               # markdown.mkdocs_yml
+    zensical.toml            # markdown.zensical_toml (5.6.0; mkdocs.yml solo con markdown.mkdocs_yml, en desuso)
     docs/
       index.md               # inventario, alcance del filtro, enlaces y leyenda de los diagramas
       tables/index.md, tables/index-<letra>.md, tables/<slug>.md
@@ -467,7 +468,7 @@ doc = DatabaseDocumentation(manager, Path("out")).generate()
 | `DocumentationBootstrap` | `settings()` valida la configuración; `build()` resuelve la salida y lee el inventario del catálogo |
 | `DocumentationOrchestrator` | Un generador de grafos para todos los formatos y despacho por formato; traduce los fallos de renderer a `DocumentationRenderError` |
 | `HtmlGenerator` / `ExcelGenerator` / `WordGenerator` / `MarkdownGenerator` | Renderers internos por formato de salida |
-| `doc/infrastructure/renderers/markdown/` | Markdown (5.3.0): páginas, escape, nombres de fichero, front matter y `catalog.json`, `llms*.txt`, `mkdocs.yml`, mapa de trazabilidad (`_trace.py`), cambios (`_changes.py`) y escritura con staging (`_writer.py`) |
+| `doc/infrastructure/renderers/markdown/` | Markdown (5.3.0): páginas, escape, nombres de fichero, front matter y `catalog.json`, `llms*.txt`, `zensical.toml`, mapa de trazabilidad (`_trace.py`), cambios (`_changes.py`) y escritura con staging (`_writer.py`) |
 | `MermaidRelationshipGraph` (`analysis/mermaid_er.py`) | Diagramas `erDiagram` del Markdown, sin Graphviz ([Grafos de Relaciones](analysis.md)) |
 | `doc/infrastructure/storage/engines.py` | Inventario de almacenamiento: una entrada por motor (consultas, cabeceras, tratamiento) |
 
@@ -480,7 +481,7 @@ doc = DatabaseDocumentation(manager, Path("out")).generate()
 | `openpyxl` | Generación de hojas Excel | Solo para `excel` | Error al intentar generar Excel |
 | `Jinja2` | Generación de HTML | Solo para `html` | Error al intentar generar HTML |
 | `graphviz` + binarios | Generación de grafos en Word y HTML | Opcional | Sin grafos cuando no disponible. El Markdown no lo necesita |
-| Zensical o MkDocs Material | Publicar la carpeta Markdown como sitio (`zensical build`) | Opcional, fuera de la librería | La carpeta sigue siendo Markdown legible |
+| Zensical | Publicar la carpeta Markdown como sitio (`zensical build`) | Opcional, fuera de la librería | La carpeta sigue siendo Markdown legible |
 | `openpyxl`, `python-docx`, `Jinja2` | Excel, Word y HTML | Incluidas en la instalación base (no hay extra `doc`) | Instalación incompleta: reinstalar `util_bbdd` |
 
 ## 5. Ejemplos Relacionados

@@ -93,7 +93,7 @@ Luego planifica, implementa, audita y cierra versión.
 
 Punto único de entrada: **`@Documentation Generator`**. Arquetipos, secciones fijas y flujo por fases:
 [`DOCUMENTATION_STANDARD.md`](DOCUMENTATION_STANDARD.md) §3 y §5. Reglas comunes (Zensical,
-`mkdocs.yml`, Mermaid, no inventar, sin APIs de IA externas, validación de Markdown):
+`zensical.toml`, Mermaid, no inventar, sin APIs de IA externas, validación de Markdown):
 `SHARED_INSTRUCTIONS.md` § «Documentación obligatoria».
 
 ```markdown
@@ -101,7 +101,7 @@ Punto único de entrada: **`@Documentation Generator`**. Arquetipos, secciones f
 
 Genera documentación funcional y técnica para [ruta_del_módulo].
 Aplica functional_doc.prompt.md y technical_doc.prompt.md.
-Guarda en docs/functional/[nombre].md y docs/api/[nombre].md y actualiza mkdocs.yml.
+Guarda en docs/functional/[nombre].md y docs/api/[nombre].md y actualiza zensical.toml.
 No inventes capacidades; marca como pendiente lo no verificable.
 ```
 
@@ -131,4 +131,4 @@ que no quedan referencias heredadas antes de cerrar un PR de instrucciones IA.
 
 ---
 
-*Actualizado: 2026-09-25*
+*Actualizado: 2026-11-13*

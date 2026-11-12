@@ -323,7 +323,7 @@ antes y después. Contra los contenedores de `docker-compose.bench.yml`, nunca c
 ## 7. Documentación y configuración a sincronizar
 
 - `docs/api/metadata_manager.md`, `docs/api/managers_metadata_factory.md`, `docs/functional/metadata_extraction.md`,
-  guía de migración en `CHANGELOG.md`, `docs/adr/ADR-003-*.md`, `mkdocs.yml` si hay páginas nuevas.
+  guía de migración en `CHANGELOG.md`, `docs/adr/ADR-003-*.md`, `zensical.toml` si hay páginas nuevas.
 - `docs/architecture.md` (diagrama regenerado) y `.ai/architecture.md` si cambian paquetes o capas.
 - `.github/instructions/architecture.instructions.md` § «Reglas de acceso a metadatos»: nuevo destino, nuevo patrón
   canónico, excepciones vigentes.

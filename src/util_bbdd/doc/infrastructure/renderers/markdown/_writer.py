@@ -193,7 +193,7 @@ class StagedWriter:
     def _remove_orphans(self, current: set[str]) -> None:
         """Borra lo que generó la vez anterior y ya no se genera, solo si sigue intacto (mismo hash que entonces).
 
-        Un fichero generado que el usuario ha modificado (p. ej. ``mkdocs.yml``) se conserva aunque deje de generarse.
+        Un fichero generado que el usuario ha modificado (p. ej. ``zensical.toml``) se conserva aunque deje de generarse.
         """
         root = self.output_dir.resolve()
         previous = self._previous_files()

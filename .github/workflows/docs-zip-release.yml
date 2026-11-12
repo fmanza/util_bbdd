@@ -7,7 +7,7 @@ on:
       - develop
     paths:
       - 'docs/**'
-      - 'mkdocs.yml'
+      - 'zensical.toml'
       - 'pyproject.toml'
       - '.github/workflows/docs-zip-release.yml'
   workflow_dispatch:
@@ -44,7 +44,7 @@ jobs:
       - name: Generate ZIP and Checksums
         run: |
           mkdir -p dist
-          python scripts/build_docs_zip.py --builder zensical --output-dir dist
+          python scripts/build_docs_zip.py --no-build --output-dir dist
           echo "ZIP and checksums generated"
           ls -lh dist/ || echo "dist/ directory appears empty"
 

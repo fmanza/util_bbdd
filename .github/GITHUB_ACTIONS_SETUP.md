@@ -36,7 +36,7 @@ El workflow espera:
 ```
 c:\Desarrollo\python\libs\util_bbdd\
 ├── docs/                    ← Fuente de documentación
-├── site/                    ← Generado por Zensical/MkDocs (creado en el workflow)
+├── site/                    ← Generado por Zensical (creado en el workflow)
 ├── dist/                    ← Generado por build_docs_zip.py (debe crearse si no existe)
 ├── scripts/build_docs_zip.py  ← Script de construcción
 ├── pyproject.toml           ← Requiere [project] version
@@ -63,10 +63,10 @@ c:\Desarrollo\python\libs\util_bbdd\
 **Solución**:
 1. Verifica que el script se ejecute correctamente localmente:
    ```bash
-   python scripts/build_docs_zip.py --builder zensical --output-dir dist
+   python scripts/build_docs_zip.py --output-dir dist
    ls -lh dist/
    ```
-2. Asegúrate de que `util_bbdd.docs_build_plugin` exporte `SITE_ZIP_NAME` y `build_offline_zip`
+2. Asegúrate de que `scripts/build_docs_zip.py` conserve `SITE_ZIP_NAME` y `build_offline_zip`
 3. En el workflow, el comando ahora crea `dist/` automáticamente
 
 ### **Problema 2: "dist/util_bbdd-docs-*.zip: No such file or directory"**
@@ -128,7 +128,7 @@ Error: Validation failed: Draft release type cannot have a tag name starting wit
 **Cuándo se ejecuta:**
 - Cuando se hace push a `main` o `develop` con cambios en:
   - `docs/**`
-  - `mkdocs.yml`
+  - `zensical.toml`
   - `pyproject.toml`
   - `.github/workflows/docs-zip-release.yml`
 - Manualmente: **Actions → "📦 Build & Publish Docs ZIP" → Run workflow**
@@ -173,7 +173,7 @@ zensical build --strict
 
 # 3. Generar ZIP
 mkdir -p dist
-python scripts/build_docs_zip.py --builder zensical --output-dir dist
+python scripts/build_docs_zip.py --output-dir dist
 
 # 4. Verificar archivos generados
 ls -lh dist/
