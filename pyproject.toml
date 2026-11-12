@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "util_bbdd"
-version = "5.5.0"
+version = "5.6.0"
 description = "Librería de operaciones de base de datos: CRUD en lote, auditoría, conexiones pooled y documentación."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -115,6 +115,9 @@ dev = [
     "psycopg2-binary>=2.9",
     # Tests de conexión, bulk y metadata de Oracle (con mocks del driver): sin él se saltan.
     "oracledb>=26",
+    # CA de test_mariadb_tls.py (test_async_ssl_ca_verifies). Llegaba de rebote con mkdocs-material (requests);
+    # al dejar el extra docs solo con Zensical (5.6.0), el venv limpio fallaba.
+    "certifi",
 ]
 docs = [
     # Zensical es el único generador; lee zensical.toml. Con tope: está en beta (0.1.x) y su API puede cambiar entre

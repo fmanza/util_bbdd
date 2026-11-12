@@ -7,6 +7,8 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.6.0] - 2026-11-13
+
 SemVer: MINOR, sin cambios incompatibles en la API pública (sesión `2026-11-13-zensical-only`). Zensical 0.1.x pasa a
 ser el único generador de la documentación, con su formato nativo `zensical.toml`.
 
@@ -46,6 +48,8 @@ ser el único generador de la documentación, con su formato nativo `zensical.to
 
 ### Fixed
 
+- **tests**: `certifi` se declara en el extra `dev`. `test_mariadb_tls.py` lo usa y llegaba de rebote con
+  `mkdocs-material`; sin él, `.[dev-full]` fallaba en un venv limpio.
 - **docs**: los diagramas Mermaid del ZIP offline del sitio se dibujan sin Internet. Antes se veían como código,
   porque Mermaid se cargaba de un CDN.
 

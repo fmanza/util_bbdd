@@ -161,7 +161,7 @@ Fuente: TRACEABILITYs de sesiones + docs de análisis.
 
 ---
 
-## 2026-06-04 — Documentación: Zenical vs MkDocs vs Sphinx
+## 2026-06-04 — Documentación: Zenical vs MkDocs vs Sphinx (sustituida por la de 2026-11-13)
 
 **Decisión**: **Zenical** como generador estático de destino. MkDocs Material 9.5 se mantiene provisionalmente mientras Zenical no esté en crates.io.
 
@@ -277,3 +277,31 @@ caché SVG entre Word y HTML (hacía que el .docx dependiera de los demás forma
 `dot` en serie.
 **Impacto actual**: HTML con diagramas 12,6× más rápido (120 tablas: 75,7 s → 6,0 s); cobertura de `doc/`+`analysis/`
 61 % → 81 %; ruptura de API documentada en el CHANGELOG 0.41.0. Sesión `2026-10-09k-doc-architecture-audit`.
+
+---
+
+## 2026-11-13 — Documentación: Zensical 0.1.x como único generador, `zensical.toml`; sustituye a la de 2026-06-04
+
+**Decisión**: Zensical (`>=0.1.1,<0.2`) es el único generador del sitio, configurado en `zensical.toml` (formato nativo,
+ámbito `[project]`). Se retiran `mkdocs.yml`, `mkdocs-material` del extra `docs` y el plugin `documentation_zip`
+(`util_bbdd.docs_build_plugin` y su entry point `mkdocs.plugins`): el ZIP offline lo hace solo `scripts/build_docs_zip.py`.
+Mermaid 12.3.0 local en `docs/assets/js/vendor/` (la versión que Zensical cargaría de unpkg; con `window.mermaid`
+definido Zensical no sale a Internet, así que el ZIP offline dibuja los diagramas); se quitan el `mermaid@11` de
+jsDelivr y `docs/assets/js/mermaid.js`. La salida
+Markdown de la librería genera `zensical.toml` por defecto (`markdown.zensical_toml`, 5.6.0) y `markdown.mkdocs_yml` pasa a
+`False` y en desuso (retirada en 6.0.0).
+
+**Alternativas descartadas**:
+- **Seguir con `mkdocs.yml` leído por Zensical**: admitido, pero no es su formato nativo y mantenía la ambigüedad de dos
+  generadores; las instrucciones IA repetían «o `mkdocs build`» en decenas de sitios.
+- **Plugin `privacy` para un ZIP sin Internet**: con 0.1.1 reescribe las URL con la ruta de `site_url` (`/util_bbdd/…`),
+  que el servidor local del ZIP no sirve, y añade ~8 MB de terceros. Se eligió el Mermaid local (5,5 MB, se carga
+  en todas las páginas y queda en la caché del navegador).
+- **Cambiar ya `mkdocs_yml` a error (MAJOR)**: rompe a quien lo active sin aviso previo; se deja una MINOR de desuso.
+
+**Razón**: un generador, un formato y un camino para el ZIP; el paquete publicado deja de incluir un módulo que importaba
+`mkdocs` sin declararlo. El sitio construido desde `zensical.toml` es idéntico al de `mkdocs.yml` (140 páginas; mismos
+bloques autodoc, Mermaid, código, avisos y enlaces de `nav`, comparados por página).
+**Impacto actual**: `pyproject.toml` sin entry point `mkdocs.plugins` ni excepciones de mypy para MkDocs;
+`tests/unit/test_docs_links.py` lee el `nav` de `zensical.toml`; `ZENSICAL.md` reescrito (antes `ZENICAL.md`, con datos
+de la 0.0.44); prompt `zensical_nav_update.prompt.md` (antes `mkdocs_nav_update`). Sesión `2026-11-13-zensical-only`.

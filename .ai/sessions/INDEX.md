@@ -314,6 +314,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-11-05-doc-markdown | Formato Markdown de `DatabaseDocumentation` (ER Mermaid, un fichero por objeto, trazabilidad para IA, `catalog.json`, `CHANGES.md`): **v5.3.0** (grupos A–F) | develop | new_feature + version-closure | CLOSED | `2026-11-05-doc-markdown/TRACEABILITY.md` |
 | 2026-11-06-gaps-g50-g51 | **v5.4.0**: ola 11 del plan de huecos de util_bbdd_web (G50, G51): `markdown.mermaid_js_ref` sin copiar Mermaid y `manifest.json` v2 con `pages` | develop | new_feature | CLOSED | `2026-11-06-gaps-g50-g51/TRACEABILITY.md` |
 | 2026-11-12-doc-filtro-relaciones | **v5.5.0**: `imprimir["filtro"]` (tablas y vistas por patrones, con frontera), «Referenciada por» y `README.md` en la documentación Markdown; «Niveles por sentido» | develop | new_feature | CLOSED | `2026-11-12-doc-filtro-relaciones/TRACEABILITY.md` |
+| 2026-11-13-zensical-only | **v5.6.0**: Zensical 0.1.1 como único generador (`zensical.toml`), Mermaid local en el sitio, `markdown.zensical_toml` (`mkdocs_yml` en desuso) | develop | refactor + new_feature | CLOSED | `2026-11-13-zensical-only/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 
