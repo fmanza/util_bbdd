@@ -69,3 +69,4 @@ site/
 
 # Documentación histórica (no usada en la doc publicada)
 doc_old/
+.continue/agents/new-config.yaml
