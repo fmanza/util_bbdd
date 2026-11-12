@@ -31,6 +31,7 @@ from .....comparar.models import (
     TableDiff,
     ViewDiff,
 )
+from ....domain.table_filter import TableFilter
 from ._catalog import CATALOG_FORMAT, CATALOG_FORMAT_VERSION, CatalogEntry
 from ._slugs import sort_key
 from ._text import admonition, md_link, md_table, md_text
@@ -152,8 +153,12 @@ def build_changes(
     schema: str,
     database: str,
     selection: dict[str, bool],
+    table_filter: TableFilter | None = None,
 ) -> Changes:
     """Compara el catálogo anterior con los objetos de la generación actual.
+
+    Con un filtro de tablas (5.5.0) en alguna de las dos generaciones, las tablas y vistas se comparan solo si las
+    documentan los filtros de ambas: lo que una dejó fuera no cuenta como añadido ni como eliminado.
 
     Raises:
         DocumentationConfigError: El motor de la generación anterior es otro (los tipos no son comparables).
@@ -177,6 +182,20 @@ def build_changes(
 
     before = _by_kind(cast(list[dict[str, Any]], old["objects"]))
     after = _by_kind([{**entry.record, "path": entry.path} for entry in current])
+    old_filter = TableFilter.from_catalog(old.get("filter"))
+    # Por patrones: ``frontera`` no cambia lo que se documenta
+    if (old_filter and old_filter.to_catalog()) != (table_filter and table_filter.to_catalog()):
+        notices.append(
+            "Las dos generaciones tienen distinto filtro de tablas: solo se comparan las tablas y vistas que entran en "
+            "ambos."
+        )
+        filters = [f for f in (old_filter, table_filter) if f is not None]
+        for kind in ("table", "view"):
+            for side in (before, after):
+                if kind in side:
+                    side[kind] = {
+                        name: obj for name, obj in side[kind].items() if all(f.matches(name) for f in filters)
+                    }
     changes = Changes(
         diff=SchemaDiff(source_label=previous.label, target_label=f"Generación actual: {database} [{schema}]")
     )

@@ -93,6 +93,7 @@ def test_markdown_config_defaults_and_effective_depth() -> None:
         "catalog_json": True,
         "llms_txt": True,
         "llms_full_txt": True,
+        "readme": True,
         "mkdocs_yml": True,
         "site_name": None,
         "mermaid_js": None,

@@ -65,6 +65,10 @@ class CatalogRows:
     def routines(self) -> list[Row]:
         return [(name, kind, _text(r.comment)) for (name, kind), group in self._routines().items() for r in group[:1]]
 
+    def foreign_key_edges(self) -> list[tuple[str, str]]:
+        """``(tabla con la FK, tabla referenciada)`` de todas las FK del schema (una consulta, 5.5.0: frontera)."""
+        return [(fk.table, fk.ref_table) for fk in self._snapshot(Kind.FOREIGN_KEYS).all_foreign_keys()]
+
     def _routines(self) -> dict[tuple[str, str], list[RoutineMeta]]:
         """``{(nombre mostrado, tipo): [routine]}``; las sobrecargas se nombran con su firma."""
         if self._routine_names is None:

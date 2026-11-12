@@ -12,6 +12,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from ....domain.table_filter import TableFilter
 from ._text import md_link, md_text
 
 CATALOG_FORMAT = "util_bbdd.doc.catalog"
@@ -30,7 +31,14 @@ class CatalogEntry:
 
 
 def catalog_json(
-    entries: list[CatalogEntry], *, engine: str, schema: str, database: str, selection: dict[str, bool]
+    entries: list[CatalogEntry],
+    *,
+    engine: str,
+    schema: str,
+    database: str,
+    selection: dict[str, bool],
+    table_filter: TableFilter | None = None,
+    frontier: list[str] | None = None,
 ) -> str:
     """Texto de ``catalog.json`` (UTF-8, claves ordenadas, sangría 2, salto de línea final).
 
@@ -41,6 +49,10 @@ def catalog_json(
         database: Nombre que se muestra de la base de datos.
         selection: Qué tipos de objeto se pidieron (``tables``, ``views``, ``procedures``, ``functions``); distingue un
             objeto borrado de uno que no se pidió al comparar generaciones.
+        table_filter: Filtro de tablas y vistas (5.5.0). Si lo hay, se añaden ``filter`` (``include``/``exclude``) y
+            ``frontier`` (tablas vecinas no documentadas): al comparar, lo que dejó fuera el filtro no cuenta como
+            borrado. Sin filtro, el catálogo es igual que en 5.4.0.
+        frontier: Tablas de la frontera del filtro.
     """
     objects = [{**entry.record, "path": entry.path} for entry in _ordered(entries)]
     catalog = {
@@ -52,6 +64,9 @@ def catalog_json(
         "selection": selection,
         "objects": objects,
     }
+    if table_filter is not None:
+        catalog["filter"] = table_filter.to_catalog()
+        catalog["frontier"] = list(frontier or [])
     return json.dumps(catalog, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
 
 

@@ -477,7 +477,7 @@ def test_word_generator_builds_diagram_summary_payload_with_hidden_levels() -> N
 
     assert (
         build_diagram_summary_line(summary)
-        == "Profundidad visible: 2 | Salida visible: 2 de 3 | Entrada visible: 1 de 1"
+        == "Niveles por sentido: 2 | Salientes (tablas a las que apunta): 2 de 3 | Entrantes (tablas que la apuntan): 1 de 1"
     )
     assert summary["has_hidden_outgoing_levels"] is True
     assert summary["outgoing_hidden_help"] == build_hidden_levels_help("outgoing")
@@ -510,7 +510,7 @@ def test_word_generator_builds_summary_from_precomputed_document_without_rebuild
 
     assert (
         build_diagram_summary_line(summary)
-        == "Profundidad visible: 1 | Salida visible: 1 de 2 | Entrada visible: 0 de 1"
+        == "Niveles por sentido: 1 | Salientes (tablas a las que apunta): 1 de 2 | Entrantes (tablas que la apuntan): 0 de 1"
     )
     assert summary["incoming_hidden_help"] == build_hidden_levels_help("incoming")
 
@@ -562,7 +562,9 @@ def test_word_generator_adds_summary_paragraph_to_document() -> None:
     paragraph_texts = [paragraph.text for paragraph in document.paragraphs]
 
     assert any(
-        "Profundidad visible: 2 | Salida visible: 1 de 3 | Entrada visible: 1 de 1" in text for text in paragraph_texts
+        "Niveles por sentido: 2 | Salientes (tablas a las que apunta): 1 de 3 | Entrantes (tablas que la apuntan): 1 de 1"
+        in text
+        for text in paragraph_texts
     )
     assert any(build_hidden_levels_help("outgoing") in text for text in paragraph_texts)
     assert any("salida y entrada por separado" in text for text in paragraph_texts)
@@ -582,7 +584,7 @@ def test_shared_diagram_summary_payload_matches_html_contract() -> None:
     assert summary["title"] == "Resumen de niveles"
     assert (
         build_diagram_summary_line(summary)
-        == "Profundidad visible: 3 | Salida visible: 1 de 2 | Entrada visible: 1 de 1"
+        == "Niveles por sentido: 3 | Salientes (tablas a las que apunta): 1 de 2 | Entrantes (tablas que la apuntan): 1 de 1"
     )
     assert summary["has_any_hidden_levels"] is True
     assert summary["outgoing_hidden_help"] == build_hidden_levels_help("outgoing")

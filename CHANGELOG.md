@@ -7,6 +7,46 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+SemVer previsto: MINOR, sin cambios incompatibles (sesión `2026-11-12-doc-filtro-relaciones`, a partir de lo que
+pidió util_bbdd_web: excluir tablas por patrón, enlaces entre tablas relacionadas, instrucciones en la exportación
+Markdown y la profundidad de los diagramas).
+
+### Added
+
+- **doc**: `imprimir["filtro"]`, para documentar solo una parte del schema en todos los formatos.
+  - `incluir` y `excluir` son patrones *glob* (`MVG_*`, `*_BAK`) sin distinguir mayúsculas; filtran tablas y vistas,
+    no rutinas.
+  - Un patrón no válido es `DocumentationConfigError` al construir.
+  - `frontera` (por defecto `True`) calcula las tablas no documentadas unidas por FK a alguna documentada. Salen en
+    `DocumentationResult.frontier` y, en Markdown, en la nueva sección «Alcance» de la portada.
+  - `catalog.json` y `manifest.json` guardan `filter` y `frontier` solo cuando hay filtro (enmienda de ADR-006; las
+    versiones de formato no cambian).
+  - Con `markdown.previous` y filtros distintos, solo se comparan las tablas y vistas que entran en ambos: lo que uno
+    dejó fuera no aparece como eliminado.
+- **doc**: en Markdown, la sección de claves foráneas añade «Referenciada por», con enlaces a las tablas que apuntan
+  a la tabla. Con filtro, una tabla relacionada sin ficha sale marcada «frontera, sin ficha» o «excluida por el
+  filtro».
+- **doc**: `README.md` en la raíz de la salida Markdown (`markdown.readme`, por defecto `True`).
+  - Explica cómo verla: vista previa de VS Code con la extensión de Mermaid, `zensical serve` o `mkdocs serve`, y
+    cómo funciona sin Internet.
+  - Describe qué contiene cada fichero generado.
+  - No es una página: está en `files` de `manifest.json`, pero no en `pages`.
+
+### Changed
+
+- **doc**: el resumen bajo cada diagrama dice «Niveles por sentido: N | Salientes (tablas a las que apunta): V de T |
+  Entrantes (tablas que la apuntan): V de T» en lugar de «Profundidad visible: N | Salida visible…». Con 1 nivel y
+  las dos direcciones, el diagrama de `B` en `A → B → C` muestra las tres tablas, y parecía que se habían pedido 2.
+  - Afecta a Word, HTML y Markdown; el pie de las imágenes de Graphviz no cambia.
+  - La portada del Markdown explica qué es un nivel.
+
+### Documentation
+
+- `docs/api/database_documentation.md`: sección «Filtro de tablas y vistas», `markdown.readme`, qué es un nivel y
+  contrato de salida.
+- `docs/guides/markdown_documentation_guide.md`: documentar solo un módulo (§3.8), comparar Calidad con producción
+  con `SchemaComparator` o con `markdown.previous` (§3.9) y dos casos más en «Solución de problemas».
+
 ## [5.4.0] - 2026-11-06
 
 SemVer: MINOR, sin cambios incompatibles (sesión `2026-11-06-gaps-g50-g51`, ola 11 del plan de huecos de

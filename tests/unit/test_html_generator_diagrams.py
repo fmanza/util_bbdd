@@ -481,7 +481,7 @@ def test_render_detail_page_writes_tabbed_diagram_markup(tmp_path: Path) -> None
     rendered = output_file.read_text(encoding="utf-8")
     assert 'data-diagram-group="users-outgoing"' in rendered
     assert 'data-tab-target="users-outgoing-level-1"' in rendered
-    assert "Salida visible: 1 de 1" in rendered
+    assert "Salientes (tablas a las que apunta): 1 de 1" in rendered
     assert "Leyenda visual" in rendered
     assert "Tipo de tabla" in rendered
     assert "Tabla puente detectada por varias FKs" in rendered

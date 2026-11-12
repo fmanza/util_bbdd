@@ -8,6 +8,7 @@ git). Los diagramas no necesitan Graphviz.
 Salida en la carpeta del formato (``<directorio_salida>/<nombre>/MARKDOWN``)::
 
     manifest.json
+    README.md                                   # markdown.readme (5.5.0): cómo verla y qué contiene
     mkdocs.yml                                  # markdown.mkdocs_yml
     docs/index.md
     docs/tables/index.md, index-<letra>.md, <slug>.md
@@ -28,6 +29,7 @@ from typing import Any
 
 from .....analysis.mermaid_er import MermaidRelationshipGraph
 from ....application.ports import DocumentationManagerPort
+from ....domain.table_filter import TableFilter
 from ..shared.generator_shared import GeneratorInventoryRuntime, GeneratorRoutineRuntime, GeneratorTableRuntime
 from ..shared.print_config_manager import PrintConfigManager
 from ..shared.table_progress import TableProgress
@@ -35,8 +37,10 @@ from ._catalog import CatalogEntry, catalog_json, llms_full_marker, llms_txt
 from ._changes import build_changes, changes_json, changes_page, load_previous
 from ._front_matter import RECORD_KINDS, ObjectRecords
 from ._pages import PageContext, routine_page, table_page, view_page
+from ._readme import ReadmeContents, readme_md
 from ._site import MERMAID_JS_PATH, mkdocs_yml
 from ._site_pages import (
+    FilterScope,
     IndexEntry,
     database_info_page,
     engine_conditions_page,
@@ -113,7 +117,18 @@ class MarkdownGenerator:
         routine_rows = sorted(self._routines(routines, resolved), key=lambda row: (sort_key(row[0]), row[1]))
 
         records = ObjectRecords(data_provider.get_schema_metadata(kinds=RECORD_KINDS))
-        ctx = PageContext(data_provider, self.headers, resolved, unique_slugs(row[0] for row in table_rows))
+        table_filter: TableFilter | None = resolved["filter"]
+        # La sesión calcula la frontera al leer el catálogo (5.5.0); otro data_provider puede no tenerla
+        frontier: list[str] = list(getattr(data_provider, "frontera", None) or []) if table_filter is not None else []
+        ctx = PageContext(
+            data_provider,
+            self.headers,
+            resolved,
+            unique_slugs(row[0] for row in table_rows),
+            referencing=records.referencing_tables,
+            filtered=table_filter is not None,
+            frontier=frozenset(name.casefold() for name in frontier),
+        )
         tracer = _Tracer(
             TraceMap.load(resolved["trace_map"]) if resolved["trace_map"] is not None else None,
             tables=[row[0] for row in table_rows],
@@ -127,7 +142,7 @@ class MarkdownGenerator:
             entries: list[CatalogEntry] = []
             with self._llms_full(writer, resolved) as full:
                 home, sections = self._write_home(
-                    writer, ctx, pages, tables=table_rows, views=view_rows, routines=routine_rows
+                    writer, ctx, pages, tables=table_rows, views=view_rows, routines=routine_rows, frontier=frontier
                 )
                 if full is not None:
                     full.write(_join(home))
@@ -151,10 +166,15 @@ class MarkdownGenerator:
                 nav,
                 with_traceability=tracer.enabled,
                 with_changes=previous is not None,
+                frontier=frontier,
             )
+            if resolved["readme"]:
+                writer.write("README.md", readme_md(self._readme_contents(resolved, tracer.enabled, previous)))
             metadata: dict[str, Any] = {"engine": records.engine, "schema": records.schema, "database": self.database}
             if previous is not None:
                 metadata["previous"] = previous
+            if table_filter is not None:
+                metadata["filter"] = {**table_filter.to_catalog(), "frontier": frontier}
             writer.publish(metadata, keep=self._kept_paths(resolved), pages=pages)
         finally:
             writer.discard()
@@ -366,6 +386,7 @@ class MarkdownGenerator:
             schema=records.schema,
             database=self.database,
             selection=self._selection(resolved),
+            table_filter=resolved["filter"],
         )
         links = {(str(e.record["kind"]), str(e.record["name"])): e.path for e in entries}
         writer.write("docs/changes.md", _join(changes_page(changes, links)))
@@ -382,6 +403,7 @@ class MarkdownGenerator:
         *,
         with_traceability: bool,
         with_changes: bool,
+        frontier: list[str],
     ) -> None:
         """``catalog.json``, ``llms.txt``, ``mkdocs.yml`` (con ``nav``) y el Mermaid local, según ``imprimir["markdown"]``."""
         if resolved["catalog_json"]:
@@ -391,6 +413,8 @@ class MarkdownGenerator:
                 schema=records.schema,
                 database=self.database,
                 selection=self._selection(resolved),
+                table_filter=resolved["filter"],
+                frontier=frontier,
             )
             writer.write("docs/catalog.json", text)
         if resolved["llms_txt"]:
@@ -423,6 +447,24 @@ class MarkdownGenerator:
             self.logger.warning("⚠️ markdown.mermaid_js_ref no tiene efecto sin mkdocs.yml (markdown.mkdocs_yml=False)")
 
     @staticmethod
+    def _readme_contents(
+        resolved: dict[str, Any], with_traceability: bool, previous: dict[str, Any] | None
+    ) -> ReadmeContents:
+        """Qué ficheros se han generado, para que el ``README.md`` describa solo esos."""
+        return ReadmeContents(
+            version=library_version(),
+            mkdocs_yml=bool(resolved["mkdocs_yml"]),
+            catalog_json=bool(resolved["catalog_json"]),
+            llms_txt=bool(resolved["llms_txt"]),
+            llms_full_txt=bool(resolved["llms_full_txt"]),
+            traceability=with_traceability,
+            changes=previous is not None,
+            local_mermaid=resolved["mermaid_js"] is not None,
+            mermaid_ref=resolved["mermaid_js_ref"],
+            filtered=resolved["filter"] is not None,
+        )
+
+    @staticmethod
     def _kept_paths(resolved: dict[str, Any]) -> frozenset[str]:
         """Rutas que no se borran como huérfanas: el Mermaid referenciado (``mermaid_js_ref`` relativo), que una
         generación anterior con ``mermaid_js`` pudo copiar en esa misma ruta."""
@@ -440,6 +482,7 @@ class MarkdownGenerator:
         tables: list[tuple[str, str, str | None]],
         views: list[tuple[str, str]],
         routines: list[tuple[str, str, str]],
+        frontier: list[str],
     ) -> tuple[list[str], list[tuple[str, str]]]:
         """Escribe ``index.md`` y las páginas de base de datos; devuelve las líneas de la portada y sus secciones."""
         resolved = ctx.resolved
@@ -471,7 +514,12 @@ class MarkdownGenerator:
             include_routines=True,
         )
         include_legend = bool(resolved["include_diagrams"] and tables)
-        lines = home_page(self.database, inventory, sections, include_legend)
+        scope = (
+            FilterScope(resolved["filter"].include, resolved["filter"].exclude, tuple(frontier))
+            if resolved["filter"] is not None
+            else None
+        )
+        lines = home_page(self.database, inventory, sections, include_legend, scope)
         writer.write("docs/index.md", _join(lines))
         home_title = plain_text(f"Documentación de la Base de Datos - {self.database}")
         pages.append(PageEntry("index.md", home_title, "home", "home"))

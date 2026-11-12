@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from .table_filter import TableFilter
 
 
 @dataclass(slots=True, frozen=True)
@@ -29,6 +31,9 @@ class DocumentationBootstrapState:
     vistas: list[Any]
     rutinas: list[Any]
     catalog: Any  # CatalogRows: filas neutras de la documentación desde el snapshot (D1)
+    #: 5.5.0: filtro de ``imprimir["filtro"]`` (None = todas) y tablas de la frontera (vecinas por FK no documentadas)
+    table_filter: TableFilter | None = None
+    frontera: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True, frozen=True)
@@ -67,9 +72,11 @@ class DocumentationResult:
     Attributes:
         outputs: Ruta de cada formato generado: el ``.docx`` (con varios documentos Word, el nombre base al que se
             añade ``_parte_N``), el ``.xlsx`` o la carpeta del sitio HTML.
-        tables: Tablas del schema documentado.
-        views: Vistas.
+        tables: Tablas documentadas (las que deja ``imprimir["filtro"]``, si lo hay).
+        views: Vistas documentadas.
         routines: Procedimientos y funciones.
+        frontier: Tablas de la frontera del filtro (5.5.0): vecinas por FK de las documentadas que quedan fuera y no
+            están excluidas expresamente; vacío sin filtro o con ``filtro.frontera = False``.
 
     Examples:
         >>> result = DatabaseDocumentation(manager, Path("out"), formatos=["html"]).generate()
@@ -83,3 +90,4 @@ class DocumentationResult:
     tables: int
     views: int
     routines: int
+    frontier: tuple[str, ...] = ()

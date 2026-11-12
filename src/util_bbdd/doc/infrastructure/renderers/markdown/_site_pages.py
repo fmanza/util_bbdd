@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ....._core.exceptions import DatabaseException
+from ....._core.markdown import code_span
 from ....application.ports import DocumentationManagerPort
 from ....application.use_cases.engine_conditions import EngineConditionsSectionBuilder
 from ..shared.generator_shared import GeneratorDatabaseInfoRuntime
@@ -31,6 +32,24 @@ ER_LEGEND_ROWS: tuple[tuple[str, str], ...] = (
 )
 
 
+#: Qué es un nivel en los diagramas (L5 de la sesión 2026-11-12): con «ambas» direcciones, 1 nivel ya muestra la tabla
+#: entre su padre y su hija, y parecía que se habían pedido 2.
+DIAGRAM_LEVELS_HELP = (
+    "Un nivel son las tablas unidas directamente por una FK. Los niveles se cuentan en cada sentido: con 1 nivel y las "
+    "dos direcciones, el diagrama de una tabla muestra las tablas a las que apunta y las que la apuntan (por ejemplo, "
+    "A → B → C en el de B). Bajo cada diagrama, «de N» indica cuántos niveles hay en total en ese sentido."
+)
+
+
+@dataclass(frozen=True)
+class FilterScope:
+    """Alcance de una documentación filtrada (5.5.0): patrones y tablas de la frontera."""
+
+    include: tuple[str, ...]
+    exclude: tuple[str, ...]
+    frontier: tuple[str, ...]
+
+
 @dataclass(frozen=True)
 class IndexEntry:
     """Una entrada de índice: nombre visible, fichero (relativo a la carpeta del índice) y comentario."""
@@ -45,10 +64,13 @@ def home_page(
     inventory: list[tuple[str, int]],
     sections: list[tuple[str, str]],
     include_legend: bool,
+    scope: FilterScope | None = None,
 ) -> list[str]:
-    """``index.md``: título, inventario, enlaces a las secciones y leyenda de los diagramas."""
+    """``index.md``: título, inventario, alcance del filtro, enlaces a las secciones y leyenda de los diagramas."""
     lines = [f"# Documentación de la Base de Datos - {md_text(database)}", ""]
     lines += ["## Resumen de inventario", "", *md_table(["Sección", "Total"], [list(r) for r in inventory]), ""]
+    if scope is not None:
+        lines += scope_section(scope)
     if sections:
         lines += ["## Contenido", "", *(f"- {md_link(title, target)}" for title, target in sections), ""]
     if include_legend:
@@ -56,8 +78,39 @@ def home_page(
             "## Leyenda de los diagramas",
             "",
             *md_table(["Elemento", "Significado"], [list(r) for r in ER_LEGEND_ROWS]),
+            "",
+            f"**Niveles de relación:** {DIAGRAM_LEVELS_HELP}",
         ]
         lines.append("")
+    return lines
+
+
+def scope_section(scope: FilterScope) -> list[str]:
+    """Sección «Alcance»: patrones del filtro y tablas de la frontera (sin ficha), como texto."""
+
+    def patterns(values: tuple[str, ...]) -> str:
+        return ", ".join(code_span(value) for value in values) if values else "—"
+
+    lines = [
+        "## Alcance",
+        "",
+        "Documentación filtrada: solo se incluyen las tablas y vistas que casan con algún patrón de inclusión y con "
+        "ninguno de exclusión (patrones *glob*, sin distinguir mayúsculas).",
+        "",
+        f"- **Incluir:** {patterns(scope.include) if scope.include else 'todas'}",
+        f"- **Excluir:** {patterns(scope.exclude)}",
+        "",
+    ]
+    if scope.frontier:
+        lines += [
+            "### Tablas de frontera",
+            "",
+            "Unidas por una FK a alguna tabla documentada, pero fuera del filtro: aparecen en los diagramas y en las "
+            "relaciones, sin ficha propia.",
+            "",
+            *(f"- {md_text(name)}" for name in scope.frontier),
+            "",
+        ]
     return lines
 
 
@@ -215,12 +268,15 @@ def engine_conditions_page(provider: DocumentationManagerPort) -> list[str]:
 
 
 __all__: list[str] = [
+    "DIAGRAM_LEVELS_HELP",
     "ER_LEGEND_ROWS",
+    "FilterScope",
     "IndexEntry",
     "database_info_page",
     "engine_conditions_page",
     "home_page",
     "index_page_titles",
     "index_pages",
+    "scope_section",
     "storage_page",
 ]

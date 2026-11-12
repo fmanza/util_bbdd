@@ -91,4 +91,16 @@ ser también un contrato versionado (`format: util_bbdd.doc.markdown`, `format_v
 
 Sesión `2026-11-06-gaps-g50-g51`.
 
-Fecha de última revisión: 2026-11-06
+### Enmienda 2026-11-12 (5.5.0): filtro de tablas
+
+Con `imprimir["filtro"]`, `catalog.json` añade `filter` (`include` y `exclude`, los patrones) y `frontier` (tablas
+vecinas por FK que quedan fuera), y `manifest.json` añade `filter` con los tres. Sin filtro no se escriben, así que el
+catálogo es igual que en 5.4.0. Son campos opcionales: `format_version` sigue en 1 (catálogo) y 2 (manifiesto).
+
+- Al comparar generaciones, el filtro de cada catálogo dice qué se pudo documentar: si los filtros difieren, solo se
+  comparan las tablas y vistas que entran en ambos, y lo que uno dejó fuera no se marca como eliminado.
+- `README.md` (también 5.5.0) va en la raíz, fuera de `docs/`: está en `files` del manifiesto, pero no en `pages`.
+
+Sesión `2026-11-12-doc-filtro-relaciones`.
+
+Fecha de última revisión: 2026-11-12

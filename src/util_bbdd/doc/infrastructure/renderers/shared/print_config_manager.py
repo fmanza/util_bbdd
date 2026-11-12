@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from ....domain.table_filter import FILTER_KEY, TableFilter
+
 
 class PrintConfigManager:
     """Centraliza la entrada `imprimir/print_config` para todos los generadores."""
@@ -97,6 +99,8 @@ class PrintConfigManager:
         "trace_map": None,
         # Grupo E: generación anterior (carpeta MARKDOWN, su docs/ o su catalog.json) para changes.md
         "previous": None,
+        # 5.5.0: README.md en la raíz de la salida con cómo verla y qué contiene cada fichero
+        "readme": True,
     }
 
     @staticmethod
@@ -254,7 +258,19 @@ class PrintConfigManager:
             ),
             "grafo": graph,
             "markdown": PrintConfigManager._normalize_markdown(normalized_input.get("markdown")),
+            # 5.5.0: tablas y vistas por patrones (None = todas); un patrón no válido es un error de configuración
+            "filtro": PrintConfigManager._normalize_filter(normalized_input.get(FILTER_KEY)),
         }
+
+    @staticmethod
+    def _normalize_filter(filter_cfg: Any) -> dict[str, Any] | None:
+        """Bloque ``filtro`` (5.5.0) normalizado, o None sin patrones.
+
+        Raises:
+            ValueError: Bloque o patrón no válido (ver :meth:`TableFilter.from_config`).
+        """
+        table_filter = TableFilter.from_config(filter_cfg)
+        return table_filter.to_config() if table_filter is not None else None
 
     @staticmethod
     def _normalize_markdown(markdown_cfg: Any) -> dict[str, Any]:
@@ -273,6 +289,7 @@ class PrintConfigManager:
             "catalog_json": bool(cfg.get("catalog_json", defaults["catalog_json"])),
             "llms_txt": bool(cfg.get("llms_txt", defaults["llms_txt"])),
             "llms_full_txt": bool(cfg.get("llms_full_txt", defaults["llms_full_txt"])),
+            "readme": bool(cfg.get("readme", defaults["readme"])),
             "mkdocs_yml": bool(cfg.get("mkdocs_yml", defaults["mkdocs_yml"])),
             "site_name": PrintConfigManager._normalize_non_empty_str(cfg.get("site_name"), fallback="") or None,
             "mermaid_js": PrintConfigManager._normalize_path_value(cfg.get("mermaid_js")),
@@ -302,6 +319,7 @@ class PrintConfigManager:
             "html_items_por_pagina": 15,
             "grafo": dict(PrintConfigManager.DEFAULT_GRAPH),
             "markdown": dict(PrintConfigManager.DEFAULT_MARKDOWN),
+            "filtro": None,
         }
 
     @staticmethod
@@ -465,12 +483,15 @@ class PrintConfigManager:
             "catalog_json": bool(markdown_cfg["catalog_json"]),
             "llms_txt": bool(markdown_cfg["llms_txt"]),
             "llms_full_txt": bool(markdown_cfg["llms_full_txt"]),
+            "readme": bool(markdown_cfg["readme"]),
             "mkdocs_yml": bool(markdown_cfg["mkdocs_yml"]),
             "site_name": markdown_cfg["site_name"],
             "mermaid_js": markdown_cfg["mermaid_js"],
             "mermaid_js_ref": markdown_cfg["mermaid_js_ref"],
             "trace_map": markdown_cfg["trace_map"],
             "previous": markdown_cfg["previous"],
+            # 5.5.0: filtro de tablas y vistas (None = todas); la frontera la calcula la sesión
+            "filter": TableFilter.from_config(config.get(FILTER_KEY)),
         }
 
     @staticmethod

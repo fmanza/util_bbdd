@@ -80,6 +80,12 @@ class DatabaseDocumentation:
             - markdown.previous: generación anterior (carpeta ``MARKDOWN``, su ``docs/`` o su ``catalog.json``):
               añade ``changes.md`` y ``changes.json`` (``SchemaDiff``) con los cambios de esquema, sin conectarse a la
               base de datos; se valida al construir y el motor debe ser el mismo
+            - markdown.readme: ``README.md`` en la raíz de la salida con cómo verla (VS Code, Zensical, MkDocs) y qué
+              contiene cada fichero (default ``True``). Desde 5.5.0
+            - filtro.incluir / filtro.excluir: patrones *glob* (``MVG_*``, ``*_BAK``; sin distinguir mayúsculas) de las
+              tablas y vistas que se documentan, en todos los formatos; un patrón no válido es
+              ``DocumentationConfigError`` al construir. filtro.frontera (default ``True``): lista las tablas vecinas
+              por FK que quedan fuera (en ``DocumentationResult.frontier`` y en la portada del Markdown). Desde 5.5.0
         formatos: Formatos a generar: 'word', 'excel', 'html', 'markdown' (alias 'md', desde 5.3.0; una carpeta con un
             ``.md`` por tabla, vista y rutina, diagramas ER de Mermaid sin Graphviz y ``manifest.json``). Por defecto
             ``["word"]``.
@@ -200,6 +206,13 @@ class DatabaseDocumentation:
         self._progress.emit("metadata", 0, 1, "")
         state = self._bootstrap.build(self._settings)
         self._progress.emit("metadata", 1, 1, "")
+        if state.table_filter is not None:
+            self._logger.info(
+                f"🔎 Filtro de tablas: {len(state.tablas)} tablas y {len(state.vistas)} vistas documentadas, "
+                f"{len(state.frontera)} en la frontera"
+            )
+            if not state.tablas and not state.vistas:
+                self._logger.warning("⚠️ El filtro no deja ninguna tabla ni vista: revisa imprimir['filtro']")
         session = DocumentationSession.from_state(
             state,
             db_manager=self._source,
@@ -225,4 +238,5 @@ class DatabaseDocumentation:
             tables=len(state.tablas),
             views=len(state.vistas),
             routines=len(state.rutinas),
+            frontier=tuple(state.frontera),
         )

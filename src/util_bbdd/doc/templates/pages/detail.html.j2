@@ -233,9 +233,9 @@
           <details class="diagram-disclosure diagram-disclosure--summary" data-diagram-summary>
             <summary class="diagram-disclosure-toggle diagram-disclosure-toggle--summary">Resumen de niveles</summary>
             <div class="diagram-disclosure-body diagram-disclosure-body--summary">
-              <strong>Profundidad visible:</strong> {{ entity.diagram_summary.max_depth or 0 }}
-              <span class="muted"> | Salida visible: {{ entity.diagram_summary.visible_outgoing_levels or 0 }} de {{ entity.diagram_summary.total_outgoing_levels or 0 }}</span>
-              <span class="muted"> | Entrada visible: {{ entity.diagram_summary.visible_incoming_levels or 0 }} de {{ entity.diagram_summary.total_incoming_levels or 0 }}</span>
+              <strong>Niveles por sentido:</strong> {{ entity.diagram_summary.max_depth or 0 }}
+              <span class="muted"> | Salientes (tablas a las que apunta): {{ entity.diagram_summary.visible_outgoing_levels or 0 }} de {{ entity.diagram_summary.total_outgoing_levels or 0 }}</span>
+              <span class="muted"> | Entrantes (tablas que la apuntan): {{ entity.diagram_summary.visible_incoming_levels or 0 }} de {{ entity.diagram_summary.total_incoming_levels or 0 }}</span>
               {% if entity.diagram_summary.has_any_hidden_levels %}
                 <div class="diagram-summary-help">
                   {% if entity.diagram_summary.has_hidden_outgoing_levels %}

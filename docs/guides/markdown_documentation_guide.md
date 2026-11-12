@@ -66,7 +66,8 @@ print(result.outputs["markdown"])  # docs_bd/ventas/MARKDOWN
 ```text
 docs_bd/ventas/MARKDOWN/
   manifest.json      mkdocs.yml
-  docs/index.md                     # inventario, enlaces y leyenda de los diagramas
+  README.md                         # cómo verla (VS Code, Zensical, MkDocs) y qué es cada fichero (5.5.0)
+  docs/index.md                     # inventario, alcance del filtro, enlaces y leyenda de los diagramas
   docs/tables/index.md              # letras → index-a.md, index-a-2.md… (200 entradas por página)
   docs/tables/pedidos.md            # una página por tabla
   docs/views/…  docs/routines/…  docs/database/…
@@ -195,6 +196,49 @@ imprimir["markdown"]["previous"] = "docs_bd/ventas/MARKDOWN"   # la carpeta, su 
 | Front matter e id | Referencias estables: `table:public.pedidos` en código, requisitos o el mapa de trazabilidad |
 | `docs/traceability.md` / `docs/changes.md` | Contexto de trazas y de cambios recientes |
 
+### 3.8 Documentar solo un módulo (filtro)
+
+Desde 5.5.0, `filtro` limita las tablas y vistas que se documentan, en todos los formatos:
+
+```python
+imprimir["filtro"] = {
+    "incluir": ["MVG_*"],            # solo el módulo MVG
+    "excluir": ["*_BAK", "TMP_*"],   # sin copias ni temporales, aunque empiecen por MVG_
+}
+result = DatabaseDocumentation(manager, Path("docs_bd"), imprimir=imprimir, formatos=["markdown"]).generate()
+print(result.frontier)   # tablas de otros módulos unidas por FK a las de MVG
+```
+
+- **Patrones**: *glob* sin distinguir mayúsculas (`*` cualquier texto, `?` un carácter). Sin `incluir`, entra todo
+  menos lo excluido.
+- **Frontera**: las tablas de fuera unidas por una FK a alguna documentada. Se listan en la portada («Alcance») y se
+  ven en los diagramas, sin ficha propia. Se desactiva con `"frontera": False`.
+- **Relaciones**: en la ficha de cada tabla, las relacionadas que no se documentan salen sin enlace y marcadas
+  «frontera, sin ficha» o «excluida por el filtro», tanto en las claves foráneas como en «Referenciada por».
+- **Comparar con `previous`**: si la generación anterior se hizo con otro filtro (o sin él), se comparan solo las
+  tablas y vistas que entran en ambos; `changes.md` lo avisa.
+
+### 3.9 Comparar entornos (Calidad y producción)
+
+Hay dos formas, según haya conexión a los dos entornos o no:
+
+- **Con conexión a ambos** (mismo motor o distinto): `SchemaComparator` compara los dos schemas en vivo y genera el
+  informe en SQL, HTML, Word, Excel o Markdown ([guía](comparator.md)).
+- **Sin conexión, con la documentación de cada entorno** (mismo motor): genera la de Calidad y, al generar la de
+  producción, pasa la de Calidad como `previous`. `changes.md` y `changes.json` muestran la deriva. Si los schemas se
+  llaman distinto, se compara por nombre de objeto y se avisa.
+
+```python
+calidad = DatabaseDocumentation(manager_calidad, Path("docs_bd"), Path("calidad"), imprimir=imprimir,
+                                formatos=["markdown"]).generate().outputs["markdown"]
+imprimir_prod = {**imprimir, "markdown": {"previous": str(calidad)}}
+DatabaseDocumentation(manager_prod, Path("docs_bd"), Path("produccion"), imprimir=imprimir_prod,
+                      formatos=["markdown"]).generate()
+# docs_bd/produccion/MARKDOWN/docs/changes.md: «anterior» = Calidad, «actual» = producción
+```
+
+Usa el mismo `filtro` en las dos generaciones para comparar el mismo módulo.
+
 ## 4. Verificación
 
 ```bash
@@ -223,4 +267,6 @@ cd <directorio_salida>/<nombre>/MARKDOWN && zensical build --strict
 | Dos funciones sobrecargadas comparten página | El catálogo de rutinas no las distingue (igual que Word y HTML) | Comportamiento esperado |
 | `manifest.json` o `mkdocs.yml` indican una versión de util_bbdd antigua | Instalación editable con metadatos de otra versión | `pip install -e .` para refrescar los metadatos |
 | Un fichero generado que edité no se borra al dejar de generarse | Se conserva a propósito: su hash ya no es el del manifiesto | Bórralo a mano si ya no lo quieres |
+| Con 1 nivel de relación el diagrama muestra tres tablas en cadena | Los niveles se cuentan en cada sentido: con `direction: "both"`, 1 nivel enseña la tabla de la que depende y la que depende de ella | Es lo esperado; `direction: "outgoing"` o `"incoming"` para un solo sentido. El resumen dice «Niveles por sentido» desde 5.5.0 |
+| Una tabla relacionada sale sin enlace, marcada «frontera» o «excluida» | El `filtro` la deja fuera: no tiene ficha | Amplía `filtro.incluir` si la necesitas documentada |
 | Diagramas partidos o sin columnas | Superaban 40 entidades o 50 000 caracteres (aviso en la página) | Baja `grafo.max_depth` o `grafo.max_subnodes` |

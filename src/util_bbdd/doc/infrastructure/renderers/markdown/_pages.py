@@ -6,7 +6,8 @@ compartidos. Cada función devuelve las líneas de la página; el texto del cat�
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 from ....._core.exceptions import DatabaseException
@@ -27,6 +28,10 @@ SECTION_CHARSET = "Charset/Collation de Columnas"
 SECTION_PARAMETERS = "Parámetros"
 SECTION_DIAGRAM = "Diagrama de relaciones"
 SECTION_DDL = "## DDL"
+REFERENCED_BY = "Referenciada por"
+#: Marcas de una tabla relacionada que no se documenta por el filtro (5.5.0)
+MARK_FRONTIER = "frontera, sin ficha"
+MARK_EXCLUDED = "excluida por el filtro"
 
 _DEFAULT_HEADERS: dict[str, list[str]] = {
     "COLUMNAS": ["Campo", "Tipo", "Nulo", "Por defecto", "Generación", "Comentario"],
@@ -46,12 +51,18 @@ class PageContext:
         headers: Cabeceras de ``headers_config.json``.
         resolved: Configuración de ``PrintConfigManager.resolve_for_markdown``.
         table_slugs: Slug de cada tabla documentada (para enlazar las FK).
+        referencing: Tablas que apuntan a una tabla con alguna FK (sección «Referenciada por», 5.5.0).
+        filtered: Hay un ``filtro`` de tablas activo (5.5.0): las tablas no documentadas se marcan.
+        frontier: Tablas de la frontera del filtro, en minúsculas.
     """
 
     data_provider: DocumentationManagerPort
     headers: dict[str, list[str]]
     resolved: dict[str, Any]
     table_slugs: dict[str, str]
+    referencing: Callable[[str], list[str]] = lambda _name: []
+    filtered: bool = False
+    frontier: frozenset[str] = field(default_factory=frozenset)
 
     def header(self, key: str) -> list[str]:
         return list(self.headers.get(key) or _DEFAULT_HEADERS[key])
@@ -117,10 +128,18 @@ def _primary_keys(ctx: PageContext, name: str) -> list[str]:
 
 
 def _foreign_keys(ctx: PageContext, name: str) -> list[str]:
+    """Claves foráneas (con enlace a la tabla referenciada) y, desde 5.5.0, las tablas que referencian a esta."""
     fks = _rows(ctx.data_provider.get_foreign_keys(name))
-    if not fks:
-        return _empty(SECTION_FK, "No se encontraron claves foráneas.")
-    return _section(SECTION_FK, md_table(ctx.header("FK"), fks, cell_renderers={2: lambda ref: _table_link(ctx, ref)}))
+    if fks:
+        lines = _section(
+            SECTION_FK, md_table(ctx.header("FK"), fks, cell_renderers={2: lambda ref: _table_link(ctx, ref)})
+        )
+    else:
+        lines = _empty(SECTION_FK, "No se encontraron claves foráneas.")
+    children = ctx.referencing(name)
+    if children:
+        lines += [f"**{REFERENCED_BY}:**", "", *(f"- {_table_link(ctx, child)}" for child in children), ""]
+    return lines
 
 
 def _unique_constraints(ctx: PageContext, name: str) -> list[str]:
@@ -143,10 +162,15 @@ _NO_PK = "No se encontraron claves primarias."
 
 
 def _table_link(ctx: PageContext, ref: Any) -> str:
-    """Tabla referenciada de una FK: enlace si se documenta; si no, texto."""
+    """Tabla relacionada: enlace si se documenta; si no, texto y, con un filtro activo, la marca de por qué no está."""
     name = "" if ref is None else str(ref)
     slug = ctx.table_slugs.get(name)
-    return md_link(name, f"{slug}.md") if slug else md_text(name)
+    if slug:
+        return md_link(name, f"{slug}.md")
+    if not ctx.filtered or not name:
+        return md_text(name)
+    mark = MARK_FRONTIER if name.casefold() in ctx.frontier else MARK_EXCLUDED
+    return f"{md_text(name)} *({mark})*"
 
 
 def _columns(ctx: PageContext, name: str) -> list[str]:
@@ -255,4 +279,12 @@ def routine_page(
     return lines + _section(SECTION_PARAMETERS, md_table(ctx.header("PARAMETROS_RUTINA"), _rows(rows)))
 
 
-__all__: list[str] = ["PageContext", "routine_page", "table_page", "view_page"]
+__all__: list[str] = [
+    "MARK_EXCLUDED",
+    "MARK_FRONTIER",
+    "REFERENCED_BY",
+    "PageContext",
+    "routine_page",
+    "table_page",
+    "view_page",
+]

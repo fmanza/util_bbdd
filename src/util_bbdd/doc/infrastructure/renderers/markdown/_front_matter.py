@@ -76,13 +76,22 @@ class ObjectRecords:
         self.schema: str = snapshot.schema
         # FK entrantes por tabla referenciada (en minúsculas): ids de las tablas hijas, ordenados
         incoming: dict[str, set[str]] = {}
+        children: dict[str, set[str]] = {}
         for fk in snapshot.all_foreign_keys():
             incoming.setdefault(fk.ref_table.lower(), set()).add(self.object_id("table", fk.table))
+            children.setdefault(fk.ref_table.lower(), set()).add(fk.table)
         self._incoming: dict[str, list[str]] = {table: sorted(ids) for table, ids in incoming.items()}
+        self._children: dict[str, list[str]] = {
+            table: sorted(names, key=str.casefold) for table, names in children.items()
+        }
         self._views: dict[str, ViewMeta] = {view.name.lower(): view for view in snapshot.views()}
         self._routines: dict[tuple[str, str], list[RoutineMeta]] = {}
         for routine in snapshot.routines():
             self._routines.setdefault((routine.routine_type.upper(), routine.name.lower()), []).append(routine)
+
+    def referencing_tables(self, name: str) -> list[str]:
+        """Tablas con alguna FK que apunta a ``name`` (sección «Referenciada por», 5.5.0), por nombre."""
+        return list(self._children.get(name.lower(), []))
 
     def object_id(self, kind: str, name: str, schema: str | None = None) -> str:
         """Id estable ``<kind>:<schema>.<nombre>``."""

@@ -106,6 +106,39 @@ formatos; cada formato ignora lo que no le aplica (las plantillas o `tablas_por_
 Las subclaves de `tablas` y `vistas` solo tienen efecto con `imprimir_tablas` / `imprimir_vistas` a `True`, y las de
 `info_database` con `imprimir_info_database` a `True`.
 
+#### Filtro de tablas y vistas (`filtro`)
+
+Desde 5.5.0. Documenta solo una parte del schema (un módulo, un prefijo) en **todos los formatos**: el filtro se aplica
+una vez al leer el catálogo, antes de que lo vea ningún formato. Las rutinas no se filtran.
+
+| Clave | Por defecto | Efecto |
+|---|---|---|
+| `incluir` | `[]` (todas) | Patrones de las tablas y vistas que se documentan; una lista o un solo patrón como cadena |
+| `excluir` | `[]` | Patrones que se quitan, aunque casen con `incluir` |
+| `frontera` | `True` | Calcula la **frontera**: las tablas no documentadas unidas por una FK (en cualquier sentido) a alguna documentada, salvo las de `excluir` |
+
+- Patrones *glob* sin distinguir mayúsculas: `*` cualquier texto, `?` un carácter, `[ABC]` uno de esos caracteres.
+  `MVG_*` casa con `MVG_PEDIDO` y con `mvg_pedido`; `_` es un carácter normal.
+- Un patrón vacío, con caracteres de control, de más de 128 caracteres, que no es una cadena, o más de 100 patrones en
+  una lista → `DocumentationConfigError` al crear la instancia. Sin ningún patrón, no hay filtro.
+- Si el filtro no deja ninguna tabla ni vista, se genera igual y el log avisa.
+- La frontera se devuelve en `DocumentationResult.frontier`. En Markdown, la portada lleva la sección «Alcance» (los
+  patrones y las tablas de frontera, sin ficha propia); en las relaciones de cada tabla, una tabla no documentada se
+  marca «frontera, sin ficha» o «excluida por el filtro». Los diagramas siguen mostrando las tablas vecinas aunque no
+  se documenten.
+- `catalog.json` y `manifest.json` guardan el filtro (`filter`) y la frontera. Con `markdown.previous`, si las dos
+  generaciones tienen distinto filtro, solo se comparan las tablas y vistas que entran en ambos: lo que uno dejó fuera
+  no aparece como eliminado.
+
+```python
+imprimir = {
+    "tablas": {"imprimir_tablas": True, "columnas": True, "fk": True},
+    "filtro": {"incluir": ["MVG_*"], "excluir": ["*_BAK", "TMP_*"]},
+}
+result = DatabaseDocumentation(manager, Path("out"), imprimir=imprimir, formatos=["markdown"]).generate()
+result.frontier  # ('AUX_PAIS', 'COB_LINEA'): vecinas por FK que quedan fuera
+```
+
 #### Presentación
 
 | Clave | Por defecto | Formato | Efecto |
@@ -146,7 +179,11 @@ muestran siempre, porque la sintaxis de Mermaid los exige.
 | `columns.show_data_types` | `False` | Añade el tipo de cada columna |
 | `cardinality.show_constraint_name` | `False` | Rotula cada relación con el nombre de su clave foránea |
 | `cardinality.style` | `"end_markers"` | Sin efecto: es el único estilo (marcas de cardinalidad en los extremos) |
-| `summary.enabled` | `True` | Línea de resumen bajo cada diagrama: profundidad visible y niveles de entrada y salida dibujados frente a los existentes |
+| `summary.enabled` | `True` | Línea de resumen bajo cada diagrama: niveles por sentido y niveles salientes y entrantes dibujados frente a los existentes («Salientes: 1 de 2») |
+
+Un **nivel** son las tablas unidas directamente por una FK, y se cuenta **en cada sentido**: con `max_depth: 1` y
+`direction: "both"`, el diagrama de `B` en `A → B → C` muestra las tres tablas (un nivel hacia `A` y otro hacia
+`C`). Desde 5.5.0 el resumen dice «Niveles por sentido» en lugar de «Profundidad visible».
 
 #### Documentación Markdown (`markdown`)
 
@@ -167,6 +204,7 @@ Desde 5.3.0. Solo aplica con `formatos=["markdown"]`. Las rutas se aceptan como 
 | `mermaid_js_ref` | `None` | Desde 5.4.0. Mermaid **ya publicado**, sin copiarlo: ruta relativa a `docs/` (`assets/javascripts/mermaid.min.js`) o URL `https://`. Se escribe en `extra_javascript`; con una ruta relativa pone también `theme.font: false` (sitio sin Internet). Excluyente con `mermaid_js`. Solo afecta a `mkdocs.yml` (con `mkdocs_yml: False`, aviso en el log). Ver [Mermaid referenciado](#mermaid-referenciado-mermaid_js_ref) |
 | `trace_map` | `None` | Mapa de trazabilidad `.toml` (recomendado) o `.json`: objeto o columna → código, documentos funcionales y técnicos, requisitos ([guía](../guides/markdown_documentation_guide.md#35-mapa-de-trazabilidad)). Se valida al construir |
 | `previous` | `None` | Generación anterior (carpeta `MARKDOWN`, su `docs/` o su `catalog.json`): añade `docs/changes.md` y `docs/changes.json` con los cambios de esquema, sin conexión a la base de datos. Se valida al construir |
+| `readme` | `True` | Desde 5.5.0. `README.md` en la raíz de la carpeta: cómo ver la documentación (vista previa de VS Code con la extensión de Mermaid, `zensical serve` o `mkdocs serve`) y qué contiene cada fichero generado. Sin fecha ni rutas locales |
 
 ##### Mermaid referenciado (`mermaid_js_ref`)
 
@@ -192,6 +230,8 @@ Las secciones de cada página son las de Word (mismos flags, cabeceras de `heade
 diferencias:
 
 - un fichero por tabla, vista y rutina, en orden alfabético;
+- con `tablas.fk`, la sección de claves foráneas enlaza la tabla referenciada y, desde 5.5.0, añade «Referenciada
+  por» con las tablas que apuntan a esta;
 - el DDL va en bloques `sql`;
 - no aplican `tablas_por_documento`, `table_style` ni las plantillas.
 
@@ -304,7 +344,8 @@ generación continúa con el aviso.
 
 ### Contrato de salida
 
-- `generate()` retorna un `DocumentationResult`: `outputs` (ruta de cada formato), `tables`, `views` y `routines`.
+- `generate()` retorna un `DocumentationResult`: `outputs` (ruta de cada formato), `tables`, `views` y `routines`
+  (los documentados, tras `filtro`) y `frontier` (5.5.0: tablas de la frontera del filtro; vacío sin filtro).
 - Los ficheros se escriben en `directorio_salida/<fichero_salida>/<FORMATO>/`.
 - **Word** → fichero `.docx` bajo `WORD/`.
 - **Excel** → fichero `.xlsx` bajo `EXCEL/`.
@@ -314,9 +355,10 @@ generación continúa con el aviso.
   ```text
   MARKDOWN/
     manifest.json            # versión de util_bbdd, motor, schema, fecha, sha256 de cada fichero e índice de páginas
+    README.md                # markdown.readme (5.5.0): cómo verla y qué contiene
     mkdocs.yml               # markdown.mkdocs_yml
     docs/
-      index.md               # inventario, enlaces y leyenda de los diagramas
+      index.md               # inventario, alcance del filtro, enlaces y leyenda de los diagramas
       tables/index.md, tables/index-<letra>.md, tables/<slug>.md
       views/…, routines/<tipo>-<slug>.md
       database/info.md | storage.md | engine-conditions.md
@@ -329,8 +371,9 @@ generación continúa con el aviso.
     fecha solo va en `manifest.json`.
   - **`manifest.json`** (contrato versionado, [ADR-006](../adr/ADR-006-catalogo-documentacion-markdown.md)):
     `format` `util_bbdd.doc.markdown`, `format_version` **2** desde 5.4.0 (antes 1), `util_bbdd_version`,
-    `generated_at`, `engine`, `schema`, `database`, `previous` (con `markdown.previous`), `files` (ruta → `sha256:…`) y
-    `pages`, una entrada por cada `.md` de `docs/`, en el orden de la `nav`:
+    `generated_at`, `engine`, `schema`, `database`, `previous` (con `markdown.previous`), `filter` (con `filtro`, 5.5.0:
+    `include`, `exclude` y `frontier`), `files` (ruta → `sha256:…`) y `pages`, una entrada por cada `.md` de `docs/`
+    (no `README.md`), en el orden de la `nav`:
 
     | Campo | Valor |
     |---|---|
@@ -410,7 +453,7 @@ doc = DatabaseDocumentation(manager, Path("out")).generate()
 
 | Error | Cuándo ocurre |
 |---|---|
-| `DocumentationConfigError` (también `ValueError`) | Al crear la instancia: formato no soportado, `imprimir` que no es un diccionario, fichero de cabeceras inexistente o mal formado, plantilla Word que no existe (solo si se pide Word). Con Markdown (5.3.0): `markdown.mermaid_js` que no es un fichero, `markdown.mermaid_js_ref` inválido o junto con `mermaid_js` (5.4.0), mapa de trazabilidad inválido (todos los errores juntos: extensión, sintaxis, sección o campo desconocido, tipo) o `markdown.previous` sin un `catalog.json` legible y de una versión soportada |
+| `DocumentationConfigError` (también `ValueError`) | Al crear la instancia: formato no soportado, `imprimir` que no es un diccionario, fichero de cabeceras inexistente o mal formado, plantilla Word que no existe (solo si se pide Word), patrón de `filtro` no válido (5.5.0). Con Markdown (5.3.0): `markdown.mermaid_js` que no es un fichero, `markdown.mermaid_js_ref` inválido o junto con `mermaid_js` (5.4.0), mapa de trazabilidad inválido (todos los errores juntos: extensión, sintaxis, sección o campo desconocido, tipo) o `markdown.previous` sin un `catalog.json` legible y de una versión soportada |
 | `DocumentationConfigError` en `generate()` | Markdown con `previous` de otro motor de base de datos (los tipos no son comparables) |
 | `DocumentationRenderError` | En `generate()`: falla la creación de la carpeta de salida (desde 1.1.1; antes, `OSError`) o la escritura de un formato; la causa queda en `__cause__` |
 | Error de `SyncDatabaseManager` (`DatabaseException`) | En `generate()`: conexión caída o permisos insuficientes al leer el catálogo; no se envuelve |

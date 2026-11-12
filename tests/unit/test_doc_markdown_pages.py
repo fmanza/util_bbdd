@@ -67,8 +67,12 @@ def test_pages_list_every_markdown_page_once(sqlite_db: Path, tmp_path: Path) ->
     assert manifest["format_version"] == 2
     paths = [page["path"] for page in manifest["pages"]]
     assert len(paths) == len(set(paths))
-    markdown_files = {name.removeprefix("docs/") for name in manifest["files"] if name.endswith(".md")}
+    # Páginas del sitio: los .md de docs/ (README.md, desde 5.5.0, queda en la raíz y no es una página)
+    markdown_files = {
+        name.removeprefix("docs/") for name in manifest["files"] if name.startswith("docs/") and name.endswith(".md")
+    }
     assert set(paths) == markdown_files
+    assert "README.md" in manifest["files"]
 
 
 def test_titles_are_plain_text_and_match_the_h1(sqlite_db: Path, tmp_path: Path) -> None:

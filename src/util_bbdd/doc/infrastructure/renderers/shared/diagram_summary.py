@@ -60,11 +60,15 @@ def build_diagram_summary_payload_from_document(document: GraphDocument) -> dict
 
 
 def build_diagram_summary_line(summary_payload: dict[str, Any]) -> str:
-    """Construye la línea principal del resumen con el formato actual de HTML."""
+    """Línea principal del resumen (Word y Markdown; el HTML usa las mismas etiquetas en su plantilla).
+
+    Desde 5.5.0 dice «niveles por sentido»: con las dos direcciones, 1 nivel muestra la tabla entre su padre y su hija y
+    «profundidad visible: 1» parecía contradecirlo. «de N» es el total de niveles que hay en ese sentido.
+    """
     return (
-        f"Profundidad visible: {int(summary_payload.get('max_depth', 0))}"
-        f" | Salida visible: {int(summary_payload.get('visible_outgoing_levels', 0))}"
+        f"Niveles por sentido: {int(summary_payload.get('max_depth', 0))}"
+        f" | Salientes (tablas a las que apunta): {int(summary_payload.get('visible_outgoing_levels', 0))}"
         f" de {int(summary_payload.get('total_outgoing_levels', 0))}"
-        f" | Entrada visible: {int(summary_payload.get('visible_incoming_levels', 0))}"
+        f" | Entrantes (tablas que la apuntan): {int(summary_payload.get('visible_incoming_levels', 0))}"
         f" de {int(summary_payload.get('total_incoming_levels', 0))}"
     )

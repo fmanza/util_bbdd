@@ -21,6 +21,7 @@ from ...domain.models import (
     EngineConditionsSection,
 )
 from ...domain.services import DocumentationGraphDomainService
+from ...domain.table_filter import FILTER_KEY, TableFilter
 from .._internal_ports import (
     HeadersRuntimePort,
     MetadataRuntimeFactoryPort,
@@ -183,14 +184,26 @@ class DocumentationBootstrap:
             )
         # D1 (ADR-003): el catálogo se lee por lotes, una consulta por tipo de objeto y no por tabla
         catalog = CatalogRows(lambda kinds: self._db_manager.get_schema_metadata(kinds=kinds))
+        tablas = catalog.tables()
+        vistas = catalog.views()
+        # 5.5.0: un único punto de filtrado para todos los formatos (los renderers ven solo lo que se documenta)
+        table_filter = TableFilter.from_config(settings.print_config.get(FILTER_KEY))
+        frontera: list[str] = []
+        if table_filter is not None:
+            tablas = [row for row in tablas if table_filter.matches(str(row[0]))]
+            vistas = [row for row in vistas if table_filter.matches(str(row[0]))]
+            if table_filter.frontier:
+                frontera = table_filter.frontier_of((str(row[0]) for row in tablas), catalog.foreign_key_edges())
         return DocumentationBootstrapState(
             settings=settings,
             directorio_salida=self._directorio_salida,
             fichero_salida=resolved_output,
-            tablas=catalog.tables(),
-            vistas=catalog.views(),
+            tablas=tablas,
+            vistas=vistas,
             rutinas=catalog.routines(),
             catalog=catalog,
+            table_filter=table_filter,
+            frontera=frontera,
         )
 
 
@@ -214,6 +227,9 @@ class DocumentationSession:
     metadata_runtime: MetadataRuntimePort
     storage_report_service: StorageReportServicePort
     catalog: CatalogRows | None = None
+    #: 5.5.0: filtro aplicado (None = todas) y tablas de su frontera; los renderers los leen para marcar y listar
+    table_filter: TableFilter | None = None
+    frontera: list[str] = field(default_factory=list)
     _ddl_cache: dict[tuple[str, str, str], str] | None = None
     _database_version_cache: str | None = ""
     _database_charset_collation_cache: dict[str, Any] | None | object = _UNSET_DATABASE_CHARSET_COLLATION
@@ -260,6 +276,8 @@ class DocumentationSession:
             metadata_runtime=metadata_runtime_factory.create(logger=logger),
             storage_report_service=storage_report_service,
             catalog=state.catalog,
+            table_filter=state.table_filter,
+            frontera=list(state.frontera),
             _ddl_cache={},
             _columns_charset_collation_cache={},
         )
