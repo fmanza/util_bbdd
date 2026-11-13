@@ -39,8 +39,10 @@ flowchart TD
 |---|---|---|---|
 | `DatabaseDocumentation` | `(db_manager, directorio_salida?, fichero_salida?, imprimir?, formatos?, headers_file?, batch_window_seconds?, schema?, on_progress?, cancel_token?)` | Valida la configuración (no consulta la BD) | `DatabaseDocumentation` |
 | `generate` | `()` | Lee el catálogo y genera todos los formatos configurados | `DocumentationResult` |
+| `validate_trace_map` | `(path)` | Desde 5.7.0. Valida un mapa de trazabilidad (`.toml`/`.json`) **sin conectar**, con las mismas reglas que `markdown.trace_map`; lanza `DocumentationConfigError` con todos los errores | `None` |
 
-Ambas se importan de `util_bbdd.doc` (`from util_bbdd.doc import DatabaseDocumentation, DocumentationResult`). Desde
+Se importan de `util_bbdd.doc` (`from util_bbdd.doc import DatabaseDocumentation, DocumentationResult,
+validate_trace_map`). Desde
 0.41.0 los generadores por formato (`WordGenerator`, `ExcelGenerator`, `HtmlGenerator` y, desde 5.3.0,
 `MarkdownGenerator`) no se exportan: se eligen con `formatos=[...]`.
 
@@ -203,7 +205,7 @@ Desde 5.3.0. Solo aplica con `formatos=["markdown"]`. Las rutas se aceptan como 
 | `site_name` | `None` | Título del sitio; `None`: «Documentación de <base de datos>» |
 | `mermaid_js` | `None` | Ruta a un `mermaid.min.js` local. Se copia al sitio y se carga en lugar del de unpkg, así que los diagramas se dibujan **sin Internet**; además pone `font = false` en el tema. Debe existir: si no, `DocumentationConfigError` al construir |
 | `mermaid_js_ref` | `None` | Desde 5.4.0. Mermaid **ya publicado**, sin copiarlo: ruta relativa a `docs/` (`assets/javascripts/mermaid.min.js`) o URL `https://`. Se escribe en `extra_javascript`; con una ruta relativa pone también `font = false` en el tema (sitio sin Internet). Excluyente con `mermaid_js`. Solo afecta a la configuración del sitio (`zensical.toml` y, si se pide, `mkdocs.yml`); sin ninguna, aviso en el log. Ver [Mermaid referenciado](#mermaid-referenciado-mermaid_js_ref) |
-| `trace_map` | `None` | Mapa de trazabilidad `.toml` (recomendado) o `.json`: objeto o columna → código, documentos funcionales y técnicos, requisitos ([guía](../guides/markdown_documentation_guide.md#35-mapa-de-trazabilidad)). Se valida al construir |
+| `trace_map` | `None` | Mapa de trazabilidad `.toml` (recomendado) o `.json`: objeto o columna → código, documentos funcionales y técnicos, requisitos ([guía](../guides/markdown_documentation_guide.md#35-mapa-de-trazabilidad)). Se valida al construir; antes, sin conexión, con `validate_trace_map(path)` (5.7.0). Los mensajes de error nombran el fichero, nunca su ruta (también los de `previous`) |
 | `previous` | `None` | Generación anterior (carpeta `MARKDOWN`, su `docs/` o su `catalog.json`): añade `docs/changes.md` y `docs/changes.json` con los cambios de esquema, sin conexión a la base de datos. Se valida al construir |
 | `readme` | `True` | Desde 5.5.0. `README.md` en la raíz de la carpeta: cómo ver la documentación (vista previa de VS Code con la extensión de Mermaid o `zensical serve`) y qué contiene cada fichero generado. Sin fecha ni rutas locales |
 

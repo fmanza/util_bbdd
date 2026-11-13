@@ -162,7 +162,18 @@ El equivalente en JSON (`.json`) tiene la misma estructura:
 
 - **Validación estricta al crear `DatabaseDocumentation`**: una sección o un campo desconocidos (una errata como
   `requirement`), un tipo incorrecto o un error de sintaxis dan `DocumentationConfigError`, con todos los errores
-  juntos, y no se genera nada.
+  juntos, y no se genera nada. Los mensajes nombran el fichero, nunca su ruta.
+- **Validar antes, sin conexión** (desde 5.7.0): por ejemplo, al recibir el fichero en una aplicación:
+
+  ```python
+  from util_bbdd.doc import validate_trace_map
+  from util_bbdd.exceptions import DocumentationConfigError
+
+  try:
+      validate_trace_map("trazas.toml")  # mismas reglas; no devuelve nada si es válido
+  except DocumentationConfigError as error:
+      print(error)  # todos los errores juntos
+  ```
 - **Referencias**: son texto y nunca se leen del disco. Las URL `http(s)` se enlazan; el resto (rutas,
   `fichero#Clase`) se muestra como código.
 - **Salida**:

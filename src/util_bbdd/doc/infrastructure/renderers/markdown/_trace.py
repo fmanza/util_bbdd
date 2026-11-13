@@ -20,6 +20,7 @@ referencias son **texto**: nunca se leen ni se resuelven contra el disco; solo l
 from __future__ import annotations
 
 import json
+import os
 import re
 import tomllib
 
@@ -89,8 +90,11 @@ class TraceMap:
     sections: dict[str, dict[str, TraceEntry]]
 
     @classmethod
-    def load(cls, path: Path | str) -> TraceMap:
+    def load(cls, path: str | os.PathLike[str]) -> TraceMap:
         """Lee y valida el mapa; el formato sale de la extensión (``.toml`` o ``.json``).
+
+        Los mensajes nombran el fichero, nunca su ruta (5.7.0, G49 de util_bbdd_web): se muestran a usuarios que no
+        deben ver la estructura de carpetas del servidor.
 
         Raises:
             DocumentationConfigError: Extensión no admitida, fichero ilegible, demasiado grande o con sintaxis
@@ -102,13 +106,13 @@ class TraceMap:
             raise _config_error(f"markdown.trace_map debe ser .toml o .json: {file.name}")
         try:
             if file.stat().st_size > MAX_BYTES:
-                raise _config_error(f"markdown.trace_map supera {MAX_BYTES} bytes: {file}")
+                raise _config_error(f"markdown.trace_map ({file.name}) supera {MAX_BYTES} bytes")
             raw = file.read_bytes()
             data: Any = tomllib.loads(raw.decode("utf-8")) if suffix == ".toml" else json.loads(raw)
         except DocumentationConfigError:  # también es ValueError: se relanza tal cual
             raise
         except (OSError, ValueError) as error:  # incluye UnicodeDecodeError y TOMLDecodeError
-            raise _config_error(f"markdown.trace_map no se puede leer ({file}): {error}") from error
+            raise _config_error(f"markdown.trace_map no se puede leer ({file.name}): {error_reason(error)}") from error
         errors: list[str] = []
         sections = _parse(data, errors)
         if errors:
@@ -166,6 +170,13 @@ def _match(
 
 def _config_error(message: str) -> DocumentationConfigError:
     return DocumentationConfigError(message, operation="DOCUMENTATION")
+
+
+def error_reason(error: Exception) -> str:
+    """Motivo de un error de lectura sin la ruta del fichero: ``str()`` de un ``OSError`` la incluye."""
+    if isinstance(error, OSError):
+        return error.strerror or type(error).__name__
+    return str(error)
 
 
 def _parse(data: Any, errors: list[str]) -> dict[str, dict[str, TraceEntry]]:

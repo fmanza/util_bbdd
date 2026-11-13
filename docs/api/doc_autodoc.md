@@ -26,3 +26,12 @@ Referencia curada: [Generador de Documentación](database_documentation.md).
       members_order: source
       filters:
         - "!^_"
+
+---
+
+## validate_trace_map
+
+::: util_bbdd.doc.validation.validate_trace_map
+    options:
+      show_source: false
+      heading_level: 3

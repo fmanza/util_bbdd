@@ -35,6 +35,7 @@ from ....domain.table_filter import TableFilter
 from ._catalog import CATALOG_FORMAT, CATALOG_FORMAT_VERSION, CatalogEntry
 from ._slugs import sort_key
 from ._text import admonition, md_link, md_table, md_text
+from ._trace import error_reason
 
 MAX_BYTES: int = 50_000_000
 _STATUS_ES: dict[str, str] = {"added": "Añadida", "removed": "Eliminada", "modified": "Modificada"}
@@ -87,19 +88,21 @@ def load_previous(path: Path | str) -> PreviousCatalog:
     given = Path(path).expanduser()
     candidates = [given] if given.is_file() else [given / "docs" / "catalog.json", given / "catalog.json"]
     file = next((c for c in candidates if c.is_file()), None)
+    # Los mensajes nombran la carpeta o el fichero, nunca la ruta completa (5.7.0, G49 de util_bbdd_web).
     if file is None:
-        raise _config_error(f"markdown.previous: no hay catalog.json en {given}")
+        raise _config_error(f"markdown.previous: no hay catalog.json en {given.name or given}")
+    shown = f"{file.parent.name}/{file.name}"
     try:
         if file.stat().st_size > MAX_BYTES:
-            raise _config_error(f"markdown.previous: {file} supera {MAX_BYTES} bytes")
+            raise _config_error(f"markdown.previous: {shown} supera {MAX_BYTES} bytes")
         raw = file.read_bytes()
         catalog: Any = json.loads(raw)
     except DocumentationConfigError:
         raise
     except (OSError, ValueError) as error:
-        raise _config_error(f"markdown.previous: no se puede leer {file}: {error}") from error
+        raise _config_error(f"markdown.previous: no se puede leer {shown}: {error_reason(error)}") from error
     if not isinstance(catalog, dict) or catalog.get("format") != CATALOG_FORMAT:
-        raise _config_error(f"markdown.previous: {file} no es un catálogo de util_bbdd ({CATALOG_FORMAT})")
+        raise _config_error(f"markdown.previous: {shown} no es un catálogo de util_bbdd ({CATALOG_FORMAT})")
     if catalog.get("format_version") != CATALOG_FORMAT_VERSION or not isinstance(catalog.get("objects"), list):
         raise _config_error(
             f"markdown.previous: versión {catalog.get('format_version')!r} del catálogo no soportada "

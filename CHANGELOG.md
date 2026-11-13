@@ -7,6 +7,22 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **doc**: `util_bbdd.doc.validate_trace_map(path)` valida un mapa de trazabilidad (`.toml` o `.json`) **sin
+  conectar** a la base de datos. Aplica las mismas reglas que `imprimir["markdown"]["trace_map"]` y lanza
+  `DocumentationConfigError` con todos los errores juntos (G49 de util_bbdd_web).
+
+### Changed
+
+- **doc**: los mensajes de error del mapa de trazabilidad y de `markdown.previous` nombran el fichero, o la carpeta y
+  el fichero, y no su ruta completa. Tampoco la incluyen los errores del sistema operativo, porque se usa
+  `strerror`.
+- **ci**: las acciones de GitHub pasan a `checkout@v7`, `setup-python@v7`, `upload-artifact@v7`, `codecov@v7` y
+  `action-gh-release@v3`, los mismos saltos que proponía la PR #26 de Dependabot.
+- **tests**: `dev-full` incluye el extra `hsqldb` (JayDeBeApi + JPype1), así que el CI ya no salta el test unitario
+  del driver de HSQLDB.
+
 ## [5.6.0] - 2026-11-13
 
 SemVer: MINOR, sin cambios incompatibles en la API pública (sesión `2026-11-13-zensical-only`). Zensical 0.1.x pasa a
