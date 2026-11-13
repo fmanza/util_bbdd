@@ -4,13 +4,14 @@ Texto listo para un bloque ```` ```mermaid ```` de Markdown (Zensical/MkDocs, Gi
 :class:`~util_bbdd.analysis.graphviz_ext.GraphvizRelationshipGraphExt` el recorrido por niveles y la cardinalidad
 (``DatabaseRelationshipGraphBase``), pero no importa ``graphviz``: funciona sin el extra ``analysis``.
 
-Gramática y límites validados con Mermaid 11.17.2 y 12.2.0 (sesión ``2026-11-05-doc-markdown``, ``SPIKE_C3.md``).
+Gramática y límites validados con Mermaid 11.17.2 y 12.2.0 (sesión ``2026-11-05-doc-markdown``, ``SPIKE_C3.md``); el
+orden ``nombre tipo`` de los atributos, con 11.17.2 y 12.3.0 (sesión ``2026-11-13c-mermaid-nombre-tipo``).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from .._core.mermaid import escape_mermaid_er_text, normalize_er_name, normalize_er_type
 from ..metadata.model import ColumnMeta, Kind, SchemaSnapshot
@@ -24,6 +25,11 @@ from .base import (
 from .contracts import RelationshipGraphSource
 
 _KINDS: frozenset[Kind] = frozenset({Kind.COLUMNS, Kind.FOREIGN_KEYS, Kind.PRIMARY_KEYS, Kind.UNIQUES})
+
+#: Orden de cada atributo de ``erDiagram``: ``name_type`` (nombre y después tipo, como Graphviz) o ``type_name``
+#: (la forma canónica de Mermaid, la de hasta 5.7.0). Mermaid dibuja las columnas en el orden del texto.
+AttributeOrder = Literal["name_type", "type_name"]
+_ATTRIBUTE_ORDERS: frozenset[str] = frozenset({"name_type", "type_name"})
 
 
 @dataclass(frozen=True)
@@ -65,6 +71,8 @@ class MermaidRelationshipGraph(DatabaseRelationshipGraphBase):
       discontinua (``..``).
     - Nombres y comentarios del catálogo escapados con códigos de entidad de Mermaid; tipos y nombres de columna
       normalizados a la gramática de ``erDiagram`` (el nombre real va al comentario si cambia).
+    - Cada columna, como ``nombre tipo [PK, FK, UK] ["nombre real"]`` (desde 5.8.0; ``attribute_order``): Mermaid no
+      reordena las columnas del dibujo y así salen como en Graphviz, el nombre primero.
 
     Args:
         db_manager: Fuente de metadatos por lotes (``RelationshipGraphSource``), p. ej. un ``SyncDatabaseManager``.
@@ -78,6 +86,11 @@ class MermaidRelationshipGraph(DatabaseRelationshipGraphBase):
         max_chars: Caracteres por diagrama como máximo (``maxTextSize`` de Mermaid: 50 000); por encima, primero se
             quitan las columnas y después se parte.
         schema: Schema que se dibuja; por defecto, el contexto de metadatos de ``db_manager``.
+        attribute_order: ``name_type`` (por defecto desde 5.8.0: nombre y después tipo) o ``type_name`` (tipo y
+            después nombre, la forma canónica de ``erDiagram`` y la salida hasta 5.7.0).
+
+    Raises:
+        ValueError: ``column_mode`` o ``attribute_order`` no soportados.
 
     Examples:
         >>> with SyncDatabaseManager("sqlite", {"database": "ventas.db"}) as manager:
@@ -102,6 +115,7 @@ class MermaidRelationshipGraph(DatabaseRelationshipGraphBase):
         max_entities: int = 40,
         max_chars: int = 50_000,
         schema: str | None = None,
+        attribute_order: AttributeOrder = "name_type",
     ) -> None:
         super().__init__(db_manager, schema=schema)
         self.show_columns: bool = bool(show_columns)
@@ -113,6 +127,9 @@ class MermaidRelationshipGraph(DatabaseRelationshipGraphBase):
         self.show_constraint_name: bool = bool(show_constraint_name)
         self.max_entities: int = max(2, int(max_entities))
         self.max_chars: int = max(1, int(max_chars))
+        if attribute_order not in _ATTRIBUTE_ORDERS:
+            raise ValueError(f"Orden de atributos no soportado: {attribute_order} (name_type o type_name)")
+        self.attribute_order: AttributeOrder = attribute_order
 
     def render_er(
         self,
@@ -264,11 +281,12 @@ class MermaidRelationshipGraph(DatabaseRelationshipGraphBase):
         return [self._attribute(c, pk, fk_columns, uk_columns) for c in columns[: self.max_columns]]
 
     def _attribute(self, column: ColumnMeta, pk: set[str], fk: set[str], uk: set[str]) -> str:
-        """``tipo nombre PK, FK "nombre real"``."""
+        """``nombre tipo PK, FK "nombre real"`` (o ``tipo nombre …`` con ``attribute_order="type_name"``)."""
         name, altered = normalize_er_name(column.name)
         lowered = column.name.lower()
         keys = [key for key, members in (("PK", pk), ("FK", fk), ("UK", uk)) if lowered in members]
-        parts = [normalize_er_type(column.data_type or "unknown"), name]
+        data_type = normalize_er_type(column.data_type or "unknown")
+        parts = [name, data_type] if self.attribute_order == "name_type" else [data_type, name]
         if keys:
             parts.append(", ".join(keys))
         if altered:
@@ -276,4 +294,4 @@ class MermaidRelationshipGraph(DatabaseRelationshipGraphBase):
         return f"{self._ATTRIBUTE_INDENT}{' '.join(parts)}"
 
 
-__all__: list[str] = ["MermaidErResult", "MermaidRelationshipGraph"]
+__all__: list[str] = ["AttributeOrder", "MermaidErResult", "MermaidRelationshipGraph"]

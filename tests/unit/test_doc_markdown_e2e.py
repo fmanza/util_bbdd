@@ -279,3 +279,14 @@ def test_zensical_strict_build(sqlite_db: Path, tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_er_attributes_name_before_type_and_legend(sqlite_db: Path, tmp_path: Path) -> None:
+    """5.8.0: en los diagramas, cada columna lleva el nombre antes que el tipo (como Graphviz) y la leyenda lo explica."""
+    root = _generate(sqlite_db, tmp_path / "out")
+
+    page = (root / "docs" / "tables" / "lineas.md").read_text(encoding="utf-8")
+    assert "        pedido_id INTEGER PK, FK" in page
+    assert "INTEGER pedido_id" not in page
+    index = (root / "docs" / "index.md").read_text(encoding="utf-8")
+    assert "| nombre tipo | Cada columna de una tabla: nombre, tipo, claves" in index

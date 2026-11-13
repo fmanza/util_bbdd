@@ -78,15 +78,15 @@ def test_render_er_relations_mode() -> None:
     assert result.blocks == (
         "erDiagram\n"
         '    e1["pedidos"] {\n'
-        "        INTEGER id PK\n"
-        "        INTEGER cliente_id FK\n"
-        "        INTEGER vendedor_id FK\n"
+        "        id INTEGER PK\n"
+        "        cliente_id INTEGER FK\n"
+        "        vendedor_id INTEGER FK\n"
         "    }\n"
         '    e2["clientes"] {\n'
-        "        INTEGER id PK\n"
+        "        id INTEGER PK\n"
         "    }\n"
         '    e3["facturas"] {\n'
-        "        INTEGER pedido_id FK, UK\n"
+        "        pedido_id INTEGER FK, UK\n"
         "    }\n"
         '    e2 ||..o{ e1 : "fk_ped_cli"\n'
         '    e2 |o..o{ e1 : "fk_ped_vend"\n'
@@ -99,13 +99,13 @@ def test_column_modes_like_graphviz_and_show_columns() -> None:
     compact = _ventas(column_mode="compact", max_columns=4).render_er("pedidos").blocks[0]
     assert (
         '    e1["pedidos"] {\n'
-        "        INTEGER id PK\n"
-        "        INTEGER cliente_id FK\n"
-        "        INTEGER vendedor_id FK\n"
-        "        VARCHAR(20) numero UK\n"
+        "        id INTEGER PK\n"
+        "        cliente_id INTEGER FK\n"
+        "        vendedor_id INTEGER FK\n"
+        "        numero VARCHAR(20) UK\n"
         "    }\n"
     ) in compact
-    assert '    e3["facturas"] {\n        INTEGER pedido_id FK, UK\n        INTEGER id PK\n    }\n' in compact
+    assert '    e3["facturas"] {\n        pedido_id INTEGER FK, UK\n        id INTEGER PK\n    }\n' in compact
 
     # show_columns=False (grafo.show_columns): solo los nombres de tabla
     plain = _ventas(show_columns=False).render_er("pedidos").blocks[0]
@@ -113,9 +113,46 @@ def test_column_modes_like_graphviz_and_show_columns() -> None:
     assert '    e1["pedidos"]\n' in plain
 
     full = _ventas(column_mode="all", max_columns=4).render_er("pedidos").blocks[0]
-    assert "        VARCHAR(20) numero UK" in full
-    assert "DECIMAL(10_2) total" not in full  # quinta columna: fuera por max_columns=4
+    assert "        numero VARCHAR(20) UK" in full
+    assert "total DECIMAL(10_2)" not in full  # quinta columna: fuera por max_columns=4
     assert '    e2 ||..o{ e1 : ""' in full  # sin show_constraint_name, etiqueta vacía
+
+
+def test_attribute_order_type_name_keeps_the_previous_output() -> None:
+    """5.8.0: ``attribute_order="type_name"`` da el texto de hasta 5.7.0 (tipo y después nombre), byte a byte."""
+    block = _ventas(show_constraint_name=True, attribute_order="type_name").render_er("pedidos").blocks[0]
+
+    assert block == (
+        "erDiagram\n"
+        '    e1["pedidos"] {\n'
+        "        INTEGER id PK\n"
+        "        INTEGER cliente_id FK\n"
+        "        INTEGER vendedor_id FK\n"
+        "    }\n"
+        '    e2["clientes"] {\n'
+        "        INTEGER id PK\n"
+        "    }\n"
+        '    e3["facturas"] {\n'
+        "        INTEGER pedido_id FK, UK\n"
+        "    }\n"
+        '    e2 ||..o{ e1 : "fk_ped_cli"\n'
+        '    e2 |o..o{ e1 : "fk_ped_vend"\n'
+        '    e1 ||..o| e3 : "fk_fac_ped"'
+    )
+
+
+def test_attribute_order_default_and_invalid() -> None:
+    assert _ventas().attribute_order == "name_type"
+    with pytest.raises(ValueError, match="Orden de atributos no soportado"):
+        _ventas(attribute_order="nombre_tipo")
+
+
+def test_both_orders_have_the_same_length() -> None:
+    """El presupuesto de caracteres (``max_chars``) y la partición en bloques no dependen del orden."""
+    name_type = _ventas(column_mode="all").render_er("pedidos").blocks
+    type_name = _ventas(column_mode="all", attribute_order="type_name").render_er("pedidos").blocks
+
+    assert [len(block) for block in name_type] == [len(block) for block in type_name]
 
 
 def test_identifying_relations() -> None:
@@ -139,7 +176,7 @@ def test_identifying_relations() -> None:
 
     assert '    e1 ||--o{ e2 : "fk_lin_ped"' in block
     assert '    e1 ||--o| e3 : "fk_ext_ped"' in block
-    assert "        INTEGER pedido_id PK, FK" in block
+    assert "        pedido_id INTEGER PK, FK" in block
 
 
 def test_composite_fk_is_one_line_and_self_reference() -> None:
@@ -209,7 +246,7 @@ def test_hostile_names_are_escaped_and_normalized() -> None:
     block = MermaidRelationshipGraph(manager, show_constraint_name=True).render_er("hija").blocks[0]
 
     assert '["50#37; #quot;x#quot; #37;#37;{init}#37;#37;"]' in block
-    assert '        double_precision PK_ PK "PK"' in block
+    assert '        PK_ double_precision PK "PK"' in block
     assert ': "fk#91;1#93;"' in block
     assert "%%" not in block
     assert "\n%" not in block

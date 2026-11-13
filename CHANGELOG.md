@@ -7,6 +7,18 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **analysis/doc**: en los diagramas `erDiagram` de Mermaid, cada columna lleva el **nombre antes que el tipo**
+  (`cliente_id INTEGER FK`), como en los diagramas Graphviz de Word y HTML. Antes iba el tipo primero. Mermaid
+  dibuja las columnas en el orden del texto y no permite reordenarlas. Validado con Mermaid 11.17.2 y 12.3.0.
+  - Nuevo parámetro `MermaidRelationshipGraph(..., attribute_order="name_type" | "type_name")`, con
+    `name_type` por defecto.
+  - La leyenda de la portada de la documentación Markdown explica el orden.
+  - **Migración**: para el texto anterior, `attribute_order="type_name"`.
+  - Al regenerar una documentación versionada con git cambian todas las páginas con diagramas. Ni los hashes del
+    front matter ni `changes.md` se ven afectados.
+
 ## [5.7.0] - 2026-11-13
 
 SemVer: MINOR, sin cambios incompatibles (sesión `2026-11-13b-plan-pendientes-post-5-6`: G49 de util_bbdd_web y A2 del plan de pendientes).

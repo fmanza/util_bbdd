@@ -29,6 +29,12 @@ ER_LEGEND_ROWS: tuple[tuple[str, str], ...] = (
     ("--", "Línea continua: relación identificante (la FK forma parte de la PK de la tabla hija)."),
     ("..", "Línea discontinua: relación no identificante."),
     ("PK, FK, UK", "Clave primaria, foránea o única en la columna."),
+    # 5.8.0: el texto erDiagram lleva el nombre antes que el tipo (Mermaid toma el primero por tipo): se explica aquí
+    # para quien lea el Markdown o llms-full.txt sin dibujarlo
+    (
+        "nombre tipo",
+        "Cada columna de una tabla: nombre, tipo, claves y, entre comillas, el nombre real si hubo que normalizarlo.",
+    ),
 )
 
 

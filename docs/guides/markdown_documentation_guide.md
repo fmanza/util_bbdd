@@ -53,6 +53,8 @@ print(result.outputs["markdown"])  # docs_bd/ventas/MARKDOWN
 - **Diagramas**: con `grafo.enabled`, cada tabla lleva su diagrama al final, con el resumen de niveles debajo. La
   profundidad es `grafo.max_depth` con el tope `markdown.max_diagram_depth` (2 por defecto); si recorta, la página lo
   avisa.
+- **Orden de las columnas en los diagramas** (desde 5.8.0): nombre, tipo, claves (`PK`, `FK`, `UK`) y, si se
+  normalizó, el nombre real; antes, el tipo iba primero. La leyenda de la portada lo explica.
 - **Columnas de los diagramas**: las elige `grafo.columns.mode`, igual que en Graphviz:
   - `relations`: las de las relaciones dibujadas;
   - `compact`: esas primero y después las demás;

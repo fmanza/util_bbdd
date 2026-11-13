@@ -90,7 +90,7 @@ documentación Markdown.
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `MermaidRelationshipGraph` | `(db_manager, *, show_columns=True, column_mode="relations", max_columns=8, show_constraint_name=False, max_entities=40, max_chars=50_000, schema=None)` | Configura el generador. `column_mode` sigue la política de Graphviz: `relations` (columnas de las relaciones dibujadas), `compact` (esas primero y después las demás hasta `max_columns`) o `all` | `MermaidRelationshipGraph` |
+| `MermaidRelationshipGraph` | `(db_manager, *, show_columns=True, column_mode="relations", max_columns=8, show_constraint_name=False, max_entities=40, max_chars=50_000, schema=None, attribute_order="name_type")` | Configura el generador. `column_mode` sigue la política de Graphviz: `relations` (columnas de las relaciones dibujadas), `compact` (esas primero y después las demás hasta `max_columns`) o `all`. `attribute_order` (5.8.0): `name_type` (nombre y después tipo, como Graphviz) o `type_name` (la forma canónica de `erDiagram`, la salida hasta 5.7.0) | `MermaidRelationshipGraph` |
 | `render_er` | `(table_name, *, max_depth=1, direction="both", max_subnodes=10)` | Diagramas de la tabla y sus relaciones | `MermaidErResult` (`blocks`, `document`, `warnings`) |
 
 Reglas de dibujo:
@@ -107,7 +107,12 @@ Reglas de dibujo:
   directiva `%%{init}` queda como texto. Los tipos y nombres de columna se normalizan a la gramática de `erDiagram`
   (`double precision` → `double_precision`; `PK`, `FK` y `UK` llevan sufijo `_`). Si el nombre cambia, el real va al
   comentario del atributo.
-- **Determinismo**: la salida es la misma en cualquier proceso. Sintaxis validada con Mermaid 11.17.2 y 12.2.0.
+- **Columnas**: cada atributo se escribe `nombre tipo [PK, FK, UK] ["nombre real"]` (desde 5.8.0). Mermaid dibuja
+  las columnas en el orden del texto y no tiene opción para reordenarlas: así salen como en Graphviz, el nombre
+  primero. Quien interprete el texto como `erDiagram` canónico (primer token = tipo) puede pedir
+  `attribute_order="type_name"`.
+- **Determinismo**: la salida es la misma en cualquier proceso. Sintaxis validada con Mermaid 11.17.2 y 12.2.0; el
+  orden `nombre tipo`, con 11.17.2 y 12.3.0.
 
 ```python
 from util_bbdd.analysis import MermaidRelationshipGraph
