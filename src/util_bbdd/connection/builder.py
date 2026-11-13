@@ -19,6 +19,7 @@ from .config import (
     SQLServerConnectionConfig,
     SQLServerPoolConfig,
 )
+from .sqlserver._odbc_driver import resolve_odbc_driver
 
 
 def _default(config_cls: type, name: str) -> Any:
@@ -186,6 +187,7 @@ def _build_sqlserver_params(kwargs: dict[str, Any], db_type: str) -> dict[str, A
     """Construye parámetros para SQL Server."""
     required: list[str] = ["host", "user", "password", "database"]
     _validate_required(required, kwargs, db_type)
+    sql_server_driver = kwargs.get("sql_server_driver", _default(SQLServerConnectionConfig, "sql_server_driver"))
     return {
         "host": kwargs["host"],
         "user": kwargs["user"],
@@ -193,8 +195,13 @@ def _build_sqlserver_params(kwargs: dict[str, Any], db_type: str) -> dict[str, A
         "database": kwargs["database"],
         "port": kwargs.get("port", _default(SQLServerConnectionConfig, "port")),
         "schema": kwargs.get("schema", _default(SQLServerConnectionConfig, "schema")),
-        "sql_server_driver": kwargs.get("sql_server_driver", _default(SQLServerConnectionConfig, "sql_server_driver")),
-        "driver_name": kwargs.get("driver_name", _default(SQLServerConnectionConfig, "driver_name")),
+        "sql_server_driver": sql_server_driver,
+        # 5.7.0: sin driver_name, con pyodbc, el ODBC Driver más reciente instalado (pymssql no lo usa)
+        "driver_name": (
+            resolve_odbc_driver(kwargs)
+            if str(sql_server_driver).lower() == "pyodbc"
+            else kwargs.get("driver_name", _default(SQLServerConnectionConfig, "driver_name"))
+        ),
         "pool_size": kwargs.get("pool_size", _default(SQLServerPoolConfig, "pool_size")),
         "max_overflow": kwargs.get("max_overflow", _default(SQLServerPoolConfig, "max_overflow")),
         "pool_timeout": kwargs.get("pool_timeout", _default(SQLServerPoolConfig, "pool_timeout")),

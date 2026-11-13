@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 from .close import DEFAULT_CLOSE_TIMEOUT_SECONDS, parse_close_timeout
+from .sqlserver._odbc_driver import FALLBACK_ODBC_DRIVER, resolve_odbc_driver
 
 
 def _require_str(params: dict[str, Any], key: str, db_type: str) -> str:
@@ -623,7 +624,8 @@ class SQLServerConnectionConfig:
     trust_cert: bool = False
     use_mars: bool = True
     sql_server_driver: str = "pymssql"
-    driver_name: str = "ODBC Driver 17 for SQL Server"
+    #: Driver ODBC (solo pyodbc/aioodbc). ``from_params`` sin ``driver_name`` elige el más reciente instalado (5.7.0).
+    driver_name: str = FALLBACK_ODBC_DRIVER
     #: Schema por defecto de los metadatos; no se envía al driver.
     schema: str = "dbo"
 
@@ -650,7 +652,8 @@ class SQLServerConnectionConfig:
             trust_cert=_to_bool(params.get("trust_cert", False), "trust_cert", db_type),
             use_mars=_to_bool(params.get("use_mars", True), "use_mars", db_type),
             sql_server_driver=selected_driver,
-            driver_name=str(params.get("driver_name", "ODBC Driver 17 for SQL Server")),
+            # 5.7.0: sin driver_name, con pyodbc, el ODBC Driver más reciente instalado (pymssql no lo usa)
+            driver_name=resolve_odbc_driver(params) if selected_driver == "pyodbc" else FALLBACK_ODBC_DRIVER,
             schema=_opt_str(params, "schema") or "dbo",
         )
 

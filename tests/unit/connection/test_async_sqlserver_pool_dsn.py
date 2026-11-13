@@ -39,7 +39,24 @@ async def test_pool_dsn_uses_the_given_driver_name(create_pool: AsyncMock) -> No
 
 
 @pytest.mark.asyncio
-async def test_pool_dsn_default_driver_is_unchanged(create_pool: AsyncMock) -> None:
-    await AsyncSQLServerPool.create(PARAMS)
+@pytest.mark.parametrize(
+    ("installed", "expected"),
+    [
+        (["ODBC Driver 17 for SQL Server", "ODBC Driver 18 for SQL Server"], "ODBC Driver 18 for SQL Server"),
+        ([], "ODBC Driver 17 for SQL Server"),
+    ],
+)
+async def test_pool_dsn_default_driver_is_the_newest_installed(
+    create_pool: AsyncMock, monkeypatch: pytest.MonkeyPatch, installed: list[str], expected: str
+) -> None:
+    # 5.7.0: sin driver_name, el más reciente instalado; sin ninguno, el 17 de siempre
+    from util_bbdd.connection.sqlserver import _odbc_driver
 
-    assert "Driver={ODBC Driver 17 for SQL Server};" in create_pool.await_args.kwargs["dsn"]
+    monkeypatch.setitem(sys.modules, "pyodbc", types.SimpleNamespace(drivers=lambda: installed))
+    _odbc_driver.default_odbc_driver.cache_clear()
+    try:
+        await AsyncSQLServerPool.create(PARAMS)
+    finally:
+        _odbc_driver.default_odbc_driver.cache_clear()
+
+    assert f"Driver={{{expected}}};" in create_pool.await_args.kwargs["dsn"]

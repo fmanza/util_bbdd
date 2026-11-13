@@ -15,6 +15,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **connection**: con `sql_server_driver="pyodbc"` (también aioodbc) y sin `driver_name`, se usa el «ODBC Driver
+  NN for SQL Server» de número más alto instalado (`pyodbc.drivers()`). Hasta ahora era siempre el 17, y con solo el
+  18 instalado había que indicarlo a mano.
+  - Si no hay ninguno, si falta pyodbc o si el Driver Manager no responde, se usa el 17 como antes.
+  - Un `driver_name` explícito manda siempre.
+  - El cifrado no cambia al pasar al 18, porque `Encrypt` y `TrustServerCertificate` se escriben siempre.
+  - **Migración**: para seguir con el 17 teniendo los dos instalados, pasa `driver_name="ODBC Driver 17 for SQL
+    Server"`.
 - **doc**: los mensajes de error del mapa de trazabilidad y de `markdown.previous` nombran el fichero, o la carpeta y
   el fichero, y no su ruta completa. Tampoco la incluyen los errores del sistema operativo, porque se usa
   `strerror`.

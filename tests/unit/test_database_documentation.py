@@ -80,7 +80,8 @@ def _capture_renderers(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, Path,
 
 
 def test_public_api_is_the_facade_and_its_result() -> None:
-    assert doc_package.__all__ == ["DatabaseDocumentation", "DocumentationResult"]
+    # 5.7.0 (G49): validate_trace_map valida el mapa de trazabilidad sin conectar
+    assert doc_package.__all__ == ["DatabaseDocumentation", "DocumentationResult", "validate_trace_map"]
     assert not hasattr(doc_package, "WordGenerator")
 
 

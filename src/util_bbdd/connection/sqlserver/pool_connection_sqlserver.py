@@ -33,7 +33,8 @@ class PoolConnection(SyncPoolCloseMixin):
                 - database (str): Nombre de base de datos
                 - port (int, optional): Puerto (default: 1433)
                 - sql_server_driver (str, optional): 'pymssql' o 'pyodbc' (default: pymssql)
-                - driver_name (str, optional): Driver ODBC si usa pyodbc (default: ODBC Driver 17 for SQL Server)
+                - driver_name (str, optional): Driver ODBC si usa pyodbc (default desde 5.7.0: el «ODBC Driver NN for
+                  SQL Server» más reciente instalado; si no hay ninguno, ODBC Driver 17 for SQL Server)
                 - pool_size (int, optional): Min conexiones en pool (default: 5)
                 - max_overflow (int, optional): Conexiones adicionales (default: 10)
                 - pool_timeout (int, optional): Timeout en segundos (default: 30)

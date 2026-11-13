@@ -8,6 +8,7 @@ from util_bbdd._core.exceptions import ConnectionError
 
 from .._advisory import warn_once
 from ..params import ConnectionParamsManager
+from ._odbc_driver import resolve_odbc_driver
 
 
 class SQLServerConnection:
@@ -186,7 +187,7 @@ class SQLServerConnection:
             password = conn_params.get("password", "")
             database = conn_params.get("database", "master")
             port = conn_params.get("port", 1433)
-            driver_name = conn_params.get("driver_name", "ODBC Driver 17 for SQL Server")
+            driver_name = resolve_odbc_driver(conn_params)  # 5.7.0: sin indicarlo, el más reciente instalado
             encryption = conn_params.get("encryption", "optional")
             trust_cert = conn_params.get("trust_cert", False)
 

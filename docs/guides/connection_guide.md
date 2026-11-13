@@ -81,7 +81,7 @@ my = {"host": "localhost", "port": 3306, "user": "app",
 ora = {"host": "ora-host", "port": 1521, "service_name": "ORCLPDB1",
        "user": "hr", "password": "<reemplazar>"}
 
-# SQL Server  (driver pymssql por defecto; con pyodbc, driver_name = "ODBC Driver 17 for SQL Server" por defecto)
+# SQL Server  (driver pymssql por defecto; con pyodbc, sin driver_name, el ODBC Driver más reciente instalado)
 ss = {"host": "localhost", "port": 1433, "user": "sa",
       "password": "<reemplazar>", "database": "ventas",
       "sql_server_driver": "pymssql"}
@@ -137,7 +137,7 @@ abrir el manager: `DatabaseConfigurationError` si falla la creación del pool (l
 | `mariadb` | `host`, `user`, `password`, `database` | `port`=3306, `charset`=utf8mb4, `init_command`=`"SET NAMES utf8mb4"`, `catalog_charset_mode`=`"auto"`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size`, `ssl`/`ssl_ca`/`ssl_cert`/`ssl_key`, `ssl_verify_cert` (sin `ssl_verify_identity`: límite del driver, ver §6). `encoding_errors` se retiró en 5.0.0 (nunca tuvo efecto) |
 | `mysql` | `host`, `user`, `password`, `database` | `port`=3306, `charset`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size`, `max_overflow`, `pool_timeout`, `pool_recycle`, `ssl_ca`/`ssl_cert`/`ssl_key`, `ssl_verify_cert`, `ssl_verify_identity` (sync y async: con CA se verifican certificado y hostname salvo que se desactiven) |
 | `oracle` | `user`, `password` + **uno de** `service_name` / `sid` / `dsn` / `database` | `host`=localhost, `port`=1521, `protocol` (`tcp`/`tcps`; sin `dsn`), `oracle_client_path`, `oracle_thick_mode`, `pool_size`, `schema` (owner por defecto de los metadatos; sin él, el usuario. Desde 4.1.0; no cambia `CURRENT_SCHEMA`) |
-| `sqlserver` | `host`, `user`, `password`, `database` | `port`=1433, `sql_server_driver` (`pymssql`/`pyodbc`), `driver_name` (pyodbc), `encryption` (`mandatory`/`optional`/`off`; con pymssql se traduce a `require`/por defecto de FreeTDS/`off`), `trust_cert` y `use_mars` (solo pyodbc/aioodbc; con pymssql, `trust_cert=True` avisa una vez de que no se aplica) |
+| `sqlserver` | `host`, `user`, `password`, `database` | `port`=1433, `sql_server_driver` (`pymssql`/`pyodbc`), `driver_name` (pyodbc; sin indicarlo, desde 5.7.0, el «ODBC Driver NN for SQL Server» más reciente instalado y, si no hay ninguno, el 17), `encryption` (`mandatory`/`optional`/`off`; con pymssql se traduce a `require`/por defecto de FreeTDS/`off`), `trust_cert` y `use_mars` (solo pyodbc/aioodbc; con pymssql, `trust_cert=True` avisa una vez de que no se aplica) |
 | `sqlite` | `database` (ruta al fichero) | `timeout`, `isolation_level` (`""`/`DEFERRED`/`IMMEDIATE`/`EXCLUSIVE`), `check_same_thread`, `cached_statements` |
 | `hsqldb` | `user`, `jdbc_url`, `jdbc_jar` | `password`, `jdbc_driver`, `connection_properties` (propiedades JDBC). Sin Engine de SQLAlchemy ni pool: conexión nativa única |
 

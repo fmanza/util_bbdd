@@ -279,7 +279,7 @@ manager = SyncDatabaseManager(
         "port": 1433,
         "database": "mibd",
         "sql_server_driver": "pyodbc",
-        "driver_name": "ODBC Driver 17 for SQL Server",  # solo pyodbc
+        "driver_name": "ODBC Driver 17 for SQL Server",  # solo pyodbc; opcional desde 5.7.0 (el más reciente)
     },
 )
 ```

@@ -9,6 +9,7 @@ from typing import Any
 from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
+from ._odbc_driver import resolve_odbc_driver
 from .connection_sqlserver import SQLServerConnection
 
 
@@ -35,7 +36,7 @@ class AsyncSQLServerConnection:
         password: str = str(conn_params.get("password", ""))
         database: str = str(conn_params.get("database", "master"))
         port: int = int(conn_params.get("port", 1433))
-        driver_name: str = str(conn_params.get("driver_name", "ODBC Driver 17 for SQL Server"))
+        driver_name: str = resolve_odbc_driver(conn_params)  # 5.7.0: sin indicarlo, el más reciente instalado
         encryption: str = SQLServerConnection.odbc_encrypt(conn_params.get("encryption", "optional"))
         trust_cert: bool = bool(conn_params.get("trust_cert", False))
         use_mars: bool = bool(conn_params.get("use_mars", True))
