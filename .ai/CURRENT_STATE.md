@@ -139,8 +139,8 @@ en `zensical.toml`, sin `mkdocs.yml` ni plugins de MkDocs; el ZIP offline lo hac
 
 ## Próximos pasos
 
-**Plan vigente**: `.ai/sessions/2026-10-10-plan-pendientes-post-1-0/PLAN_AUDIT_PLAN.md` (inventario verificado el
-2026-10-10; decisiones D1–D6 aceptadas). El historial de planes anteriores está en `CHANGELOG.md` y en
+**Plan vigente**: `.ai/sessions/2026-11-13b-plan-pendientes-post-5-6/PLAN_AUDIT_PLAN.md` (inventario verificado el 2026-11-13 tras v5.6.0; decisiones D1–D6 aceptadas con
+las opciones recomendadas). Anterior: `.ai/sessions/2026-10-10-plan-pendientes-post-1-0/PLAN_AUDIT_PLAN.md`. El historial de planes anteriores está en `CHANGELOG.md` y en
 `.ai/sessions/2026-10-10-plan-pendientes-global/`.
 
 | ID | Pendiente | Estado | Bloque / versión |
@@ -157,9 +157,9 @@ en `zensical.toml`, sin `mkdocs.yml` ni plugins de MkDocs; el ZIP offline lo hac
 | D2 | Revisión de docs nivel 2: 82 páginas (lista en `.ai/sessions/2026-10-10-plan-pendientes-post-1-0/03_DOCS_PENDIENTES.txt`) | ✅ Hecho 2026-10-11, sin publicar (sesión `2026-10-10-docs-review-nivel-2`: C1 `a26cf3c2`, C2 `a1ccaf1b`, tandas `f0f8d81c`, `9cf2c2d0`, `12568b5e`, `7d4c5c13`, `b78568d2`) | `docs` |
 | H2 | Hotfix: `DatabaseDocumentation.generate()` sin `fichero_salida` fallaba en Windows con SQLite `:memory:` (WinError 123; encontrado en D2) | ✅ Hecho (v1.1.1, `ae1e8098`) | — |
 | R2 | Release 1.1.1: tag `v1.1.1`, push de `develop` y fast-forward de `main` | ✅ Hecho 2026-10-11 (`a341195c`) | `release` |
-| D3 | Hallazgos de código de D2 — decisiones del usuario 2026-10-11: D3.1 excepciones reservadas documentadas y retirada en 2.0.0; D3.2 `OSError` de `doc` → `DocumentationRenderError` (hotfix `2e23e8bb`); D3.4 docstrings corregidos; D3.3 (fallo de reactivación de constraints en `DumpResult`) → `/new-feature` 1.2.0 | ✅ D3.1, D3.2, D3.4 en 1.1.1; D3.3 pendiente (1.2.0) | `/new-feature` |
+| D3 | Hallazgos de código de D2 — decisiones del usuario 2026-10-11: D3.1 excepciones reservadas documentadas y retirada en 2.0.0; D3.2 `OSError` de `doc` → `DocumentationRenderError` (hotfix `2e23e8bb`); D3.4 docstrings corregidos; D3.3 (fallo de reactivación de constraints en `DumpResult`) → `/new-feature` 1.2.0 | ✅ D3.1, D3.2, D3.4 en 1.1.1; D3.3 hecho (`DumpResult.constraint_reactivation_error`) | `/new-feature` |
 | A1 | `AsyncDatabaseManager("sqlserver")` sondeado con el ODBC Driver 18 instalado: filas anidadas con pyodbc (también en sync) y pool async sin `driver_name` | ✅ Hecho (v1.1.0, `cf7abb78`, `1c83041b`) | — |
-| A2 | `driver_name` por defecto = ODBC Driver 17: con solo el 18 instalado hay que indicarlo (¿detectar el instalado?) | Por decidir | `/new-feature` |
+| A2 | `driver_name` por defecto = ODBC Driver 17: con solo el 18 instalado hay que indicarlo (¿detectar el instalado?) | Decidido 2026-11-13: detectar el más reciente (F3 del plan vigente) | 5.7.0 |
 | P7 | Externos (los comprueba el usuario; sin `gh`): PR #18 (probablemente cerrada: no existe `refs/pull/18/merge`), issue del ORA-03106 (`.ai/sessions/2026-10-01y-ora03106-repro/ISSUE_DRAFT.md`), `docs-release.yml` de v0.43.0/v0.44.0/v1.0.0, `integration.yml` | Usuario | B6 |
 | N2 | 8 ramas `origin/dependabot/*` (2026-03-31 a 2026-06-23) | Usuario | B6 |
 | Q1 | audit-code v1.0.0 → HEAD (`.ai/sessions/2026-10-15b-audit-code-v1.0.0-v2.1.0/AUDIT_REPORT.md`): bugs A-01 (evento `run` de `audit_sink` `ok` con constraints sin reactivar), A-04 (recomendaciones del advisor que fallan en MySQL/SQL Server), A-02 (asyncpg reescribe marcadores en literales), D-01 (CHANGELOG `[2.0.0] - Por publicar`) | ✅ Hecho 2026-10-16 (`/hotfix`, sin publicar) | `/hotfix` |
@@ -171,10 +171,15 @@ en `zensical.toml`, sin `mkdocs.yml` ni plugins de MkDocs; el ZIP offline lo hac
 | R4 | Release 3.0.3: tag `v3.0.3` y fast-forward de `main` | ✅ Hecho 2026-10-17: tag anotado `v3.0.3` sobre `f655f03a`, `main` en `f655f03a` (push de `develop`, del tag y de `main`); las 17 instrucciones de instalación pasan a `@v3.0.3` | `release` |
 | D4 | Restos de la revisión de documentación de 2026-10-16i: fechas de ADR-004, `onboarding_dev.md` para 3.0, página funcional de `connection` y `factory`, `Args:` en los métodos publicados en autodoc | ✅ Hecho 2026-10-17 (`docs/functional/connection_management.md`; `AuditManager`, `AuditEvent`, `AuditSink`, `CatalogDialect`, `ConnectionParamsManager`, `PoolFactory`, `AsyncSQLAlchemyEngineFactory`, `QueryResolver.bind`, `DatabaseQueries`, `ResultNormalizer`, `analysis`). Los 28 métodos sin `Args:` en módulos sin página autodoc, hechos 2026-10-19 (sin commit; CHANGELOG [Unreleased]). Se mantienen los resúmenes de una línea deliberados (`SchemaSnapshot`, contratos de `metadata`, executors, destinos de auditoría) | `docs` |
 | R5 | Release 3.1.0: push de `develop`, CI en verde **sin `GH_PAT`** (incluido `docs-zip-release.yml`), tag `v3.1.0`, fast-forward de `main`, instrucciones de instalación a `@v3.1.0` y revocar el secreto `GH_PAT` | ✅ Comprobado por el usuario 2026-10-19 (CI sin `GH_PAT` correcto) | `release` |
-| R6 | Release 3.1.1–3.3.0 (sesión `2026-10-18b-index-modes-bulk-dump`): push de `develop` (8 commits sobre `origin/develop`), tags (`v3.3.0` y, opcionalmente, `v3.1.1`, `v3.1.2`, `v3.2.0`, `v3.2.1`), fast-forward de `main` (en 3.0.3) y CI en verde | Pendiente (lo hace el usuario; tags creados en local 2026-10-19). Instrucciones de instalación ya en `@v3.3.0` (18 en `README.md` y `docs/`) | `release` |
-| R8 | Release 4.0.0: tag `v4.0.0`, push de `develop`, fast-forward de `main` y CI en verde; tras el tag, instrucciones de instalación a `@v4.0.0` (el extra `oracle` no existe en `@v3.4.1`) | Pendiente (lo hace el usuario; tag anotado `v4.0.0` creado en local 2026-10-19). Instrucciones de instalación ya en `@v4.0.0` (19 en `README.md` y `docs/`) | `release` |
+| R6 | Release 3.1.1–3.3.0 (sesión `2026-10-18b-index-modes-bulk-dump`): push de `develop` (8 commits sobre `origin/develop`), tags (`v3.3.0` y, opcionalmente, `v3.1.1`, `v3.1.2`, `v3.2.0`, `v3.2.1`), fast-forward de `main` (en 3.0.3) y CI en verde | ✅ Publicado (tags en `origin`; comprobado 2026-11-13) | `release` |
+| R8 | Release 4.0.0: tag `v4.0.0`, push de `develop`, fast-forward de `main` y CI en verde; tras el tag, instrucciones de instalación a `@v4.0.0` (el extra `oracle` no existe en `@v3.4.1`) | ✅ Publicado (tag en `origin`; comprobado 2026-11-13) | `release` |
 | R7 | `validate_fks_after=True` por defecto (coste medido ≈1 % de la carga) | ✅ Hecho 2026-10-19 (v3.4.0) | `feat` |
 | T1 | `elapsed_ms` con `time.time()` (no monotónico) en `executors/sync_query_executor.py`, `executors/async_query_executor.py` y `query/resolver.py` | ✅ Hecho 2026-10-19 (v3.4.1, `time.perf_counter()`) | `fix` |
+| F0 | Estado y roadmap al día tras v5.6.0 | ✅ Hecho 2026-11-13 | `docs` |
+| F1 | PR #26 de Dependabot (checkout@v7, setup-python@v7, upload-artifact@v7, codecov@v7, action-gh-release@v3) | En curso | `chore(ci)` |
+| F2 | G49 de util_bbdd_web: `util_bbdd.doc.validate_trace_map(path)` y mensajes sin ruta absoluta | Pendiente | 5.7.0 |
+| F4 | `hsqldb` (`jaydebeapi`) en `dev-full` | Pendiente | `chore(deps)` |
+| F5 | Externos y largo plazo: issue ORA-03106 (usuario), retirar `markdown.mkdocs_yml` en 6.0.0, Zensical beta | Seguimiento | — |
 | — | Aparcados: S-1 (`bulk` con procesos, NO_GO hasta ≥ 10M filas/tabla) y las dos limitaciones de driver de `docs/roadmap.md` | Aparcado | — |
 
 ---

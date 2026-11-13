@@ -12,8 +12,8 @@ es la vista panorámica.
 
 ## En curso (`develop`)
 
-Sin trabajo abierto tras v1.1.1. Lo que se
-añada a `develop` antes del próximo tag aparecerá en el
+Tras v5.6.0: validador público del mapa de trazabilidad de la documentación Markdown y detección del driver ODBC de
+SQL Server instalado (previstos para 5.7.0). Lo que se añada a `develop` antes del próximo tag aparecerá en el
 [CHANGELOG](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md).
 
 ### Limitaciones conocidas de los drivers
