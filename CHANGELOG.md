@@ -7,6 +7,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.7.0] - 2026-11-13
+
+SemVer: MINOR, sin cambios incompatibles (sesión `2026-11-13b-plan-pendientes-post-5-6`: G49 de util_bbdd_web y A2 del plan de pendientes).
+
 ### Added
 
 - **doc**: `util_bbdd.doc.validate_trace_map(path)` valida un mapa de trazabilidad (`.toml` o `.json`) **sin

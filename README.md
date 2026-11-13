@@ -4,7 +4,7 @@ Librería Python para **operaciones de base de datos** en MariaDB, MySQL, Oracle
 async) y HSQLDB (sync): conexiones con pool, carga masiva desde DataFrames, volcado entre motores, migración DDL,
 comparación de esquemas y documentación de la base de datos.
 
-**Version:** 5.6.0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 5.7.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -29,11 +29,11 @@ comparación de esquemas y documentación de la base de datos.
 `util_bbdd` no está publicado en PyPI: se instala desde el repositorio, fijando la versión con su tag.
 
 ```bash
-pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v5.6.0"
+pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v5.7.0"
 
 # Con los drivers de un motor (extras: postgresql, mariadb, mysql, oracle, sqlserver, sqlserver-odbc, hsqldb,
 # sqlite-async; se combinan con comas)
-pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v5.6.0"
+pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v5.7.0"
 ```
 
 La documentación de BD (`openpyxl`, `python-docx`, `jinja2`) y pandas van en la instalación base; los drivers de
@@ -347,7 +347,7 @@ pruebas (`scripts/bench_env.example.sh`). Flujo con asistentes de IA (Claude Cod
 [Semantic Versioning](https://semver.org/): desde 1.0.0, la API pública (la raíz y los submódulos públicos listados
 arriba) solo cambia de forma incompatible en una versión MAJOR.
 
-**Current Version: v5.6.0** (MINOR: Zensical 0.1.x es el único generador de la documentación, con su formato nativo `zensical.toml`; la documentación Markdown de la base de datos genera `zensical.toml` (`markdown.zensical_toml`) y `markdown.mkdocs_yml` queda en desuso; el ZIP offline del sitio dibuja los diagramas sin Internet. Sin cambios incompatibles. Sobre la 5.0: valores por defecto seguros. Guía: `docs/guides/api_5_0_migration.md`)
+**Current Version: v5.7.0** (MINOR: `util_bbdd.doc.validate_trace_map` valida el mapa de trazabilidad de la documentación Markdown sin conectar, y sus mensajes ya no muestran rutas; con pyodbc/aioodbc, sin `driver_name`, se usa el ODBC Driver de SQL Server más reciente instalado. Sin cambios incompatibles. Sobre la 5.0: valores por defecto seguros. Guía: `docs/guides/api_5_0_migration.md`)
 
 Historial completo: [CHANGELOG.md](CHANGELOG.md) · Hoja de ruta: [docs/roadmap.md](docs/roadmap.md).
 

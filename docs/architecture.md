@@ -98,7 +98,7 @@ Los tres niveles de la arquitectura (Foundation → Servicios → Especializaci�
 <div class="arq-scroll">
 --8<-- "assets/diagrams/arquitectura-capas.svg"
 </div>
-<figcaption>Instantánea de <code>develop</code> en v5.6.0 (2026-11-13) medida con <code>ast</code> sobre 372 ficheros. Capas y niveles según <code>.ai/architecture.md</code>; <code>models.py</code> y <code>async_utils.py</code> son módulos raíz de Foundation: no importan nada de la librería. El <code>__init__.py</code> raíz y <code>exceptions.py</code> (re-exports públicos) no aparecen.</figcaption>
+<figcaption>Instantánea de <code>develop</code> en v5.7.0 (2026-11-13) medida con <code>ast</code> sobre 374 ficheros. Capas y niveles según <code>.ai/architecture.md</code>; <code>models.py</code> y <code>async_utils.py</code> son módulos raíz de Foundation: no importan nada de la librería. El <code>__init__.py</code> raíz y <code>exceptions.py</code> (re-exports públicos) no aparecen.</figcaption>
 </figure>
 
 Capas, de mayor a menor dependencia (tabla generada por el mismo script que la figura):
