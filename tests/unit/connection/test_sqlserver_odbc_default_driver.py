@@ -115,6 +115,15 @@ def test_config_from_params_pyodbc_and_pymssql(installed: list[str]) -> None:
     assert SQLServerConnectionConfig.from_params(PARAMS).driver_name == FALLBACK_ODBC_DRIVER
 
 
+def test_pymssql_config_keeps_an_explicit_driver_name(installed: list[str]) -> None:
+    # AUDIT_CODE: con pymssql, un driver_name indicado se conserva (to_driver_kwargs(driver="pyodbc") lo usa)
+    installed.append(D18)
+    config = SQLServerConnectionConfig.from_params({**PARAMS, "driver_name": "Mi DSN"})
+
+    assert config.driver_name == "Mi DSN"
+    assert config.to_driver_kwargs(driver="pyodbc")["driver_name"] == "Mi DSN"
+
+
 def test_build_conn_params(installed: list[str]) -> None:
     installed.append(D18)
 

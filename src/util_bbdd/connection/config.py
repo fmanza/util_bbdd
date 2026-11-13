@@ -653,7 +653,11 @@ class SQLServerConnectionConfig:
             use_mars=_to_bool(params.get("use_mars", True), "use_mars", db_type),
             sql_server_driver=selected_driver,
             # 5.7.0: sin driver_name, con pyodbc, el ODBC Driver más reciente instalado (pymssql no lo usa)
-            driver_name=resolve_odbc_driver(params) if selected_driver == "pyodbc" else FALLBACK_ODBC_DRIVER,
+            driver_name=(
+                resolve_odbc_driver(params)
+                if selected_driver == "pyodbc"
+                else str(params.get("driver_name") or FALLBACK_ODBC_DRIVER)  # se conserva si se indicó
+            ),
             schema=_opt_str(params, "schema") or "dbo",
         )
 
