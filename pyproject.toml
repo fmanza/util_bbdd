@@ -92,7 +92,8 @@ test-drivers = [
 # Entorno de referencia (CI y recuentos de tests/mypy): sin él, unos 95 tests fallan por drivers que faltan.
 # Además necesita del sistema Graphviz (`dot`) y, en Linux, libmariadb-dev para compilar el conector de MariaDB.
 dev-full = [
-    "util_bbdd[dev,docs,oracle,mariadb,mysql,postgresql,migrate,analysis,analysis-matplotlib,test-drivers]",
+    # hsqldb (JayDeBeApi + JPype1, wheels para 3.12-3.14): los tests unitarios solo importan el driver, sin JVM.
+    "util_bbdd[dev,docs,oracle,mariadb,mysql,postgresql,hsqldb,migrate,analysis,analysis-matplotlib,test-drivers]",
 ]
 dev = [
     "build>=1.6",
