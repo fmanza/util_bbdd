@@ -1,0 +1,13 @@
+/* Diagramas Mermaid — centrado y responsive */
+.mermaid {
+  width: 100%;
+  display: block;
+  text-align: center;
+  margin: 1.5em 0;
+}
+
+.mermaid svg {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+}
