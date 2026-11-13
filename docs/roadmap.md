@@ -7,12 +7,12 @@ El detalle exhaustivo de cada cambio vive en el
 [Keep a Changelog](https://keepachangelog.com/) + [SemVer](https://semver.org/)); esta página
 es la vista panorámica.
 
-> **Versión vigente: v5.7.0.** API pública estable bajo SemVer: la raíz `util_bbdd` (13 puntos de entrada) y sus
+> **Versión vigente: v5.8.0.** API pública estable bajo SemVer: la raíz `util_bbdd` (13 puntos de entrada) y sus
 > submódulos públicos solo cambian de forma incompatible en una versión MAJOR. Las series `0.x` eran pre-estables.
 
 ## En curso (`develop`)
 
-Sin trabajo abierto tras v5.7.0. Lo que se añada a `develop` antes del próximo tag aparecerá en el
+Sin trabajo abierto tras v5.8.0. Lo que se añada a `develop` antes del próximo tag aparecerá en el
 [CHANGELOG](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md).
 
 ### Limitaciones conocidas de los drivers

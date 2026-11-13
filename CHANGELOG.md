@@ -7,6 +7,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.8.0] - 2026-11-13
+
+SemVer: MINOR, sin cambios incompatibles en la API (sesión `2026-11-13c-mermaid-nombre-tipo`): cambia la salida por defecto de
+`MermaidRelationshipGraph`, con un parámetro para volver a la anterior.
+
 ### Changed
 
 - **analysis/doc**: en los diagramas `erDiagram` de Mermaid, cada columna lleva el **nombre antes que el tipo**

@@ -316,6 +316,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-11-12-doc-filtro-relaciones | **v5.5.0**: `imprimir["filtro"]` (tablas y vistas por patrones, con frontera), «Referenciada por» y `README.md` en la documentación Markdown; «Niveles por sentido» | develop | new_feature | CLOSED | `2026-11-12-doc-filtro-relaciones/TRACEABILITY.md` |
 | 2026-11-13-zensical-only | **v5.6.0**: Zensical 0.1.1 como único generador (`zensical.toml`), Mermaid local en el sitio, `markdown.zensical_toml` (`mkdocs_yml` en desuso) | develop | refactor + new_feature | CLOSED | `2026-11-13-zensical-only/TRACEABILITY.md` |
 | 2026-11-13b-plan-pendientes-post-5-6 | **v5.7.0**: plan de pendientes tras 5.6 (F0–F5): `validate_trace_map` (G49), driver ODBC por defecto (A2), acciones de GitHub v7, `hsqldb` en `dev-full` | develop | new_feature + chore | CLOSED | `2026-11-13b-plan-pendientes-post-5-6/TRACEABILITY.md` |
+| 2026-11-13c-mermaid-nombre-tipo | **v5.8.0**: columnas de `erDiagram` con el nombre antes que el tipo (`attribute_order`) | develop | new_feature | CLOSED | `2026-11-13c-mermaid-nombre-tipo/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 
