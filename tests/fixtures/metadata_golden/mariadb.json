@@ -95,6 +95,7 @@
       "on_delete": "CASCADE",
       "on_update": "RESTRICT",
       "original_name": "fk_zz_gold_child_parent",
+      "outside_filter": false,
       "ref_columns": [
        "id"
       ],
@@ -428,6 +429,7 @@
       "on_delete": "RESTRICT",
       "on_update": "RESTRICT",
       "original_name": "fk_zz_gold_ref_composite",
+      "outside_filter": false,
       "ref_columns": [
        "a",
        "b"

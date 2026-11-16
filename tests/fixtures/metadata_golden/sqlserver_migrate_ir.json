@@ -667,6 +667,7 @@
       "on_delete": "SET NULL",
       "on_update": "CASCADE",
       "original_name": "fk_mt_child",
+      "outside_filter": false,
       "ref_columns": [
        "id"
       ],
@@ -762,6 +763,7 @@
       "on_delete": "NO ACTION",
       "on_update": "NO ACTION",
       "original_name": "fk_mt_grand",
+      "outside_filter": false,
       "ref_columns": [
        "b",
        "a"
@@ -1512,6 +1514,7 @@
       "on_delete": "NO ACTION",
       "on_update": "NO ACTION",
       "original_name": "fk_mt_ext",
+      "outside_filter": false,
       "ref_columns": [
        "id"
       ],

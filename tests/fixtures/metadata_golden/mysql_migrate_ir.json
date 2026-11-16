@@ -571,6 +571,7 @@
       "on_delete": "SET NULL",
       "on_update": "CASCADE",
       "original_name": "fk_mt_child",
+      "outside_filter": false,
       "ref_columns": [
        "id"
       ],
@@ -1337,6 +1338,7 @@
       "on_delete": "SET NULL",
       "on_update": "CASCADE",
       "original_name": "fk_mt_child",
+      "outside_filter": false,
       "ref_columns": [
        "id"
       ],

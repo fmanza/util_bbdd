@@ -95,6 +95,7 @@
       "on_delete": "CASCADE",
       "on_update": "NO ACTION",
       "original_name": "FK_ZZ_GOLD_CHILD_PARENT",
+      "outside_filter": false,
       "ref_columns": [
        "ID"
       ],
@@ -455,6 +456,7 @@
       "on_delete": "NO ACTION",
       "on_update": "NO ACTION",
       "original_name": "FK_ZZ_GOLD_REF_COMPOSITE",
+      "outside_filter": false,
       "ref_columns": [
        "A",
        "B"
