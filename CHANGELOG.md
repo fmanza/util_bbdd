@@ -7,7 +7,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-SemVer: MINOR, sin cambios incompatibles: el filtro de tablas de la documentación llega a la migración DDL y al volcado
+## [5.9.0] - 2026-11-16
+
+SemVer: MINOR, sin cambios incompatibles (sesión `2026-11-16-filtro-tablas-migrate-dump`): el filtro de tablas de la documentación llega a la migración DDL y al volcado
 (G56 y G57 de util_bbdd_web).
 
 ### Added

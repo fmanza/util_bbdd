@@ -317,6 +317,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-11-13-zensical-only | **v5.6.0**: Zensical 0.1.1 como único generador (`zensical.toml`), Mermaid local en el sitio, `markdown.zensical_toml` (`mkdocs_yml` en desuso) | develop | refactor + new_feature | CLOSED | `2026-11-13-zensical-only/TRACEABILITY.md` |
 | 2026-11-13b-plan-pendientes-post-5-6 | **v5.7.0**: plan de pendientes tras 5.6 (F0–F5): `validate_trace_map` (G49), driver ODBC por defecto (A2), acciones de GitHub v7, `hsqldb` en `dev-full` | develop | new_feature + chore | CLOSED | `2026-11-13b-plan-pendientes-post-5-6/TRACEABILITY.md` |
 | 2026-11-13c-mermaid-nombre-tipo | **v5.8.0**: columnas de `erDiagram` con el nombre antes que el tipo (`attribute_order`) | develop | new_feature | CLOSED | `2026-11-13c-mermaid-nombre-tipo/TRACEABILITY.md` |
+| 2026-11-16-filtro-tablas-migrate-dump | **v5.9.0**: filtro de tablas por patrones en la migración DDL y el volcado (+ util_bbdd_web 1.19.0 en local) | develop | new_feature | CLOSED | `2026-11-16-filtro-tablas-migrate-dump/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 
