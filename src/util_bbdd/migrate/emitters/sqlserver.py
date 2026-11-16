@@ -19,7 +19,7 @@ from .._compat.identifier_rules import MAX_SQLSERVER_IDENTIFIER_LENGTH, truncate
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
 from ._comment_limits import SQLSERVER_COMMENT, fit_comment
 from ._default_fallback import default_fallback_warning
-from ._trailing_comment import join_definitions, one_line, with_trailing_comment
+from ._trailing_comment import external_fk_reason, join_definitions, one_line, with_trailing_comment
 from .mariadb import _topological_sort, _topological_sort_views
 
 # Tipos string en SQL Server que aceptan cláusula COLLATE a nivel columna
@@ -132,7 +132,7 @@ class SQLServerDDLEmitter:
             fk_stmt = self._emit_alter_table_add_fk(table_name, fk)
             stmt = (
                 f"-- FK externa: [{one_line(fk.name)}] en [{one_line(table_name)}] referencia "
-                f"[{one_line(fk.ref_table)}] (fuera del schema migrado) — verificar que existe\n"
+                f"[{one_line(fk.ref_table)}] ({external_fk_reason(fk.outside_filter)}) — verificar que existe\n"
                 f"{fk_stmt}"
             )
             statements.append(stmt)

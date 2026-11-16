@@ -17,6 +17,7 @@ from dataclasses import MISSING, fields, is_dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 from ..._core.exceptions import MigrationPlanValidationError
+from ...metadata.table_filter import TableFilter
 from .models import CanonicalRoutine, CanonicalTable, CanonicalView, MigrationWarning
 
 if TYPE_CHECKING:
@@ -84,7 +85,30 @@ def dump_plan(plan: MigrationPlan, format_name: str, format_version: int) -> dic
         "routines": _dump(plan.routines),
         "warnings": _dump(plan.warnings),
         "statements_sha256": statements_sha256(statements),
+        # 5.9.0: opcionales (un plan sin ellos se lee igual; no sube format_version)
+        "table_filter": _dump_filter(plan.table_filter),
+        "frontier": list(plan.frontier),
     }
+
+
+def _dump_filter(table_filter: TableFilter | None) -> dict[str, Any] | None:
+    if table_filter is None:
+        return None
+    return {**table_filter.to_catalog(), "frontier": table_filter.frontier}
+
+
+def _load_filter(value: Any) -> TableFilter | None:
+    """``table_filter`` de :func:`dump_plan` (5.9.0); ``None`` si falta."""
+    if value is None:
+        return None
+    if not isinstance(value, Mapping) or not isinstance(value.get("frontier", True), bool):
+        raise MigrationPlanValidationError("table_filter: se espera un objeto con include, exclude y frontier")
+    try:
+        return TableFilter.from_config(
+            {"incluir": value.get("include"), "excluir": value.get("exclude"), "frontera": value.get("frontier", True)}
+        )
+    except ValueError as exc:
+        raise MigrationPlanValidationError(f"table_filter: {exc}") from exc
 
 
 def _load[T](cls: type[T], data: Any, where: str) -> T:
@@ -164,6 +188,8 @@ def load_plan[P: MigrationPlan](cls: type[P], data: Any, format_name: str, forma
         emitter=emitter,
         views=_load_value(list[CanonicalView], data.get("views", []), "views"),
         routines=_load_value(list[CanonicalRoutine], data.get("routines", []), "routines"),
+        table_filter=_load_filter(data.get("table_filter")),
+        frontier=_load_value(list[str], data.get("frontier", []), "frontier"),
     )
     current = plan.statements_sha256()
     if current != data["statements_sha256"]:

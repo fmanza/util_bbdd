@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+from ..metadata.table_filter import TableFilter
 from ._compat.default_normalizer import normalize_default
 from ._compat.identifier_rules import check_identifier, find_case_insensitive_collisions
 from .charset import (
@@ -178,31 +179,47 @@ class MigrationPlanner:
         """
         return tuple(sorted(_SUPPORTED_TARGET))
 
-    def plan(self, connection: Any, schema: str) -> MigrationPlan:
+    def plan(self, connection: Any, schema: str, *, table_filter: TableFilter | None = None) -> MigrationPlan:
         """Extrae y transforma el esquema origen, produciendo un MigrationPlan.
 
         El catálogo se lee con la ``MetadataSource`` del origen (una consulta por tipo de objeto, ADR-003), descartando
         lo que tuviera en caché para ``schema``: el plan refleja siempre el catálogo actual.
+
+        Con ``table_filter`` (5.9.0) el plan solo lleva las tablas y vistas que casan con sus patrones, como el filtro
+        de la documentación; las rutinas no se filtran. Una FK de una tabla del plan hacia una que queda fuera se emite
+        como ``ALTER TABLE`` al final del script con el aviso ``FK_OUTSIDE_FILTER`` (la tabla referenciada debe existir
+        ya en el destino) y, si ``table_filter.frontier``, esas tablas vecinas quedan en ``MigrationPlan.frontier``.
+        Una vista del plan que lea una tabla de fuera fallará en el destino si esa tabla no existe: lo detecta
+        :meth:`MigrationPlan.validate_views` (modo seco).
 
         Args:
             connection: ``SyncDatabaseManager`` del motor origen (se usa su ``metadata_source``) o una
                 ``MetadataSource`` (p. ej. ``CatalogSource.from_engine(engine)``).
             schema: Nombre del schema/owner/database a migrar.
                 Para SQL Server corresponde a TABLE_SCHEMA (ej. ``'dbo'``).
+            table_filter: Patrones de las tablas y vistas que se migran (``TableFilter.from_patterns``); ``None`` =
+                todas.
 
         Returns:
             MigrationPlan listo para emit_ddl() o execute().
+
+        Raises:
+            ValueError: Ninguna tabla ni vista del schema casa con ``table_filter``.
+
+        Example:
+            >>> from util_bbdd.metadata import TableFilter
+            >>> plan = planner.plan(manager, "VENTAS", table_filter=TableFilter.from_patterns(include="MVG_*"))  # doctest: +SKIP
         """
         if self._source_engine == "oracle":
-            return self._plan_from_oracle(connection, schema)
+            return self._plan_from_oracle(connection, schema, table_filter)
         elif self._source_engine == "mariadb":
-            return self._plan_from_mariadb(connection, schema)
+            return self._plan_from_mariadb(connection, schema, table_filter)
         elif self._source_engine == "mysql":
-            return self._plan_from_mysql(connection, schema)
+            return self._plan_from_mysql(connection, schema, table_filter)
         elif self._source_engine == "sqlserver":
-            return self._plan_from_sqlserver(connection, schema)
+            return self._plan_from_sqlserver(connection, schema, table_filter)
         else:  # postgresql
-            return self._plan_from_postgresql(connection, schema)
+            return self._plan_from_postgresql(connection, schema, table_filter)
 
     # ─── Pipelines por motor origen ───────────────────────────────────────────
 
@@ -211,7 +228,7 @@ class MigrationPlanner:
         emitter_cls = MySQLDDLEmitter if self._target_engine == "mysql" else MariaDBDDLEmitter
         return emitter_cls(charset=self._charset, collation=self._collation, engine=self._engine)
 
-    def _plan_from_oracle(self, connection: Any, schema: str) -> MigrationPlan:
+    def _plan_from_oracle(self, connection: Any, schema: str, table_filter: TableFilter | None = None) -> MigrationPlan:
         """Pipeline Oracle → (MariaDB | MySQL | SQL Server | PostgreSQL)."""
         extractor = OracleSchemaExtractor(connection)
         raw_tables = extractor.extract(schema)
@@ -234,9 +251,11 @@ class MigrationPlanner:
             transformer = OracleToPostgreSQLTransformer(number_fallback=pg_fallback)
             emitter = PostgreSQLDDLEmitter(pg_schema=self._pg_schema)
 
-        return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema)
+        return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema, table_filter)
 
-    def _plan_from_mariadb(self, connection: Any, schema: str) -> MigrationPlan:
+    def _plan_from_mariadb(
+        self, connection: Any, schema: str, table_filter: TableFilter | None = None
+    ) -> MigrationPlan:
         """Pipeline MariaDB → (Oracle | MySQL | SQL Server | PostgreSQL)."""
         extractor = (
             MariaDBFullTypeSchemaExtractor(connection)
@@ -260,9 +279,9 @@ class MigrationPlanner:
             transformer = MariaDBToPostgreSQLTransformer()
             emitter = PostgreSQLDDLEmitter(pg_schema=self._pg_schema)
 
-        return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema)
+        return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema, table_filter)
 
-    def _plan_from_mysql(self, connection: Any, schema: str) -> MigrationPlan:
+    def _plan_from_mysql(self, connection: Any, schema: str, table_filter: TableFilter | None = None) -> MigrationPlan:
         """Pipeline MySQL → (Oracle | MariaDB | SQL Server | PostgreSQL).
 
         MySQL comparte con MariaDB los ``DATA_TYPE`` que usan los mapas ``mariadb_to_*``: hacia Oracle, SQL Server y
@@ -287,9 +306,11 @@ class MigrationPlanner:
             transformer = MariaDBToPostgreSQLTransformer()
             emitter = PostgreSQLDDLEmitter(pg_schema=self._pg_schema)
 
-        return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema)
+        return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema, table_filter)
 
-    def _plan_from_sqlserver(self, connection: Any, schema: str) -> MigrationPlan:
+    def _plan_from_sqlserver(
+        self, connection: Any, schema: str, table_filter: TableFilter | None = None
+    ) -> MigrationPlan:
         """Pipeline SQL Server → (Oracle | MariaDB | MySQL | PostgreSQL)."""
         extractor = SQLServerSchemaExtractor(connection)
         raw_tables = extractor.extract(schema)
@@ -306,9 +327,11 @@ class MigrationPlanner:
             transformer = SQLServerToPostgreSQLTransformer()
             emitter = PostgreSQLDDLEmitter(pg_schema=self._pg_schema)
 
-        return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema)
+        return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema, table_filter)
 
-    def _plan_from_postgresql(self, connection: Any, schema: str) -> MigrationPlan:
+    def _plan_from_postgresql(
+        self, connection: Any, schema: str, table_filter: TableFilter | None = None
+    ) -> MigrationPlan:
         """Pipeline PostgreSQL → (Oracle | MariaDB | MySQL | SQL Server)."""
         extractor = PostgreSQLSchemaExtractor(connection)
         raw_tables = extractor.extract(schema)
@@ -325,7 +348,7 @@ class MigrationPlanner:
             transformer = PostgreSQLToSQLServerTransformer()
             emitter = SQLServerDDLEmitter(collation=self._sql_server_collation)
 
-        return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema)
+        return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema, table_filter)
 
     # ─── Vistas ─────────────────────────────────────────────────────────────────
 
@@ -410,17 +433,25 @@ class MigrationPlanner:
         raw_views: list[Any],
         raw_routines: list[Any],
         schema: str,
+        table_filter: TableFilter | None = None,
     ) -> MigrationPlan:
         # H4: DEFAULT del origen en forma canónica (casts PG, paréntesis SQL Server, SYSDATE...) antes de transformar.
         for table in raw_tables:
             for column in table.columns:
                 column.default = normalize_default(self._source_engine, column.default)
 
+        selection = _FilterSelection.of(table_filter, raw_tables, raw_views, schema) if table_filter else None
+
+        # Con filtro se transforman también las tablas y vistas que quedan fuera (y se descartan después): las vistas
+        # del plan se reescriben con los nombres y tipos de todo el schema, como sin filtro.
         transformed = transformer.transform(raw_tables)
         # G28 (util_bbdd_web): la FK con el tipo destino de la columna referenciada, o ERROR si no se puede.
         align_fk_types(transformed)
         transformed_views = self._transform_views(transformer, raw_views, raw_tables, transformed, schema)
         transformed_routines = transformer.transform_routines(raw_routines)
+        if selection is not None:
+            transformed = selection.tables(raw_tables, transformed)
+            transformed_views = selection.views(transformed_views)
 
         all_warnings: list[MigrationWarning] = []
         for table in transformed:
@@ -462,7 +493,68 @@ class MigrationPlanner:
             emitter=emitter,
             views=transformed_views,
             routines=transformed_routines,
+            table_filter=table_filter,
+            frontier=selection.frontier if selection is not None else [],
         )
+
+
+class _FilterSelection:
+    """Tablas y vistas que ``table_filter`` deja en el plan (5.9.0).
+
+    Al crearla marca con ``outside_filter`` las FK de las tablas del plan hacia tablas del schema que quedan fuera, para
+    que el transformer las emita al final (``FK_OUTSIDE_FILTER``) y ``align_fk_types`` no las alinee.
+    """
+
+    def __init__(self, kept_tables: set[str], kept_views: list[bool], frontier: list[str]) -> None:
+        self._kept_tables = kept_tables
+        self._kept_views = kept_views
+        self.frontier = frontier
+
+    @classmethod
+    def of(
+        cls, table_filter: TableFilter, raw_tables: list[Any], raw_views: list[Any], schema: str
+    ) -> _FilterSelection:
+        """Aplica ``table_filter`` a las tablas y vistas extraídas.
+
+        Raises:
+            ValueError: No queda ninguna tabla ni vista.
+        """
+        kept_tables = {table.name.casefold() for table in raw_tables if table_filter.matches(table.name)}
+        kept_views = [table_filter.matches(view.name) for view in raw_views]
+        if not kept_tables and not any(kept_views):
+            raise ValueError(
+                f"Ninguna tabla ni vista del schema {schema!r} casa con el filtro de tablas "
+                f"(incluir={list(table_filter.include)}, excluir={list(table_filter.exclude)})"
+            )
+        edges: list[tuple[str, str]] = []
+        for table in raw_tables:
+            if table.name.casefold() not in kept_tables:
+                continue
+            for fk in table.foreign_keys:
+                if not fk.is_external:
+                    edges.append((table.name, fk.ref_table))
+                    fk.outside_filter = fk.ref_table.casefold() not in kept_tables
+        # Las FK que llegan a las tablas del plan desde fuera también cuentan para la frontera.
+        edges.extend(
+            (table.name, fk.ref_table)
+            for table in raw_tables
+            if table.name.casefold() not in kept_tables
+            for fk in table.foreign_keys
+            if not fk.is_external and fk.ref_table.casefold() in kept_tables
+        )
+        kept_names = [table.name for table in raw_tables if table.name.casefold() in kept_tables]
+        frontier = table_filter.frontier_of(kept_names, edges) if table_filter.frontier else []
+        return cls(kept_tables, kept_views, frontier)
+
+    def tables(self, raw_tables: list[Any], transformed: list[CanonicalTable]) -> list[CanonicalTable]:
+        """Tablas transformadas del plan (``transformed`` va en el orden de ``raw_tables``)."""
+        return [
+            new for raw, new in zip(raw_tables, transformed, strict=True) if raw.name.casefold() in self._kept_tables
+        ]
+
+    def views(self, transformed_views: list[CanonicalView]) -> list[CanonicalView]:
+        """Vistas transformadas del plan (en el orden de las extraídas)."""
+        return [view for keep, view in zip(self._kept_views, transformed_views, strict=True) if keep]
 
 
 #: Destinos en los que dos columnas de una tabla que solo difieren en mayúsculas chocan SIEMPRE (Oracle las emite en

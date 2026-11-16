@@ -17,6 +17,7 @@ from util_bbdd.audit.contracts import AuditSink
 from util_bbdd.bulk._models import IndexActionResult, PKSyncResult
 from util_bbdd.bulk._support.rejects import validate_isolation
 from util_bbdd.bulk._support.secondary_indexes import IndexMode, resolve_index_mode
+from util_bbdd.metadata.table_filter import TableFilter
 
 # IndexActionResult vive en bulk desde 3.2.0 (lo devuelven también maintenance_scope y ParallelBulkLoader); se reexporta.
 __all__: list[str] = ["IndexActionResult", "PKSyncResult"]
@@ -51,7 +52,7 @@ class DumpConfig:
 
         source_schema: Nombre del schema origen; ``None`` usa el default del engine.
         target_schema: Nombre del schema destino; ``None`` usa el default del engine.
-        tables: Tablas a volcar. ``None`` = todas las tablas del origen.
+        tables: Tablas a volcar. ``None`` = todas las tablas del origen (o las de ``table_filter``).
         chunk_size: Filas por chunk de lectura del origen. También es el lote de escritura
             salvo que ``write_batch_size`` indique otro (ver abajo).
             **Tablas con columnas TEXT/BLOB/JSON extensas:** el tamaño del paquete INSERT
@@ -103,6 +104,12 @@ class DumpConfig:
             comprueba con un ``NOT EXISTS`` por FK que no se cargaron filas huérfanas (``constraint_results`` pasa de
             ``"unverified"`` a ``"enabled"``/``"failed"``). En el resto de motores la validación ya se hace al
             reactivar. ``True`` (default desde 3.4.0); ``False`` deja la fila única ``"unverified"`` de hasta 3.3.0.
+        table_filter: Patrones de las tablas del origen que se vuelcan (5.9.0; ``TableFilter.from_patterns`` de
+            :mod:`util_bbdd.metadata`), con la semántica del filtro de la documentación: *glob* sin distinguir
+            mayúsculas, ``exclude`` gana a ``include``. Incompatible con ``tables``. Se resuelve contra el catálogo en
+            cada :meth:`DumpOrchestrator.plan` y :meth:`~DumpOrchestrator.run`; las FK hacia tablas que quedan fuera
+            dan el aviso ``OUTSIDE_REFERENCES`` del plan. Si no casa ninguna tabla, ``plan()``/``run()`` lanzan
+            ``DumpError``.
         max_parallel_tables: Número máximo de tablas a cargar concurrentemente dentro de
             un mismo nivel topológico FK (tablas mutuamente independientes). ``1`` (default)
             = carga secuencial. Valores > 1 usan un ``ThreadPoolExecutor`` con una instancia
@@ -189,8 +196,16 @@ class DumpConfig:
     max_rejects: int | None = None
     audit_sink: AuditSink | None = None
     validate_fks_after: bool = True
+    table_filter: TableFilter | None = None
 
     def __post_init__(self) -> None:
+        if self.table_filter is not None:
+            if not isinstance(self.table_filter, TableFilter):
+                raise ValueError(
+                    f"table_filter debe ser un TableFilter (TableFilter.from_patterns), recibido: {self.table_filter!r}"
+                )
+            if self.tables is not None:
+                raise ValueError("Indica tables o table_filter, no los dos: tables es la lista exacta de tablas.")
         # Validar aquí y no en la primera BulkCrud: run() la crea después de vaciar el destino (truncate_target), así que
         # un chunk_size o commit_every_n_chunks inválido vaciaba las tablas y luego fallaba; con chunk_size=0 y
         # write_batch_size no se leía nada y la tabla quedaba vacía con estado "success".

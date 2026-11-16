@@ -69,6 +69,28 @@ result = DumpOrchestrator(config).run()
 limpieza → carga best-effort → rehabilitar constraints → informe Excel) y devuelve **siempre** un
 `DumpResult`, incluso si alguna tabla falla (cada tabla es independiente).
 
+### 3.4 Volcar solo parte del schema (5.9.0)
+
+En lugar de la lista exacta `tables`, puedes elegir las tablas por patrones con `table_filter`. La semántica es la del
+filtro de la documentación: *glob* sin distinguir mayúsculas, y `exclude` gana a `include`. `tables` y `table_filter`
+son incompatibles.
+
+```python
+from util_bbdd.metadata import TableFilter
+
+config = DumpConfig(
+    source_engine=src_engine,
+    target_engine=dst_engine,
+    table_filter=TableFilter.from_patterns(include="MVG_*", exclude="*_BAK"),
+    output_dir=Path("reports"),
+)
+plan = DumpOrchestrator(config).plan()   # vista previa: qué tablas entran y en qué orden
+```
+
+Los patrones se resuelven contra el catálogo del origen en cada `plan()` y `run()`. Las FK hacia tablas que quedan
+fuera dan el aviso `OUTSIDE_REFERENCES`: sus filas deben existir ya en el destino. Si no casa ninguna tabla, `plan()` y
+`run()` lanzan `DumpError`.
+
 ## 4. Verificación
 
 Inspecciona el `DumpResult` y abre el informe Excel:

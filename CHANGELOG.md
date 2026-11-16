@@ -7,6 +7,33 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+SemVer: MINOR, sin cambios incompatibles: el filtro de tablas de la documentación llega a la migración DDL y al volcado
+(G56 y G57 de util_bbdd_web).
+
+### Added
+
+- **metadata**: `TableFilter` es público en `util_bbdd.metadata`, con el constructor validado
+  `TableFilter.from_patterns(include, exclude)`. Es la clase de la documentación (`imprimir["filtro"]`, 5.5.0), movida
+  a `metadata` para que la usen `migrate` y `dump` sin depender de `doc`. `util_bbdd.doc.domain.table_filter` la
+  reexporta.
+- **migrate**: `MigrationPlanner.plan(connection, schema, *, table_filter=None)` migra solo las tablas y vistas que casan
+  con los patrones. Las rutinas no se filtran (como en la documentación).
+  - Una FK hacia una tabla que queda fuera se emite como `ALTER TABLE` al final del script, con el aviso nuevo
+    `FK_OUTSIDE_FILTER` (`WARNING`). La tabla referenciada debe existir ya en el destino.
+  - `MigrationPlan.table_filter` y `MigrationPlan.frontier` (tablas de fuera unidas por FK a las del plan). Viajan en
+    `to_dict()`/`from_dict()` como claves opcionales: los planes guardados antes se siguen leyendo y `format_version`
+    no cambia.
+  - Las vistas del plan se reescriben con los nombres y tipos de todo el schema, igual que sin filtro.
+  - Si no casa ninguna tabla ni vista, `plan()` lanza `ValueError`.
+  - `CanonicalFK.outside_filter` (nuevo, `False` por defecto) marca esas FK.
+- **dump**: `DumpConfig.table_filter` elige por patrones las tablas del origen que se vuelcan. Es incompatible con
+  `tables` (`ValueError`) y se resuelve en cada `plan()` y `run()`. Las FK hacia tablas de fuera dan el aviso
+  `OUTSIDE_REFERENCES` de siempre. Si no casa ninguna tabla, `DumpError`.
+
+### Compatibilidad
+
+- Sin `table_filter` no cambia nada: ni el plan, ni sus sentencias, ni su `statements_sha256`, ni el volcado.
+
 ## [5.8.0] - 2026-11-13
 
 SemVer: MINOR, sin cambios incompatibles en la API (sesión `2026-11-13c-mermaid-nombre-tipo`): cambia la salida por defecto de

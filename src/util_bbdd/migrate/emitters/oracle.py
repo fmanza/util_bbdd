@@ -41,7 +41,7 @@ from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, Canonica
 from ._comment_limits import ORACLE_COMMENT, fit_comment
 from ._default_fallback import default_fallback_warning
 from ._index_names import claim_index_name
-from ._trailing_comment import join_definitions, one_line, with_trailing_comment
+from ._trailing_comment import external_fk_reason, join_definitions, one_line, with_trailing_comment
 from .mariadb import _topological_sort, _topological_sort_views
 
 OracleIdentityMode = Literal["sequence_trigger", "identity_by_default_on_null"]
@@ -219,7 +219,7 @@ class OracleDDLEmitter:
             fk_stmt = self._emit_alter_table_add_fk(table_name, fk)
             stmt = (
                 f"-- FK externa: {one_line(_dq(fk.name))} en {one_line(_dq(table_name))} referencia "
-                f"{one_line(_dq(fk.ref_table))} (fuera del schema migrado) — verificar que existe\n"
+                f"{one_line(_dq(fk.ref_table))} ({external_fk_reason(fk.outside_filter)}) — verificar que existe\n"
                 f"{fk_stmt}"
             )
             statements.append(stmt)

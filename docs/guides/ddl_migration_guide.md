@@ -82,6 +82,25 @@ plan = planner.plan(connection=source, schema="HR")
 `plan()` extrae los metadatos del origen, transforma los tipos al dialecto destino y consolida un
 `MigrationPlan` ejecutable. **No modifica** la base de datos origen.
 
+**Migrar solo parte del schema (5.9.0).** Con `table_filter`, el plan lleva solo las tablas y vistas que casan con sus
+patrones. La semántica es la del filtro de la documentación: patrones *glob* (`*`, `?`, `[ABC]`) sin distinguir
+mayúsculas, y `exclude` gana a `include`. Las rutinas no se filtran.
+
+```python
+from util_bbdd.metadata import TableFilter
+
+filtro = TableFilter.from_patterns(include=["MVG_*", "COB_*"], exclude=["*_BAK", "TMP_*"])
+plan = planner.plan(connection=source, schema="HR", table_filter=filtro)
+plan.frontier   # tablas de fuera unidas por FK a las del plan: ['AUX_PAIS', ...]
+```
+
+- Una FK de una tabla del plan hacia una tabla que queda fuera se emite como `ALTER TABLE` al final del script, con el
+  aviso `FK_OUTSIDE_FILTER`. Esa tabla debe existir ya en el destino.
+- Una vista del plan que lea una tabla de fuera se reescribe igual que sin filtro, pero fallará en el destino si esa
+  tabla no existe. Lo detecta el modo seco (`plan.validate_views(target)` o `plan.check_target(target, validate_views=True)`).
+- Si no casa ninguna tabla ni vista, `plan()` lanza `ValueError`.
+- `to_dict()`/`from_dict()` conservan el filtro (`plan.table_filter`) y la frontera (`plan.frontier`).
+
 ### 3.4 Exportar el DDL (o ejecutarlo)
 
 ```python
@@ -212,6 +231,7 @@ Cada aviso (`MigrationWarning`) indica **qué** es con `category` y, cuando trat
 | `COLUMN_OMITTED` | `TYPE` | Columna sin equivalente en el destino (`ROWID`), omitida |
 | `AUTO_INCREMENT_NO_SEQUENCE` | `AUTO_INCREMENT` | Oracle destino sin `SEQUENCE`/`TRIGGER` para el autoincremental |
 | `FK_DEFERRED` | `FOREIGN_KEY` | FK de un ciclo, añadida con `ALTER TABLE` al final |
+| `FK_OUTSIDE_FILTER` | `FOREIGN_KEY` | FK hacia una tabla que `table_filter` deja fuera del plan, añadida con `ALTER TABLE` al final; la tabla debe existir en el destino (`target_type` = esa tabla, 5.9.0) |
 | `FK_ON_UPDATE_IGNORED` | `FOREIGN_KEY` | `ON UPDATE` sin equivalente en Oracle |
 | `FK_TYPE_ALIGNED` | `FOREIGN_KEY` | La columna FK toma el tipo destino de la columna que referencia (`INFO`, 4.3.0) |
 | `FK_TYPE_UNRESOLVED` | `FOREIGN_KEY` | La columna FK no puede tomar ese tipo: referenciada inexistente u omitida, o dos FK hacia tipos distintos (`ERROR`, 4.3.0) |

@@ -14,6 +14,7 @@ from ...progress import ProgressReporter
 if TYPE_CHECKING:
     from ...audit.contracts import AuditSink
     from ...audit.events import AuditEvent
+    from ...metadata.table_filter import TableFilter
     from ...progress import CancellationToken, ProgressCallback
     from ..emitters.base import DDLEmitter
 
@@ -53,6 +54,7 @@ WarningCode = Literal[
     "COLUMN_OMITTED",
     "AUTO_INCREMENT_NO_SEQUENCE",
     "FK_DEFERRED",
+    "FK_OUTSIDE_FILTER",
     "FK_ON_UPDATE_IGNORED",
     "FK_TYPE_ALIGNED",
     "FK_TYPE_UNRESOLVED",
@@ -85,6 +87,8 @@ salvo los de las categorías ``TYPE``, ``DEFAULT``, ``IDENTIFIER``, ``IDENTIFIER
 - ``COLUMN_OMITTED`` (``TYPE``): columna sin equivalente en el destino (``ROWID``), omitida.
 - ``AUTO_INCREMENT_NO_SEQUENCE`` (``AUTO_INCREMENT``): Oracle destino sin ``SEQUENCE``/``TRIGGER`` para el autoincremental.
 - ``FK_DEFERRED`` (``FOREIGN_KEY``): FK de un ciclo, añadida con ``ALTER TABLE`` al final.
+- ``FK_OUTSIDE_FILTER`` (``FOREIGN_KEY``): FK hacia una tabla que ``table_filter`` deja fuera del plan, añadida con
+  ``ALTER TABLE`` al final; la tabla referenciada debe existir ya en el destino (``target_type`` = esa tabla; 5.9.0).
 - ``FK_ON_UPDATE_IGNORED`` (``FOREIGN_KEY``): ``ON UPDATE`` sin equivalente en Oracle.
 - ``FK_TYPE_ALIGNED`` (``FOREIGN_KEY``, ``INFO``): la columna FK toma el tipo destino de la columna que referencia
   (``target_type`` = ese tipo; 4.3.0).
@@ -185,7 +189,11 @@ class CanonicalFK:
     ref_columns: list[str]
     on_delete: str
     on_update: str
+    #: Se emite con ``ALTER TABLE`` al final del script: la tabla referenciada está fuera del schema migrado o (5.9.0,
+    #: con ``outside_filter``) fuera del filtro de tablas del plan.
     is_external: bool = False
+    #: La tabla referenciada es del schema pero ``table_filter`` la deja fuera del plan (5.9.0).
+    outside_filter: bool = False
 
 
 @dataclass(slots=True)
@@ -343,6 +351,10 @@ class MigrationPlan:
     emitter: DDLEmitter = field(repr=False)
     views: list[CanonicalView] = field(default_factory=list)
     routines: list[CanonicalRoutine] = field(default_factory=list)
+    #: Filtro de tablas y vistas con el que se planificó (``MigrationPlanner.plan(table_filter=...)``, 5.9.0).
+    table_filter: TableFilter | None = None
+    #: Tablas que el filtro deja fuera unidas por FK a alguna del plan, sin excluir expresamente (5.9.0).
+    frontier: list[str] = field(default_factory=list)
 
     #: Identificador y versión del formato de :meth:`to_dict`. La versión sube solo si un lector de la anterior dejaría
     #: de entenderlo (campo renombrado o quitado, valor con otro significado); añadir un campo opcional no la sube.

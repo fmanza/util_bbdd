@@ -202,7 +202,24 @@ class BaseTransformer:
         # Hook para warnings adicionales específicos del motor destino (ej. ON UPDATE en Oracle)
         self._extra_fk_warnings(table_name, fk, target_table)
 
-        if fk.is_external:
+        if fk.outside_filter:
+            # 5.9.0: la tabla referenciada es del schema pero el filtro de tablas la deja fuera del plan.
+            target_table.warnings.append(
+                MigrationWarning(
+                    table=table_name,
+                    column=None,
+                    category="FOREIGN_KEY",
+                    target_type=fk.ref_table,
+                    code="FK_OUTSIDE_FILTER",
+                    message=(
+                        f"FK '{fk.name}' referencia la tabla '{fk.ref_table}', que el filtro de tablas deja fuera del "
+                        "plan; emitida como ALTER TABLE al final del script — la tabla debe existir ya en el destino"
+                    ),
+                    severity="WARNING",
+                )
+            )
+            new_fk.is_external = True
+        elif fk.is_external:
             target_table.warnings.append(
                 MigrationWarning(
                     table=table_name,

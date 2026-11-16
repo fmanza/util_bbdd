@@ -1552,7 +1552,17 @@ class DumpOrchestrator:
     def _get_source_tables(self) -> list[str]:
         if self._cfg.tables is not None:
             return sorted(self._cfg.tables)
-        return table_names(self._src_insp, self._cfg.source_schema)
+        names = table_names(self._src_insp, self._cfg.source_schema)
+        table_filter = self._cfg.table_filter
+        if table_filter is None:
+            return names
+        selected = [name for name in names if table_filter.matches(name)]
+        if not selected:
+            raise DumpError(
+                f"Ninguna tabla del origen casa con el filtro de tablas (incluir={list(table_filter.include)}, "
+                f"excluir={list(table_filter.exclude)})"
+            )
+        return selected
 
     def _side_meta(self, side: str) -> TableMetadata:
         """Metadatos precargados de un lado (``"src"``/``"dst"``) o, sin precarga, consulta tabla a tabla."""

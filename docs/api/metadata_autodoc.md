@@ -26,6 +26,21 @@ con los tipos de objeto (`Kind`) pedidos. Referencia curada: [Lectura de Metadat
 
 ---
 
+## TableFilter
+
+Filtro de tablas y vistas por patrones *glob* (5.9.0 en `util_bbdd.metadata`). Lo usan la documentación
+(`imprimir["filtro"]`), `MigrationPlanner.plan(table_filter=...)` y `DumpConfig.table_filter`.
+
+::: util_bbdd.metadata.table_filter.TableFilter
+    options:
+      show_source: false
+      heading_level: 3
+      members_order: source
+      filters:
+        - "!^_"
+
+---
+
 ## Tipos del modelo
 
 ::: util_bbdd.metadata.model

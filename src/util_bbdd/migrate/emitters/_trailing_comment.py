@@ -20,6 +20,11 @@ def one_line(text: str) -> str:
     return text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
 
 
+def external_fk_reason(outside_filter: bool) -> str:
+    """Por qué una FK «externa» se emite con ``ALTER TABLE`` al final (comentario del script; 5.9.0)."""
+    return "fuera del filtro de tablas del plan" if outside_filter else "fuera del schema migrado"
+
+
 def with_trailing_comment(definition: str, comment: str) -> str:
     """Devuelve la definición con su comentario final marcado (``comment`` incluye el ``--``)."""
     return f"{definition}{TRAILING_COMMENT_MARK} {comment}"
@@ -36,4 +41,10 @@ def join_definitions(lines: list[str]) -> str:
     return "\n".join(rendered)
 
 
-__all__: list[str] = ["TRAILING_COMMENT_MARK", "join_definitions", "one_line", "with_trailing_comment"]
+__all__: list[str] = [
+    "TRAILING_COMMENT_MARK",
+    "external_fk_reason",
+    "join_definitions",
+    "one_line",
+    "with_trailing_comment",
+]

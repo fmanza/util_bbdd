@@ -56,6 +56,9 @@ from .model import (
 from .snapshot_cache import SnapshotCache
 from .source import AsyncCatalogSource, CatalogSource, SqlAlchemyCatalogExecutor
 
+# Filtro de tablas y vistas por patrones (5.9.0; lo comparten doc, migrate y dump)
+from .table_filter import TableFilter
+
 __all__: list[str] = [
     # Contracts
     "Row",
@@ -92,6 +95,7 @@ __all__: list[str] = [
     "SchemaSnapshot",
     "SnapshotCache",
     "SqlAlchemyCatalogExecutor",
+    "TableFilter",
     "TableMeta",
     "UniqueMeta",
     "ViewMeta",
