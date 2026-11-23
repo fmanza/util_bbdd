@@ -30,6 +30,7 @@ existen en MariaDB y el ancho de visualización de los enteros.
 | Defaults literales | Los valores por defecto de texto y fecha se tratan como literales entrecomillados; las expresiones (`CURRENT_TIMESTAMP`) no | Un `VARCHAR` con default `'5'` no se convierte en el número `5` |
 | Nombres preservados | Tablas, columnas, índices y FKs conservan su nombre; MySQL y MariaDB admiten 64 caracteres | Solo se truncan al pasar a un motor con un límite menor, con aviso |
 | Vistas reescritas al destino | El SQL de la vista se reescribe al dialecto destino con sqlglot (ver [reescritura de vistas](migrate_views.md)) | Aviso de revisión por cada vista; sin sqlglot se copia sin reescribir |
+| Migración de una parte del schema (5.9.0) | Con un filtro de tablas por patrones (p. ej. `MVG_*`, sin distinguir mayúsculas) solo se migran las tablas y vistas que casan; los procedimientos y funciones se migran siempre | Si ninguna tabla casa, no se genera el plan. Una clave foránea hacia una tabla que queda fuera se crea al final del script con un aviso, y esa tabla debe existir ya en el destino |
 
 ## 3. Casos de Uso
 

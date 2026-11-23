@@ -23,6 +23,7 @@ Responde a la pregunta "¿cómo paso mi estructura Oracle a otro motor sin reesc
 | Secuencias Oracle → autoincremento | Columnas con DEFAULT de secuencia pasan a AUTO_INCREMENT, IDENTITY o SERIAL según motor destino | La secuencia no se migra como objeto independiente |
 | `ROWID` y `UROWID` omitidos | Estas columnas no tienen equivalente en los motores destino y se excluyen del DDL | El DDL incluye un comentario SQL explicativo en su lugar |
 | FKs circulares al final del script | Las dependencias circulares se emiten como `ALTER TABLE ADD CONSTRAINT` al final | El script completo es ejecutable en orden sin desactivar comprobaciones de FK |
+| Migración de una parte del schema (5.9.0) | Con un filtro de tablas por patrones (p. ej. `MVG_*`, sin distinguir mayúsculas) solo se migran las tablas y vistas que casan; los procedimientos y funciones se migran siempre | Si ninguna tabla casa, no se genera el plan. Una clave foránea hacia una tabla que queda fuera se crea al final del script con un aviso, y esa tabla debe existir ya en el destino |
 
 ## 3. Casos de Uso
 

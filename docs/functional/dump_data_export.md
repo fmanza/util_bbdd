@@ -28,6 +28,7 @@ La carga sigue 7 fases automáticas: introspección → análisis topológico FK
 | Errores de tabla no detienen el volcado | Cada tabla es independiente; se registra el error y se continúa con la siguiente | Carga best-effort; validar integridad post-volcado |
 | Rehabilitación de constraints siempre se ejecuta | El gestor de constraints actúa como context manager y garantiza el intento de rehabilitación aunque la carga falle | Las constraints que no se puedan rehabilitar (p. ej. por filas huérfanas) salen en el informe; un fallo general al reactivarlas queda como ERROR en el log |
 | Informe Excel siempre se genera | Se genera independientemente de si hubo errores parciales | El informe refleja el estado real de cada tabla, incluidos los errores |
+| Volcado de una parte del schema (5.9.0) | Las tablas a volcar se pueden elegir por patrones de inclusión y exclusión (p. ej. `MVG_*`), sin distinguir mayúsculas; es alternativo a dar la lista de tablas | Pedir lista y patrones a la vez es un error de configuración; si ningún patrón casa, el volcado no empieza. Las tablas de fuera referenciadas por clave foránea se avisan en el resultado |
 
 ## 3. Casos de Uso
 

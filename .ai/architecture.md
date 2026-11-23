@@ -190,7 +190,7 @@ una misma capa son independientes entre sí. La fuente ejecutable de esta tabla 
 | 5 | Level 2 · Servicios | `executors/`, `factory/`, `metadata/` |
 | 4 | Level 2 · Servicios | `connection/`, `query/` |
 | 3 | Level 2 · Servicios | `audit/`, `results/`, `validators/` |
-| 2 | Level 1 · Foundation | `_drivers/` |
+| 2 | Level 1 · Foundation | `_drivers/`, `progress/` |
 | 1 | Level 1 · Foundation | `_core/`, `core/`, `models.py`, `async_utils.py` |
 
 Las capas se asignan por función, no por la profundidad que tenga hoy el grafo de imports: `comparar/` apenas

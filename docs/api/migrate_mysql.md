@@ -35,7 +35,7 @@ flowchart TD
 | Clase / Función | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
 | `MigrationPlanner` | `(source_engine, target_engine, charset, collation, engine, ...)` | Admite `"mysql"` como origen y destino (20 pares) | instancia |
-| `MigrationPlanner.plan` | `(connection, schema: str)` | Extrae, transforma y consolida el plan | `MigrationPlan` |
+| `MigrationPlanner.plan` | `(connection, schema: str, *, table_filter=None)` | Extrae, transforma y consolida en plan ejecutable; con `table_filter` (`TableFilter.from_patterns` de `util_bbdd.metadata`, 5.9.0) solo las tablas y vistas que casan con los patrones | `MigrationPlan` |
 | `MySQLSchemaExtractor` | `(source, *, full_column_types=False)` | Extractor de MySQL; `full_column_types=True` guarda `COLUMN_TYPE` | instancia |
 | `MariaDBFullTypeSchemaExtractor` | `(source)` | Extractor de MariaDB con `COLUMN_TYPE` (par MariaDB → MySQL) | instancia |
 | `MySQLDDLEmitter` | `(charset, collation, engine="InnoDB")` | DDL MySQL; enteros sin ancho salvo `TINYINT(1)` | instancia |
@@ -52,6 +52,7 @@ flowchart TD
 | `collation` | `str` | COLLATE de las tablas (destinos MariaDB y MySQL) | Con destino `"mysql"`, el valor por defecto se sustituye por `DEFAULT_COLLATION_MYSQL`; `utf8mb4_uca1400_ai_ci` explícita lanza `ValueError` |
 | `connection` | `SyncDatabaseManager` o `MetadataSource` | Manager del origen (`db_type="mysql"` si el origen es MySQL) | Lee el catálogo con `metadata_source` (snapshot de `metadata/`, una consulta por tipo de objeto; ADR-003) |
 | `schema` | `str` | Schema origen; en MySQL, el nombre de la base de datos | — |
+| `table_filter` | `TableFilter \| None` | Tablas y vistas a migrar por patrones *glob* sin distinguir mayúsculas (5.9.0) | Las rutinas no se filtran; si no casa nada, `ValueError`. Una FK hacia una tabla de fuera va como `ALTER TABLE` al final, con el aviso `FK_OUTSIDE_FILTER` |
 
 ### Contrato de salida
 
@@ -59,12 +60,13 @@ flowchart TD
   `ENGINE=InnoDB DEFAULT CHARSET=... COLLATE=utf8mb4_0900_ai_ci` (o la collation indicada).
 - **`MigrationPlan.warnings`** — incluye un aviso por cada tipo exclusivo de MariaDB sustituido (`UUID`, `INET4`,
   `INET6`).
+- **`MigrationPlan.table_filter`** / **`MigrationPlan.frontier`** (5.9.0) — el filtro aplicado y las tablas de fuera unidas por FK a las del plan (con `TableFilter.frontier`, `True` por defecto); viajan en `to_dict()`/`from_dict()` como claves opcionales (`format_version` no cambia). Las FK hacia tablas de fuera llevan `CanonicalFK.outside_filter=True`. Una vista del plan que lea una tabla de fuera falla en el destino si esa tabla no existe: compruébalo con `validate_views` (modo seco).
 
 ### Errores y casos especiales
 
 | Error | Cuándo ocurre |
 |---|---|
-| `ValueError` | Motor no soportado, origen igual a destino, o collation no válida en MySQL |
+| `ValueError` | Motor no soportado, origen igual a destino, o collation no válida en MySQL; ninguna tabla ni vista casa con `table_filter` (5.9.0) |
 | Aviso `DEFAULT ... tiene forma de llamada a función` | Default con una función del origen sin equivalente conocido (p. ej. `newid()`): revisar el DDL |
 
 ## 3. Componentes y Clases

@@ -32,6 +32,7 @@ Soporta tres salidas:
 | Cardinalidad por FK completa | La tabla referenciada es siempre «1»; la que tiene la FK es «1» si sus columnas son toda su PK o una `UNIQUE` (desde 5.3.0, en todas las salidas) | Antes, las FK identificantes (cabecera-detalle) aparecían como `M:N` |
 | Mermaid: diagramas acotados | Más de 40 entidades o 50 000 caracteres por diagrama: primero se quitan las columnas y después se parte, con aviso | Diagramas enormes tardan decenas de segundos en dibujarse en el navegador |
 | Los tipos visuales se asignan por heurística | Tablas con dos FK y pocas columnas propias se clasifican como tabla de asociación; resto como entidad | Clasificación incorrecta cambia el color del nodo |
+| Mermaid: nombre antes que tipo (5.8.0) | En los diagramas `erDiagram` cada columna se escribe `nombre TIPO`, como en los diagramas Graphviz; `attribute_order="type_name"` vuelve al orden anterior | Al regenerar una documentación versionada cambian todas las páginas con diagramas |
 
 ## 3. Casos de Uso
 

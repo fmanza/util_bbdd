@@ -22,6 +22,7 @@ El flujo de trabajo es idéntico al de otros motores origen: leer los metadatos 
 | Vistas reescritas al destino | El SQL de las vistas se reescribe al dialecto destino con sqlglot (ver [reescritura de vistas](migrate_views.md)); sin sqlglot se emite sin traducir | Aviso de revisión por cada vista |
 | Definiciones completas | Vistas y rutinas se leen con `OBJECT_DEFINITION` (sin el límite de 4000 caracteres de `INFORMATION_SCHEMA.VIEW_DEFINITION`); una vista cifrada (`WITH ENCRYPTION`) o sin permiso `VIEW DEFINITION` no tiene definición | Aviso `VIEW_DEFINITION_UNAVAILABLE` y la vista no se emite |
 | FKs circulares al final del script | Las dependencias circulares se emiten como `ALTER TABLE ADD CONSTRAINT` al final | El script completo es ejecutable en orden sin desactivar comprobaciones de FK |
+| Migración de una parte del schema (5.9.0) | Con un filtro de tablas por patrones (p. ej. `MVG_*`, sin distinguir mayúsculas) solo se migran las tablas y vistas que casan; los procedimientos y funciones se migran siempre | Si ninguna tabla casa, no se genera el plan. Una clave foránea hacia una tabla que queda fuera se crea al final del script con un aviso, y esa tabla debe existir ya en el destino |
 
 ## 3. Casos de Uso
 

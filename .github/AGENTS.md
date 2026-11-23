@@ -77,13 +77,13 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 - **Slash command**: No disponible en `.claude/commands/` — invocar mediante lenguaje natural en Claude Code
 
 ### 6b. **Documentation Generator** (`documentation-generator.agent.md`)
-- **Propósito**: GENERAR documentación funcional y técnica con diagramas Mermaid para módulos de util_bbdd
-- **Entrada**: Módulo Python objetivo, tipo (`functional` | `technical` | `examples` | `both`), directorio destino
+- **Propósito**: GENERAR documentación funcional, técnica, guías (`docs/guides/`) y ejemplos con diagramas Mermaid para util_bbdd
+- **Entrada**: Módulo Python objetivo, tipo (`functional` | `technical` | `guides` | `examples` | `both`), directorio destino
 - **Salida**: Archivos `.md` en `docs/` + entrada sugerida para `zensical.toml`
 - **Herramientas**: read, write, search, web (`--verify-tools`), execute (`--verify-build`)
 - **Invocable**: Sí (generación activa, escribe archivos)
 - **Diferencia con Reviewer**: Reviewer audita, Generator crea contenido nuevo
-- **Prompts base**: `.github/prompts/functional_doc.prompt.md` + `.github/prompts/technical_doc.prompt.md`
+- **Prompts base**: `.github/prompts/functional_doc.prompt.md` + `.github/prompts/technical_doc.prompt.md` + `.github/prompts/guide_doc.prompt.md` (guías, siempre en `docs/guides/`)
 - **Slash command**: `/doc-generator` (`.claude/commands/doc-generator.md`); también por lenguaje natural en Claude Code
 - **Sin APIs de IA externas**: el contenido lo genera el agente en sesión (`SHARED_INSTRUCTIONS.md` § «Estándar de generación documental»). El workflow heredado `doc_agents.yml`, que lo hacía con APIs externas, se retiró el 2026-10-10.
 
@@ -253,4 +253,4 @@ Gobernanza entre plataformas: [`SHARED_INSTRUCTIONS.md`](SHARED_INSTRUCTIONS.md)
 
 ---
 
-*Actualizado: 2026-11-13*
+*Actualizado: 2026-11-23*

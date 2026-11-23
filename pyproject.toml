@@ -125,7 +125,7 @@ docs = [
     # versiones menores. Se sube a mano, comprobando `zensical build --strict`.
     "zensical>=0.1.1,<0.2",
     # API de referencia (docs/api/*_autodoc.md): plugin mkdocstrings, que Zensical implementa de forma nativa.
-    "mkdocstrings[python]>=1.0",
+    "mkdocstrings[python]>=1.0.8",
 ]
 
 [project.urls]

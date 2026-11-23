@@ -25,6 +25,7 @@ Responde a la pregunta "¿cómo paso mi estructura MariaDB a otro motor sin rees
 | FKs que referencian tablas externas omitidas | Claves foráneas fuera del schema migrado se excluyen del script | Aviso registrado; el desarrollador gestiona esas referencias manualmente |
 | FKs circulares al final del script | Las dependencias circulares se emiten como `ALTER TABLE ADD CONSTRAINT` al final | El script completo es ejecutable en orden sin desactivar comprobaciones de FK |
 | Vistas reescritas al destino | El SQL de las vistas se reescribe al dialecto destino con sqlglot (ver [reescritura de vistas](migrate_views.md)); sin sqlglot se copia sin reescribir | Aviso de revisión por cada vista |
+| Migración de una parte del schema (5.9.0) | Con un filtro de tablas por patrones (p. ej. `MVG_*`, sin distinguir mayúsculas) solo se migran las tablas y vistas que casan; los procedimientos y funciones se migran siempre | Si ninguna tabla casa, no se genera el plan. Una clave foránea hacia una tabla que queda fuera se crea al final del script con un aviso, y esa tabla debe existir ya en el destino |
 
 ## 3. Casos de Uso
 

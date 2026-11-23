@@ -27,7 +27,7 @@ flowchart TD
 | Clase / Función | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
 | `MigrationPlanner` | `(source_engine, target_engine, ...)` | Orquestador principal | instancia |
-| `MigrationPlanner.plan` | `(connection, schema: str)` | Extrae, transforma y consolida en plan ejecutable | `MigrationPlan` |
+| `MigrationPlanner.plan` | `(connection, schema: str, *, table_filter=None)` | Extrae, transforma y consolida en plan ejecutable; con `table_filter` (`TableFilter.from_patterns` de `util_bbdd.metadata`, 5.9.0) solo las tablas y vistas que casan con los patrones | `MigrationPlan` |
 | `MigrationPlan.emit_ddl` | `()` | Script DDL completo listo para guardar en `.sql` | `str` |
 | `MigrationPlan.execute` | `(target_connection, *, audit_sink=None)` | Ejecuta cada sentencia DDL contra el motor destino; con `audit_sink`, un evento por sentencia ([auditoría](audit.md)) | `None` |
 | `MigrationPlan.error_count` | propiedad | Número de warnings con severidad `ERROR` | `int` |
@@ -44,17 +44,19 @@ flowchart TD
 | `pg_schema` | `str \| None` | Schema PostgreSQL | Solo si `target_engine="postgresql"` |
 | `connection` | `SyncDatabaseManager` o `MetadataSource` | Manager MariaDB activo | Lee el catálogo con `metadata_source` (snapshot de `metadata/`, una consulta por tipo de objeto; ADR-003) |
 | `schema` | `str` | Nombre del schema MariaDB (`TABLE_SCHEMA`) | Sensible a mayúsculas |
+| `table_filter` | `TableFilter \| None` | Tablas y vistas a migrar por patrones *glob* sin distinguir mayúsculas (5.9.0) | Las rutinas no se filtran; si no casa nada, `ValueError`. Una FK hacia una tabla de fuera va como `ALTER TABLE` al final, con el aviso `FK_OUTSIDE_FILTER` |
 
 ### Contrato de salida
 
 - **`MigrationPlan.emit_ddl()`** — `str` con el script DDL completo, ordenado por dependencias FK.
 - **`MigrationPlan.warnings`** — `list[MigrationWarning]` con `severity`, `message`, `table`, `column`.
+- **`MigrationPlan.table_filter`** / **`MigrationPlan.frontier`** (5.9.0) — el filtro aplicado y las tablas de fuera unidas por FK a las del plan (con `TableFilter.frontier`, `True` por defecto); viajan en `to_dict()`/`from_dict()` como claves opcionales (`format_version` no cambia). Las FK hacia tablas de fuera llevan `CanonicalFK.outside_filter=True`. Una vista del plan que lea una tabla de fuera falla en el destino si esa tabla no existe: compruébalo con `validate_views` (modo seco).
 
 ### Errores y casos especiales
 
 | Error | Cuándo ocurre |
 |---|---|
-| `ValueError` | Motor origen/destino no soportado |
+| `ValueError` | Motor origen/destino no soportado; ninguna tabla ni vista casa con `table_filter` (5.9.0) |
 | `MetadataError` | Error al leer el catálogo del origen (envuelve el error del driver) |
 | `TypeError` | `connection` no es un manager de `util_bbdd` ni una `MetadataSource` |
 

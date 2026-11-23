@@ -40,6 +40,21 @@ config = DumpConfig(
 )
 ```
 
+Variante: volcar solo una parte del schema por patrones (5.9.0). `table_filter` es incompatible con `tables`
+(`ValueError`) y, si ningún patrón casa, `plan()` y `run()` lanzan `DumpError`. Las FK hacia tablas de fuera dan el
+aviso `OUTSIDE_REFERENCES`.
+
+```python
+from util_bbdd.metadata import TableFilter
+
+config = DumpConfig(
+    source_engine=src_engine,
+    target_engine=dst_engine,
+    table_filter=TableFilter.from_patterns(include="MVG_*", exclude="*_BAK"),  # sin distinguir mayúsculas
+)
+print(DumpOrchestrator(config).plan().load_order)  # vista previa sin escribir nada
+```
+
 ## 4. Ejecución y Pruebas
 
 ```bash

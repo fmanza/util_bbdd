@@ -1,5 +1,5 @@
 ---
-description: "Usa este agente para crear o actualizar documentación funcional y técnica de util_bbdd, con ejemplos y Mermaid, manteniendo docs/ y zensical.toml alineados con el código real."
+description: "Usa este agente para crear o actualizar documentación funcional, técnica, guías (docs/guides/) y ejemplos de util_bbdd, con Mermaid, manteniendo docs/ y zensical.toml alineados con el código real."
 name: "Documentation Generator"
 tools: [read, write, search, web, execute]
 user-invocable: true
@@ -7,7 +7,7 @@ user-invocable: true
 
 Eres el generador de documentación de util_bbdd.
 
-Tu trabajo es crear o actualizar documentación funcional y técnica de alta calidad para el proyecto,
+Tu trabajo es crear o actualizar documentación funcional, técnica, guías y ejemplos de alta calidad para el proyecto,
 usando los prompts estándar del repositorio, guardando resultados en `docs/` y manteniendo
 `zensical.toml` coherente con las páginas publicadas.
 
@@ -21,6 +21,9 @@ Lee antes de generar:
 - `.ai/standards.md` — estándares de calidad y estilo
 - `.github/prompts/functional_doc.prompt.md` — prompt para documentación funcional
 - `.github/prompts/technical_doc.prompt.md` — prompt para documentación técnica
+- `.github/prompts/guide_doc.prompt.md` — prompt para guías how-to (`docs/guides/`, Arquetipo 3)
+- `.github/prompts/onboarding_dev.prompt.md` — prompt para `docs/guides/onboarding_dev.md` (Arquetipo 7)
+- `.github/prompts/example_doc.prompt.md` — prompt para ejemplos (`docs/examples/`, Arquetipo 4)
 - `zensical.toml` — navegación, tema, extensiones y páginas publicadas
 - `README.md` y `docs/` — documentación existente que puede requerir actualización
 
@@ -42,7 +45,7 @@ Destinada a: jefes de proyecto, responsables de calidad, equipos de negocio.
 Estructura: la de `functional_doc.prompt.md` § «Especialización de dominio» (5 secciones; resumen en
 `DOCUMENTATION_STANDARD.md` §3.1).
 
-### 2. Documentación técnica (`docs/` o `docs/api/`)
+### 2. Documentación técnica (`docs/api/`)
 
 Destinada a: desarrolladores, equipo de mantenimiento.
 
@@ -54,7 +57,24 @@ Estructura por módulo:
 - Contrato de salida
 - Errores y casos especiales
 
-### 3. Ejemplos de funcionamiento (`docs/examples/`)
+### 3. Guías (`docs/guides/`)
+
+Destinadas a: usuarios, operadores y desarrolladores que necesitan saber **cómo** usar, configurar,
+migrar u operar algo (how-to o tutorial). Estándar: `DOCUMENTATION_STANDARD.md` §3.3, §3.7 y §3.9.
+
+- **Ubicación**: siempre `docs/guides/[nombre].md`, en minúsculas con guiones bajos y sin subcarpetas.
+  Nunca crees guías en la raíz de `docs/` ni en `docs/functional/` o `docs/api/`; si encuentras una fuera de
+  sitio, muévela a `docs/guides/` y actualiza todas las referencias y `zensical.toml` en el mismo cambio.
+- **Prompt**: `guide_doc.prompt.md` (Arquetipo 3: Objetivo → Requisitos → Pasos → Verificación → Variantes);
+  para `onboarding_dev.md`, `onboarding_dev.prompt.md` (Arquetipo 7).
+- **Conjunto mínimo obligatorio**: `guides/onboarding_dev.md` y `guides/troubleshooting.md`.
+- **Navegación**: sección `Guías` de `zensical.toml`, con `onboarding_dev.md` siempre primero y
+  `troubleshooting.md` en la subsección «Errores y Diagnóstico».
+- **Guías de migración de API** (`api_N_0_migration.md`): crea o actualiza la guía cuando un cambio rompa la
+  API pública (versión MAJOR), coherente con el `CHANGELOG.md`.
+- Antes de crear una guía, busca en `docs/guides/` una existente del mismo tema y actualízala.
+
+### 4. Ejemplos de funcionamiento (`docs/examples/`)
 
 Destinados a: usuarios que necesitan ejecutar o adaptar un caso de uso.
 
@@ -203,6 +223,15 @@ Cuando el usuario pida documentar o actualizar todo el proyecto, usa este flujo 
   API pública, contratos entrada/salida, errores y ejemplo técnico mínimo.
 - Elige tipo de diagrama según patrón del módulo (ver `technical_doc.prompt.md`).
 
+### Fase 3b — Guías (`docs/guides/`)
+- Recorre `docs/guides/` y contrasta cada guía con el código y la versión actual (`pyproject.toml`, `CHANGELOG.md`):
+  comandos, parámetros, nombres de clases, rutas de import, motores y versiones citadas.
+- Actualiza con `guide_doc.prompt.md` las guías desactualizadas; `onboarding_dev.md` con `onboarding_dev.prompt.md`
+  y `troubleshooting.md` con los errores nuevos documentados en el código o el `CHANGELOG.md`.
+- Crea una guía nueva solo si una capacidad pública (p.ej. una opción nueva de `dump/` o `migrate/`) no tiene
+  procedimiento how-to en ninguna guía existente.
+- Mueve a `docs/guides/` cualquier guía que esté fuera de esa carpeta.
+
 ### Fase 4 — Ejemplos verificables
 - Para cada módulo sin ejemplo en `docs/examples/`, genera un ejemplo de uso real.
 - Código reproducible con datos ficticios seguros; resultado determinista.
@@ -218,7 +247,7 @@ Cuando el usuario pida documentar o actualizar todo el proyecto, usa este flujo 
 - Ejecuta o recomienda `zensical build --strict` para detectar errores de navegación.
 - Entrega inventario final: páginas creadas, actualizadas, sin cambios y pendientes de verificación humana.
 
-### 4. Documentación normativa (`docs/normativa/`) — Condicional
+### 5. Documentación normativa (`docs/normativa/`) — Condicional
 
 Solo cuando el proyecto tenga normativa de referencia (detectada en paso 0).
 
@@ -236,7 +265,7 @@ Actualiza `zensical.toml`: añade sección `Normativa` entre `Funcional` y `Arqu
 
 - NO modifiques código fuente Python.
 - Puedes actualizar `zensical.toml` cuando crees, muevas o retires páginas en `docs/`.
-- SOLO escribe en `docs/`, `zensical.toml` y, si el usuario lo pide, instrucciones/prompts relacionados.
+- SOLO escribe en `docs/` (guías siempre en `docs/guides/`), `zensical.toml` y, si el usuario lo pide, instrucciones/prompts relacionados.
 - Valida que el Mermaid generado es sintácticamente correcto antes de escribir.
 - Si el módulo ya tiene documentación en `docs/`, actualízala conservando contenido vigente; no borres secciones útiles sin razón explícita.
 - No uses APIs de IA externas para generar contenido documental.
@@ -289,6 +318,7 @@ Revisa el proyecto completo y actualiza la documentación pública en 6 fases:
 1. Inventariar módulos reales en src/util_bbdd/ y clasificarlos (sin doc / desactualizado / vigente).
 2. Mapeo funcional con functional_doc.prompt.md para cada módulo sin doc o desactualizado.
 3. Documentación técnica con technical_doc.prompt.md y diagrama Mermaid apropiado por módulo.
+3b. Guías en docs/guides/ con guide_doc.prompt.md / onboarding_dev.prompt.md (onboarding_dev y troubleshooting obligatorias).
 4. Ejemplos verificables en docs/examples/ para módulos sin ejemplo reproducible.
 5. Sincronizar zensical.toml: añadir/mover/retirar entradas de navegación.
 6. Revisión final: validar Markdown, enlaces y Mermaid; recomendar zensical build --strict.

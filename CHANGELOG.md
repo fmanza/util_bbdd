@@ -7,6 +7,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **docs**: el extra `docs` pide `mkdocstrings[python]>=1.0.8` (antes `>=1.0`). Con 1.0.4 y `pymdown-extensions` 13,
+  `zensical build` fallaba con `TypeError: Highlight.__init__() missing 1 required positional argument: 'md'`.
+- **docs**: guías, páginas funcionales, de API y el ejemplo de volcado al día con el filtro de tablas (5.9.0), el orden
+  nombre-tipo de Mermaid (5.8.0), `validate_trace_map` (5.7.0) e `imprimir["filtro"]` (5.5.0); el agente Documentation
+  Generator cubre las guías de `docs/guides/`.
+
 ## [5.9.0] - 2026-11-16
 
 SemVer: MINOR, sin cambios incompatibles (sesión `2026-11-16-filtro-tablas-migrate-dump`): el filtro de tablas de la documentación llega a la migración DDL y al volcado

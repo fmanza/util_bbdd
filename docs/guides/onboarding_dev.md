@@ -125,13 +125,14 @@ src/util_bbdd/
 ├── _core/              # Jerarquía canónica de excepciones (DatabaseException raíz)
 ├── _drivers/           # Detección de drivers instalados y validación de motores
 ├── core/               # capabilities.py — capacidades por motor (async, features)
+├── progress/           # Progreso y cancelación cooperativa (ProgressEvent, CancellationToken); solo importa _core
 │
 │  # ── Level 2: Capas de acceso (Services) ─────────────────────────────
 ├── audit/              # Auditoría común de bulk, dump y migrate (AuditEvent, AuditSink, CSV heredado)
 ├── connection/         # build_conn_params(); adaptadores y pools por motor
 ├── executors/          # Ejecutores sync y async (SyncQueryExecutor, AsyncQueryExecutor)
 ├── factory/            # SQLAlchemy engine factory (sync/async)
-├── metadata/           # Introspección de esquemas (tablas, columnas, DDL, caché)
+├── metadata/           # Introspección por lotes (CatalogSource → SchemaSnapshot, ADR-003), DDL y TableFilter
 ├── query/              # QueryRegistry, QueryResolver — queries nombradas en JSON
 ├── results/            # Tipos de retorno: Row, Rows, RowOrNone
 ├── validators/         # Validación de parámetros de queries antes de ejecución
@@ -139,9 +140,9 @@ src/util_bbdd/
 │  # ── Level 3: Especialización (Domain Logic) ─────────────────────────
 ├── managers/           # API pública: SyncDatabaseManager, AsyncDatabaseManager
 ├── bulk/               # CRUD masivo desde DataFrame; AuditManager
-├── analysis/           # Grafos de relaciones entre tablas (Graphviz)
+├── analysis/           # Grafos de relaciones entre tablas (Graphviz, Matplotlib y Mermaid)
 ├── comparar/           # SchemaComparator, SchemaDiff, reporters (SQL/HTML/Word/Excel/MD)
-├── doc/                # Generación de documentación de BD (HTML, Word, Excel, Jinja2)
+├── doc/                # Generación de documentación de BD (Word, Excel, HTML con Jinja2 y Markdown)
 ├── dump/               # DumpOrchestrator — volcado de datos entre esquemas/motores
 ├── migrate/            # MigrationPlanner — migración DDL entre motores
 │

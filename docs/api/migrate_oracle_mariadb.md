@@ -28,7 +28,7 @@ flowchart TD
 |---|---|---|---|
 | `MigrationPlanner` | `(source_engine, target_engine, ...)` | Orquestador principal; valida configuración en `__init__` | instancia |
 | `MigrationPlanner.supported_sources` / `supported_targets` | `()` (estáticos) | Motores que admiten `source_engine` y `target_engine`, en orden alfabético (4.3.0) | `tuple[str, ...]` |
-| `MigrationPlanner.plan` | `(connection, schema: str)` | Extrae, transforma y consolida en plan ejecutable | `MigrationPlan` |
+| `MigrationPlanner.plan` | `(connection, schema: str, *, table_filter=None)` | Extrae, transforma y consolida en plan ejecutable; con `table_filter` (`TableFilter.from_patterns` de `util_bbdd.metadata`, 5.9.0) solo las tablas y vistas que casan con los patrones | `MigrationPlan` |
 | `MigrationPlan.emit_ddl` | `()` | Script DDL completo listo para guardar en `.sql` | `str` |
 | `MigrationPlan.execute` | `(target_connection, *, audit_sink=None, dry_run=False, stop_on_error=True, on_progress=None, cancel_token=None)` | Ejecuta cada sentencia DDL contra el motor destino; con `audit_sink`, un evento por sentencia ([auditoría](audit.md)); `dry_run`, `stop_on_error`, `on_progress` y `cancel_token` desde 4.3.0 | `ExecutionResult` (4.3.0; antes `None`) |
 | `MigrationPlan.check_target` | `(target_connection, *, schema=None, validate_views=False)` | Tablas y vistas del plan que ya existen en el destino (y, si se pide, vistas que el destino rechaza), sin cambiar nada (4.3.0) | `TargetCheck` |
@@ -52,11 +52,13 @@ flowchart TD
 | `pg_schema` | `str \| None` | Schema PostgreSQL | Solo si `target_engine="postgresql"`; emite `SET search_path` |
 | `connection` | `SyncDatabaseManager` o `MetadataSource` | Manager Oracle activo | Lee el catálogo con `metadata_source` (snapshot de `metadata/`, una consulta por tipo de objeto; ADR-003) |
 | `schema` | `str` | Schema/owner Oracle | Sensible a mayúsculas en Oracle |
+| `table_filter` | `TableFilter \| None` | Tablas y vistas a migrar por patrones *glob* sin distinguir mayúsculas (5.9.0) | Las rutinas no se filtran; si no casa nada, `ValueError`. Una FK hacia una tabla de fuera va como `ALTER TABLE` al final, con el aviso `FK_OUTSIDE_FILTER` |
 
 ### Contrato de salida
 
 - **`MigrationPlan.emit_ddl()`** — `str` con el script DDL completo, ordenado por dependencias FK.
 - **`MigrationPlan.warnings`** — `list[MigrationWarning]` con `table`, `column`, `severity` (`INFO`/`WARNING`/`ERROR`), `message` y `proposals`.
+- **`MigrationPlan.table_filter`** / **`MigrationPlan.frontier`** (5.9.0) — el filtro aplicado y las tablas de fuera unidas por FK a las del plan (con `TableFilter.frontier`, `True` por defecto); viajan en `to_dict()`/`from_dict()` como claves opcionales (`format_version` no cambia). Las FK hacia tablas de fuera llevan `CanonicalFK.outside_filter=True`. Una vista del plan que lea una tabla de fuera falla en el destino si esa tabla no existe: compruébalo con `validate_views` (modo seco).
 - **`MigrationPlan.error_count`** — `int`; verificar antes de `execute()`.
 - **`MigrationPlan.to_dict()` / `from_dict()`** (4.3.0) — `MigrationPlan.from_dict(json.loads(json.dumps(plan.to_dict())))`
   emite las mismas sentencias y se ejecuta igual. `from_dict` lanza `MigrationPlanValidationError` (también
@@ -85,7 +87,7 @@ flowchart TD
 
 | Error | Cuándo ocurre |
 |---|---|
-| `ValueError` | Motor origen/destino no soportado, charset/collation inválidos |
+| `ValueError` | Motor origen/destino no soportado, charset/collation inválidos; ninguna tabla ni vista casa con `table_filter` (5.9.0) |
 | `MigrationStatementError` | Una sentencia de `execute()` falla (`stop_on_error=True`): `position`, `total`, `statement` y `result`; subclase de `DatabaseOperationError` (4.3.0) |
 | `MetadataError` | Error al leer el catálogo del origen (envuelve el error del driver) |
 | `TypeError` | `connection` no es un manager de `util_bbdd` ni una `MetadataSource` |

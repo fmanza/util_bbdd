@@ -1,6 +1,6 @@
 # doc_generator
 
-Genera o actualiza documentación funcional, técnica y de ejemplos de util_bbdd (con Mermaid), manteniendo `docs/` y
+Genera o actualiza documentación funcional, técnica, guías (`docs/guides/`) y ejemplos de util_bbdd (con Mermaid), manteniendo `docs/` y
 `zensical.toml` alineados con el código real. Modo escritura, con las restricciones del agente (§ «Restricciones»).
 
 ## Contexto obligatorio
@@ -8,7 +8,8 @@ Genera o actualiza documentación funcional, técnica y de ejemplos de util_bbdd
 Lee y aplica, en este orden:
 1. `.github/agents/documentation-generator.agent.md` — rol, flujo por fases, restricciones y formato de salida
 2. `.github/DOCUMENTATION_STANDARD.md` — arquetipos (§3), `zensical.toml` (§4) y flujo de agentes (§5)
-3. `.github/prompts/functional_doc.prompt.md` y/o `.github/prompts/technical_doc.prompt.md` — según el tipo pedido
+3. `.github/prompts/functional_doc.prompt.md` y/o `.github/prompts/technical_doc.prompt.md` — según el tipo pedido;
+   `.github/prompts/guide_doc.prompt.md` (y `onboarding_dev.prompt.md`) para guías, siempre en `docs/guides/`
 4. `.github/prompts/zensical_nav_update.prompt.md` — al crear, mover o retirar páginas
 
 ## Reglas de ejecución

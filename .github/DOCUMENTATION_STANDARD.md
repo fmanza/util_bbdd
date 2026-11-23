@@ -591,7 +591,7 @@ primer nivel y agrupación en subsecciones: `docs.instructions.md` § «Generado
 | **1. Planificación** | `Plan Architect` | Validar estructura actual vs propuesta | `zensical.toml` + código fuente | `PLAN` + `AUDIT_PLAN` |
 | **2. Validación IA** | `config-reviewer` | Revisar coherencia en `CLAUDE.md`, `copilot-instructions.md` | Archivos IA | Findings + recomendaciones |
 | **3. Exploración** | `Explore` | Mapear módulos existentes vs faltantes | `src/`, `docs/` | Matriz de cobertura |
-| **4. Generación** | `documentation-generator` | Crear/actualizar docs funcional + técnica | Código fuente + prompts | Archivos en `docs/` + `zensical.toml` |
+| **4. Generación** | `documentation-generator` | Crear/actualizar docs funcional, técnica, guías (`docs/guides/`) y ejemplos | Código fuente + prompts | Archivos en `docs/` + `zensical.toml` |
 | **5. Auditoría** | `documentation-reviewer` | Validar completitud, ejemplos, coherencia | Docs generadas | Findings + mejoras |
 | **6. Verificación de config** (opt-in `--verify-tools`) | `documentation-generator` | Fetch webs oficiales — validar plugins y versiones en `zensical.toml` | Config + webs Zensical/PyPI | Discrepancias por severidad |
 | **6b. Verificación de build** (opt-in `--verify-build`) | `documentation-generator` | Build + inspección HTML generado — alias bug, snippets, Mermaid, nav | `site/` (Modo A) o `localhost:8000` (Modo B `--serve`) | Hallazgos por página + acciones recomendadas |

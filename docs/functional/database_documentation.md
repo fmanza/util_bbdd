@@ -44,6 +44,8 @@ Sus diagramas entidad-relación son de Mermaid y no necesitan Graphviz. Guía:
 | Grafos: profundidad máxima | La profundidad máxima de relaciones en los grafos controla la complejidad visual | Valores superiores a 3 en esquemas con muchas FK generan grafos ilegibles |
 | Secciones bajo demanda | Cada sección (tablas, vistas, rutinas, información de la BD, almacenamiento, condiciones del motor) se pide expresamente en `imprimir`; nada se incluye por defecto | Sin configuración, el documento solo lleva el título y el resumen de inventario |
 | Condiciones del motor | La sección final «Condiciones del motor» muestra si la configuración de conexión y del servidor es adecuada para cargas masivas; se verifica una vez por generación y un fallo de la verificación no detiene la documentación | Sin conexión al servidor solo se revisa la configuración de conexión; la sección lo indica con un aviso |
+| Documentar una parte del schema (5.5.0) | `imprimir["filtro"]` selecciona por patrones de inclusión y exclusión las tablas y vistas que se documentan, en todos los formatos; las rutinas no se filtran | Las tablas vecinas por clave foránea que quedan fuera se listan como frontera, para no perder el contexto |
+| Validar el mapa de trazabilidad sin conectar (5.7.0) | `validate_trace_map(path)` aplica al fichero las mismas reglas que la generación, sin abrir la base de datos | Permite revisar el mapa en CI o antes de una generación larga; los errores salen todos juntos |
 
 ## 3. Casos de Uso
 
