@@ -4,7 +4,7 @@ Librería Python para **operaciones de base de datos** en MariaDB, MySQL, Oracle
 async) y HSQLDB (sync): conexiones con pool, carga masiva desde DataFrames, volcado entre motores, migración DDL,
 comparación de esquemas y documentación de la base de datos.
 
-**Version:** 5.9.0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 5.9.1 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -29,11 +29,11 @@ comparación de esquemas y documentación de la base de datos.
 `util_bbdd` no está publicado en PyPI: se instala desde el repositorio, fijando la versión con su tag.
 
 ```bash
-pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v5.9.0"
+pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v5.9.1"
 
 # Con los drivers de un motor (extras: postgresql, mariadb, mysql, oracle, sqlserver, sqlserver-odbc, hsqldb,
 # sqlite-async; se combinan con comas)
-pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v5.9.0"
+pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v5.9.1"
 ```
 
 La documentación de BD (`openpyxl`, `python-docx`, `jinja2`) y pandas van en la instalación base; los drivers de
@@ -347,7 +347,7 @@ pruebas (`scripts/bench_env.example.sh`). Flujo con asistentes de IA (Claude Cod
 [Semantic Versioning](https://semver.org/): desde 1.0.0, la API pública (la raíz y los submódulos públicos listados
 arriba) solo cambia de forma incompatible en una versión MAJOR.
 
-**Current Version: v5.9.0** (MINOR: el filtro de tablas por patrones de la documentación llega a la migración DDL (`MigrationPlanner.plan(table_filter=...)`) y al volcado (`DumpConfig.table_filter`); `TableFilter` público en `util_bbdd.metadata`. Sin cambios incompatibles. Sobre la 5.0: valores por defecto seguros. Guía: `docs/guides/api_5_0_migration.md`)
+**Current Version: v5.9.1** (PATCH: documentación al día con el filtro de tablas de la migración DDL y el volcado (5.9.0) y `mkdocstrings[python]>=1.0.8` en el extra `docs`; sin cambios en la librería. En 5.9.0, `TableFilter` público en `util_bbdd.metadata`. Sin cambios incompatibles. Sobre la 5.0: valores por defecto seguros. Guía: `docs/guides/api_5_0_migration.md`)
 
 Historial completo: [CHANGELOG.md](CHANGELOG.md) · Hoja de ruta: [docs/roadmap.md](docs/roadmap.md).
 

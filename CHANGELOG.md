@@ -7,13 +7,32 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.9.1] - 2026-11-23
+
+SemVer: PATCH, sin cambios en el código de la librería ni en su API (sesión `2026-11-23-docs-al-dia-guias`):
+documentación, configuración IA, el mínimo de una dependencia del extra `docs` y tests.
+
 ### Changed
 
-- **docs**: el extra `docs` pide `mkdocstrings[python]>=1.0.8` (antes `>=1.0`). Con 1.0.4 y `pymdown-extensions` 13,
-  `zensical build` fallaba con `TypeError: Highlight.__init__() missing 1 required positional argument: 'md'`.
+- **docs** (`pyproject.toml`, extra `docs`): pide `mkdocstrings[python]>=1.0.8` (antes `>=1.0`). Con 1.0.4 y
+  `pymdown-extensions` 13, `zensical build` fallaba con `TypeError: Highlight.__init__() missing 1 required positional
+  argument: 'md'`.
 - **docs**: guías, páginas funcionales, de API y el ejemplo de volcado al día con el filtro de tablas (5.9.0), el orden
-  nombre-tipo de Mermaid (5.8.0), `validate_trace_map` (5.7.0) e `imprimir["filtro"]` (5.5.0); el agente Documentation
-  Generator cubre las guías de `docs/guides/`.
+  nombre-tipo de Mermaid (5.8.0), `validate_trace_map` (5.7.0) e `imprimir["filtro"]` (5.5.0):
+  - `docs/api/migrate_*.md` (5 páginas): `MigrationPlanner.plan(..., table_filter=None)`, `MigrationPlan.table_filter`
+    y `frontier`, `CanonicalFK.outside_filter` y el aviso `FK_OUTSIDE_FILTER`.
+  - `docs/functional/`: regla de negocio del filtro en las 5 páginas de migración y en `dump_data_export.md`;
+    `database_documentation.md` y `graph_analysis.md`.
+  - `docs/examples/dump_data_export.md`: variante con `TableFilter.from_patterns` y `plan()`.
+  - `docs/guides/onboarding_dev.md` (mapa del código con `progress/`) y `troubleshooting.md` (cuatro casos nuevos).
+- **docs** (configuración IA): el agente Documentation Generator cubre las guías de `docs/guides/` (tipo «Guías» y
+  Fase 3b); sincronizados `/doc-generator`, `.github/AGENTS.md` y `DOCUMENTATION_STANDARD.md`. `.ai/architecture.md`
+  lista `progress/` en la capa 2.
+
+### Added
+
+- **tests** (`migrate/`): `tests/integration/test_migrate_table_filter_e2e.py` (filtro de tablas de extremo a extremo) y
+  dorados de `tests/fixtures/metadata_golden/` con `CanonicalFK.outside_filter`.
 
 ## [5.9.0] - 2026-11-16
 
