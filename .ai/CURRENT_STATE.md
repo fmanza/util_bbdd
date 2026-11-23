@@ -109,7 +109,7 @@
 PR #18 (`MySQLVariableValidator`): su código (`9a71e056`) está en `main` y `develop`; el estado de la PR en GitHub no se ha comprobado (sin `gh`) — cerrarla si sigue abierta.  
 PR #19 (`migrate/zenical-pure`): fusionada.  
 
-**Tests actuales** (v5.9.1, 2026-11-23): Windows, Python 3.14 y venv local sin `sqlglot`, `psycopg2-binary` ni `types-openpyxl` (no comparable con la referencia): 7067 passed, 606 skipped, 0 failed; mypy sin errores (376 ficheros); ruff y `ruff format` limpios; `zensical build --strict` limpio. Referencia completa: v5.9.0 (2026-11-16), 7193 passed, 619 skipped.
+**Tests actuales** (v5.9.1, 2026-11-23): Windows, Python 3.14 y venv local con `dev-full` y Graphviz: 7192 passed, 624 skipped, 0 failed (7816 recogidos; v5.9.0: 7193 passed, 619 skipped); mypy sin errores (376 ficheros); ruff y `ruff format` limpios; `zensical build --strict` limpio; integración con el banco no ejecutada.
 
 ---
 
