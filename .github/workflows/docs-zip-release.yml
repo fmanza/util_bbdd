@@ -85,6 +85,9 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           tag: "docs-v${{ steps.release_info.outputs.version }}"
+          # Sin `commit`, la acción crea el tag sobre la rama por defecto (main), que puede ir por detrás del push
+          # (p. ej. un push a develop antes del merge). Solo se usa al crear el tag: si ya existe, no se mueve.
+          commit: ${{ github.sha }}
           name: "Documentation Offline v${{ steps.release_info.outputs.version }}"
           artifacts: "dist/util_bbdd-docs-*.zip,dist/util_bbdd-docs-*.zip.sha256,dist/CHECKSUMS.txt"
           artifactErrorsFailBuild: false

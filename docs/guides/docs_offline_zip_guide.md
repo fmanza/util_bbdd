@@ -118,7 +118,8 @@ git push origin vX.Y.Z
 
 Aparte, `.github/workflows/docs-zip-release.yml`, en cada push a `main` o `develop` que toque `docs/`, `zensical.toml` o
 `pyproject.toml`, genera el ZIP como artefacto del workflow y crea o actualiza la release `docs-v<versión>` con el ZIP,
-su `.sha256` y `CHECKSUMS.txt`.
+su `.sha256` y `CHECKSUMS.txt`. El tag `docs-v<versión>` se crea sobre el commit del push que lanza el workflow (desde 5.9.1;
+antes, sobre el HEAD de `main`); si ya existe, no se mueve.
 
 El workflow:
 

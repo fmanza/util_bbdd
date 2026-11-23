@@ -7,6 +7,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **ci** (`.github/workflows/docs-zip-release.yml`): el tag `docs-v<versión>` se crea sobre el commit del push
+  (`commit: ${{ github.sha }}`). Sin él, `ncipollo/release-action` lo creaba sobre el HEAD de `main`, y un push a
+  `develop` anterior al merge lo dejaba en un commit viejo (`docs-v5.9.1` quedó en `981c1261` en vez de `1aa1d721`).
+
 ## [5.9.1] - 2026-11-23
 
 SemVer: PATCH, sin cambios en el código de la librería ni en su API (sesión `2026-11-23-docs-al-dia-guias`):
