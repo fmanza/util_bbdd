@@ -109,7 +109,7 @@
 PR #18 (`MySQLVariableValidator`): su código (`9a71e056`) está en `main` y `develop`; el estado de la PR en GitHub no se ha comprobado (sin `gh`) — cerrarla si sigue abierta.  
 PR #19 (`migrate/zenical-pure`): fusionada.  
 
-**Tests actuales** (v5.9.1, 2026-11-23): Windows, Python 3.14 y venv local con `dev-full` y Graphviz: 7192 passed, 624 skipped, 0 failed (7816 recogidos; v5.9.0: 7193 passed, 619 skipped); mypy sin errores (376 ficheros); ruff y `ruff format` limpios; `zensical build --strict` limpio; integración con el banco no ejecutada.
+**Tests actuales** (v5.9.1, 2026-11-23): Windows, Python 3.14 y venv local con `dev-full` y Graphviz: 7192 passed, 624 skipped, 0 failed (7816 recogidos; igual que el CI en Windows. Linux da 7193 passed, 623 skipped: `test_doc_validate_trace_map.py:106` necesita permisos POSIX. Los +5 saltados frente a v5.9.0, 7192/619 en Windows, son `test_migrate_table_filter_e2e.py` sin URL. La cifra 7193/619 anotada en v5.9.0 mezclaba Linux y Windows); mypy sin errores (376 ficheros); ruff y `ruff format` limpios; `zensical build --strict` limpio; integración con el banco no ejecutada.
 
 ---
 
