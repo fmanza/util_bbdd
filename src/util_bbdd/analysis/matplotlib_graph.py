@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .._core.filenames import safe_file_stem
+from .._core.i18n import Translator
 from .base import DatabaseRelationshipGraphBase, GraphDocument, LevelDirection, TableRelation
 from .contracts import RelationshipGraphSource
 
@@ -47,8 +48,18 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
         db_manager: RelationshipGraphSource,
         max_depth: int = 1,
         direction: LevelDirection | str = LevelDirection.BOTH,
+        *,
+        translator: Translator | None = None,
     ):
-        super().__init__(db_manager)
+        """Configura el generador.
+
+        Args:
+            db_manager: Fuente de metadatos por lotes (``RelationshipGraphSource``).
+            max_depth: Niveles en cada sentido (mínimo 1).
+            direction: Sentido de las relaciones.
+            translator: Idioma del título y de la leyenda; por defecto, español (5.10.0).
+        """
+        super().__init__(db_manager, translator=translator)
         self.logger: Logger = logging.getLogger(__name__)
         self.max_depth: int = max(1, int(max_depth))
         self.direction: LevelDirection = self._normalize_direction(direction)
@@ -101,9 +112,9 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
         if not MATPLOTLIB_AVAILABLE or mpatches is None or plt is None or Line2DFactory is None:
             return
         legend_elements = [
-            mpatches.Patch(color="lightcoral", label="Tabla Principal"),
-            mpatches.Patch(color="lightblue", label="Tablas Relacionadas"),
-            Line2DFactory([0], [0], color="gray", linewidth=2, label="Relación FK"),
+            mpatches.Patch(color="lightcoral", label=self._t("legend.main_table")),
+            mpatches.Patch(color="lightblue", label=self._t("legend.related_tables")),
+            Line2DFactory([0], [0], color="gray", linewidth=2, label=self._t("legend.fk_relation")),
         ]
         plt.legend(handles=legend_elements, loc="upper right", bbox_to_anchor=(1, 1))
 
@@ -257,10 +268,12 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
             nx.draw_networkx_edge_labels(G, pos, edge_labels, font_size=8, font_family="Arial", alpha=0.7)
 
             plt.title(
-                (
-                    f"Relaciones multinivel - Tabla: {table_name}\n"
-                    f"Profundidad visible={document.max_depth} | "
-                    f"Salida={document.total_outgoing_levels} | Entrada={document.total_incoming_levels}"
+                self._t(
+                    "matplotlib.title",
+                    table=table_name,
+                    depth=document.max_depth,
+                    outgoing=document.total_outgoing_levels,
+                    incoming=document.total_incoming_levels,
                 ),
                 fontsize=16,
                 fontweight="bold",

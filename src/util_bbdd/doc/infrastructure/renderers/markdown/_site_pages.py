@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ....._core.exceptions import DatabaseException
+from ....._core.i18n import Translator
 from ....._core.markdown import code_span
 from ....application.ports import DocumentationManagerPort
 from ....application.use_cases.engine_conditions import EngineConditionsSectionBuilder
@@ -36,6 +37,25 @@ ER_LEGEND_ROWS: tuple[tuple[str, str], ...] = (
         "Cada columna de una tabla: nombre, tipo, claves y, entre comillas, el nombre real si hubo que normalizarlo.",
     ),
 )
+
+
+#: Claves ``doc_md.legend.*`` de :data:`ER_LEGEND_ROWS` (5.10.0): la salida usa el idioma de la generación; el
+#: elemento vacío es ``nombre tipo``, que también se traduce.
+_LEGEND_KEYS: tuple[tuple[str, str], ...] = (
+    ("||", "one"),
+    ("|o", "zero_or_one"),
+    ("o{", "many"),
+    ("o|", "one_to_one"),
+    ("--", "identifying"),
+    ("..", "non_identifying"),
+    ("PK, FK, UK", "keys"),
+    ("", "column"),
+)
+
+
+def _t(tr: Translator, key: str, **params: object) -> str:
+    """Texto ``doc_md.<key>`` en el idioma de ``tr``."""
+    return tr.t(f"doc_md.{key}", **params)
 
 
 #: Qué es un nivel en los diagramas (L5 de la sesión 2026-11-12): con «ambas» direcciones, 1 nivel ya muestra la tabla
@@ -71,48 +91,58 @@ def home_page(
     sections: list[tuple[str, str]],
     include_legend: bool,
     scope: FilterScope | None = None,
+    translator: Translator | None = None,
 ) -> list[str]:
     """``index.md``: título, inventario, alcance del filtro, enlaces a las secciones y leyenda de los diagramas."""
-    lines = [f"# Documentación de la Base de Datos - {md_text(database)}", ""]
-    lines += ["## Resumen de inventario", "", *md_table(["Sección", "Total"], [list(r) for r in inventory]), ""]
+    tr = translator or Translator()
+    lines = [f"# {_t(tr, 'title.home', database=md_text(database))}", ""]
+    inventory_table = md_table([_t(tr, "col.section"), _t(tr, "col.total")], [list(r) for r in inventory])
+    lines += [f"## {_t(tr, 'home.inventory')}", "", *inventory_table, ""]
     if scope is not None:
-        lines += scope_section(scope)
+        lines += scope_section(scope, tr)
     if sections:
-        lines += ["## Contenido", "", *(f"- {md_link(title, target)}" for title, target in sections), ""]
-    if include_legend:
         lines += [
-            "## Leyenda de los diagramas",
+            f"## {_t(tr, 'home.contents')}",
             "",
-            *md_table(["Elemento", "Significado"], [list(r) for r in ER_LEGEND_ROWS]),
+            *(f"- {md_link(title, target)}" for title, target in sections),
             "",
-            f"**Niveles de relación:** {DIAGRAM_LEVELS_HELP}",
+        ]
+    if include_legend:
+        legend = [
+            [element or _t(tr, "legend.column_element"), _t(tr, f"legend.{key}")] for element, key in _LEGEND_KEYS
+        ]
+        lines += [
+            f"## {_t(tr, 'home.legend')}",
+            "",
+            *md_table([_t(tr, "col.element"), _t(tr, "col.meaning")], legend),
+            "",
+            f"**{_t(tr, 'legend.levels_label')}:** {_t(tr, 'legend.levels_help')}",
         ]
         lines.append("")
     return lines
 
 
-def scope_section(scope: FilterScope) -> list[str]:
+def scope_section(scope: FilterScope, translator: Translator | None = None) -> list[str]:
     """Sección «Alcance»: patrones del filtro y tablas de la frontera (sin ficha), como texto."""
+    tr = translator or Translator()
 
     def patterns(values: tuple[str, ...]) -> str:
         return ", ".join(code_span(value) for value in values) if values else "—"
 
     lines = [
-        "## Alcance",
+        f"## {_t(tr, 'scope.title')}",
         "",
-        "Documentación filtrada: solo se incluyen las tablas y vistas que casan con algún patrón de inclusión y con "
-        "ninguno de exclusión (patrones *glob*, sin distinguir mayúsculas).",
+        _t(tr, "scope.intro"),
         "",
-        f"- **Incluir:** {patterns(scope.include) if scope.include else 'todas'}",
-        f"- **Excluir:** {patterns(scope.exclude)}",
+        f"- **{_t(tr, 'scope.include')}:** {patterns(scope.include) if scope.include else _t(tr, 'scope.all')}",
+        f"- **{_t(tr, 'scope.exclude')}:** {patterns(scope.exclude)}",
         "",
     ]
     if scope.frontier:
         lines += [
-            "### Tablas de frontera",
+            f"### {_t(tr, 'scope.frontier_title')}",
             "",
-            "Unidas por una FK a alguna tabla documentada, pero fuera del filtro: aparecen en los diagramas y en las "
-            "relaciones, sin ficha propia.",
+            _t(tr, "scope.frontier_intro"),
             "",
             *(f"- {md_text(name)}" for name in scope.frontier),
             "",
@@ -129,7 +159,14 @@ class _LetterPage:
     entries: list[IndexEntry]
 
 
-def _letter_pages(title: str, entries: list[IndexEntry], page_size: int) -> list[tuple[str, int, list[_LetterPage]]]:
+def _letter_label(letter: str, tr: Translator) -> str:
+    """Letra visible de un índice: la de ``otros`` se traduce (el fichero ``index-otros.md`` no cambia)."""
+    return _t(tr, "index.letter_other") if letter == "otros" else letter.upper()
+
+
+def _letter_pages(
+    title: str, entries: list[IndexEntry], page_size: int, tr: Translator
+) -> list[tuple[str, int, list[_LetterPage]]]:
     """Paginación por letra (común a :func:`index_pages` e :func:`index_page_titles`): ``(letra, total, páginas)``."""
     by_letter: dict[str, list[IndexEntry]] = {}
     for entry in entries:
@@ -138,10 +175,13 @@ def _letter_pages(title: str, entries: list[IndexEntry], page_size: int) -> list
     result: list[tuple[str, int, list[_LetterPage]]] = []
     for letter in letters:
         chunks = [by_letter[letter][i : i + page_size] for i in range(0, len(by_letter[letter]), page_size)]
+        label = _letter_label(letter, tr)
         pages = [
             _LetterPage(
                 f"index-{letter}.md" if number == 1 else f"index-{letter}-{number}.md",
-                f"{title}: {letter.upper()}" + (f" ({number} de {len(chunks)})" if len(chunks) > 1 else ""),
+                _t(tr, "index.letter_heading_paged", title=title, letter=label, number=number, total=len(chunks))
+                if len(chunks) > 1
+                else _t(tr, "index.letter_heading", title=title, letter=label),
                 chunk,
             )
             for number, chunk in enumerate(chunks, start=1)
@@ -150,7 +190,9 @@ def _letter_pages(title: str, entries: list[IndexEntry], page_size: int) -> list
     return result
 
 
-def index_page_titles(title: str, entries: list[IndexEntry], page_size: int) -> dict[str, tuple[str, str | None]]:
+def index_page_titles(
+    title: str, entries: list[IndexEntry], page_size: int, translator: Translator | None = None
+) -> dict[str, tuple[str, str | None]]:
     """Título (sin escapar) y letra de cada página de :func:`index_pages`, para ``manifest.json`` → ``pages`` (5.4.0).
 
     Returns:
@@ -158,38 +200,46 @@ def index_page_titles(title: str, entries: list[IndexEntry], page_size: int) -> 
         el índice: ``index.md`` y luego las letras con sus subpáginas.
     """
     titles: dict[str, tuple[str, str | None]] = {"index.md": (title, None)}
-    for letter, _, letter_pages in _letter_pages(title, entries, page_size):
+    for letter, _, letter_pages in _letter_pages(title, entries, page_size, translator or Translator()):
         for page in letter_pages:
             titles[page.file_name] = (page.heading, letter)
     return titles
 
 
-def index_pages(title: str, entries: list[IndexEntry], page_size: int) -> dict[str, list[str]]:
+def index_pages(
+    title: str, entries: list[IndexEntry], page_size: int, translator: Translator | None = None
+) -> dict[str, list[str]]:
     """Índice de una sección: ``index.md`` con las letras y una página por letra (``index-a.md``, ``index-a-2.md``…).
 
     Args:
         title: Título de la sección («Tablas», «Vistas»…).
         entries: Entradas ya ordenadas.
         page_size: Entradas por página de letra.
+        translator: Idioma de los textos fijos (5.10.0); por defecto, español.
 
     Returns:
         Nombre de fichero (relativo a la carpeta de la sección) → líneas.
     """
+    tr = translator or Translator()
     pages: dict[str, list[str]] = {}
     summary: list[list[Any]] = []
-    for letter, total, letter_pages in _letter_pages(title, entries, page_size):
+    for letter, total, letter_pages in _letter_pages(title, entries, page_size, tr):
         names = [page.file_name for page in letter_pages]
         summary.append([letter, total, names[0]])
         for page in letter_pages:
             chunk, file_name, heading = page.entries, page.file_name, page.heading
-            nav = [md_link(f"Página {n}", other) for n, other in enumerate(names, start=1) if other != file_name]
+            nav = [
+                md_link(_t(tr, "index.page", number=n), other)
+                for n, other in enumerate(names, start=1)
+                if other != file_name
+            ]
             pages[file_name] = [
                 f"# {md_text(heading)}",
                 "",
-                md_link(f"Índice de {title.lower()}", "index.md"),
+                md_link(_t(tr, "index.back", title=title.lower()), "index.md"),
                 "",
                 *md_table(
-                    ["Nombre", "Comentario"],
+                    [_t(tr, "col.name"), _t(tr, "col.comment")],
                     [[(e.name, e.target), e.comment] for e in chunk],
                     cell_renderers={0: _link_cell},
                 ),
@@ -199,11 +249,11 @@ def index_pages(title: str, entries: list[IndexEntry], page_size: int) -> dict[s
     pages["index.md"] = [
         f"# {md_text(title)}",
         "",
-        md_link("Inicio", "../index.md"),
+        md_link(_t(tr, "nav.home"), "../index.md"),
         "",
         *md_table(
-            ["Letra", "Total"],
-            [[(str(row[0]).upper(), row[2]), row[1]] for row in summary],
+            [_t(tr, "col.letter"), _t(tr, "col.total")],
+            [[(_letter_label(str(row[0]), tr), row[2]), row[1]] for row in summary],
             cell_renderers={0: _link_cell},
         ),
         "",
@@ -220,56 +270,74 @@ def _link_cell(value: tuple[str, str]) -> str:
 # --- Base de datos ------------------------------------------------------------
 
 
-def database_info_page(provider: DocumentationManagerPort, flags: list[bool], logger: logging.Logger) -> list[str]:
+def database_info_page(
+    provider: DocumentationManagerPort,
+    flags: list[bool],
+    logger: logging.Logger,
+    translator: Translator | None = None,
+) -> list[str]:
     """``database/info.md``: versión y charset/collation (como la sección final del Word)."""
-    lines = ["# Información de la Base de Datos", ""]
+    tr = translator or Translator()
+    lines = [f"# {_t(tr, 'title.database_info')}", ""]
     try:
         rows = GeneratorDatabaseInfoRuntime.collect_database_info_rows(
-            data_provider=provider, database_info_flags=flags, logger=logger, include_error_rows=True
+            data_provider=provider, database_info_flags=flags, logger=logger, include_error_rows=True, translator=tr
         )
     except DatabaseException as error:
-        return [*lines, md_text(f"Error al obtener información: {error}"), ""]
+        return [*lines, md_text(_t(tr, "error.database_info", error=error)), ""]
     if not rows:
-        return [*lines, "No se configuró información de base de datos para mostrar.", ""]
-    return [*lines, "## Propiedades", "", *md_table(["Propiedad", "Valor"], [list(r) for r in rows]), ""]
+        return [*lines, _t(tr, "empty.database_info"), ""]
+    table = md_table([_t(tr, "col.property"), _t(tr, "col.value")], [list(r) for r in rows])
+    return [*lines, f"## {_t(tr, 'database.properties')}", "", *table, ""]
 
 
-def storage_page(provider: DocumentationManagerPort) -> list[str]:
+def storage_page(provider: DocumentationManagerPort, translator: Translator | None = None) -> list[str]:
     """``database/storage.md``: resumen y una tabla por consulta del inventario de almacenamiento."""
-    lines = ["# Almacenamiento", ""]
+    tr = translator or Translator()
+    lines = [f"# {_t(tr, 'title.storage')}", ""]
     try:
         report: dict[str, Any] = provider.get_storage_inventory_report()
     except DatabaseException as error:
-        return [*lines, md_text(f"No se pudo obtener la información de almacenamiento: {error}"), ""]
+        return [*lines, md_text(_t(tr, "error.storage", error=error)), ""]
     sections: list[dict[str, Any]] = report.get("sections", [])
     if sections:
         summary = [
             [s.get("title", ""), s.get("status", ""), len(s.get("rows", [])), s.get("message", "")] for s in sections
         ]
-        lines += ["## Resumen", "", *md_table(["Consulta", "Estado", "Filas", "Mensaje"], summary), ""]
+        headers_summary = [_t(tr, f"col.{key}") for key in ("query", "status", "rows", "message")]
+        lines += [f"## {_t(tr, 'storage.summary')}", "", *md_table(headers_summary, summary), ""]
     for section in sections:
-        title = str(section.get("title", "Consulta"))
+        title = str(section.get("title", _t(tr, "storage.query")))
         rows: list[list[Any]] = [list(r) for r in section.get("rows", [])]
         headers = [str(h) for h in section.get("headers", [])]
         if not headers and rows:
-            headers = [f"Columna {i}" for i in range(1, max(len(r) for r in rows) + 1)]
+            headers = [_t(tr, "col.storage_column", number=i) for i in range(1, max(len(r) for r in rows) + 1)]
         lines += [f"## {md_text(title)}", ""]
-        lines += [*md_table(headers, rows), ""] if rows else [md_text(section.get("message", "Sin datos")), ""]
+        empty = section.get("message", _t(tr, "empty.storage_section"))
+        lines += [*md_table(headers, rows), ""] if rows else [md_text(empty), ""]
     return lines
 
 
-def engine_conditions_page(provider: DocumentationManagerPort) -> list[str]:
+def engine_conditions_page(provider: DocumentationManagerPort, translator: Translator | None = None) -> list[str]:
     """``database/engine-conditions.md``: «Condiciones del motor» (``EngineReadinessAdvisor``)."""
+    tr = translator or Translator()
     section = EngineConditionsSectionBuilder.of(provider)
-    lines = ["# Condiciones del motor", ""]
+    lines = [f"# {_t(tr, 'title.engine_conditions')}", ""]
     lines += [line for notice in section.notices for line in (md_text(notice), "")]
     if section.metadata:
-        lines += ["## Verificación", "", *md_table(["Propiedad", "Valor"], [list(i) for i in section.metadata]), ""]
+        metadata = md_table([_t(tr, "col.property"), _t(tr, "col.value")], [list(i) for i in section.metadata])
+        lines += [f"## {_t(tr, 'engine.verification')}", "", *metadata, ""]
     if section.summary:
         rows = [[level, count] for level, count in section.summary]
-        lines += ["## Resumen por severidad", "", *md_table(["Nivel", "Hallazgos"], rows), ""]
+        summary = md_table([_t(tr, "col.level"), _t(tr, "col.findings")], rows)
+        lines += [f"## {_t(tr, 'engine.summary')}", "", *summary, ""]
     if section.rows:
-        lines += ["## Hallazgos", "", *md_table(list(section.headers), [list(r) for r in section.rows]), ""]
+        lines += [
+            f"## {_t(tr, 'engine.findings')}",
+            "",
+            *md_table(list(section.headers), [list(r) for r in section.rows]),
+            "",
+        ]
     return lines
 
 

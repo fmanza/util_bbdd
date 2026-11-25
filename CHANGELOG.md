@@ -7,7 +7,39 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.10.0] - 2026-11-25
+
+SemVer: MINOR, API pública nueva sin cambios incompatibles (sesión `2026-11-25-i18n-resultados`): parámetro
+`locale` opcional, con `"es"` por defecto, en cuatro puntos de entrada. Sin `locale`, la salida es la de 5.9.1 salvo
+la corrección de separadores del resumen HTML de auditoría (`Fixed`).
+
+### Added
+
+- **i18n de los resultados** (`_core/i18n.py`, `data/i18n/{es,en}/`): informes y documentación en español o inglés con el
+  parámetro `locale` (`"es"` por defecto, así que sin `locale` la salida es la de antes). Guía:
+  `docs/guides/output_language.md`.
+  - `DatabaseDocumentation(..., locale=)`: Word, Excel, HTML y Markdown. Sin `headers_file` (ahora `None` por
+    defecto), las cabeceras salen de `doc/data/headers_config.json` o del nuevo `headers_config.en.json`. En el
+    Markdown, `catalog.json`, `changes.json`, el front matter y las rutas no dependen del idioma (`markdown.previous`
+    compara entre idiomas); los títulos de `manifest.json` → `pages` son el H1 de cada página, en su idioma.
+  - `SchemaDiffReporter(..., *, locale=)`: los cinco reporters (en el SQL, solo los comentarios).
+  - `DumpConfig(locale=)`: informe Excel del volcado (nombres de hoja incluidos).
+  - `AuditManager(..., locale=)`: resumen Excel y HTML (las columnas de las hojas son las del CSV y no cambian).
+  - `analysis`: `GraphvizRelationshipGraphExt`, `MatplotlibRelationshipGraph`, `MermaidRelationshipGraph` y la base
+    aceptan `translator` (textos de los diagramas).
+  - `Translator` con `format_int`/`format_decimal`: separadores del idioma sin `locale.setlocale` (seguro con hilos).
+    Las fechas siguen en ISO 8601.
+  - Fuera de alcance: excepciones, logs y las recomendaciones de `EngineReadinessAdvisor` (hoja «Condiciones del
+    motor»), que siguen en español.
+  - Catálogos (claves por idioma): `doc_md` 213, `doc_html` 203, `comparar` 153, `doc` 151, `dump` 64, `audit` 35,
+    `analysis` 16, `_format` 2. Tests en `tests/_core/test_i18n.py` (paridad de claves y marcadores) y
+    `tests/unit/i18n/` (salidas en inglés sin texto en español).
+
 ### Fixed
+
+- **audit** (`AuditManager.exportar_resumen_html`): el resumen HTML en español mostraba los números con separadores
+  ingleses (`1,234,567` filas, `12.34` s); ahora usa los del idioma (`1.234.567`, `12,34`). Es el único cambio visible
+  en la salida en español de 5.10.0.
 
 - **ci** (`.github/workflows/docs-zip-release.yml`): el tag `docs-v<versión>` se crea sobre el commit del push
   (`commit: ${{ github.sha }}`). Sin él, `ncipollo/release-action` lo creaba sobre el HEAD de `main`, y un push a

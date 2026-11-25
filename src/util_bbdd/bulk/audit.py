@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import pandas as pd
 
+from .._core.i18n import Locale, Translator
 from .._core.validation import StrPath, validate_optional_path
 from ..audit.analytics import AuditAnalyticsService
 from ..audit.exporters import AuditExporters
@@ -53,6 +54,7 @@ class AuditManager:
         *,
         warn_if_disabled: bool = True,
         engine: Engine | None = None,
+        locale: Locale = "es",
     ) -> None:
         """
         Args:
@@ -64,6 +66,12 @@ class AuditManager:
                 loader crea una instancia por partición y avisa él una sola vez).
             engine: Engine cuyas condiciones (``EngineReadinessAdvisor``) se añaden como hoja ``Condiciones_motor`` en
                 :meth:`exportar_resumen_excel`. ``BulkCrud`` pasa el suyo; sin engine no se añade la hoja.
+            locale: Idioma de los informes Excel y HTML (5.10.0): ``"es"`` (default) o ``"en"``. Traduce nombres de
+                hoja y textos fijos y aplica los separadores numéricos del idioma en el HTML; las columnas de las hojas
+                (las del CSV de auditoría) y el JSON no cambian.
+
+        Raises:
+            ValueError: Si ``locale`` no es un idioma soportado.
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
 
@@ -82,6 +90,7 @@ class AuditManager:
             service=self._service,
             logger=self.logger,
             error_audit_path_required=self.ERROR_AUDIT_PATH_REQUIRED,
+            translator=Translator(locale),
         )
         self._aviso_deshabilitada_emitido: bool = not warn_if_disabled
         self._engine: Engine | None = engine

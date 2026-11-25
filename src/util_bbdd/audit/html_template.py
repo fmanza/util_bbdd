@@ -1,14 +1,18 @@
-"""Plantilla HTML del informe de auditoría (movida desde ``util_bbdd.bulk._audit.html_template``, sesión 2026-10-02c)."""
+"""Plantilla HTML del informe de auditoría (movida desde ``util_bbdd.bulk._audit.html_template``, sesión 2026-10-02c).
+
+Los textos fijos son marcadores (``$l_*``) que ``AuditExporters`` rellena, ya escapados, con el catálogo ``audit`` del
+idioma de salida (5.10.0).
+"""
 
 from string import Template
 
 AUDIT_HTML_TEMPLATE = Template("""\
 <!DOCTYPE html>
-<html lang="es">
+<html lang="$lang">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auditoría - $page_title</title>
+    <title>$l_title</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
         .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -27,40 +31,40 @@ AUDIT_HTML_TEMPLATE = Template("""\
 </head>
 <body>
     <div class="container">
-        <h1>&#128202; Reporte de Auditoría</h1>
-        <p>Generado: $generated_datetime</p>
+        <h1>&#128202; $l_heading</h1>
+        <p>$l_generated</p>
 
-        <h2>Estadísticas Generales</h2>
+        <h2>$l_general_stats</h2>
         <div class="stats">
             <div class="stat-box">
-                <div class="stat-label">Total Operaciones</div>
+                <div class="stat-label">$l_stat_operations</div>
                 <div class="stat-value">$total_operaciones</div>
             </div>
             <div class="stat-box">
-                <div class="stat-label">Filas Procesadas</div>
+                <div class="stat-label">$l_stat_rows</div>
                 <div class="stat-value">$total_filas</div>
             </div>
             <div class="stat-box">
-                <div class="stat-label">Tiempo Total (s)</div>
+                <div class="stat-label">$l_stat_total_time</div>
                 <div class="stat-value">$tiempo_total</div>
             </div>
             <div class="stat-box">
-                <div class="stat-label">Tiempo Promedio (s)</div>
+                <div class="stat-label">$l_stat_avg_time</div>
                 <div class="stat-value">$tiempo_promedio</div>
             </div>
         </div>
 
-        <h2>Últimas 20 Operaciones</h2>
+        <h2>$l_last_operations</h2>
         $tabla_ultimas_ops
 
-        <h2>Operaciones por Tipo</h2>
+        <h2>$l_by_type</h2>
         $tabla_por_tipo
 
-        <h2>Operaciones por Tabla</h2>
+        <h2>$l_by_table</h2>
         $tabla_por_tabla
 
         <div class="footer">
-            <p>Este reporte fue generado automáticamente por AuditManager</p>
+            <p>$l_footer</p>
         </div>
     </div>
 </body>

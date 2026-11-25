@@ -26,7 +26,7 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `AuditManager` | `(audit_csv_path=None, cache_enabled=True, cache_ttl_seconds=300, *, warn_if_disabled=True)` | Crea la fachada; crea el directorio del CSV si no existe | `AuditManager` |
+| `AuditManager` | `(audit_csv_path=None, cache_enabled=True, cache_ttl_seconds=300, *, warn_if_disabled=True, engine=None, locale="es")` | Crea la fachada; crea el directorio del CSV si no existe | `AuditManager` |
 | `registrar_operacion` | `(tabla, motor, operacion, rowcount, elapsed, genero_sql=False)` | Añade una fila al CSV. Sin `audit_csv_path` no hace nada (un WARNING por instancia, salvo con `warn_if_disabled=False`) | `None` |
 | `leer_auditoria` | `(usar_cache?)` | Lee el CSV completo | `pd.DataFrame` |
 | `limpiar_cache` / `invalidar_cache` | `()` | Fuerza releer el CSV en la próxima lectura | `None` |
@@ -51,6 +51,7 @@ Propiedades: `audit_csv_path`, `cache_enabled`, `cache_ttl_seconds` (lectura y e
 | `audit_csv_path` | `str \| Path \| None` | Fichero CSV de auditoría (desde v1.1.0 también `str`) | `None` = auditoría desactivada |
 | `cache_enabled` | `bool` | Cachear la lectura del CSV | Default `True` |
 | `cache_ttl_seconds` | `int` | Validez máxima de la caché | Default `300`; además se descarta si el fichero cambió |
+| `locale` | `"es" \| "en"` | Idioma del resumen Excel y HTML (5.10.0): nombres de hoja, textos fijos y separadores numéricos del HTML | Default `"es"`; otro valor: `ValueError`. Las columnas de las hojas (las del CSV) y el JSON no cambian |
 | `tabla`, `motor` | `str` | Tabla y motor de la operación | No vacíos |
 | `operacion` | `str` | Tipo de operación | `"INSERT"`, `"UPDATE"` o `"DELETE"` |
 | `rowcount` | `int` | Filas enviadas a la operación | `>= 0` |

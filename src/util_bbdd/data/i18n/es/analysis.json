@@ -1,0 +1,18 @@
+{
+  "footer.visible_depth": "Profundidad visible: {depth}",
+  "footer.outgoing_levels": "Niveles salida: {count}",
+  "footer.incoming_levels": "Niveles entrada: {count}",
+  "footer.outgoing_hidden": "Salida oculta: {count} nivel(es) no visibles por profundidad",
+  "footer.incoming_hidden": "Entrada oculta: {count} nivel(es) no visibles por profundidad",
+  "node.no_visible_columns": "Sin columnas visibles",
+  "node.hidden_columns": "... {count} columna(s) mas",
+  "graph.comment": "Relaciones extendidas de {table}",
+  "level.title": "Nivel {depth}",
+  "level.isolated": "Tabla sin relaciones",
+  "legend.main_table": "Tabla Principal",
+  "legend.related_tables": "Tablas Relacionadas",
+  "legend.fk_relation": "Relación FK",
+  "matplotlib.title": "Relaciones multinivel - Tabla: {table}\nProfundidad visible={depth} | Salida={outgoing} | Entrada={incoming}",
+  "mermaid.warning.no_columns": "Diagrama sin columnas: con ellas superaba {max_chars} caracteres.",
+  "mermaid.warning.split": "Diagrama partido: superaba {max_entities} entidades o {max_chars} caracteres."
+}

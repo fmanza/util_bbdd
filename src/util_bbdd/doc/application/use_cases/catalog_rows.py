@@ -12,6 +12,8 @@ no por tabla) y presenta lo mismo en todos los motores. Formas (texto, ``""`` si
 - PK ``(columna,)`` · FK ``(restricción, columna, tabla ref., columna ref., ON DELETE, ON UPDATE)`` por par de
   columnas · UNIQUE ``(restricción, columna)`` · índices ``(índice, columna o expresión, Sí/No, método)``;
 - parámetros ``(modo, nombre, tipo, por defecto, posición)``.
+
+``CALCULADA`` y ``Sí``/``No`` salen en el idioma del ``Translator`` que se pase (español por defecto, 5.10.0).
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from collections import Counter
 from collections.abc import Callable
 from typing import Any
 
+from ...._core.i18n import Translator
 from ....metadata.model import ColumnMeta, Kind, RoutineMeta, SchemaSnapshot, ViewMeta
 
 Row = tuple[Any, ...]
@@ -29,11 +32,11 @@ def _text(value: Any) -> str:
     return "" if value is None else str(value)
 
 
-def _generation(column: ColumnMeta) -> str:
+def _generation(column: ColumnMeta, translator: Translator) -> str:
     if column.identity:
         return f"IDENTITY ({column.identity.upper()})"
     if column.generated:
-        return f"CALCULADA: {column.generated}"
+        return translator.t("doc.catalog.generated", expression=column.generated)
     return ""
 
 
@@ -87,14 +90,15 @@ class CatalogRows:
         return found[0] if found else None
 
     # ── tablas y vistas ──────────────────────────────────────────────────────
-    def columns(self, table: str) -> list[Row]:
+    def columns(self, table: str, translator: Translator | None = None) -> list[Row]:
+        tr = translator or Translator()
         return [
             (
                 c.name,
                 c.data_type,
                 "YES" if c.nullable else "NO",
                 "" if c.identity else _text(c.default),
-                _generation(c),
+                _generation(c, tr),
                 _text(c.comment),
             )  # fmt: skip
             for c in self._snapshot(Kind.COLUMNS).columns(table)
@@ -114,9 +118,11 @@ class CatalogRows:
     def unique_constraints(self, table: str) -> list[Row]:
         return [(u.name, column) for u in self._snapshot(Kind.UNIQUES).uniques(table) for column in u.columns]
 
-    def indices(self, table: str) -> list[Row]:
+    def indices(self, table: str, translator: Translator | None = None) -> list[Row]:
+        tr = translator or Translator()
+        yes, no = tr.t("doc.common.yes"), tr.t("doc.common.no")
         return [
-            (index.name, column, "Sí" if index.unique else "No", _text(index.method))
+            (index.name, column, yes if index.unique else no, _text(index.method))
             for index in self._snapshot(Kind.INDEXES).indexes(table)
             for column in index.columns
         ]

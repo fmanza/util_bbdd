@@ -1,7 +1,7 @@
 {% extends "layouts/base_page.j2" %}
 {% import "macros/common.j2" as ui %}
 
-{% block title %}Índice documentación BD - {{ database }}{% endblock %}
+{% block title %}{{ t("doc_html.index.title", database=database) }}{% endblock %}
 
 {% block styles %}
   :root { --header-height: 68px; }
@@ -49,30 +49,30 @@
 {% block content %}
   <header>
     <div>
-      <h1 style="margin: 0; font-size: 20px;">Índice de documentación - {{ database }}</h1>
-      <div class="meta">Generado: {{ generated_at }}</div>
+      <h1 style="margin: 0; font-size: 20px;">{{ t("doc_html.index.heading", database=database) }}</h1>
+      <div class="meta">{{ t("doc_html.common.generated") }} {{ generated_at }}</div>
     </div>
     <div class="header-actions">
       <div class="search-scope">
-        <label for="searchScope">Buscar en</label>
-        <select id="searchScope" aria-label="Seleccionar tipo de búsqueda">
-          <option value="table" selected>TABLA</option>
-          <option value="view">VISTA</option>
-          <option value="procedure">PROCEDURE</option>
-          <option value="function">FUNCTION</option>
-          <option value="storage">ALMACENAMIENTO</option>
-          <option value="database-info">INFORMACIÓN BD</option>
+        <label for="searchScope">{{ t("doc_html.index.search_in") }}</label>
+        <select id="searchScope" aria-label="{{ t('doc_html.index.search_scope_aria') }}">
+          <option value="table" selected>{{ t("doc_html.scope.option.table") }}</option>
+          <option value="view">{{ t("doc_html.scope.option.view") }}</option>
+          <option value="procedure">{{ t("doc_html.scope.option.procedure") }}</option>
+          <option value="function">{{ t("doc_html.scope.option.function") }}</option>
+          <option value="storage">{{ t("doc_html.scope.option.storage") }}</option>
+          <option value="database-info">{{ t("doc_html.scope.option.database_info") }}</option>
           {% if engine_conditions %}
-            <option value="engine-conditions">CONDICIONES DEL MOTOR</option>
+            <option value="engine-conditions">{{ t("doc_html.scope.option.engine_conditions") }}</option>
           {% endif %}
         </select>
       </div>
-      <button id="panelToggle" class="panel-toggle" type="button" aria-expanded="true" aria-controls="sidebarPanel">Contraer panel lateral</button>
+      <button id="panelToggle" class="panel-toggle" type="button" aria-expanded="true" aria-controls="sidebarPanel">{{ t("doc_html.index.panel_collapse") }}</button>
     </div>
   </header>
 
   {% if inventory_summary %}
-  <section class="summary-grid" aria-label="Resumen de inventario">
+  <section class="summary-grid" aria-label="{{ t('doc_html.index.inventory_aria') }}">
     {% for item in inventory_summary %}
       {{ ui.render_summary_card(item, collection_links.get(item.collection_key, '')) }}
     {% endfor %}
@@ -81,74 +81,74 @@
 
   <div class="layout" id="layoutRoot">
     <aside class="sidebar" id="sidebarPanel">
-      <input id="searchBox" type="search" placeholder="Buscar tabla..." />
+      <input id="searchBox" type="search" placeholder="{{ t('doc_html.index.search_prefix') }}{{ t('doc_html.scope.label.table') }}..." />
 
       <div id="scope-table-block" data-scope-block="table">
-        {{ ui.render_sidebar_section('Tablas', tables|length, tables, 'table-item', collection_links.get('tables', ''), 'No hay tablas.') }}
+        {{ ui.render_sidebar_section(t('doc_html.inventory.tables'), tables|length, tables, 'table-item', collection_links.get('tables', ''), t('doc_html.index.empty.tables')) }}
         <div class="pager" id="tablesPager">
-          <button id="tablesPrev" type="button">Anterior</button>
-          <span id="tablesPageInfo">Página 1/1</span>
-          <button id="tablesNext" type="button">Siguiente</button>
+          <button id="tablesPrev" type="button">{{ t("doc_html.pager.prev") }}</button>
+          <span id="tablesPageInfo">{{ t("doc_html.pager.page_prefix") }}1/1</span>
+          <button id="tablesNext" type="button">{{ t("doc_html.pager.next") }}</button>
         </div>
       </div>
 
       <div id="scope-view-block" data-scope-block="view">
-        {{ ui.render_sidebar_section('Vistas', views|length, views, 'view-item', collection_links.get('views', ''), 'No hay vistas.') }}
+        {{ ui.render_sidebar_section(t('doc_html.inventory.views'), views|length, views, 'view-item', collection_links.get('views', ''), t('doc_html.index.empty.views')) }}
         <div class="pager" id="viewsPager">
-          <button id="viewsPrev" type="button">Anterior</button>
-          <span id="viewsPageInfo">Página 1/1</span>
-          <button id="viewsNext" type="button">Siguiente</button>
+          <button id="viewsPrev" type="button">{{ t("doc_html.pager.prev") }}</button>
+          <span id="viewsPageInfo">{{ t("doc_html.pager.page_prefix") }}1/1</span>
+          <button id="viewsNext" type="button">{{ t("doc_html.pager.next") }}</button>
         </div>
       </div>
 
       <div id="scope-procedure-block" data-scope-block="procedure">
-        {{ ui.render_sidebar_section('Procedures', procedures|length, procedures, 'procedure-item', collection_links.get('procedures', ''), 'No hay procedures.') }}
+        {{ ui.render_sidebar_section(t('doc_html.inventory.procedures'), procedures|length, procedures, 'procedure-item', collection_links.get('procedures', ''), t('doc_html.index.empty.procedures')) }}
         <div class="pager" id="proceduresPager">
-          <button id="proceduresPrev" type="button">Anterior</button>
-          <span id="proceduresPageInfo">Página 1/1</span>
-          <button id="proceduresNext" type="button">Siguiente</button>
+          <button id="proceduresPrev" type="button">{{ t("doc_html.pager.prev") }}</button>
+          <span id="proceduresPageInfo">{{ t("doc_html.pager.page_prefix") }}1/1</span>
+          <button id="proceduresNext" type="button">{{ t("doc_html.pager.next") }}</button>
         </div>
       </div>
 
       <div id="scope-function-block" data-scope-block="function">
-        {{ ui.render_sidebar_section('Funciones', functions|length, functions, 'function-item', collection_links.get('functions', ''), 'No hay funciones.') }}
+        {{ ui.render_sidebar_section(t('doc_html.inventory.functions'), functions|length, functions, 'function-item', collection_links.get('functions', ''), t('doc_html.index.empty.functions')) }}
         <div class="pager" id="functionsPager">
-          <button id="functionsPrev" type="button">Anterior</button>
-          <span id="functionsPageInfo">Página 1/1</span>
-          <button id="functionsNext" type="button">Siguiente</button>
+          <button id="functionsPrev" type="button">{{ t("doc_html.pager.prev") }}</button>
+          <span id="functionsPageInfo">{{ t("doc_html.pager.page_prefix") }}1/1</span>
+          <button id="functionsNext" type="button">{{ t("doc_html.pager.next") }}</button>
         </div>
       </div>
 
       <div id="scope-storage-block" data-scope-block="storage">
-        {{ ui.render_sidebar_section('Almacenamiento', storage_total_rows|default(0), storage, 'storage-item', collection_links.get('storage', ''), 'No hay inventario de almacenamiento.') }}
+        {{ ui.render_sidebar_section(t('doc_html.inventory.storage'), storage_total_rows|default(0), storage, 'storage-item', collection_links.get('storage', ''), t('doc_html.index.empty.storage')) }}
         <div class="pager" id="storagePager">
-          <button id="storagePrev" type="button">Anterior</button>
-          <span id="storagePageInfo">Página 1/1</span>
-          <button id="storageNext" type="button">Siguiente</button>
+          <button id="storagePrev" type="button">{{ t("doc_html.pager.prev") }}</button>
+          <span id="storagePageInfo">{{ t("doc_html.pager.page_prefix") }}1/1</span>
+          <button id="storageNext" type="button">{{ t("doc_html.pager.next") }}</button>
         </div>
       </div>
 
       <div id="scope-database-info-block" data-scope-block="database-info">
-        {{ ui.render_sidebar_section('Información BD', database_info|length, database_info, 'database-info-item', '', 'No hay información de base de datos.') }}
+        {{ ui.render_sidebar_section(t('doc_html.index.database_info'), database_info|length, database_info, 'database-info-item', '', t('doc_html.index.empty.database_info')) }}
         <div class="pager" id="databaseInfoPager">
-          <button id="databaseInfoPrev" type="button">Anterior</button>
-          <span id="databaseInfoPageInfo">Página 1/1</span>
-          <button id="databaseInfoNext" type="button">Siguiente</button>
+          <button id="databaseInfoPrev" type="button">{{ t("doc_html.pager.prev") }}</button>
+          <span id="databaseInfoPageInfo">{{ t("doc_html.pager.page_prefix") }}1/1</span>
+          <button id="databaseInfoNext" type="button">{{ t("doc_html.pager.next") }}</button>
         </div>
       </div>
 
       {% if engine_conditions %}
         <div id="scope-engine-conditions-block" data-scope-block="engine-conditions">
-          {{ ui.render_sidebar_section('Condiciones del motor', engine_conditions|length, engine_conditions, 'engine-conditions-item') }}
+          {{ ui.render_sidebar_section(t('audit.readiness.title'), engine_conditions|length, engine_conditions, 'engine-conditions-item') }}
         </div>
       {% endif %}
     </aside>
 
     <main class="content">
       {% if default_content_path %}
-        <iframe name="detailFrame" src="{{ default_content_path }}" title="Detalle entidad"></iframe>
+        <iframe name="detailFrame" src="{{ default_content_path }}" title="{{ t('doc_html.index.detail_frame') }}"></iframe>
       {% else %}
-        <div style="padding: 20px;" class="empty">No hay contenido para mostrar.</div>
+        <div style="padding: 20px;" class="empty">{{ t("doc_html.index.no_content") }}</div>
       {% endif %}
     </main>
   </div>
@@ -167,7 +167,7 @@
       if (!panelToggle) {
         return;
       }
-      panelToggle.textContent = collapsed ? 'Expandir panel lateral' : 'Contraer panel lateral';
+      panelToggle.textContent = collapsed ? '{{ t("doc_html.index.panel_expand")|js_str }}' : '{{ t("doc_html.index.panel_collapse")|js_str }}';
       panelToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
     }
 
@@ -201,7 +201,7 @@
         allItems.forEach(function (item) {
           item.style.display = visibleSet.has(item) ? '' : 'none';
         });
-        if (infoLabel) infoLabel.textContent = 'Página ' + currentPage + '/' + totalPages;
+        if (infoLabel) infoLabel.textContent = '{{ t("doc_html.pager.page_prefix")|js_str }}' + currentPage + '/' + totalPages;
         if (prevButton) prevButton.disabled = currentPage <= 1;
         if (nextButton) nextButton.disabled = currentPage >= totalPages;
       }
@@ -237,13 +237,13 @@
     databaseInfoPager.render();
 
     function getScopeLabel(scope) {
-      if (scope === 'view') return 'vista';
-      if (scope === 'procedure') return 'procedure';
-      if (scope === 'function') return 'function';
-      if (scope === 'storage') return 'almacenamiento';
-      if (scope === 'database-info') return 'información de BD';
-      if (scope === 'engine-conditions') return 'condiciones del motor';
-      return 'tabla';
+      if (scope === 'view') return '{{ t("doc_html.scope.label.view")|js_str }}';
+      if (scope === 'procedure') return '{{ t("doc_html.scope.label.procedure")|js_str }}';
+      if (scope === 'function') return '{{ t("doc_html.scope.label.function")|js_str }}';
+      if (scope === 'storage') return '{{ t("doc_html.scope.label.storage")|js_str }}';
+      if (scope === 'database-info') return '{{ t("doc_html.scope.label.database_info")|js_str }}';
+      if (scope === 'engine-conditions') return '{{ t("doc_html.scope.label.engine_conditions")|js_str }}';
+      return '{{ t("doc_html.scope.label.table")|js_str }}';
     }
 
     function applyScopedSearch() {
@@ -268,7 +268,7 @@
 
     function updateSearchPlaceholder() {
       const scope = searchScope ? searchScope.value : 'table';
-      searchBox.placeholder = 'Buscar ' + getScopeLabel(scope) + '...';
+      searchBox.placeholder = '{{ t("doc_html.index.search_prefix")|js_str }}' + getScopeLabel(scope) + '...';
     }
 
     searchBox.addEventListener('input', applyScopedSearch);

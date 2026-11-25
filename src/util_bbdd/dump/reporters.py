@@ -11,7 +11,8 @@ Genera un único fichero ``.xlsx`` con tres hojas fijas y hasta cinco opcionales
   - ``Condiciones del motor`` (opcional; ``DumpOrchestrator`` la pide siempre): ``EngineReadinessAdvisor`` de origen y
     destino.
 
-Las hojas opcionales se añaden siempre al final, para no mover las demás.
+Las hojas opcionales se añaden siempre al final, para no mover las demás. Los nombres de hoja y los textos fijos
+salen del catálogo ``dump`` del idioma de ``DumpConfig.locale`` (5.10.0); arriba, los del español.
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from .._core.exceptions import DumpReportError
 from .._core.export_safety import SafeWorkbook
+from .._core.i18n import Translator
 from ..audit.readiness import ReadinessBlock, ReadinessSheetWriter
 from ._constraints import ConstraintResult
 from ._models import DumpAuditSummary, IndexActionResult, PKSyncResult, TableDumpResult
@@ -85,8 +87,12 @@ class DumpReporter:
         "no_rows": "FF92D050",
     }
 
-    def __init__(self, output_dir: Path) -> None:
+    def __init__(self, output_dir: Path, translator: Translator | None = None) -> None:
         self._output_dir = output_dir
+        self._tr: Translator = translator or Translator()
+
+    def _t(self, key: str) -> str:
+        return self._tr.t(f"dump.{key}")
 
     # ------------------------------------------------------------------
     # Helpers estáticos de escritura de celdas
@@ -118,14 +124,13 @@ class DumpReporter:
             width = max((len(str(c.value or "")) for c in col_cells), default=8)
             ws.column_dimensions[get_column_letter(col_cells[0].column or 1)].width = min(width + 4, 65)
 
-    @staticmethod
-    def _write_audit_rows(ws: Worksheet, table_results: list[TableDumpResult], cycle_set: set[str]) -> None:
+    def _write_audit_rows(self, ws: Worksheet, table_results: list[TableDumpResult], cycle_set: set[str]) -> None:
         for row, res in enumerate(table_results, 2):
             bg = DumpReporter._STATUS_BG.get(res.status)
             pos = str(res.load_order_position) if res.load_order_position >= 0 else "—"
             DumpReporter._cell(ws, row, 1, res.table_name)
             DumpReporter._cell(ws, row, 2, pos)
-            DumpReporter._cell(ws, row, 3, "Sí" if res.table_name in cycle_set else "No")
+            DumpReporter._cell(ws, row, 3, self._t("yes") if res.table_name in cycle_set else self._t("no"))
             DumpReporter._cell(ws, row, 4, res.source_rows if res.source_rows >= 0 else "—")
             DumpReporter._cell(ws, row, 5, res.target_rows_before if res.target_rows_before >= 0 else "—")
             DumpReporter._cell(ws, row, 6, res.target_rows_after if res.target_rows_after >= 0 else "—")
@@ -134,8 +139,8 @@ class DumpReporter:
             DumpReporter._cell(ws, row, 9, ", ".join(res.skipped_columns) if res.skipped_columns else "—")
             DumpReporter._cell(ws, row, 10, res.error_msg or "—")
 
-    @staticmethod
     def _write_constraint_section(
+        self,
         ws: Worksheet,
         constraint_results: list[ConstraintResult],
         table_count: int,
@@ -144,10 +149,9 @@ class DumpReporter:
         if not failed:
             return
         offset = table_count + 4
-        DumpReporter._header(
-            ws, offset, 1, "Constraints con incidencia al rehabilitar", color=DumpReporter._COL_HEADER_ORANGE
-        )
-        for col, h in enumerate(["Tabla", "Constraint", "Dialect", "Estado", "Mensaje"], 1):
+        DumpReporter._header(ws, offset, 1, self._t("constraints.heading"), color=DumpReporter._COL_HEADER_ORANGE)
+        headers = [self._t(f"col.{key}") for key in ("table", "constraint", "dialect", "status", "message")]
+        for col, h in enumerate(headers, 1):
             DumpReporter._header(ws, offset + 1, col, h, color=DumpReporter._COL_HEADER_ORANGE)
         for i, cr in enumerate(failed, offset + 2):
             DumpReporter._cell(ws, i, 1, cr.table_name)
@@ -217,7 +221,7 @@ class DumpReporter:
             if constraint_reactivation_error is not None:
                 self._sheet_constraint_reactivation_error(wb, constraint_reactivation_error)
             if engine_readiness is not None:
-                ReadinessSheetWriter().write(wb.create_sheet("Condiciones del motor"), engine_readiness)
+                ReadinessSheetWriter(self._tr).write(wb.create_sheet(self._t("sheet.readiness")), engine_readiness)
 
             wb.save(output_path)
         except Exception as exc:
@@ -249,15 +253,15 @@ class DumpReporter:
 
     def _sheet_pk_sync(self, wb: openpyxl.Workbook, pk_sync_results: list[PKSyncResult]) -> None:
         """Hoja "Secuencias PK": contadores de PK resincronizados en destino tras la carga."""
-        ws: Worksheet = wb.create_sheet("Secuencias PK")
+        ws: Worksheet = wb.create_sheet(self._t("sheet.pk_sync"))
 
-        headers = ["Tabla", "Columna PK", "Dialect", "MAX(PK)", "Estado", "Mensaje"]
+        headers = [self._t(f"col.{key}") for key in ("table", "pk_column", "dialect", "max_pk", "status", "message")]
         for col, h in enumerate(headers, 1):
             self._header(ws, 1, col, h)
         ws.freeze_panes = "A2"
 
         if not pk_sync_results:
-            cell = ws.cell(row=2, column=1, value="Sin contadores de PK que sincronizar")
+            cell = ws.cell(row=2, column=1, value=self._t("pk_sync.empty"))
             cell.font = Font(italic=True)
         else:
             for row, pr in enumerate(pk_sync_results, 2):
@@ -276,29 +280,29 @@ class DumpReporter:
 
     def _sheet_bulk_audit(self, wb: openpyxl.Workbook, summary: DumpAuditSummary) -> None:
         """Hoja "Auditoría Bulk": métricas del CSV de auditoría y contadores del propio volcado."""
-        ws: Worksheet = wb.create_sheet("Auditoría Bulk")
-        self._header(ws, 1, 1, "Métrica")
-        self._header(ws, 1, 2, "Valor")
+        ws: Worksheet = wb.create_sheet(self._t("sheet.bulk_audit"))
+        self._header(ws, 1, 1, self._t("col.metric"))
+        self._header(ws, 1, 2, self._t("col.value"))
         ws.freeze_panes = "A2"
 
         discrepancia = self._COL_YELLOW if summary.total_filas != summary.audited_rows else None
         rows: list[tuple[str, str | int | float, str | None]] = [
-            ("CSV de auditoría", str(summary.audit_path), None),
-            ("Operaciones en el CSV", summary.total_operaciones, None),
-            ("Filas en el CSV", summary.total_filas, discrepancia),
-            ("Filas escritas por el volcado", summary.audited_rows, discrepancia),
-            ("Tiempo total (s)", summary.tiempo_total_seg, None),
-            ("Tiempo medio por lote (s)", summary.tiempo_promedio_seg, None),
-            ("Tablas auditadas", summary.tablas_auditadas, None),
-            ("Tabla más activa", summary.tabla_mas_activa or "—", None),
-            ("Registros no escritos", summary.audit_failures, self._COL_RED if summary.audit_failures else None),
+            (self._t("bulk.audit_csv"), str(summary.audit_path), None),
+            (self._t("bulk.operations"), summary.total_operaciones, None),
+            (self._t("bulk.csv_rows"), summary.total_filas, discrepancia),
+            (self._t("bulk.written_rows"), summary.audited_rows, discrepancia),
+            (self._t("bulk.total_time"), summary.tiempo_total_seg, None),
+            (self._t("bulk.avg_batch_time"), summary.tiempo_promedio_seg, None),
+            (self._t("bulk.tables"), summary.tablas_auditadas, None),
+            (self._t("bulk.most_active"), summary.tabla_mas_activa or "—", None),
+            (self._t("bulk.failures"), summary.audit_failures, self._COL_RED if summary.audit_failures else None),
             (
-                "Filas confirmadas sin auditar",
+                self._t("bulk.unaudited"),
                 summary.unaudited_committed_rows,
                 self._COL_ORANGE if summary.unaudited_committed_rows else None,
             ),
             (
-                "Registros sin datos en destino",
+                self._t("bulk.uncommitted"),
                 summary.audit_uncommitted_records,
                 self._COL_RED if summary.audit_uncommitted_records else None,
             ),
@@ -310,10 +314,7 @@ class DumpReporter:
         nota = ws.cell(
             row=len(rows) + 3,
             column=1,
-            value=(
-                "«Filas en el CSV» suma el fichero desde el inicio del volcado (incluye otros procesos que escriban en "
-                "él); «Filas escritas por el volcado» cuenta solo este volcado."
-            ),
+            value=self._t("bulk.note"),
         )
         nota.font = Font(italic=True)
         self._autowidth(ws)
@@ -329,24 +330,20 @@ class DumpReporter:
         error_msg: str,
     ) -> None:
         """Hoja "Errores de Reactivación": fallo general al reactivar constraints en destino."""
-        ws: Worksheet = wb.create_sheet("Errores de Reactivación")
+        ws: Worksheet = wb.create_sheet(self._t("sheet.reactivation_errors"))
 
-        self._header(ws, 1, 1, "Tipo de Error", color=self._COL_HEADER_ORANGE)
-        self._header(ws, 1, 2, "Descripción", color=self._COL_HEADER_ORANGE)
+        self._header(ws, 1, 1, self._t("col.error_type"), color=self._COL_HEADER_ORANGE)
+        self._header(ws, 1, 2, self._t("col.description"), color=self._COL_HEADER_ORANGE)
         ws.freeze_panes = "A2"
 
-        self._cell(ws, 2, 1, "Reactivación de Constraints", bg=self._COL_RED)
-        self._cell(ws, 2, 2, error_msg or "Error desconocido", bg=self._COL_RED)
+        self._cell(ws, 2, 1, self._t("reactivation.type"), bg=self._COL_RED)
+        self._cell(ws, 2, 2, error_msg or self._t("reactivation.unknown"), bg=self._COL_RED)
         ws.cell(row=2, column=2).alignment = Alignment(vertical="top", wrap_text=True)  # mensajes largos del driver
 
         nota = ws.cell(
             row=4,
             column=1,
-            value=(
-                "El error reportado aquí es un fallo general no recuperable al reactivar las constraints del destino "
-                "tras la carga. Esto es distinto de los fallos por-constraint (tabla/FK/CHECK) que aparecen en la hoja "
-                '"Auditoría Tablas". Ver documentación de DumpResult.constraint_reactivation_error.'
-            ),
+            value=self._t("reactivation.note"),
         )
         nota.font = Font(italic=True, size=9)
         # Anchos fijos y sin _autowidth: la nota de la fila 4 ensancharía A y un mensaje corto estrecharía B.
@@ -363,15 +360,15 @@ class DumpReporter:
         index_results: list[IndexActionResult],
     ) -> None:
         """Hoja "Índices": resultado de deshabilitar/reconstruir índices secundarios."""
-        ws: Worksheet = wb.create_sheet("Índices")
+        ws: Worksheet = wb.create_sheet(self._t("sheet.indexes"))
 
-        headers = ["Tabla", "Índice", "Dialect", "Acción", "Mensaje"]
+        headers = [self._t(f"col.{key}") for key in ("table", "index", "dialect", "action", "message")]
         for col, h in enumerate(headers, 1):
             self._header(ws, 1, col, h)
         ws.freeze_panes = "A2"
 
         if not index_results:
-            cell = ws.cell(row=2, column=1, value="Sin índices secundarios gestionados")
+            cell = ws.cell(row=2, column=1, value=self._t("indexes.empty"))
             cell.font = Font(italic=True)
         else:
             for row, ir in enumerate(index_results, 2):
@@ -394,20 +391,13 @@ class DumpReporter:
         constraint_results: list[ConstraintResult],
         cycles: list[list[str]],
     ) -> None:
-        ws: Worksheet = wb.create_sheet("Auditoría Tablas")
+        ws: Worksheet = wb.create_sheet(self._t("sheet.tables"))
 
-        headers = [
-            "Tabla",
-            "Posición Carga",
-            "FK Circular",
-            "Filas Origen",
-            "Filas Destino Antes",
-            "Filas Destino Después",
-            "Filas Rechazadas",
-            "Estado",
-            "Columnas Omitidas",
-            "Error",
-        ]
+        keys = (
+            "table", "load_position", "circular_fk", "source_rows", "target_rows_before", "target_rows_after",
+            "rejected_rows", "status", "skipped_columns", "error",
+        )  # fmt: skip
+        headers = [self._t(f"col.{key}") for key in keys]
         for col, h in enumerate(headers, 1):
             self._header(ws, 1, col, h)
         ws.row_dimensions[1].height = 30
@@ -427,21 +417,21 @@ class DumpReporter:
         wb: openpyxl.Workbook,
         missing_tables: list[str],
     ) -> None:
-        ws: Worksheet = wb.create_sheet("Tablas Faltantes")
+        ws: Worksheet = wb.create_sheet(self._t("sheet.missing_tables"))
 
-        headers = ["Tabla Origen", "Motivo", "Acción Sugerida"]
+        headers = [self._t(f"col.{key}") for key in ("source_table", "reason", "suggested_action")]
         for col, h in enumerate(headers, 1):
             self._header(ws, 1, col, h, color=self._COL_HEADER_ORANGE)
         ws.freeze_panes = "A2"
 
         if not missing_tables:
-            cell = ws.cell(row=2, column=1, value="Sin tablas faltantes en destino")
+            cell = ws.cell(row=2, column=1, value=self._t("missing_tables.empty"))
             cell.font = Font(italic=True)
         else:
             for row, table in enumerate(missing_tables, 2):
                 self._cell(ws, row, 1, table, bg=self._COL_LIGHT_ORANGE)
-                self._cell(ws, row, 2, "La tabla no existe en la BD destino")
-                self._cell(ws, row, 3, "Crear la tabla en destino con el DDL del origen antes de reintentar")
+                self._cell(ws, row, 2, self._t("missing_tables.reason"))
+                self._cell(ws, row, 3, self._t("missing_tables.action"))
 
         self._autowidth(ws)
 
@@ -461,14 +451,11 @@ class DumpReporter:
         independiente. Las tablas ausentes en destino (``status="missing_target"``) ya
         figuran en la hoja "Tablas Faltantes" y llegan con ``skipped_columns`` vacío.
         """
-        ws: Worksheet = wb.create_sheet("Columnas Inexistentes")
+        ws: Worksheet = wb.create_sheet(self._t("sheet.missing_columns"))
 
         headers = [
-            "Tabla",
-            "Columna Origen",
-            "Valor/Tipo en Origen",
-            "Estado en Destino",
-            "Acción Sugerida",
+            self._t(f"col.{key}")
+            for key in ("table", "source_column", "source_value_type", "target_status", "suggested_action")
         ]
         for col, h in enumerate(headers, 1):
             self._header(ws, 1, col, h, color=self._COL_HEADER_ORANGE)
@@ -477,14 +464,14 @@ class DumpReporter:
         missing_col_pairs = [(res.table_name, col_name) for res in table_results for col_name in res.skipped_columns]
 
         if not missing_col_pairs:
-            cell = ws.cell(row=2, column=1, value="Sin columnas inexistentes en destino")
+            cell = ws.cell(row=2, column=1, value=self._t("missing_columns.empty"))
             cell.font = Font(italic=True)
         else:
             for row, (table_name, col_name) in enumerate(missing_col_pairs, 2):
                 self._cell(ws, row, 1, table_name)
                 self._cell(ws, row, 2, col_name, bg=self._COL_YELLOW)
                 self._cell(ws, row, 3, "exists")
-                self._cell(ws, row, 4, "Columna ausente en BD destino")
-                self._cell(ws, row, 5, "Columna omitida del volcado — añadir DDL al destino si se requiere")
+                self._cell(ws, row, 4, self._t("missing_columns.status"))
+                self._cell(ws, row, 5, self._t("missing_columns.action"))
 
         self._autowidth(ws)

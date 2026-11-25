@@ -10,6 +10,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from util_bbdd._core.export_safety import SafeWorkbook
+from util_bbdd._core.i18n import Translator
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
 
     from util_bbdd.comparar.models import RoutineDiff, SchemaDiff, TableDiff, ViewDiff
 
-from ._base import STATUS_ES, DdlNormalizer, DiffSummary, build_diff_summary
+from ._base import DdlNormalizer, DiffSummary, build_diff_summary, localized_summary, status_labels
 
 
 class ExcelDiffReporter:
@@ -36,6 +37,9 @@ class ExcelDiffReporter:
     - **ForeignKeys**: detalle de diferencias de FK.
     - **Vistas**: diferencias de vistas.
     - **Rutinas**: diferencias de rutinas.
+
+    Args:
+        translator: Idioma de los textos (hojas, cabeceras, estados); por defecto, español (5.10.0).
     """
 
     # Paleta de colores por estado (ARGB sin '#')
@@ -52,9 +56,19 @@ class ExcelDiffReporter:
         "modified": "FFFEF3C7",
     }
 
-    def __init__(self) -> None:
-        """Inicializa ExcelDiffReporter con logger."""
+    def __init__(self, *, translator: Translator | None = None) -> None:
+        """Inicializa ExcelDiffReporter con logger e idioma de salida."""
         self.logger: logging.Logger = logging.getLogger(__name__)
+        self._tr: Translator = translator or Translator()
+        self._status: dict[str, str] = status_labels(self._tr)
+
+    def _t(self, key: str, /, **params: object) -> str:
+        """Texto ``comparar.<key>`` en el idioma de salida."""
+        return self._tr.t(f"comparar.{key}", **params)
+
+    def _yes_no(self, value: object) -> str:
+        """``Sí``/``No`` en el idioma de salida."""
+        return self._t("value.yes") if value else self._t("value.no")
 
     def render(self, diff: SchemaDiff, output: Path) -> Path:
         """Genera el fichero ``.xlsx`` en la ruta indicada.
@@ -121,23 +135,23 @@ class ExcelDiffReporter:
     # ------------------------------------------------------------------
 
     def _add_summary_sheet(self, wb: Workbook, diff: SchemaDiff, summary: object) -> None:
-        ws: Worksheet = wb.create_sheet("Resumen")
+        ws: Worksheet = wb.create_sheet(self._t("sheet.summary"))
         ws.freeze_panes = "A2"
 
         meta: list[tuple[str, str]] = [
-            ("Origen", diff.source_label),
-            ("Destino", diff.target_label),
-            ("Tablas añadidas", str(summary.tables_added)),  # type: ignore[attr-defined]
-            ("Tablas eliminadas", str(summary.tables_removed)),  # type: ignore[attr-defined]
-            ("Tablas modificadas", str(summary.tables_modified)),  # type: ignore[attr-defined]
-            ("Vistas con diff", str(summary.total_views)),  # type: ignore[attr-defined]
-            ("Rutinas con diff", str(summary.total_routines)),  # type: ignore[attr-defined]
-            ("¿Hay diferencias?", "Sí" if summary.has_differences else "No"),  # type: ignore[attr-defined]
+            (self._t("label.source"), diff.source_label),
+            (self._t("label.target"), diff.target_label),
+            (self._t("meta.tables_added"), str(summary.tables_added)),  # type: ignore[attr-defined]
+            (self._t("meta.tables_removed"), str(summary.tables_removed)),  # type: ignore[attr-defined]
+            (self._t("meta.tables_modified"), str(summary.tables_modified)),  # type: ignore[attr-defined]
+            (self._t("meta.views_with_diff"), str(summary.total_views)),  # type: ignore[attr-defined]
+            (self._t("meta.routines_with_diff"), str(summary.total_routines)),  # type: ignore[attr-defined]
+            (self._t("meta.has_differences"), self._yes_no(summary.has_differences)),  # type: ignore[attr-defined]
         ]
         if diff.summary:
-            meta.append(("Resumen", diff.summary))
+            meta.append((self._t("meta.summary"), localized_summary(diff, self._tr)))
 
-        self._header_row(ws, ["Concepto", "Valor"])
+        self._header_row(ws, [self._t("label.concept"), self._t("label.value")])
         for row_idx, (key, val) in enumerate(meta, 2):
             ws.cell(row=row_idx, column=1, value=key).alignment = self._ALIGN_LEFT
             ws.cell(row=row_idx, column=2, value=val).alignment = self._ALIGN_LEFT
@@ -145,13 +159,23 @@ class ExcelDiffReporter:
         self._autofit(ws)
 
     def _add_tables_sheet(self, wb: Workbook, table_diffs: tuple[TableDiff, ...]) -> None:
-        ws: Worksheet = wb.create_sheet("Tablas")
+        ws: Worksheet = wb.create_sheet(self._t("sheet.tables"))
         ws.freeze_panes = "A2"
-        self._header_row(ws, ["Tabla", "Estado", "Cols diff", "Índices diff", "FKs diff", "Comentarios diff"])
+        self._header_row(
+            ws,
+            [
+                self._t("col.table"),
+                self._t("col.status"),
+                self._t("col.cols_diff"),
+                self._t("col.indexes_diff"),
+                self._t("col.fks_diff"),
+                self._t("col.comments_diff"),
+            ],
+        )
 
         for row_idx, td in enumerate(table_diffs, 2):
             ws.cell(row=row_idx, column=1, value=td.table_name).alignment = self._ALIGN_LEFT
-            estado_cell: Cell = ws.cell(row=row_idx, column=2, value=STATUS_ES.get(td.status, td.status))
+            estado_cell: Cell = ws.cell(row=row_idx, column=2, value=self._status.get(td.status, td.status))
             estado_cell.fill = self._get_status_fill(td.status)
             estado_cell.alignment = self._ALIGN_CENTER
             ws.cell(row=row_idx, column=3, value=len(td.column_diffs)).alignment = self._ALIGN_CENTER
@@ -162,15 +186,25 @@ class ExcelDiffReporter:
         self._autofit(ws)
 
     def _add_columns_sheet(self, wb: Workbook, table_diffs: tuple[TableDiff, ...]) -> None:
-        ws: Worksheet = wb.create_sheet("Columnas")
+        ws: Worksheet = wb.create_sheet(self._t("sheet.columns"))
         ws.freeze_panes = "A2"
-        self._header_row(ws, ["Tabla", "Estado tabla", "Columna", "Atributo", "Valor origen", "Valor destino"])
+        self._header_row(
+            ws,
+            [
+                self._t("col.table"),
+                self._t("col.table_status"),
+                self._t("col.column"),
+                self._t("col.attribute"),
+                self._t("col.source_value"),
+                self._t("col.target_value"),
+            ],
+        )
 
         row_idx = 2
         for td in table_diffs:
             for cd in td.column_diffs:
                 ws.cell(row=row_idx, column=1, value=td.table_name).alignment = self._ALIGN_LEFT
-                estado_cell: Cell = ws.cell(row=row_idx, column=2, value=STATUS_ES.get(td.status, td.status))
+                estado_cell: Cell = ws.cell(row=row_idx, column=2, value=self._status.get(td.status, td.status))
                 estado_cell.fill = self._get_status_fill(td.status)
                 estado_cell.alignment = self._ALIGN_CENTER
                 ws.cell(row=row_idx, column=3, value=cd.column_name).alignment = self._ALIGN_LEFT
@@ -182,11 +216,19 @@ class ExcelDiffReporter:
         self._autofit(ws)
 
     def _add_indices_sheet(self, wb: Workbook, table_diffs: tuple[TableDiff, ...]) -> None:
-        ws: Worksheet = wb.create_sheet("Indices")
+        ws: Worksheet = wb.create_sheet(self._t("sheet.indexes"))
         ws.freeze_panes = "A2"
         self._header_row(
             ws,
-            ["Tabla", "Índice", "Estado", "Cols origen", "Cols destino", "Único origen", "Único destino"],
+            [
+                self._t("col.table"),
+                self._t("col.index"),
+                self._t("col.status"),
+                self._t("col.source_cols"),
+                self._t("col.target_cols"),
+                self._t("col.source_unique"),
+                self._t("col.target_unique"),
+            ],
         )
 
         row_idx = 2
@@ -194,30 +236,30 @@ class ExcelDiffReporter:
             for idx in td.index_diffs:
                 ws.cell(row=row_idx, column=1, value=td.table_name).alignment = self._ALIGN_LEFT
                 ws.cell(row=row_idx, column=2, value=idx.index_name).alignment = self._ALIGN_LEFT
-                estado_cell: Cell = ws.cell(row=row_idx, column=3, value=STATUS_ES.get(idx.status, idx.status))
+                estado_cell: Cell = ws.cell(row=row_idx, column=3, value=self._status.get(idx.status, idx.status))
                 estado_cell.fill = self._get_status_fill(idx.status)
                 estado_cell.alignment = self._ALIGN_CENTER
                 ws.cell(row=row_idx, column=4, value=idx.source_columns).alignment = self._ALIGN_LEFT
                 ws.cell(row=row_idx, column=5, value=idx.target_columns).alignment = self._ALIGN_LEFT
-                ws.cell(row=row_idx, column=6, value="Sí" if idx.source_unique else "No").alignment = self._ALIGN_CENTER
-                ws.cell(row=row_idx, column=7, value="Sí" if idx.target_unique else "No").alignment = self._ALIGN_CENTER
+                ws.cell(row=row_idx, column=6, value=self._yes_no(idx.source_unique)).alignment = self._ALIGN_CENTER
+                ws.cell(row=row_idx, column=7, value=self._yes_no(idx.target_unique)).alignment = self._ALIGN_CENTER
                 row_idx += 1
 
         self._autofit(ws)
 
     def _add_fk_sheet(self, wb: Workbook, table_diffs: tuple[TableDiff, ...]) -> None:
-        ws: Worksheet = wb.create_sheet("ForeignKeys")
+        ws: Worksheet = wb.create_sheet(self._t("sheet.foreign_keys"))
         ws.freeze_panes = "A2"
         self._header_row(
             ws,
             [
-                "Tabla",
-                "FK",
-                "Estado",
-                "Cols origen",
-                "Tabla ref. origen",
-                "Cols dest.",
-                "Tabla ref. destino",
+                self._t("col.table"),
+                self._t("col.fk"),
+                self._t("col.status"),
+                self._t("col.source_cols"),
+                self._t("col.source_ref_table"),
+                self._t("col.target_cols_short"),
+                self._t("col.target_ref_table"),
             ],
         )
 
@@ -226,7 +268,7 @@ class ExcelDiffReporter:
             for fk in td.fk_diffs:
                 ws.cell(row=row_idx, column=1, value=td.table_name).alignment = self._ALIGN_LEFT
                 ws.cell(row=row_idx, column=2, value=fk.fk_name).alignment = self._ALIGN_LEFT
-                estado_cell: Cell = ws.cell(row=row_idx, column=3, value=STATUS_ES.get(fk.status, fk.status))
+                estado_cell: Cell = ws.cell(row=row_idx, column=3, value=self._status.get(fk.status, fk.status))
                 estado_cell.fill = self._get_status_fill(fk.status)
                 estado_cell.alignment = self._ALIGN_CENTER
                 ws.cell(row=row_idx, column=4, value=fk.source_columns).alignment = self._ALIGN_LEFT
@@ -238,13 +280,21 @@ class ExcelDiffReporter:
         self._autofit(ws)
 
     def _add_views_sheet(self, wb: Workbook, view_diffs: tuple[ViewDiff, ...]) -> None:
-        ws: Worksheet = wb.create_sheet("Vistas")
+        ws: Worksheet = wb.create_sheet(self._t("sheet.views"))
         ws.freeze_panes = "A2"
-        self._header_row(ws, ["Vista", "Estado", "Definición origen", "Definición destino"])
+        self._header_row(
+            ws,
+            [
+                self._t("col.view"),
+                self._t("col.status"),
+                self._t("col.source_definition"),
+                self._t("col.target_definition"),
+            ],
+        )
 
         for row_idx, vd in enumerate(view_diffs, 2):
             ws.cell(row=row_idx, column=1, value=vd.view_name).alignment = self._ALIGN_LEFT
-            estado_cell: Cell = ws.cell(row=row_idx, column=2, value=STATUS_ES.get(vd.status, vd.status))
+            estado_cell: Cell = ws.cell(row=row_idx, column=2, value=self._status.get(vd.status, vd.status))
             estado_cell.fill = self._get_status_fill(vd.status)
             estado_cell.alignment = self._ALIGN_CENTER
             src_ddl = DdlNormalizer.normalize_view_ddl(vd.source_definition) if vd.source_definition else ""
@@ -255,14 +305,23 @@ class ExcelDiffReporter:
         self._autofit(ws)
 
     def _add_routines_sheet(self, wb: Workbook, routine_diffs: tuple[RoutineDiff, ...]) -> None:
-        ws: Worksheet = wb.create_sheet("Rutinas")
+        ws: Worksheet = wb.create_sheet(self._t("sheet.routines"))
         ws.freeze_panes = "A2"
-        self._header_row(ws, ["Rutina", "Tipo", "Estado", "Definición origen", "Definición destino"])
+        self._header_row(
+            ws,
+            [
+                self._t("col.routine"),
+                self._t("col.type"),
+                self._t("col.status"),
+                self._t("col.source_definition"),
+                self._t("col.target_definition"),
+            ],
+        )
 
         for row_idx, rd in enumerate(routine_diffs, 2):
             ws.cell(row=row_idx, column=1, value=rd.routine_name).alignment = self._ALIGN_LEFT
             ws.cell(row=row_idx, column=2, value=rd.routine_type).alignment = self._ALIGN_CENTER
-            estado_cell: Cell = ws.cell(row=row_idx, column=3, value=STATUS_ES.get(rd.status, rd.status))
+            estado_cell: Cell = ws.cell(row=row_idx, column=3, value=self._status.get(rd.status, rd.status))
             estado_cell.fill = self._get_status_fill(rd.status)
             estado_cell.alignment = self._ALIGN_CENTER
             src_ddl = DdlNormalizer.normalize_routine_ddl(rd.source_definition) if rd.source_definition else ""

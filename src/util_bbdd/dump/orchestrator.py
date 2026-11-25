@@ -62,6 +62,7 @@ from util_bbdd.bulk.options import (
 )
 
 from .._core.exceptions import AuditError, DumpConstraintError, DumpError, DumpReportError
+from .._core.i18n import Translator
 from ..bulk._support.secondary_indexes import resolve_index_mode
 from ..connection.performance_advisor import EngineReadinessAdvisor
 from ..metadata.reflection import (
@@ -379,10 +380,11 @@ class DumpOrchestrator:
         y no la repite. Nunca lanza: un motor que no se puede verificar sale con su aviso y el volcado sigue.
         """
         cfg = self._cfg
+        tr = Translator(cfg.locale)
         roles: list[tuple[str, Engine]] = (
-            [("Origen y destino", cfg.target_engine)]
+            [(tr.t("dump.role.source_and_target"), cfg.target_engine)]
             if cfg.source_engine is cfg.target_engine
-            else [("Origen", cfg.source_engine), ("Destino", cfg.target_engine)]
+            else [(tr.t("dump.role.source"), cfg.source_engine), (tr.t("dump.role.target"), cfg.target_engine)]
         )
         advisor = EngineReadinessAdvisor()
         blocks: list[ReadinessBlock] = []
@@ -577,7 +579,7 @@ class DumpOrchestrator:
         # La hoja "Columnas Inexistentes" se deriva de TableDumpResult.skipped_columns; no requiere comparación de
         # esquemas.
         try:
-            return DumpReporter(output_dir).generate(
+            return DumpReporter(output_dir, Translator(self._cfg.locale)).generate(
                 table_results=table_results,
                 missing_tables=missing_tables,
                 constraint_results=constraint_results,

@@ -8,25 +8,34 @@ from dataclasses import dataclass, field
 from typing import Any, cast
 
 from ...._core.exceptions import DatabaseException, QueryNotFoundError, QueryParameterError
+from ...._core.i18n import Translator
 from ....metadata.storage import storage_query, storage_query_params
 from ...application._internal_ports import StorageReportServicePort
 from ...application.ports import DocumentationBackendPort, LoggerProtocol
 from .contracts import StorageInventoryManagerProtocol
-from .engines import ENGINE_SPECS, GENERIC_SPEC, Rows, Section, StorageEngineSpec, StorageQuerySpec, section
+from .engines import (
+    ENGINE_SPECS,
+    GENERIC_NOTICE_TITLE,
+    GENERIC_SPEC,
+    Rows,
+    Section,
+    StorageEngineSpec,
+    StorageQuerySpec,
+    localize_label,
+    section,
+)
 from .payload import StorageInventoryReportPayload, StorageSectionPayload
 
 # Cabeceras de tamaño: «(MB)», «Size…», «Tamaño…» como palabra (B-03: «mb» suelto marcaba «Nombre lógico»)
 _SIZE_HEADER = re.compile(r"\b(?:mb|size|tama[nñ]o)\b", re.IGNORECASE)
-_GENERIC_STORAGE_FALLBACK_MESSAGE: str = (
-    "Este motor no tiene una estrategia de almacenamiento dedicada; se usa un "
-    "fallback genérico (tablespace vacío, consultas por defecto) que puede ser "
-    "impreciso o no aplicable."
-)
 
 
 @dataclass(slots=True)
 class StorageInventoryRuntime:
     """Construye el informe de almacenamiento consumido por los generadores.
+
+    Títulos, cabeceras, mensajes y tamaños salen en el idioma de ``translator`` (español por defecto); las columnas de
+    tamaño se detectan sobre las cabeceras declaradas (en español), así que no dependen del idioma.
 
     Examples:
         >>> runtime = StorageInventoryRuntime(manager, logger, "mariadb", "ventas", print_config={})
@@ -39,6 +48,7 @@ class StorageInventoryRuntime:
     db_type: str
     database: str
     print_config: dict[str, Any]
+    translator: Translator = field(default_factory=Translator)
     _tablespace: str = field(default="", init=False, repr=False)
 
     @property
@@ -57,15 +67,16 @@ class StorageInventoryRuntime:
             self.logger.warning(
                 f"Motor '{self.db_type}' sin estrategia de almacenamiento dedicada; usando fallback genérico"
             )
-            notice = StorageQuerySpec("generic_storage_fallback_notice", "Aviso: estrategia de almacenamiento genérica")
+            notice = StorageQuerySpec("generic_storage_fallback_notice", GENERIC_NOTICE_TITLE)
+            message: str = self.translator.t("doc.storage.message.generic_fallback")
             sections.append(
-                StorageSectionPayload.from_mapping(section(notice, "not_supported", _GENERIC_STORAGE_FALLBACK_MESSAGE))
+                StorageSectionPayload.from_mapping(self._localize(section(notice, "not_supported", message)))
             )
         for spec in self.engine_spec.queries:
             processed: Section = (
                 spec.process(self, spec, database_name) if spec.process else self._process_standard(spec, database_name)
             )
-            sections.append(StorageSectionPayload.from_mapping(processed))
+            sections.append(StorageSectionPayload.from_mapping(self._localize(processed)))
 
         return StorageInventoryReportPayload(
             db_type=self.db_type,
@@ -111,21 +122,23 @@ class StorageInventoryRuntime:
         try:
             return self.execute(spec.name, database=database, tablespace=self._tablespace)
         except QueryNotFoundError:
-            return section(spec, "not_supported", "No disponible para este motor de base de datos.")
+            return section(spec, "not_supported", self.translator.t("doc.storage.message.not_supported"))
         except QueryParameterError as error:
-            return section(spec, "missing_params", f"Parámetros inválidos: {error}")
+            return section(spec, "missing_params", self.translator.t("doc.storage.message.invalid_params", error=error))
         except DatabaseException as error:
             message: str = _flatten_exception_messages(error)
-            explained: Section | None = spec.on_error(spec, message) if spec.on_error else None
-            return explained or section(spec, "error", f"Error ejecutando consulta: {message}")
+            explained: Section | None = spec.on_error(spec, message, self.translator) if spec.on_error else None
+            return explained or section(
+                spec, "error", self.translator.t("doc.storage.message.query_error", error=message)
+            )
 
     def ok_section(
         self, spec: StorageQuerySpec, sql: str, rows: Rows, *, message: str | None = None, status: str = "ok"
     ) -> Section:
-        """Sección con filas: cabeceras de ``spec`` (o genéricas) y tamaños con coma decimal."""
-        headers: list[str] = _headers_for(spec, rows)
+        """Sección con filas: cabeceras de ``spec`` (o genéricas) y tamaños con el separador decimal del idioma."""
+        headers: list[str] = _headers_for(spec, rows, self.translator)
         if message is None:
-            message = "OK" if rows else "Sin datos"
+            message = self.translator.t("doc.storage.message.ok" if rows else "doc.storage.message.no_data")
         return {
             "query": spec.name,
             "title": spec.title,
@@ -133,9 +146,16 @@ class StorageInventoryRuntime:
             "message": message,
             "sql": sql,
             "headers": headers,
-            "rows": _format_rows(headers, rows),
+            "rows": _format_rows(headers, rows, self.translator),
             "numeric_columns": [index for index, header in enumerate(headers) if _is_size_header(header)],
         }
+
+    def _localize(self, raw_section: Section) -> Section:
+        """Título y cabeceras de la sección en el idioma de salida (tras detectar las columnas de tamaño)."""
+        localized: Section = dict(raw_section)
+        localized["title"] = localize_label(str(raw_section.get("title", "")), self.translator)
+        localized["headers"] = [localize_label(str(header), self.translator) for header in raw_section["headers"]]
+        return localized
 
     @staticmethod
     def normalize_rows(rows: object) -> Rows:
@@ -167,36 +187,36 @@ def _flatten_exception_messages(error: BaseException) -> str:
     return " | ".join(messages)
 
 
-def _headers_for(spec: StorageQuerySpec, rows: Rows) -> list[str]:
+def _headers_for(spec: StorageQuerySpec, rows: Rows, translator: Translator) -> list[str]:
     """Cabeceras de ``spec`` recortadas a las columnas devueltas; ``Columna N`` si la consulta no tiene."""
     widest: int = max((len(row) for row in rows), default=0)
     if spec.headers:
         return list(spec.headers[:widest] if widest > 0 else spec.headers)
-    return [f"Columna {index}" for index in range(1, widest + 1)]
+    return [translator.t("doc.storage.col.generic", index=index) for index in range(1, widest + 1)]
 
 
 def _is_size_header(header: str) -> bool:
     return _SIZE_HEADER.search(str(header or "")) is not None
 
 
-def _format_spanish_decimal(value: object) -> object:
-    """Tamaño con dos decimales y coma decimal; enteros y booleanos sin cambios."""
+def _format_size(value: object, translator: Translator) -> object:
+    """Tamaño con dos decimales y el separador decimal del idioma (sin miles); enteros y booleanos sin cambios."""
     if value is None:
         return ""
     if isinstance(value, (int, bool)):
         return value
     if isinstance(value, float):
-        return f"{value:.2f}".replace(".", ",")
+        return translator.format_decimal(value, 2)
     normalized_numeric: str = str(value).replace(",", ".")
     if re.fullmatch(r"-?\d+(\.\d+)?", normalized_numeric):
-        return f"{float(normalized_numeric):.2f}".replace(".", ",")
+        return translator.format_decimal(float(normalized_numeric), 2)
     return value
 
 
-def _format_rows(headers: list[str], rows: Rows) -> Rows:
+def _format_rows(headers: list[str], rows: Rows, translator: Translator) -> Rows:
     size_columns: set[int] = {index for index, header in enumerate(headers) if _is_size_header(header)}
     return [
-        [_format_spanish_decimal(value) if index in size_columns else value for index, value in enumerate(row)]
+        [_format_size(value, translator) if index in size_columns else value for index, value in enumerate(row)]
         for row in rows
     ]
 
@@ -206,20 +226,25 @@ def get_storage_inventory_report(
     db_manager: StorageInventoryManagerProtocol,
     logger: LoggerProtocol,
     print_config: dict[str, Any],
+    translator: Translator | None = None,
 ) -> dict[str, Any]:
-    """Obtiene el informe de almacenamiento sin exponer bootstrap en la fachada documental."""
+    """Obtiene el informe de almacenamiento sin exponer bootstrap en la fachada documental (en el idioma de
+    ``translator``; español por defecto)."""
     return StorageInventoryRuntime(
         db_manager=db_manager,
         logger=logger,
         db_type=db_manager.db_type,
         database=db_manager.database,
         print_config=print_config,
+        translator=translator or Translator(),
     ).get_storage_inventory_report()
 
 
 @dataclass(slots=True, frozen=True)
 class StorageInventoryReportService(StorageReportServicePort):
-    """Servicio OO de acceso al inventario de almacenamiento."""
+    """Servicio OO de acceso al inventario de almacenamiento (textos y números en el idioma de ``translator``)."""
+
+    translator: Translator = field(default_factory=Translator)
 
     def get_storage_inventory_report(
         self,
@@ -232,6 +257,7 @@ class StorageInventoryReportService(StorageReportServicePort):
             db_manager=cast(StorageInventoryManagerProtocol, db_manager),
             logger=logger,
             print_config=print_config,
+            translator=self.translator,
         )
 
 

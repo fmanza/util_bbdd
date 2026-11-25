@@ -28,6 +28,7 @@ from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
 from typing import Any
 
+from ....._core.i18n import Translator
 from .....analysis.mermaid_er import MermaidRelationshipGraph
 from ....application.ports import DocumentationManagerPort
 from ....domain.table_filter import TableFilter
@@ -62,19 +63,29 @@ _FRONT_MATTER_LINES = 4  # "---", JSON, "---", ""
 class MarkdownGenerator:
     """Genera la documentación Markdown de un schema (``DocumentRendererPort``).
 
+    Los textos fijos de las páginas, ``README.md``, ``llms.txt`` y la ``nav`` del sitio salen en el idioma de
+    ``translator`` (5.10.0). ``catalog.json``, ``changes.json``, el front matter y ``manifest.json`` (también los
+    títulos de ``pages``) no dependen del idioma: la comparación con ``markdown.previous`` funciona entre idiomas.
+
     Args:
         database: Nombre de la base de datos que se muestra en la portada.
         headers: Cabeceras de cada sección (``headers_config.json``).
+        translator: Idioma de la documentación; por defecto, español.
 
     Example:
         >>> result = DatabaseDocumentation(manager, Path("out"), formatos=["markdown"]).generate()
         >>> result.outputs["markdown"]  # …/MARKDOWN con docs/, manifest.json y zensical.toml
     """
 
-    def __init__(self, database: str, headers: dict[str, list[str]]) -> None:
+    def __init__(self, database: str, headers: dict[str, list[str]], translator: Translator | None = None) -> None:
+        self._tr: Translator = translator or Translator()
         self.database: str = database
         self.headers: dict[str, list[str]] = headers
         self.logger: logging.Logger = logging.getLogger(__name__)
+
+    def _manifest_title(self, key: str, **params: Any) -> str:
+        """Título de una página en ``manifest.json`` → ``pages``: su H1 (``doc_md.title.<key>``), en el idioma de salida."""
+        return self._tr.t(f"doc_md.title.{key}", **params)
 
     def generate_document(
         self,
@@ -129,12 +140,14 @@ class MarkdownGenerator:
             referencing=records.referencing_tables,
             filtered=table_filter is not None,
             frontier=frozenset(name.casefold() for name in frontier),
+            tr=self._tr,
         )
         tracer = _Tracer(
             TraceMap.load(resolved["trace_map"]) if resolved["trace_map"] is not None else None,
             tables=[row[0] for row in table_rows],
             views=[row[0] for row in view_rows],
             routines=[f"{routine_type}:{name}" for name, routine_type, _ in routine_rows],
+            translator=self._tr,
         )
         writer = StagedWriter(output_target, self.logger)
         # manifest.json → pages (5.4.0): cada página .md se anota donde se escribe, con su título sin escapar
@@ -150,15 +163,16 @@ class MarkdownGenerator:
                 entries += self._write_tables(writer, ctx, table_rows, records, full, tracer, pages)
                 entries += self._write_views(writer, ctx, view_rows, records, full, tracer, pages)
                 entries += self._write_routines(writer, ctx, routine_rows, records, full, tracer, pages)
-            nav = [("Inicio", "index.md"), *sections]
+            nav = [(self._t("nav.home"), "index.md"), *sections]
             if tracer.enabled:
-                writer.write("docs/traceability.md", _join(traceability_page(tracer.objects, tracer.unmatched)))
-                pages.append(PageEntry("traceability.md", "Trazabilidad", "traceability", "page"))
-                nav.append(("Trazabilidad", "traceability.md"))
+                trace_page = traceability_page(tracer.objects, tracer.unmatched, self._tr)
+                writer.write("docs/traceability.md", _join(trace_page))
+                pages.append(PageEntry("traceability.md", self._manifest_title("traceability"), "traceability", "page"))
+                nav.append((self._t("nav.traceability"), "traceability.md"))
             previous = self._write_changes(writer, resolved, records, entries)
             if previous is not None:
-                pages.append(PageEntry("changes.md", "Cambios de esquema", "changes", "page"))
-                nav.append(("Cambios", "changes.md"))
+                pages.append(PageEntry("changes.md", self._manifest_title("changes"), "changes", "page"))
+                nav.append((self._t("nav.changes"), "changes.md"))
             self._write_machine_files(
                 writer,
                 resolved,
@@ -170,7 +184,8 @@ class MarkdownGenerator:
                 frontier=frontier,
             )
             if resolved["readme"]:
-                writer.write("README.md", readme_md(self._readme_contents(resolved, tracer.enabled, previous)))
+                readme = readme_md(self._readme_contents(resolved, tracer.enabled, previous), self._tr)
+                writer.write("README.md", readme)
             metadata: dict[str, Any] = {"engine": records.engine, "schema": records.schema, "database": self.database}
             if previous is not None:
                 metadata["previous"] = previous
@@ -180,6 +195,10 @@ class MarkdownGenerator:
         finally:
             writer.discard()
         self.logger.info(f"✅ Documentación Markdown generada en {output_target}")
+
+    def _t(self, key: str, **params: Any) -> str:
+        """Texto ``doc_md.<key>`` en el idioma de la generación."""
+        return self._tr.t(f"doc_md.{key}", **params)
 
     # --- Selección ---
 
@@ -253,6 +272,7 @@ class MarkdownGenerator:
                 column_mode=options["column_mode"],
                 max_columns=options["max_columns"],
                 show_constraint_name=options["show_constraint_name"],
+                translator=self._tr,
             )
             if ctx.resolved["include_diagrams"] and rows
             else None
@@ -281,15 +301,15 @@ class MarkdownGenerator:
                 else {}
             )
             record, trace_lines = tracer.apply(
-                "tables", name, "Tablas", name, f"tables/{slug}.md", record, column_names, anchors
+                "tables", name, self._t("nav.tables"), name, f"tables/{slug}.md", record, column_names, anchors
             )
             front = record if ctx.resolved["front_matter"] else None
             lines = table_page(ctx, name, comment, charset, front, diagram) + trace_lines
-            page = (f"Tabla: {name}", "tables", pages)
+            page = (self._manifest_title("table", name=name), "tables", pages)
             entries.append(self._emit(writer, ctx, f"tables/{slug}.md", lines, record, full, page))
             index.append(IndexEntry(name, f"{slug}.md", comment))
             progress.done(name)
-        self._write_index(writer, "tables", "Tablas", index, ctx, pages)
+        self._write_index(writer, "tables", index, ctx, pages)
         return entries
 
     def _write_views(
@@ -307,11 +327,16 @@ class MarkdownGenerator:
         index: list[IndexEntry] = []
         for name, comment in rows:
             path = f"views/{slugs[name]}.md"
-            record, trace_lines = tracer.apply("views", name, "Vistas", name, path, records.view(name, comment))
+            view_record = records.view(name, comment)
+            record, trace_lines = tracer.apply("views", name, self._t("nav.views"), name, path, view_record)
             lines = view_page(ctx, name, comment, record if ctx.resolved["front_matter"] else None) + trace_lines
-            entries.append(self._emit(writer, ctx, path, lines, record, full, (f"Vista: {name}", "views", pages)))
+            entries.append(
+                self._emit(
+                    writer, ctx, path, lines, record, full, (self._manifest_title("view", name=name), "views", pages)
+                )
+            )
             index.append(IndexEntry(name, f"{slugs[name]}.md", comment))
-        self._write_index(writer, "views", "Vistas", index, ctx, pages)
+        self._write_index(writer, "views", index, ctx, pages)
         return entries
 
     def _write_routines(
@@ -333,31 +358,33 @@ class MarkdownGenerator:
             path = f"routines/{slugs[key]}.md"
             display = f"{name} ({routine_type.title()})"
             record, trace_lines = tracer.apply(
-                "routines", key, "Rutinas", display, path, records.routine(name, routine_type, comment)
+                "routines", key, self._t("nav.routines"), display, path, records.routine(name, routine_type, comment)
             )
             front = record if ctx.resolved["front_matter"] else None
             lines = routine_page(ctx, name, routine_type, comment, front) + trace_lines
             page = (f"{routine_type.title()}: {name}", "routines", pages)
             entries.append(self._emit(writer, ctx, path, lines, record, full, page))
             index.append(IndexEntry(display, f"{slugs[key]}.md", comment))
-        self._write_index(writer, "routines", "Rutinas", index, ctx, pages)
+        self._write_index(writer, "routines", index, ctx, pages)
         return entries
 
     @staticmethod
     def _write_index(
         writer: StagedWriter,
         folder: str,
-        title: str,
         entries: list[IndexEntry],
         ctx: PageContext,
         pages: list[PageEntry],
     ) -> None:
+        """Índice de ``folder`` (``tables``, ``views`` o ``routines``); el título de cada página en ``manifest.json`` es su
+        H1, en el idioma de la generación (contrato de 5.4.0)."""
         if not entries:
             return
         page_size: int = ctx.resolved["index_page_size"]
-        for file_name, lines in index_pages(title, entries, page_size).items():
+        for file_name, lines in index_pages(ctx.t(f"nav.{folder}"), entries, page_size, ctx.tr).items():
             writer.write(f"docs/{folder}/{file_name}", _join(lines))
-        for file_name, (page_title, letter) in index_page_titles(title, entries, page_size).items():
+        manifest_titles = index_page_titles(ctx.t(f"nav.{folder}"), entries, page_size, ctx.tr)
+        for file_name, (page_title, letter) in manifest_titles.items():
             role = "index" if letter is None else "letter"
             pages.append(PageEntry(f"{folder}/{file_name}", plain_text(page_title), folder, role, letter=letter))
 
@@ -388,9 +415,10 @@ class MarkdownGenerator:
             database=self.database,
             selection=self._selection(resolved),
             table_filter=resolved["filter"],
+            translator=self._tr,
         )
         links = {(str(e.record["kind"]), str(e.record["name"])): e.path for e in entries}
-        writer.write("docs/changes.md", _join(changes_page(changes, links)))
+        writer.write("docs/changes.md", _join(changes_page(changes, links, self._tr)))
         writer.write("docs/changes.json", changes_json(changes))
         return previous.manifest_entry()
 
@@ -429,18 +457,20 @@ class MarkdownGenerator:
                 with_full=resolved["llms_full_txt"],
                 with_traceability=with_traceability,
                 with_changes=with_changes,
+                translator=self._tr,
             )
             writer.write("docs/llms.txt", text)
         mermaid_js: Path | None = resolved["mermaid_js"]
         if mermaid_js is not None:
             writer.copy(f"docs/{MERMAID_JS_PATH}", Path(mermaid_js).expanduser())
         mermaid_ref: str | None = resolved["mermaid_js_ref"]
-        site_name = resolved["site_name"] or f"Documentación de {self.database}"
+        site_name = resolved["site_name"] or self._t("site.default_name", database=self.database)
         site_args: dict[str, Any] = {
             "version": library_version(),
             "with_mermaid_js": mermaid_js is not None,
             "nav": nav,
             "mermaid_ref": mermaid_ref,
+            "translator": self._tr,
         }
         if resolved["zensical_toml"]:
             writer.write("zensical.toml", zensical_toml(site_name, **site_args))
@@ -498,24 +528,21 @@ class MarkdownGenerator:
         """Escribe ``index.md`` y las páginas de base de datos; devuelve las líneas de la portada y sus secciones."""
         resolved = ctx.resolved
         sections: list[tuple[str, str]] = [
-            (title, f"{folder}/index.md")
-            for title, folder, items in (
-                ("Tablas", "tables", tables),
-                ("Vistas", "views", views),
-                ("Rutinas", "routines", routines),
-            )
+            (self._t(f"nav.{folder}"), f"{folder}/index.md")
+            for folder, items in (("tables", tables), ("views", views), ("routines", routines))
             if items
         ]
+        # Título visible en el idioma de la generación; el de manifest.json → pages, en español
         extra_pages = (
-            ("include_database_info", "Información de la Base de Datos", "database/info.md"),
-            ("include_storage", "Almacenamiento", "database/storage.md"),
-            ("include_engine_conditions", "Condiciones del motor", "database/engine-conditions.md"),
+            ("include_database_info", "database_info", "database/info.md"),
+            ("include_storage", "storage", "database/storage.md"),
+            ("include_engine_conditions", "engine_conditions", "database/engine-conditions.md"),
         )
-        for flag, title, path in extra_pages:
+        for flag, title_key, path in extra_pages:
             if resolved[flag]:
-                sections.append((title, path))
+                sections.append((self._t(f"title.{title_key}"), path))
                 writer.write(f"docs/{path}", _join(self._database_page(path, ctx)))
-                pages.append(PageEntry(path, title, "database", "page"))
+                pages.append(PageEntry(path, self._manifest_title(title_key), "database", "page"))
         inventory = GeneratorInventoryRuntime.build_summary_rows_from_entities(
             tables=list(tables),
             views=list(views),
@@ -523,6 +550,7 @@ class MarkdownGenerator:
             include_storage=resolved["include_storage"],
             data_provider=ctx.data_provider,
             include_routines=True,
+            translator=self._tr,
         )
         include_legend = bool(resolved["include_diagrams"] and tables)
         scope = (
@@ -530,25 +558,34 @@ class MarkdownGenerator:
             if resolved["filter"] is not None
             else None
         )
-        lines = home_page(self.database, inventory, sections, include_legend, scope)
+        lines = home_page(self.database, inventory, sections, include_legend, scope, self._tr)
         writer.write("docs/index.md", _join(lines))
-        home_title = plain_text(f"Documentación de la Base de Datos - {self.database}")
+        home_title = plain_text(self._manifest_title("home", database=self.database))
         pages.append(PageEntry("index.md", home_title, "home", "home"))
         return lines, sections
 
     def _database_page(self, path: str, ctx: PageContext) -> list[str]:
         provider = ctx.data_provider
         if path == "database/info.md":
-            return database_info_page(provider, ctx.resolved["database_info_flags"], self.logger)
+            return database_info_page(provider, ctx.resolved["database_info_flags"], self.logger, self._tr)
         if path == "database/storage.md":
-            return storage_page(provider)
-        return engine_conditions_page(provider)
+            return storage_page(provider, self._tr)
+        return engine_conditions_page(provider, self._tr)
 
 
 class _Tracer:
     """Aplica el mapa de trazabilidad (si lo hay) a cada objeto y reúne lo necesario para ``traceability.md``."""
 
-    def __init__(self, trace_map: TraceMap | None, *, tables: list[str], views: list[str], routines: list[str]) -> None:
+    def __init__(
+        self,
+        trace_map: TraceMap | None,
+        *,
+        tables: list[str],
+        views: list[str],
+        routines: list[str],
+        translator: Translator | None = None,
+    ) -> None:
+        self._tr: Translator = translator or Translator()
         self.enabled: bool = trace_map is not None
         self.objects: list[TracedObject] = []
         self.unmatched: list[Unmatched] = []
@@ -581,7 +618,7 @@ class _Tracer:
         if entry is None:
             return record, []
         # ``hash`` ya está calculado sobre la estructura: la traza se añade después y no lo cambia
-        return {**record, "trace": entry.to_dict(columns)}, trace_section(entry, columns, anchors or {})
+        return {**record, "trace": entry.to_dict(columns)}, trace_section(entry, columns, anchors or {}, self._tr)
 
 
 def _join(lines: list[str]) -> str:

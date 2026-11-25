@@ -24,6 +24,7 @@ except ImportError:
 
 from .._core.exceptions import DatabaseException
 from .._core.filenames import safe_file_stem
+from .._core.i18n import Translator
 from ..metadata.model import Kind
 from ..progress import CancellationToken, ProgressCallback, ProgressReporter
 from .base import (
@@ -85,6 +86,8 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         render_dpi: int = 300,
         render_workers: int | None = None,
         schema: str | None = None,
+        *,
+        translator: Translator | None = None,
     ):
         """Configura el generador.
 
@@ -93,8 +96,10 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 con ``1`` los lotes se renderizan de uno en uno).
             schema: Schema que se dibuja (owner en Oracle, base de datos en MySQL/MariaDB); por defecto, el contexto
                 de metadatos de ``db_manager``. Desde 4.1.0.
+            translator: Idioma del pie, de los mensajes de los nodos y de los títulos por nivel (``"title"``); por
+                defecto, español (5.10.0).
         """
-        super().__init__(db_manager, schema=schema)
+        super().__init__(db_manager, schema=schema, translator=translator)
         self.logger: Logger = logging.getLogger(__name__)
 
         if not GRAPHVIZ_AVAILABLE or graphviz is None:
@@ -243,7 +248,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             else:
                 html_parts.append(
                     self._build_message_row_html(
-                        message="Sin columnas visibles",
+                        message=self._t("node.no_visible_columns"),
                         font_size=label_styles["type_font_size"],
                         table_width=label_styles["table_width"],
                     )
@@ -253,7 +258,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             if hidden_columns_count > 0:
                 html_parts.append(
                     self._build_message_row_html(
-                        message=f"... {hidden_columns_count} columna(s) mas",
+                        message=self._t("node.hidden_columns", count=hidden_columns_count),
                         font_size=label_styles["type_font_size"],
                         table_width=label_styles["table_width"],
                     )
@@ -551,18 +556,14 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
     def _add_graph_footer(self, dot: Any, document: GraphDocument) -> None:
         """Agrega metadatos del recorrido al pie del grafo."""
         footer_lines: list[str] = [
-            f"Profundidad visible: {document.max_depth}",
-            f"Niveles salida: {document.total_outgoing_levels}",
-            f"Niveles entrada: {document.total_incoming_levels}",
+            self._t("footer.visible_depth", depth=document.max_depth),
+            self._t("footer.outgoing_levels", count=document.total_outgoing_levels),
+            self._t("footer.incoming_levels", count=document.total_incoming_levels),
         ]
         if document.hidden_levels.outgoing_hidden_levels > 0:
-            footer_lines.append(
-                f"Salida oculta: {document.hidden_levels.outgoing_hidden_levels} nivel(es) no visibles por profundidad"
-            )
+            footer_lines.append(self._t("footer.outgoing_hidden", count=document.hidden_levels.outgoing_hidden_levels))
         if document.hidden_levels.incoming_hidden_levels > 0:
-            footer_lines.append(
-                f"Entrada oculta: {document.hidden_levels.incoming_hidden_levels} nivel(es) no visibles por profundidad"
-            )
+            footer_lines.append(self._t("footer.incoming_hidden", count=document.hidden_levels.incoming_hidden_levels))
 
         dot.attr("graph", label=" | ".join(footer_lines), labelloc="b", labeljust="l")
 
@@ -584,7 +585,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         engine_name: str = "dot" if show_columns else "circo"
         splines_value: str = "ortho" if self.orthogonal_edges and engine_name == "dot" else "true"
         dot = graphviz.Digraph(
-            comment=f"Relaciones extendidas de {table_name}",
+            comment=self._t("graph.comment", table=table_name),
             format=format,
             engine=engine_name,
         )
@@ -1110,7 +1111,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                     "bytes": self._pipe_graph_internal_ext(
                         table_name=table_name, format=format, document=document, show_columns=include_columns
                     ),
-                    "title": "Tabla sin relaciones",
+                    "title": self._t("level.isolated"),
                 }
             )
             return results
@@ -1138,7 +1139,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                     {
                         "depth": level_depth,
                         "bytes": svg_bytes,
-                        "title": f"Nivel {level_depth}",
+                        "title": self._t("level.title", depth=level_depth),
                     }
                 )
 

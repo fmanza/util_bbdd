@@ -124,39 +124,39 @@
 {% block content %}
   <header>
     <h1>{{ title }}</h1>
-    <div class="meta">Base de datos: {{ database }} · Generado: {{ generated_at }} · Registros: {{ rows|length }}</div>
+    <div class="meta">{{ t("doc_html.common.database") }} {{ database }} · {{ t("doc_html.common.generated") }} {{ generated_at }} · {{ t("doc_html.collection.records") }} {{ rows|length }}</div>
   </header>
 
-  <section class="toolbar" aria-label="Herramientas de filtrado y exportación">
+  <section class="toolbar" aria-label="{{ t('doc_html.collection.toolbar_aria') }}">
     <div class="search-stack">
       <div class="toolbar-group search-group">
-        <input id="searchInput" type="search" placeholder="Buscar..." aria-label="Buscar en la tabla" />
-        <div class="pagination-inline" aria-label="Paginación de resultados">
-          {{ ui.render_pagination_button("prevPageButton", "Anterior", "icon-arrow-left", "Ir a página anterior") }}
-          <span id="pageInfo">Página 1/1</span>
-          {{ ui.render_pagination_button("nextPageButton", "Siguiente", "icon-arrow-right", "Ir a página siguiente") }}
-          <span id="resultsInfo">0 resultados</span>
+        <input id="searchInput" type="search" placeholder="{{ t('doc_html.collection.search_placeholder') }}" aria-label="{{ t('doc_html.collection.search_aria') }}" />
+        <div class="pagination-inline" aria-label="{{ t('doc_html.collection.pagination_aria') }}">
+          {{ ui.render_pagination_button("prevPageButton", t("doc_html.pager.prev"), "icon-arrow-left", t("doc_html.collection.prev_tooltip")) }}
+          <span id="pageInfo">{{ t("doc_html.pager.page_prefix") }}1/1</span>
+          {{ ui.render_pagination_button("nextPageButton", t("doc_html.pager.next"), "icon-arrow-right", t("doc_html.collection.next_tooltip")) }}
+          <span id="resultsInfo">{{ t("doc_html.collection.results_initial") }}</span>
         </div>
       </div>
-      <span class="toolbar-hint">Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.</span>
+      <span class="toolbar-hint">{{ t("doc_html.collection.hint") }}</span>
     </div>
     <div class="toolbar-group actions-group">
-      <label for="pageSizeSelect" class="muted">Filas por página</label>
-      <select id="pageSizeSelect" aria-label="Seleccionar tamaño de página">
+      <label for="pageSizeSelect" class="muted">{{ t("doc_html.collection.rows_per_page") }}</label>
+      <select id="pageSizeSelect" aria-label="{{ t('doc_html.collection.page_size_aria') }}">
         <option value="10">10</option>
         <option value="25" selected>25</option>
         <option value="50">50</option>
         <option value="100">100</option>
-        <option value="all">Todas</option>
+        <option value="all">{{ t("doc_html.collection.all") }}</option>
       </select>
-      {{ ui.render_export_button("exportCsv", "CSV", "Exportar resultados filtrados a CSV", "icon-csv") }}
-      {{ ui.render_export_button("exportTsv", "TSV", "Exportar resultados filtrados a TSV", "icon-tsv") }}
-      {{ ui.render_export_button("exportExcel", "XLSX", "Exportar resultados filtrados a Excel (.xlsx)", "icon-excel") }}
-      {{ ui.render_export_button("exportPdf", "PDF", "Exportar la vista actual a PDF", "icon-pdf") }}
+      {{ ui.render_export_button("exportCsv", "CSV", t("doc_html.collection.export_csv"), "icon-csv") }}
+      {{ ui.render_export_button("exportTsv", "TSV", t("doc_html.collection.export_tsv"), "icon-tsv") }}
+      {{ ui.render_export_button("exportExcel", "XLSX", t("doc_html.collection.export_xlsx"), "icon-excel") }}
+      {{ ui.render_export_button("exportPdf", "PDF", t("doc_html.collection.export_pdf"), "icon-pdf") }}
     </div>
   </section>
 
-  <div class="horizontal-scrollbar" id="topHorizontalScrollbar" aria-label="Desplazamiento horizontal de la tabla">
+  <div class="horizontal-scrollbar" id="topHorizontalScrollbar" aria-label="{{ t('doc_html.collection.scroll_aria') }}">
     <div class="horizontal-scrollbar-inner" id="topHorizontalScrollbarInner"></div>
   </div>
 
@@ -262,10 +262,10 @@
       });
 
       if (pageInfo) {
-        pageInfo.textContent = 'Página ' + currentPage + '/' + totalPages;
+        pageInfo.textContent = '{{ t("doc_html.pager.page_prefix")|js_str }}' + currentPage + '/' + totalPages;
       }
       if (resultsInfo) {
-        resultsInfo.textContent = totalResults + ' resultado(s)';
+        resultsInfo.textContent = totalResults + '{{ t("doc_html.collection.results_suffix")|js_str }}';
       }
       if (prevPageButton) {
         prevPageButton.disabled = currentPage <= 1;
@@ -309,8 +309,8 @@
         const a = cellValue(left.cells[index]);
         const b = cellValue(right.cells[index]);
         return asc
-          ? a.localeCompare(b, 'es', { numeric: true, sensitivity: 'base' })
-          : b.localeCompare(a, 'es', { numeric: true, sensitivity: 'base' });
+          ? a.localeCompare(b, '{{ lang|js_str }}', { numeric: true, sensitivity: 'base' })
+          : b.localeCompare(a, '{{ lang|js_str }}', { numeric: true, sensitivity: 'base' });
       });
       sorted.forEach(function (row) {
         tbody.appendChild(row);
@@ -429,7 +429,7 @@
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
             + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-            + '<sheets><sheet name="Datos" sheetId="1" r:id="rId1"/></sheets>'
+            + '<sheets><sheet name="{{ t("doc_html.collection.sheet_name")|js_str }}" sheetId="1" r:id="rId1"/></sheets>'
             + '</workbook>',
         },
         {

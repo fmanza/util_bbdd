@@ -17,6 +17,9 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from .._core.export_safety import neutralize_formulas, safe_value
+from .._core.i18n import Translator
+
+_ES = Translator()
 
 
 class ReadinessFindingView(Protocol):
@@ -70,8 +73,9 @@ class ReadinessRows:
     """
 
     LEVELS: ClassVar[tuple[str, ...]] = ("CRITICAL", "WARNING", "INFO", "OK")
-    NOTICE_UNAVAILABLE: ClassVar[str] = "No se pudieron verificar las condiciones de este motor."
-    NOTICE_NO_FINDINGS: ClassVar[str] = "La verificación no ha producido hallazgos."
+    #: Avisos en español (el idioma por defecto); ``from_report`` usa los del ``translator`` que reciba.
+    NOTICE_UNAVAILABLE: ClassVar[str] = _ES.t("audit.readiness.notice.unavailable")
+    NOTICE_NO_FINDINGS: ClassVar[str] = _ES.t("audit.readiness.notice.no_findings")
 
     rows: tuple[tuple[str, str, str, str], ...]
     summary: tuple[tuple[str, int], ...]
@@ -79,10 +83,11 @@ class ReadinessRows:
     notices: tuple[str, ...]
 
     @classmethod
-    def from_report(cls, report: ReadinessReportView | None) -> ReadinessRows:
-        """Filas del bloque; ``None`` da un bloque solo con el aviso."""
+    def from_report(cls, report: ReadinessReportView | None, translator: Translator = _ES) -> ReadinessRows:
+        """Filas del bloque; ``None`` da un bloque solo con el aviso. Los textos salen en el idioma de ``translator``."""
+        tr = translator
         if report is None:
-            return cls(rows=(), summary=(), metadata=(), notices=(cls.NOTICE_UNAVAILABLE,))
+            return cls(rows=(), summary=(), metadata=(), notices=(tr.t("audit.readiness.notice.unavailable"),))
 
         rank = {level: position for position, level in enumerate(cls.LEVELS)}
         rows = tuple(
@@ -100,33 +105,31 @@ class ReadinessRows:
 
         notices: list[str] = []
         if not report.supported:
-            notices.append(f"El motor '{report.db_type}' no tiene verificaciones de condiciones de ejecución.")
+            notices.append(tr.t("audit.readiness.notice.unsupported", db_type=report.db_type))
         else:
             if not report.dynamic:
                 reason = f": {report.error}" if report.error else ""
-                notices.append(
-                    f"Solo checks estáticos (configuración de conexión), sin variables del servidor{reason}."
-                )
+                notices.append(tr.t("audit.readiness.notice.static_only", reason=reason))
             if not rows:
-                notices.append(cls.NOTICE_NO_FINDINGS)
+                notices.append(tr.t("audit.readiness.notice.no_findings"))
 
         checked_at = report.checked_at.astimezone(UTC) if report.checked_at.tzinfo else report.checked_at
         metadata = (
-            ("Motor", report.db_type),
-            ("Verificado (UTC)", checked_at.strftime("%Y-%m-%d %H:%M:%S")),
-            ("Checks dinámicos", "Sí" if report.dynamic else "No"),
+            (tr.t("audit.readiness.meta.engine"), report.db_type),
+            (tr.t("audit.readiness.meta.checked_at"), checked_at.strftime("%Y-%m-%d %H:%M:%S")),
+            (tr.t("audit.readiness.meta.dynamic"), tr.t("audit.yes") if report.dynamic else tr.t("audit.no")),
         )
         return cls(rows=rows, summary=summary, metadata=metadata, notices=tuple(notices))
 
 
 class ReadinessSheetWriter:
-    """Escribe los bloques de condiciones del motor en una hoja, uno debajo de otro."""
+    """Escribe los bloques de condiciones del motor en una hoja, uno debajo de otro, en el idioma de ``translator``."""
 
-    HEADERS: ClassVar[tuple[str, ...]] = ("Nivel", "Parámetro", "Valor actual", "Recomendación")
-    NOTE: ClassVar[str] = (
-        "Condiciones verificadas en este proceso por EngineReadinessAdvisor, una vez por engine: si el engine ya había "
-        "cargado datos, son las de esa carga."
+    #: Cabeceras y nota en español (el idioma por defecto); la hoja usa las del ``translator`` de la instancia.
+    HEADERS: ClassVar[tuple[str, ...]] = tuple(
+        _ES.t(f"audit.readiness.header.{key}") for key in ("level", "param", "current", "recommendation")
     )
+    NOTE: ClassVar[str] = _ES.t("audit.readiness.note")
     _HEADER_FILL: ClassVar[str] = "FF4472C4"
     _LEVEL_FILL: ClassVar[dict[str, str]] = {
         "CRITICAL": "FFFF0000",
@@ -135,17 +138,23 @@ class ReadinessSheetWriter:
         "OK": "FF92D050",
     }
 
+    def __init__(self, translator: Translator = _ES) -> None:
+        self._tr: Translator = translator
+        self._headers: tuple[str, ...] = tuple(
+            translator.t(f"audit.readiness.header.{key}") for key in ("level", "param", "current", "recommendation")
+        )
+
     def write(self, ws: Worksheet, blocks: Sequence[ReadinessBlock]) -> None:
         """Escribe ``blocks`` en ``ws`` y guarda como texto lo que parezca fórmula."""
-        title = ws.cell(row=1, column=1, value="Condiciones del motor")
+        title = ws.cell(row=1, column=1, value=self._tr.t("audit.readiness.title"))
         title.font = Font(size=14, bold=True)
-        ws.cell(row=2, column=1, value=self.NOTE).font = Font(italic=True)
+        ws.cell(row=2, column=1, value=self._tr.t("audit.readiness.note")).font = Font(italic=True)
 
         row = 4
         for block_title, report in blocks:
-            row = self._write_block(ws, row, block_title, ReadinessRows.from_report(report)) + 1
+            row = self._write_block(ws, row, block_title, ReadinessRows.from_report(report, self._tr)) + 1
 
-        for column in range(1, len(self.HEADERS) + 1):
+        for column in range(1, len(self._headers) + 1):
             ws.column_dimensions[get_column_letter(column)].width = (20, 34, 24, 80)[column - 1]
         neutralize_formulas(ws)
 
@@ -158,11 +167,13 @@ class ReadinessSheetWriter:
             row += 1
 
         if content.metadata:
-            row = self._write_table(ws, row, ("Propiedad", "Valor"), content.metadata)
+            headers = (self._tr.t("audit.readiness.header.property"), self._tr.t("audit.readiness.header.value"))
+            row = self._write_table(ws, row, headers, content.metadata)
         if content.summary:
-            row = self._write_table(ws, row, ("Nivel", "Hallazgos"), content.summary, level_column=True)
+            headers = (self._tr.t("audit.readiness.header.level"), self._tr.t("audit.readiness.header.findings"))
+            row = self._write_table(ws, row, headers, content.summary, level_column=True)
         if content.rows:
-            row = self._write_table(ws, row, self.HEADERS, content.rows, level_column=True)
+            row = self._write_table(ws, row, self._headers, content.rows, level_column=True)
         return row
 
     def _write_table(

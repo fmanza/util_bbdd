@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from ...._core.exceptions import DatabaseException
+from ...._core.i18n import Translator
 
 if TYPE_CHECKING:
     from .runtime import StorageInventoryRuntime
@@ -43,14 +44,17 @@ class StorageQuerySpec:
         title: Título de la sección.
         headers: Cabeceras legibles (se recortan a las columnas devueltas).
         process: Sustituye al tratamiento estándar (ejecutar, formatear) de la consulta.
-        on_error: Sección propia para un error de base de datos (``None`` = la sección de error estándar).
+        on_error: Sección propia para un error de base de datos (``None`` = la sección de error estándar); recibe el
+            ``Translator`` del informe para su mensaje.
+
+    El título y las cabeceras se declaran en español: el informe los pasa al idioma de salida con ``localize_label``.
     """
 
     name: str
     title: str
     headers: tuple[str, ...] = ()
     process: Callable[[StorageInventoryRuntime, StorageQuerySpec, str], Section] | None = None
-    on_error: Callable[[StorageQuerySpec, str], Section | None] | None = None
+    on_error: Callable[[StorageQuerySpec, str, Translator], Section | None] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,12 +78,14 @@ def parse_size_to_mb(size_value: str) -> float | None:
     return round(float(match.group(1)) * factor_by_unit[match.group(2) or "M"], 2)
 
 
-def parse_temp_data_file_path_rows(variable_name: str, raw_value: str) -> Rows:
+def parse_temp_data_file_path_rows(variable_name: str, raw_value: str, translator: Translator | None = None) -> Rows:
     """Desglosa ``innodb_temp_data_file_path`` (``ibtmp1:12M:autoextend:max:5G;…``) en una fila por fichero.
 
     Returns:
-        ``[variable, fichero, inicial MB, Si/No autoextend, máximo MB, valor bruto]`` por cada fichero.
+        ``[variable, fichero, inicial MB, Si/No autoextend, máximo MB, valor bruto]`` por cada fichero (``Si``/``No``
+        en el idioma de ``translator``; español por defecto).
     """
+    tr = translator or Translator()
     value: str = str(raw_value or "").strip()
     rows: Rows = []
     for chunk in (part.strip() for part in value.split(";")):
@@ -91,12 +97,12 @@ def parse_temp_data_file_path_rows(variable_name: str, raw_value: str) -> Rows:
         if index < len(tokens) and (parsed := parse_size_to_mb(tokens[index])) is not None:
             initial_mb = parsed
             index += 1
-        autoextend: str = "No"
+        autoextend: str = tr.t("doc.common.no")
         max_mb: float | str = ""
         while index < len(tokens):
             token: str = tokens[index].lower()
             if token == "autoextend":
-                autoextend = "Si"
+                autoextend = tr.t("doc.storage.value.yes")
             elif token == "max" and index + 1 < len(tokens):
                 max_mb = parse_size_to_mb(tokens[index + 1]) or ""
                 index += 1
@@ -114,34 +120,22 @@ def _process_innodb_temp_variables(runtime: StorageInventoryRuntime, spec: Stora
     rows: Rows = []
     for row in raw_rows:
         variable_name: str = str(row[0]) if len(row) > 0 else "innodb_temp_data_file_path"
-        rows.extend(parse_temp_data_file_path_rows(variable_name, str(row[1]) if len(row) > 1 else ""))
-    message: str = (
-        "OK. La variable describe tamano inicial, autoextend y maximo del temporal InnoDB."
-        if rows
-        else "La variable innodb_temp_data_file_path no devolvio datos utilizables."
-    )
+        rows.extend(
+            parse_temp_data_file_path_rows(variable_name, str(row[1]) if len(row) > 1 else "", runtime.translator)
+        )
+    message: str = runtime.translator.t("doc.storage.message.innodb_ok" if rows else "doc.storage.message.innodb_empty")
     return runtime.ok_section(spec, sql_text, rows, message=message)
 
 
-def _explain_files_error(spec: StorageQuerySpec, error_msg: str) -> Section | None:
+def _explain_files_error(spec: StorageQuerySpec, error_msg: str, translator: Translator) -> Section | None:
     """Explica los errores de ``information_schema.FILES`` (sin permiso / no existe en el servidor)."""
     lowered: str = error_msg.lower()
     if "information_schema.files" not in lowered:
         return None
     if any(token in lowered for token in ("access denied", "permission", "denied", "1142", "1227")):
-        return section(
-            spec,
-            "error",
-            "Sin acceso a information_schema.FILES. No se puede inventariar el almacenamiento temporal "
-            "detallado con el usuario actual.",
-        )
+        return section(spec, "error", translator.t("doc.storage.message.files_denied"))
     if any(token in lowered for token in ("doesn't exist", "does not exist", "unknown table", "unknown column")):
-        return section(
-            spec,
-            "not_supported",
-            "MariaDB no expone information_schema.FILES en este entorno. No se dispone de inventario "
-            "detallado de ficheros temporales.",
-        )
+        return section(spec, "not_supported", translator.t("doc.storage.message.files_missing"))
     return None
 
 
@@ -182,7 +176,7 @@ def _process_oracle_tablespaces(runtime: StorageInventoryRuntime, spec: StorageQ
         [*runtime.configured_tablespaces(), default_ts] if spec.name == "ficheros_fisicos" else [temp_ts]
     )
     if not tablespaces:
-        return section(spec, "missing_params", "No se pudieron resolver tablespaces Oracle para la consulta.")
+        return section(spec, "missing_params", runtime.translator.t("doc.storage.message.oracle_no_tablespaces"))
 
     rows: Rows = []
     sql_list: list[str] = []
@@ -197,16 +191,21 @@ def _process_oracle_tablespaces(runtime: StorageInventoryRuntime, spec: StorageQ
         sql_list.append(sql_text)
 
     sql_joined: str = "\n\n".join(sql_list)
+    tr: Translator = runtime.translator
     if rows:
-        message: str = f"OK ({len(tablespaces)} tablespace(s) consultado(s))"
+        message: str = tr.t("doc.storage.message.oracle_ok", count=len(tablespaces))
         if errors:
-            message = f"{message}. Con incidencias parciales: {' | '.join(errors)}"
+            message = tr.t("doc.storage.message.partial_errors", message=message, errors=" | ".join(errors))
         return runtime.ok_section(spec, sql_joined, rows, message=message)
     if errors:
         return runtime.ok_section(
-            spec, sql_joined, rows, message=f"Error ejecutando consulta: {' | '.join(errors)}", status="error"
+            spec,
+            sql_joined,
+            rows,
+            message=tr.t("doc.storage.message.query_error", error=" | ".join(errors)),
+            status="error",
         )
-    return runtime.ok_section(spec, sql_joined, rows, message="Sin datos")
+    return runtime.ok_section(spec, sql_joined, rows, message=tr.t("doc.storage.message.no_data"))
 
 
 # ── Tabla por motor ──────────────────────────────────────────────────────────
@@ -315,11 +314,50 @@ GENERIC_SPEC = StorageEngineSpec(
     )
 )
 
+GENERIC_NOTICE_TITLE: str = "Aviso: estrategia de almacenamiento genérica"
+
+#: Títulos y cabeceras en español de las secciones → clave del catálogo ``doc``; los que no están aquí son iguales en
+#: todos los idiomas (``Tablespace``, ``DB``, ``Page size``…).
+_LABEL_KEYS: dict[str, str] = {
+    FICHEROS_FISICOS: "doc.storage.title.physical_files",
+    f"{FICHEROS_FISICOS} - resumen SQLite": "doc.storage.title.sqlite_file_summary",
+    "Configuración temporales InnoDB": "doc.storage.title.innodb_temp",
+    GENERIC_NOTICE_TITLE: "doc.storage.title.generic_notice",
+    "Objeto": "doc.storage.header.object",
+    "Motor": "doc.storage.header.engine",
+    "Datos (MB)": "doc.storage.header.data_mb",
+    "Indices (MB)": "doc.storage.header.indexes_mb",
+    "Archivo": "doc.storage.header.file",
+    "Inicial (MB)": "doc.storage.header.initial_mb",
+    _MAXIMO_MB: "doc.storage.header.max_mb",
+    "Valor bruto": "doc.storage.header.raw_value",
+    _TAMANO_MB: "doc.storage.header.size_mb",
+    "Estado": "doc.storage.header.status",
+    _TIPO_FICHERO: "doc.storage.header.file_type",
+    "Autoextensible": "doc.storage.header.autoextensible",
+    "Nombre logico": "doc.storage.header.logical_name",
+    "Archivo fisico": "doc.storage.header.physical_file",
+    "Tamano maximo (MB)": "doc.storage.header.max_size_mb",
+    "Crecimiento en porcentaje": "doc.storage.header.growth_percent",
+    "Configuracion crecimiento": "doc.storage.header.growth_settings",
+    "Ruta filesystem": "doc.storage.header.filesystem_path",
+    "Tamaño total": "doc.storage.header.total_size",
+    "Nombre": "doc.storage.header.name",
+}
+
+
+def localize_label(text: str, translator: Translator) -> str:
+    """Título o cabecera de una sección (declarados en español) en el idioma de ``translator``."""
+    key: str | None = _LABEL_KEYS.get(text)
+    return translator.t(key) if key else text
+
+
 __all__: list[str] = [
     "ENGINE_SPECS",
     "GENERIC_SPEC",
     "StorageEngineSpec",
     "StorageQuerySpec",
+    "localize_label",
     "parse_size_to_mb",
     "parse_temp_data_file_path_rows",
     "section",

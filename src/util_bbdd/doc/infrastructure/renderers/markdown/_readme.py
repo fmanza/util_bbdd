@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ....._core.i18n import Translator
 from ._site import MERMAID_JS_PATH
 
 
@@ -29,93 +30,85 @@ class ReadmeContents:
     filtered: bool
 
 
-def readme_md(contents: ReadmeContents) -> str:
-    """Texto del ``README.md``."""
+def readme_md(contents: ReadmeContents, translator: Translator | None = None) -> str:
+    """Texto del ``README.md`` en el idioma de ``translator`` (5.10.0; por defecto, español)."""
+    tr = translator or Translator()
+
+    def t(key: str, **params: object) -> str:
+        return tr.t(f"doc_md.readme.{key}", **params)
+
     lines = [
-        "# Documentación de la base de datos",
+        f"# {t('title')}",
         "",
-        f"Generada por util_bbdd {contents.version}: un fichero Markdown por tabla, vista y rutina, con diagramas de "
-        "relaciones en Mermaid. Empieza por `docs/index.md`.",
+        t("intro", version=contents.version),
         "",
-        "## Cómo verla",
+        f"## {t('how')}",
         "",
-        "### Opción 1: en el editor (sin instalar nada más)",
+        f"### {t('option_editor')}",
         "",
-        "1. Abre esta carpeta en Visual Studio Code.",
-        "2. Abre `docs/index.md` y pulsa `Ctrl+Shift+V` (vista previa). Los enlaces llevan de una página a otra.",
-        "3. Para ver los diagramas, instala la extensión *Markdown Preview Mermaid Support* "
-        "(`bierner.markdown-mermaid`).",
+        t("step_open"),
+        t("step_preview"),
+        t("step_mermaid"),
         "",
-        "GitHub y GitLab muestran también las páginas y los diagramas si subes la carpeta a un repositorio.",
+        t("hosting"),
         "",
     ]
     if contents.zensical_toml or contents.mkdocs_yml:
-        lines += _site_section(contents)
-    lines += ["## Qué contiene", "", "| Fichero | Contenido |", "|---|---|"]
-    lines += [f"| {path} | {text} |" for path, text in _files(contents)]
-    lines += [
-        "",
-        "Las páginas de cada objeto empiezan con un *front matter* JSON (id estable, PK, FK y hash) para "
-        "herramientas e IA. No edites estos ficheros: se reescriben en cada generación.",
-        "",
-    ]
+        lines += _site_section(contents, tr)
+    file_header = f"| {tr.t('doc_md.col.file')} | {tr.t('doc_md.col.contents')} |"
+    lines += [f"## {t('contents')}", "", file_header, "|---|---|"]
+    lines += [f"| {path} | {text} |" for path, text in _files(contents, tr)]
+    lines += ["", t("footer"), ""]
     return "\n".join(lines)
 
 
-def _site_section(contents: ReadmeContents) -> list[str]:
+def _site_section(contents: ReadmeContents, tr: Translator) -> list[str]:
     config = "zensical.toml" if contents.zensical_toml else "mkdocs.yml"
     lines = [
-        "### Opción 2: como sitio web (buscador y menú lateral)",
+        f"### {tr.t('doc_md.readme.option_site')}",
         "",
-        f"Necesitas Python. En esta carpeta (la que tiene `{config}`), con [Zensical](https://zensical.org):",
+        tr.t("doc_md.readme.site_intro", config=config),
         "",
         "```bash",
         "pip install zensical",
-        "zensical serve        # sitio en http://localhost:8000",
-        "zensical build        # genera el sitio estático en site/",
+        f"zensical serve        # {tr.t('doc_md.readme.cmd_serve')}",
+        f"zensical build        # {tr.t('doc_md.readme.cmd_build')}",
         "```",
         "",
     ]
     if contents.local_mermaid:
-        lines += [
-            f"Los diagramas usan el Mermaid incluido (`docs/{MERMAID_JS_PATH}`): el sitio no necesita Internet.",
-            "",
-        ]
+        lines += [tr.t("doc_md.readme.mermaid_local", path=MERMAID_JS_PATH), ""]
     elif contents.mermaid_ref is not None:
-        lines += [f"Los diagramas cargan Mermaid desde `{contents.mermaid_ref}`.", ""]
+        lines += [tr.t("doc_md.readme.mermaid_ref", ref=contents.mermaid_ref), ""]
     else:
-        lines += [
-            "Los diagramas descargan Mermaid de Internet al abrir el sitio. Para un sitio sin Internet, genera la "
-            "documentación con `markdown.mermaid_js` (copia un `mermaid.min.js` local).",
-            "",
-        ]
+        lines += [tr.t("doc_md.readme.mermaid_online"), ""]
     return lines
 
 
-def _files(contents: ReadmeContents) -> list[tuple[str, str]]:
+def _files(contents: ReadmeContents, tr: Translator) -> list[tuple[str, str]]:
+    def t(key: str) -> str:
+        return tr.t(f"doc_md.readme.file.{key}")
+
     files = [
-        (
-            "`docs/index.md`",
-            "Portada: inventario, " + ("alcance del filtro, " if contents.filtered else "") + "secciones",
-        ),
-        ("`docs/tables/`, `docs/views/`, `docs/routines/`", "Una página por objeto e índices por letra"),
-        ("`docs/database/`", "Información de la base de datos, almacenamiento y condiciones del motor (si se piden)"),
+        ("`docs/index.md`", t("index_filtered" if contents.filtered else "index")),
+        ("`docs/tables/`, `docs/views/`, `docs/routines/`", t("objects")),
+        ("`docs/database/`", t("database")),
     ]
     if contents.traceability:
-        files.append(("`docs/traceability.md`", "Trazabilidad: objetos ↔ código, documentos y requisitos"))
+        files.append(("`docs/traceability.md`", t("traceability")))
     if contents.changes:
-        files.append(("`docs/changes.md`, `docs/changes.json`", "Cambios respecto de la generación anterior"))
+        files.append(("`docs/changes.md`, `docs/changes.json`", t("changes")))
     if contents.catalog_json:
-        files.append(("`docs/catalog.json`", "Catálogo máquina-legible: columnas, claves, índices y hashes"))
+        files.append(("`docs/catalog.json`", t("catalog")))
     if contents.llms_txt:
-        files.append(("`docs/llms.txt`", "Índice para asistentes de IA (formato llmstxt.org)"))
+        files.append(("`docs/llms.txt`", t("llms")))
     if contents.llms_full_txt:
-        files.append(("`docs/llms-full.txt`", "Todas las páginas en un solo fichero"))
+        files.append(("`docs/llms-full.txt`", t("llms_full")))
     if contents.zensical_toml:
-        files.append(("`zensical.toml`", "Configuración del sitio (Zensical)"))
+        files.append(("`zensical.toml`", t("zensical")))
     if contents.mkdocs_yml:
-        files.append(("`mkdocs.yml`", "Configuración del sitio en el formato de MkDocs (en desuso)"))
-    files.append(("`manifest.json`", "Ficheros generados con su hash, índice de páginas y versión del formato"))
+        files.append(("`mkdocs.yml`", t("mkdocs")))
+    files.append(("`manifest.json`", t("manifest")))
     return files
 
 

@@ -1,7 +1,7 @@
 {% extends "layouts/base_page.j2" %}
 {% import "macros/common.j2" as ui %}
 
-{% block title %}{{ entity_kind|capitalize }} - {{ entity.name }} | {{ database }}{% endblock %}
+{% block title %}{{ entity_label|default(entity_kind)|capitalize }} - {{ entity.name }} | {{ database }}{% endblock %}
 
 {% block head_assets %}
   <link rel="stylesheet" href="../assets/sql-highlight.css" />
@@ -155,9 +155,9 @@
 {% endblock %}
 
 {% block content %}
-  <h1>{{ entity_kind|capitalize }}: {{ entity.name }}</h1>
-  <div class="meta">Generado: {{ generated_at }}</div>
-  <div class="meta">Base de datos: {{ database }}</div>
+  <h1>{{ entity_label|default(entity_kind)|capitalize }}: {{ entity.name }}</h1>
+  <div class="meta">{{ t("doc_html.common.generated") }} {{ generated_at }}</div>
+  <div class="meta">{{ t("doc_html.common.database") }} {{ database }}</div>
 
   <section class="block">
     {% if entity.notices %}
@@ -168,17 +168,17 @@
       </ul>
     {% endif %}
     {% if entity_kind not in ['almacenamiento', 'condiciones del motor'] %}
-      <p><strong>Comentario:</strong> {{ entity.comment or '' }}</p>
+      <p><strong>{{ t("doc_html.detail.comment") }}</strong> {{ entity.comment or '' }}</p>
       {% if entity.charset_collation %}
         <p><strong>Charset & Collation:</strong> {{ entity.charset_collation }}</p>
       {% endif %}
     {% endif %}
 
     {% if entity.ddl is not none %}
-      <h4>{{ 'Consultas SQL' if entity_kind == 'almacenamiento' else 'DDL' }}</h4>
+      <h4>{{ t('doc_html.detail.sql_queries') if entity_kind == 'almacenamiento' else 'DDL' }}</h4>
       <div class="ddl-container">
         <div class="ddl-toolbar">
-          <button type="button" class="copy-ddl-btn">{{ 'Copiar consultas' if entity_kind == 'almacenamiento' else 'Copiar DDL' }}</button>
+          <button type="button" class="copy-ddl-btn">{{ t('doc_html.detail.copy_queries') if entity_kind == 'almacenamiento' else t('doc_html.detail.copy_ddl') }}</button>
           <span class="muted copy-ddl-feedback" aria-live="polite"></span>
         </div>
         <pre class="sql-block"><code class="language-sql">{{ entity.ddl }}</code></pre>
@@ -186,56 +186,56 @@
     {% endif %}
 
     {% if entity_kind in ['tabla', 'vista'] and entity.show_columnas %}
-      <h4>Columnas</h4>
-      {{ ui.render_data_table(entity.columnas.headers, entity.columnas.rows, empty_message='No se encontraron columnas.') }}
+      <h4>{{ t("doc_html.detail.columns") }}</h4>
+      {{ ui.render_data_table(entity.columnas.headers, entity.columnas.rows, empty_message=t('doc_html.detail.no_columns')) }}
     {% endif %}
 
     {% if entity_kind in ['tabla', 'vista'] and entity.show_columns_charset %}
-      <h4>Charset/Collation de Columnas</h4>
-      {{ ui.render_data_table(entity.columns_charset.headers, entity.columns_charset.rows, empty_message='No se encontró información de charset/collation.') }}
+      <h4>{{ t("doc_html.detail.columns_charset") }}</h4>
+      {{ ui.render_data_table(entity.columns_charset.headers, entity.columns_charset.rows, empty_message=t('doc_html.detail.no_columns_charset')) }}
     {% endif %}
 
     {% if entity_kind == 'rutina' %}
-      <h4>Tipo</h4>
+      <h4>{{ t("doc_html.detail.type") }}</h4>
       <p>{{ entity.routine_type|routine_label }}</p>
-      <h4>Parámetros</h4>
-      {{ ui.render_data_table(entity.parametros.headers, entity.parametros.rows, empty_message='No se encontraron parámetros.') }}
+      <h4>{{ t("doc_html.detail.parameters") }}</h4>
+      {{ ui.render_data_table(entity.parametros.headers, entity.parametros.rows, empty_message=t('doc_html.detail.no_parameters')) }}
     {% endif %}
 
     {% if entity_kind == 'tabla' %}
       {% if entity.show_pk %}
-        <h4>Claves Primarias</h4>
+        <h4>{{ t("doc_html.detail.pk") }}</h4>
         {% if entity.pk %}
           <ul>{% for item in entity.pk %}<li>{{ item }}</li>{% endfor %}</ul>
         {% else %}
-          <p class="muted">No se encontraron claves primarias.</p>
+          <p class="muted">{{ t("doc_html.detail.no_pk") }}</p>
         {% endif %}
       {% endif %}
 
       {% if entity.show_fk %}
-        <h4>Relaciones (Claves Foráneas)</h4>
-        {{ ui.render_data_table(headers.FK, entity.fk, empty_message='No se encontraron claves foráneas.') }}
+        <h4>{{ t("doc_html.detail.fk") }}</h4>
+        {{ ui.render_data_table(headers.FK, entity.fk, empty_message=t('doc_html.detail.no_fk')) }}
       {% endif %}
 
       {% if entity.show_unicas %}
-        <h4>Restricciones Únicas</h4>
-        {{ ui.render_data_table(headers.UNIQUE, entity.unicas, empty_message='No se encontraron claves únicas.') }}
+        <h4>{{ t("doc_html.detail.unique") }}</h4>
+        {{ ui.render_data_table(headers.UNIQUE, entity.unicas, empty_message=t('doc_html.detail.no_unique')) }}
       {% endif %}
 
       {% if entity.show_indices %}
-        <h4>Índices</h4>
-        {{ ui.render_data_table(headers.INDICES, entity.indices, empty_message='No se encontraron índices.') }}
+        <h4>{{ t("doc_html.detail.indexes") }}</h4>
+        {{ ui.render_data_table(headers.INDICES, entity.indices, empty_message=t('doc_html.detail.no_indexes')) }}
       {% endif %}
 
       {% if entity.diagram_tabs %}
-        <h4>Diagrama de relaciones</h4>
+        <h4>{{ t("doc_html.detail.diagram") }}</h4>
         {% if entity.diagram_summary %}
           <details class="diagram-disclosure diagram-disclosure--summary" data-diagram-summary>
-            <summary class="diagram-disclosure-toggle diagram-disclosure-toggle--summary">Resumen de niveles</summary>
+            <summary class="diagram-disclosure-toggle diagram-disclosure-toggle--summary">{{ t("doc_html.diagram.levels_summary") }}</summary>
             <div class="diagram-disclosure-body diagram-disclosure-body--summary">
-              <strong>Niveles por sentido:</strong> {{ entity.diagram_summary.max_depth or 0 }}
-              <span class="muted"> | Salientes (tablas a las que apunta): {{ entity.diagram_summary.visible_outgoing_levels or 0 }} de {{ entity.diagram_summary.total_outgoing_levels or 0 }}</span>
-              <span class="muted"> | Entrantes (tablas que la apuntan): {{ entity.diagram_summary.visible_incoming_levels or 0 }} de {{ entity.diagram_summary.total_incoming_levels or 0 }}</span>
+              <strong>{{ t("doc_html.diagram.levels_per_direction") }}</strong> {{ entity.diagram_summary.max_depth or 0 }}
+              <span class="muted"> | {{ t("doc_html.diagram.outgoing_summary") }} {{ entity.diagram_summary.visible_outgoing_levels or 0 }} {{ t("doc_html.diagram.of") }} {{ entity.diagram_summary.total_outgoing_levels or 0 }}</span>
+              <span class="muted"> | {{ t("doc_html.diagram.incoming_summary") }} {{ entity.diagram_summary.visible_incoming_levels or 0 }} {{ t("doc_html.diagram.of") }} {{ entity.diagram_summary.total_incoming_levels or 0 }}</span>
               {% if entity.diagram_summary.has_any_hidden_levels %}
                 <div class="diagram-summary-help">
                   {% if entity.diagram_summary.has_hidden_outgoing_levels %}
@@ -262,7 +262,7 @@
             <div class="diagram-disclosure-body diagram-disclosure-body--legend">
             <div class="diagram-legend-grid">
               <section class="diagram-legend-section">
-                <h6>Dirección</h6>
+                <h6>{{ t("doc_html.diagram.legend_direction") }}</h6>
                 <ul class="diagram-legend-list">
                   {% for item in entity.diagram_legend.direction_items %}
                     <li>
@@ -276,7 +276,7 @@
                 </ul>
               </section>
               <section class="diagram-legend-section">
-                <h6>Cardinalidad</h6>
+                <h6>{{ t("doc_html.diagram.legend_cardinality") }}</h6>
                 <ul class="diagram-legend-list">
                   {% for item in entity.diagram_legend.cardinality_items %}
                     <li>
@@ -287,7 +287,7 @@
                 </ul>
               </section>
               <section class="diagram-legend-section">
-                <h6>Tipo de tabla</h6>
+                <h6>{{ t("doc_html.diagram.legend_table_type") }}</h6>
                 <ul class="diagram-legend-list">
                   {% for item in entity.diagram_legend.table_type_items %}
                     <li>
@@ -301,7 +301,7 @@
                 </ul>
               </section>
               <section class="diagram-legend-section">
-                <h6>Tipo de relación</h6>
+                <h6>{{ t("doc_html.diagram.legend_relation_type") }}</h6>
                 <ul class="diagram-legend-list">
                   {% for item in entity.diagram_legend.relation_type_items %}
                     <li>
@@ -327,9 +327,9 @@
             <div class="diagram-group-header">
               <h5>{{ group.direction_label }}</h5>
               <div class="diagram-meta">
-                Niveles visibles: {{ group.visible_levels }} de {{ group.total_levels }}
+                {{ t("doc_html.diagram.visible_levels") }} {{ group.visible_levels }} {{ t("doc_html.diagram.of") }} {{ group.total_levels }}
                 {% if group.has_hidden_levels %}
-                  | No visibles: {{ group.hidden_levels }}
+                  | {{ t("doc_html.diagram.hidden_levels") }} {{ group.hidden_levels }}
                 {% endif %}
               </div>
               <span class="diagram-badge">{{ group.density_badge }}</span>
@@ -359,22 +359,22 @@
                   data-initial-zoom="{{ entity.diagram_viewer.initial_zoom or 1.0 }}"
                   data-wheel-zoom-requires-ctrl="{{ 'true' if entity.diagram_viewer.wheel_zoom_requires_ctrl else 'false' }}"
                   data-drag-pan-enabled="{{ 'true' if entity.diagram_viewer.drag_pan_enabled else 'false' }}"
-                  data-status-ready="{{ entity.diagram_viewer.status_ready or 'Listo para navegar' }}"
-                  data-status-dragging="{{ entity.diagram_viewer.status_dragging or 'Moviendo diagrama' }}"
-                  data-status-zoom-prefix="{{ entity.diagram_viewer.status_zoom_prefix or 'Zoom' }}"
+                  data-status-ready="{{ entity.diagram_viewer.status_ready or t('doc_html.viewer.status_ready') }}"
+                  data-status-dragging="{{ entity.diagram_viewer.status_dragging or t('doc_html.viewer.status_dragging') }}"
+                  data-status-zoom-prefix="{{ entity.diagram_viewer.status_zoom_prefix or t('doc_html.viewer.status_zoom_prefix') }}"
                 >
                   <p class="diagram-panel-help">{{ group.direction_label }} · {{ item.title }}. {{ group.group_hint }}</p>
                   <div class="diagram-toolbar" data-diagram-export-name="{{ entity.name }}-{{ item.direction }}-nivel-{{ item.depth }}">
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="zoom-out" data-tooltip="Alejar" aria-label="Alejar">-</button>
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="zoom-in" data-tooltip="Acercar" aria-label="Acercar">+</button>
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="fit" data-tooltip="Ajustar al área visible" aria-label="Ajustar al área visible">Ajustar</button>
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="reset" data-tooltip="Restablecer vista" aria-label="Restablecer vista">Reset</button>
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-left" data-tooltip="Desplazar a la izquierda" aria-label="Desplazar a la izquierda">Izq.</button>
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-right" data-tooltip="Desplazar a la derecha" aria-label="Desplazar a la derecha">Der.</button>
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-up" data-tooltip="Desplazar hacia arriba" aria-label="Desplazar hacia arriba">Arriba</button>
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-down" data-tooltip="Desplazar hacia abajo" aria-label="Desplazar hacia abajo">Abajo</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="zoom-out" data-tooltip="{{ t('doc_html.viewer.zoom_out') }}" aria-label="{{ t('doc_html.viewer.zoom_out') }}">-</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="zoom-in" data-tooltip="{{ t('doc_html.viewer.zoom_in') }}" aria-label="{{ t('doc_html.viewer.zoom_in') }}">+</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="fit" data-tooltip="{{ t('doc_html.viewer.fit_tooltip') }}" aria-label="{{ t('doc_html.viewer.fit_tooltip') }}">{{ t("doc_html.viewer.fit") }}</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="reset" data-tooltip="{{ t('doc_html.viewer.reset_tooltip') }}" aria-label="{{ t('doc_html.viewer.reset_tooltip') }}">{{ t("doc_html.viewer.reset") }}</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-left" data-tooltip="{{ t('doc_html.viewer.pan_left_tooltip') }}" aria-label="{{ t('doc_html.viewer.pan_left_tooltip') }}">{{ t("doc_html.viewer.pan_left") }}</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-right" data-tooltip="{{ t('doc_html.viewer.pan_right_tooltip') }}" aria-label="{{ t('doc_html.viewer.pan_right_tooltip') }}">{{ t("doc_html.viewer.pan_right") }}</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-up" data-tooltip="{{ t('doc_html.viewer.pan_up_tooltip') }}" aria-label="{{ t('doc_html.viewer.pan_up_tooltip') }}">{{ t("doc_html.viewer.pan_up") }}</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-down" data-tooltip="{{ t('doc_html.viewer.pan_down_tooltip') }}" aria-label="{{ t('doc_html.viewer.pan_down_tooltip') }}">{{ t("doc_html.viewer.pan_down") }}</button>
                     <label class="diagram-toolbar-zoom" for="diagram-zoom-{{ group.group_id }}-{{ item.depth }}">
-                      Zoom
+                      {{ t("doc_html.viewer.zoom_label") }}
                       <input
                         id="diagram-zoom-{{ group.group_id }}-{{ item.depth }}"
                         type="number"
@@ -385,32 +385,32 @@
                         step="1"
                         value="{{ ((entity.diagram_viewer.initial_zoom or 1.0) * 100)|int }}"
                         inputmode="numeric"
-                        aria-label="Porcentaje de zoom"
+                        aria-label="{{ t('doc_html.viewer.zoom_percent_aria') }}"
                       />
                       <span>%</span>
                     </label>
                     <span class="diagram-toolbar-feedback" data-diagram-export-feedback aria-live="polite"></span>
                     <span class="diagram-toolbar-status" data-diagram-status>100%</span>
                     <div class="diagram-toolbar-export-group" data-diagram-export-group>
-                      <button type="button" class="diagram-toolbar-btn diagram-toolbar-btn--icon-only" data-diagram-action="copy-png" data-tooltip="Copiar PNG" aria-label="Copiar PNG">
+                      <button type="button" class="diagram-toolbar-btn diagram-toolbar-btn--icon-only" data-diagram-action="copy-png" data-tooltip="{{ t('doc_html.viewer.copy_png') }}" aria-label="{{ t('doc_html.viewer.copy_png') }}">
                         <img class="diagram-toolbar-btn-icon" src="../assets/icons/icon-png-copy.svg" alt="" aria-hidden="true" />
                       </button>
-                      <button type="button" class="diagram-toolbar-btn diagram-toolbar-btn--icon-only" data-diagram-action="copy-svg" data-tooltip="Copiar SVG" aria-label="Copiar SVG">
+                      <button type="button" class="diagram-toolbar-btn diagram-toolbar-btn--icon-only" data-diagram-action="copy-svg" data-tooltip="{{ t('doc_html.viewer.copy_svg') }}" aria-label="{{ t('doc_html.viewer.copy_svg') }}">
                         <img class="diagram-toolbar-btn-icon" src="../assets/icons/icon-svg-copy.svg" alt="" aria-hidden="true" />
                       </button>
-                      <button type="button" class="diagram-toolbar-btn diagram-toolbar-btn--icon-only" data-diagram-action="download-svg" data-tooltip="Descargar SVG" aria-label="Descargar SVG">
+                      <button type="button" class="diagram-toolbar-btn diagram-toolbar-btn--icon-only" data-diagram-action="download-svg" data-tooltip="{{ t('doc_html.viewer.download_svg') }}" aria-label="{{ t('doc_html.viewer.download_svg') }}">
                         <img class="diagram-toolbar-btn-icon" src="../assets/icons/icon-svg-download.svg" alt="" aria-hidden="true" />
                       </button>
-                      <button type="button" class="diagram-toolbar-btn diagram-toolbar-btn--icon-only" data-diagram-action="download-png" data-tooltip="Descargar PNG" aria-label="Descargar PNG">
+                      <button type="button" class="diagram-toolbar-btn diagram-toolbar-btn--icon-only" data-diagram-action="download-png" data-tooltip="{{ t('doc_html.viewer.download_png') }}" aria-label="{{ t('doc_html.viewer.download_png') }}">
                         <img class="diagram-toolbar-btn-icon" src="../assets/icons/icon-png-download.svg" alt="" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
                   {% if entity.diagram_viewer.help or entity.diagram_viewer.tips %}
                     <details class="diagram-disclosure diagram-disclosure--viewer-help" data-diagram-viewer-help>
-                      <summary class="diagram-disclosure-toggle diagram-disclosure-toggle--viewer-help">{{ entity.diagram_viewer.title or 'Controles del visor' }}</summary>
+                      <summary class="diagram-disclosure-toggle diagram-disclosure-toggle--viewer-help">{{ entity.diagram_viewer.title or t('doc_html.viewer.title') }}</summary>
                       <div class="diagram-disclosure-body diagram-disclosure-body--viewer-help">
-                        <p class="diagram-panel-help">{{ entity.diagram_viewer.help or 'Usa los botones para navegar por el diagrama.' }}</p>
+                        <p class="diagram-panel-help">{{ entity.diagram_viewer.help or t('doc_html.viewer.help_default') }}</p>
                         {% if entity.diagram_viewer.tips %}
                           <ul class="diagram-viewer-tips">
                             {% for tip in entity.diagram_viewer.tips %}
@@ -432,13 +432,13 @@
           </div>
         {% endfor %}
       {% elif entity.diagram_paths %}
-        <h4>Diagrama de relaciones</h4>
+        <h4>{{ t("doc_html.detail.diagram") }}</h4>
         {% for diagram_path in entity.diagram_paths %}
-          <div class="diagram"><object data="../{{ diagram_path }}" type="image/svg+xml" aria-label="Diagrama {{ entity.name }}"></object></div>
+          <div class="diagram"><object data="../{{ diagram_path }}" type="image/svg+xml" aria-label="{{ t('doc_html.detail.diagram_aria') }} {{ entity.name }}"></object></div>
         {% endfor %}
       {% endif %}
     {% elif entity_kind == 'vista' and entity.diagram_policy %}
-      <h4>Diagrama de relaciones</h4>
+      <h4>{{ t("doc_html.detail.diagram") }}</h4>
       <div class="diagram-policy">
         <h5>{{ entity.diagram_policy.title }}</h5>
         <p class="diagram-policy-label">{{ entity.diagram_policy.label }}</p>
@@ -461,9 +461,9 @@
     {% endif %}
 
     {% if storage and storage.sections %}
-      <h4>{{ storage.heading or 'Inventario de almacenamiento' }}</h4>
+      <h4>{{ storage.heading or t('doc_html.storage.default_title') }}</h4>
       {% if not storage.heading %}
-        <p class="muted">Total de filas recopiladas: {{ storage.total_rows or 0 }}</p>
+        <p class="muted">{{ t("doc_html.storage.total_rows") }} {{ storage.total_rows or 0 }}</p>
       {% endif %}
       {% for section in storage.sections %}
         <div class="storage-card">
@@ -608,13 +608,13 @@
         var codeNode = container ? container.querySelector('code.language-sql') : null;
         var feedbackNode = container ? container.querySelector('.copy-ddl-feedback') : null;
         if (!codeNode) {
-          setFeedback(feedbackNode, 'No se encontró DDL');
+          setFeedback(feedbackNode, '{{ t("doc_html.js.ddl_not_found")|js_str }}');
           return;
         }
 
         var ddlText = codeNode.textContent || '';
         copyText(ddlText, function (success) {
-          setFeedback(feedbackNode, success ? 'DDL copiado' : 'No se pudo copiar');
+          setFeedback(feedbackNode, success ? '{{ t("doc_html.js.ddl_copied")|js_str }}' : '{{ t("doc_html.js.copy_failed")|js_str }}');
         });
       });
     });
@@ -664,9 +664,9 @@
       var initialZoom = parseFloat(viewer.getAttribute('data-initial-zoom') || '1');
       var requiresCtrlForWheel = viewer.getAttribute('data-wheel-zoom-requires-ctrl') !== 'false';
       var dragPanEnabled = viewer.getAttribute('data-drag-pan-enabled') !== 'false';
-      var statusReady = viewer.getAttribute('data-status-ready') || 'Listo para navegar';
-      var statusDragging = viewer.getAttribute('data-status-dragging') || 'Moviendo diagrama';
-      var statusZoomPrefix = viewer.getAttribute('data-status-zoom-prefix') || 'Zoom';
+      var statusReady = viewer.getAttribute('data-status-ready') || '{{ t("doc_html.viewer.status_ready")|js_str }}';
+      var statusDragging = viewer.getAttribute('data-status-dragging') || '{{ t("doc_html.viewer.status_dragging")|js_str }}';
+      var statusZoomPrefix = viewer.getAttribute('data-status-zoom-prefix') || '{{ t("doc_html.viewer.status_zoom_prefix")|js_str }}';
       var supportsTextClipboard = canCopyTextToClipboard();
       var supportsBinaryClipboard = canWriteBinaryClipboard();
       var supportsSvgRasterization = canRasterizeSvg();
@@ -687,12 +687,12 @@
       configureClipboardAction(
         viewer.querySelector('[data-diagram-action="copy-svg"]'),
         supportsBinaryClipboard || supportsTextClipboard,
-        'Tu navegador no permite copiar SVG al portapapeles desde esta página.'
+        '{{ t("doc_html.viewer.js.no_svg_clipboard")|js_str }}'
       );
       configureClipboardAction(
         viewer.querySelector('[data-diagram-action="copy-png"]'),
         supportsBinaryClipboard && supportsSvgRasterization,
-        'Tu navegador no permite copiar PNG al portapapeles desde esta página.'
+        '{{ t("doc_html.viewer.js.no_png_clipboard")|js_str }}'
       );
 
       function updateStatus(message) {
@@ -780,7 +780,7 @@
       function copySvgToClipboard() {
         var svgText = serializeSvgMarkup();
         if (!svgText) {
-          setFeedback(exportFeedbackNode, 'No se encontró SVG');
+          setFeedback(exportFeedbackNode, '{{ t("doc_html.viewer.js.svg_not_found")|js_str }}');
           return;
         }
 
@@ -789,10 +789,10 @@
           'image/svg+xml': svgBlob,
           'text/plain': new Blob([svgText], { type: 'text/plain' })
         }).then(function () {
-          setFeedback(exportFeedbackNode, 'SVG copiado');
+          setFeedback(exportFeedbackNode, '{{ t("doc_html.viewer.js.svg_copied")|js_str }}');
         }).catch(function () {
           copyText(svgText, function (success) {
-            setFeedback(exportFeedbackNode, success ? 'SVG copiado como texto' : 'No se pudo copiar SVG');
+            setFeedback(exportFeedbackNode, success ? '{{ t("doc_html.viewer.js.svg_copied_text")|js_str }}' : '{{ t("doc_html.viewer.js.svg_copy_failed")|js_str }}');
           });
         });
       }
@@ -800,27 +800,27 @@
       function downloadSvgFile() {
         var svgText = serializeSvgMarkup();
         if (!svgText) {
-          setFeedback(exportFeedbackNode, 'No se encontró SVG');
+          setFeedback(exportFeedbackNode, '{{ t("doc_html.viewer.js.svg_not_found")|js_str }}');
           return;
         }
         triggerBlobDownload(buildSvgBlob(svgText), getExportBaseName() + '.svg');
-        setFeedback(exportFeedbackNode, 'SVG descargado');
+        setFeedback(exportFeedbackNode, '{{ t("doc_html.viewer.js.svg_downloaded")|js_str }}');
       }
 
       function copyPngToClipboard() {
         var svgText = serializeSvgMarkup();
         var metrics = ensureSvgMetrics();
         if (!svgText) {
-          setFeedback(exportFeedbackNode, 'No se encontró SVG');
+          setFeedback(exportFeedbackNode, '{{ t("doc_html.viewer.js.svg_not_found")|js_str }}');
           return;
         }
 
         buildPngBlob(svgText, metrics).then(function (pngBlob) {
           return writeBlobToClipboard({ 'image/png': pngBlob });
         }).then(function () {
-          setFeedback(exportFeedbackNode, 'PNG copiado');
+          setFeedback(exportFeedbackNode, '{{ t("doc_html.viewer.js.png_copied")|js_str }}');
         }).catch(function () {
-          setFeedback(exportFeedbackNode, 'No se pudo copiar PNG');
+          setFeedback(exportFeedbackNode, '{{ t("doc_html.viewer.js.png_copy_failed")|js_str }}');
         });
       }
 
@@ -828,15 +828,15 @@
         var svgText = serializeSvgMarkup();
         var metrics = ensureSvgMetrics();
         if (!svgText) {
-          setFeedback(exportFeedbackNode, 'No se encontró SVG');
+          setFeedback(exportFeedbackNode, '{{ t("doc_html.viewer.js.svg_not_found")|js_str }}');
           return;
         }
 
         buildPngBlob(svgText, metrics).then(function (pngBlob) {
           triggerBlobDownload(pngBlob, getExportBaseName() + '.png');
-          setFeedback(exportFeedbackNode, 'PNG descargado');
+          setFeedback(exportFeedbackNode, '{{ t("doc_html.viewer.js.png_downloaded")|js_str }}');
         }).catch(function () {
-          setFeedback(exportFeedbackNode, 'No se pudo descargar PNG');
+          setFeedback(exportFeedbackNode, '{{ t("doc_html.viewer.js.png_download_failed")|js_str }}');
         });
       }
 
@@ -913,14 +913,14 @@
         if (Number.isNaN(parsed)) {
           zoomInputNode.value = String(Math.round(zoom * 100));
           zoomInputNode.classList.add('is-corrected');
-          setFeedback(exportFeedbackNode, 'Zoom inválido: se mantiene ' + Math.round(zoom * 100) + '%');
+          setFeedback(exportFeedbackNode, '{{ t("doc_html.viewer.js.zoom_invalid_prefix")|js_str }}' + Math.round(zoom * 100) + '%');
           return;
         }
         var clamped = Math.max(bounds.min, Math.min(bounds.max, Math.round(parsed)));
         zoomInputNode.value = String(clamped);
         var wasCorrected = clamped !== Math.round(parsed);
         if (clamped !== Math.round(parsed)) {
-          setFeedback(exportFeedbackNode, 'Zoom ajustado a ' + clamped + '% por límites permitidos');
+          setFeedback(exportFeedbackNode, '{{ t("doc_html.viewer.js.zoom_clamped_prefix")|js_str }}' + clamped + '{{ t("doc_html.viewer.js.zoom_clamped_suffix")|js_str }}');
         }
         setZoom(clamped / 100);
         if (wasCorrected) {
@@ -1000,7 +1000,7 @@
       function bindEmbeddedSvgInteractions() {
         var svgRoot = getSvgRoot();
         if (!svgRoot) {
-          updateStatus(statusReady + ' · SVG inline no disponible');
+          updateStatus(statusReady + '{{ t("doc_html.viewer.js.inline_svg_unavailable")|js_str }}');
           return;
         }
 

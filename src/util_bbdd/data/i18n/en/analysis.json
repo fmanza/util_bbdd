@@ -1,0 +1,18 @@
+{
+  "footer.visible_depth": "Visible depth: {depth}",
+  "footer.outgoing_levels": "Outgoing levels: {count}",
+  "footer.incoming_levels": "Incoming levels: {count}",
+  "footer.outgoing_hidden": "Hidden outgoing: {count} level(s) beyond the visible depth",
+  "footer.incoming_hidden": "Hidden incoming: {count} level(s) beyond the visible depth",
+  "node.no_visible_columns": "No visible columns",
+  "node.hidden_columns": "... {count} more column(s)",
+  "graph.comment": "Extended relationships of {table}",
+  "level.title": "Level {depth}",
+  "level.isolated": "Table without relationships",
+  "legend.main_table": "Main Table",
+  "legend.related_tables": "Related Tables",
+  "legend.fk_relation": "FK Relationship",
+  "matplotlib.title": "Multi-level relationships - Table: {table}\nVisible depth={depth} | Outgoing={outgoing} | Incoming={incoming}",
+  "mermaid.warning.no_columns": "Diagram without columns: with them it exceeded {max_chars} characters.",
+  "mermaid.warning.split": "Diagram split: it exceeded {max_entities} entities or {max_chars} characters."
+}

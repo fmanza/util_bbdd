@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from ....analysis.graphviz_ext import GraphvizRelationshipGraphExt
 
 from ...._core.exceptions import DatabaseException, DocumentationConfigError, DocumentationRenderError
+from ...._core.i18n import Translator
 from ....progress import ProgressReporter
 from ...domain.models import (
     DocumentationBootstrapState,
@@ -238,6 +239,8 @@ class DocumentationSession:
     _engine_conditions_cache: EngineConditionsSection | None = None
     #: Progreso y cancelación de la generación (4.1.0): lo usan el orquestador y los renderers (``TableProgress``)
     progress: ProgressReporter = field(default_factory=lambda: ProgressReporter("documentation"))
+    #: Idioma de salida (5.10.0): lo usan los renderers y las secciones comunes (condiciones del motor).
+    translator: Translator = field(default_factory=Translator)
 
     @classmethod
     def from_state(
@@ -327,7 +330,7 @@ class DocumentationSession:
 
     def get_columns(self, tabla: str) -> list[Any]:
         """Columnas neutras de una tabla o vista (ver ``catalog_rows``)."""
-        return self._catalog().columns(tabla)
+        return self._catalog().columns(tabla, self.translator)
 
     def get_routine_ddl(self, rutina: str, tipo_rutina: str) -> str:
         """Definición completa de una rutina."""
@@ -351,7 +354,7 @@ class DocumentationSession:
 
     def get_indices(self, tabla: str) -> list[Any]:
         """Índices ``(índice, columna, Sí/No, método)``."""
-        return self._catalog().indices(tabla)
+        return self._catalog().indices(tabla, self.translator)
 
     def get_database_version(self) -> str | None:
         """Obtiene y cachea la versión de la base de datos."""
@@ -399,7 +402,7 @@ class DocumentationSession:
         la sección lleva el aviso correspondiente.
         """
         if self._engine_conditions_cache is None:
-            builder = EngineConditionsSectionBuilder(self.headers.get("CONDICIONES_MOTOR"))
+            builder = EngineConditionsSectionBuilder(self.headers.get("CONDICIONES_MOTOR"), self.translator)
             source = self.db_manager
             if not isinstance(source, EngineReadinessSourcePort):
                 section = builder.build(None)
@@ -411,7 +414,7 @@ class DocumentationSession:
                         f"No se pudieron verificar las condiciones del motor: {type(exc).__name__}", exc_info=True
                     )
                     section = builder.unavailable(
-                        f"No se pudieron verificar las condiciones del motor ({type(exc).__name__})."
+                        self.translator.t("doc.engine_conditions.notice.failed", error=type(exc).__name__)
                     )
             self._engine_conditions_cache = section
         return self._engine_conditions_cache

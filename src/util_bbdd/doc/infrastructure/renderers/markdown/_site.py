@@ -20,6 +20,8 @@ import json
 
 from dataclasses import dataclass
 
+from ....._core.i18n import Translator
+
 #: Ruta del Mermaid local dentro de ``docs/``
 MERMAID_JS_PATH = "assets/javascripts/mermaid.min.js"
 
@@ -47,13 +49,14 @@ def _spec(
     with_mermaid_js: bool,
     nav: list[tuple[str, str]],
     mermaid_ref: str | None,
+    translator: Translator | None,
 ) -> _SiteSpec:
     local = with_mermaid_js or (mermaid_ref is not None and "://" not in mermaid_ref)
     scripts = [mermaid_ref] if mermaid_ref is not None else []
     if with_mermaid_js:
         scripts = [MERMAID_JS_PATH]
     return _SiteSpec(
-        header=f"# Generado por util_bbdd {version} (formato markdown); se reescribe en cada generación.",
+        header=(translator or Translator()).t("doc_md.site.header", version=version),
         site_name=site_name,
         nav=nav,
         scripts=scripts,
@@ -68,6 +71,7 @@ def zensical_toml(
     with_mermaid_js: bool,
     nav: list[tuple[str, str]],
     mermaid_ref: str | None = None,
+    translator: Translator | None = None,
 ) -> str:
     """Texto de ``zensical.toml`` (formato nativo de Zensical, ámbito ``[project]``; 5.6.0).
 
@@ -81,8 +85,16 @@ def zensical_toml(
         mermaid_ref: Mermaid ya publicado (``markdown.mermaid_js_ref``, 5.4.0): ruta relativa a ``docs/`` o URL
             ``https://``, ya validada. Va a ``extra_javascript`` sin copiar nada; con una ruta relativa añade también
             ``font = false`` (sitio sin Internet), con una URL no.
+        translator: Idioma del comentario de cabecera (5.10.0); por defecto, español.
     """
-    spec = _spec(site_name, version=version, with_mermaid_js=with_mermaid_js, nav=nav, mermaid_ref=mermaid_ref)
+    spec = _spec(
+        site_name,
+        version=version,
+        with_mermaid_js=with_mermaid_js,
+        nav=nav,
+        mermaid_ref=mermaid_ref,
+        translator=translator,
+    )
     lines = [
         spec.header,
         "[project]",
@@ -117,12 +129,20 @@ def mkdocs_yml(
     with_mermaid_js: bool,
     nav: list[tuple[str, str]],
     mermaid_ref: str | None = None,
+    translator: Translator | None = None,
 ) -> str:
     """Texto de ``mkdocs.yml`` (en desuso desde 5.6.0: ``markdown.mkdocs_yml``; el estándar es :func:`zensical_toml`).
 
     Mismos argumentos y mismo sitio que :func:`zensical_toml`, en el formato YAML de MkDocs.
     """
-    spec = _spec(site_name, version=version, with_mermaid_js=with_mermaid_js, nav=nav, mermaid_ref=mermaid_ref)
+    spec = _spec(
+        site_name,
+        version=version,
+        with_mermaid_js=with_mermaid_js,
+        nav=nav,
+        mermaid_ref=mermaid_ref,
+        translator=translator,
+    )
     lines = [
         spec.header,
         f"site_name: {_quote(spec.site_name)}",

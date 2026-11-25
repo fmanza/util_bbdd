@@ -37,7 +37,7 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `DatabaseDocumentation` | `(db_manager, directorio_salida?, fichero_salida?, imprimir?, formatos?, headers_file?, batch_window_seconds?, schema?, on_progress?, cancel_token?)` | Valida la configuración (no consulta la BD) | `DatabaseDocumentation` |
+| `DatabaseDocumentation` | `(db_manager, directorio_salida?, fichero_salida?, imprimir?, formatos?, headers_file?, batch_window_seconds?, schema?, on_progress?, cancel_token?, locale?)` | Valida la configuración (no consulta la BD) | `DatabaseDocumentation` |
 | `generate` | `()` | Lee el catálogo y genera todos los formatos configurados | `DocumentationResult` |
 | `validate_trace_map` | `(path)` | Desde 5.7.0. Valida un mapa de trazabilidad (`.toml`/`.json`) **sin conectar**, con las mismas reglas que `markdown.trace_map`; lanza `DocumentationConfigError` con todos los errores | `None` |
 
@@ -55,11 +55,12 @@ validate_trace_map`). Desde
 | `fichero_salida` | `Path \| None` | Nombre base sin extensión | `None` genera automáticamente con timestamp y clave de BD: uno por generación (con sufijo `-2`, `-3`… si coincide el segundo) o, con `batch_window_seconds` > 0, reutilizado por las generaciones seguidas dentro de la ventana |
 | `imprimir` | `dict[str, Any] \| None` | Configuración de secciones, estilos y grafos: qué se documenta, con qué plantilla y estilo, y cómo se dibujan los diagramas. Referencia completa en [Configuración de `imprimir`](#configuracion-de-imprimir) | `None` usa los valores por defecto (todas las secciones desactivadas) |
 | `formatos` | `list[str] \| None` | `["word"]`, `["excel"]`, `["html"]`, `["markdown"]` (alias `"md"`, desde 5.3.0) o combinaciones | `None` usa `["word"]`; valores inválidos lanzan `DocumentationConfigError` |
-| `headers_file` | `Path` | JSON de cabeceras: `{"headers": {"COLUMNAS": {"base": [...]}, ...}}` | Desde 0.41.0 solo `base` por sección (las cabeceras son iguales en todos los motores) |
+| `headers_file` | `Path \| None` | JSON de cabeceras: `{"headers": {"COLUMNAS": {"base": [...]}, ...}}` | Desde 0.41.0 solo `base` por sección (las cabeceras son iguales en todos los motores). `None` (default desde 5.10.0) usa las del idioma de `locale`; uno explícito se usa en cualquier idioma |
 | `batch_window_seconds` | `int \| None` | Ventana temporal en segundos para agrupar generaciones automáticas | `None` usa 0 (sin agrupar; hasta 4.x, 90 s); solo aplica si `fichero_salida` es `None`. Con un valor > 0, las generaciones lanzadas en esta ventana reutilizan el mismo nombre. Un valor que no sea un entero ≥ 0 (también `bool`) da `DocumentationConfigError` al construir |
 | `schema` | `str \| None` | Schema que documentar (owner en Oracle, base de datos en MySQL/MariaDB) | `None` usa el contexto de metadatos del manager. Desde 4.1.0: catálogo, DDL, diagramas y almacenamiento se leen de ese schema con la misma conexión (el usuario necesita permiso de lectura sobre sus objetos) |
 | `on_progress` | `ProgressCallback \| None` | Recibe los `ProgressEvent` de la generación ([Progreso y cancelación](progress_autodoc.md)) | Operación `"documentation"`: fase `"metadata"` y, por formato (`"word"`, `"excel"`, `"html"`, `"markdown"`), un evento al empezar (`0` de N tablas) y uno por tabla. Un callback que falla se registra una vez y deja de llamarse. Desde 4.1.0 |
 | `cancel_token` | `CancellationToken \| None` | Parada cooperativa | Se comprueba antes de leer el catálogo, antes de cada formato y entre tablas: `OperationCancelledError`. Los formatos terminados quedan; el que estaba en curso puede quedar incompleto, salvo el Markdown, que escribe en una carpeta temporal y deja intacta la versión anterior. Desde 4.1.0 |
+| `locale` | `"es" \| "en"` | Idioma de la documentación (5.10.0): títulos, secciones, cabeceras, textos fijos y separadores numéricos de todos los formatos | Default `"es"`; otro valor: `DocumentationConfigError`. No cambia metadatos, fechas (ISO 8601) ni los datos para máquinas del Markdown. Ver [Idioma de los resultados](../guides/output_language.md) |
 
 ### Configuración de `imprimir`
 
