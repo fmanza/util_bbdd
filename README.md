@@ -29,11 +29,11 @@ comparación de esquemas y documentación de la base de datos.
 `util_bbdd` no está publicado en PyPI: se instala desde el repositorio, fijando la versión con su tag.
 
 ```bash
-pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v5.9.1"
+pip install "util_bbdd @ git+https://github.com/fmanza/util_bbdd.git@v5.10.0"
 
 # Con los drivers de un motor (extras: postgresql, mariadb, mysql, oracle, sqlserver, sqlserver-odbc, hsqldb,
 # sqlite-async; se combinan con comas)
-pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v5.9.1"
+pip install "util_bbdd[postgresql] @ git+https://github.com/fmanza/util_bbdd.git@v5.10.0"
 ```
 
 La documentación de BD (`openpyxl`, `python-docx`, `jinja2`) y pandas van en la instalación base; los drivers de
