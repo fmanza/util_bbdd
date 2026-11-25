@@ -7,6 +7,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.10.0] - 2026-11-25
+
+SemVer: MINOR, API pública nueva sin cambios incompatibles (sesión `2026-11-25-i18n-resultados`): parámetro
+`locale` opcional, con `"es"` por defecto, en cuatro puntos de entrada. Sin `locale`, la salida es la de 5.9.1 salvo
+la corrección de separadores del resumen HTML de auditoría (`Fixed`).
+
 ### Added
 
 - **i18n de los resultados** (`_core/i18n.py`, `data/i18n/{es,en}/`): informes y documentación en español o inglés con el
