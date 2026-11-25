@@ -31,6 +31,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **audit** (`AuditManager.exportar_resumen_html`): el resumen HTML en español mostraba los números con separadores
+  ingleses (`1,234,567` filas, `12.34` s); ahora usa los del idioma (`1.234.567`, `12,34`). Es el único cambio visible
+  en la salida en español de 5.10.0.
+
 - **ci** (`.github/workflows/docs-zip-release.yml`): el tag `docs-v<versión>` se crea sobre el commit del push
   (`commit: ${{ github.sha }}`). Sin él, `ncipollo/release-action` lo creaba sobre el HEAD de `main`, y un push a
   `develop` anterior al merge lo dejaba en un commit viejo (`docs-v5.9.1` quedó en `981c1261` en vez de `1aa1d721`).

@@ -114,6 +114,14 @@ def test_audit_html_in_english_uses_english_texts_and_separators(tmp_path: Path)
     assert spanish_hits(html) == []
 
 
+def test_audit_html_in_spanish_uses_spanish_separators(tmp_path: Path) -> None:
+    """Corrección de 5.10.0: antes el HTML en español salía con separadores ingleses (``1,234,577`` y ``12.85``)."""
+    html = _audit(tmp_path, "es").exportar_resumen_html(tmp_path / "audit.html").read_text(encoding="utf-8")
+
+    assert '<html lang="es">' in html
+    assert "Reporte de Auditoría" in html and "1.234.577" in html and "12,85" in html and "6,4230" in html
+
+
 def test_audit_excel_sheet_names_follow_the_locale(tmp_path: Path) -> None:
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'e.db'}")
     manager = _audit(tmp_path, "en")

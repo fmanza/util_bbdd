@@ -3,8 +3,8 @@
 Movido desde ``util_bbdd.bulk._audit.exporters`` (sesión 2026-10-02c) sin cambios; aquel módulo lo re-exporta. La
 escritura segura del Excel (caracteres de control y fórmulas) es la de ``_core/export_safety.py``.
 
-Idioma (5.10.0): los textos del Excel y del HTML salen del ``Translator``. Los nombres de columna de las hojas son
-los del CSV de auditoría (``tabla``, ``operacion``…) y no se traducen, como el JSON.
+Idioma (5.10.0): los textos del Excel y del HTML y los separadores numéricos del HTML salen del ``Translator``. Los
+nombres de columna de las hojas son los del CSV de auditoría (``tabla``, ``operacion``…) y no se traducen, como el JSON.
 """
 
 from __future__ import annotations
@@ -191,10 +191,11 @@ class AuditExporters:
             html_content = AUDIT_HTML_TEMPLATE.substitute(
                 lang=tr.locale,
                 **self._html_labels(now),
-                total_operaciones=stats.get("total_operaciones", 0),
-                total_filas=f"{stats.get('total_filas_procesadas', 0):,}",
-                tiempo_total=f"{stats.get('tiempo_total_segundos', 0):.2f}",
-                tiempo_promedio=f"{stats.get('tiempo_promedio_segundos', 0):.4f}",
+                total_operaciones=tr.format_int(int(stats.get("total_operaciones", 0))),
+                # Separadores del idioma (5.10.0; antes «1,234,567» y «12.34» también en español)
+                total_filas=tr.format_int(int(stats.get("total_filas_procesadas", 0))),
+                tiempo_total=tr.format_decimal(float(stats.get("tiempo_total_segundos", 0)), 2),
+                tiempo_promedio=tr.format_decimal(float(stats.get("tiempo_promedio_segundos", 0)), 4),
                 tabla_ultimas_ops=dataframe.tail(20).to_html(classes="audit-table", index=False),
                 tabla_por_tipo=pd.DataFrame(
                     self.service.obtener_operaciones_por_tipo().items(),
