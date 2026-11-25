@@ -61,7 +61,9 @@ def test_graphviz_level_graphs_in_english(manager: SyncDatabaseManager) -> None:
     graph = _graphviz(manager, Translator("en"), max_depth=1, column_mode="all", max_columns=1)
 
     related = graph.pipe_level_graphs_ext("items", format="svg")  # type: ignore[attr-defined]
-    isolated = graph.pipe_level_graphs_ext("settings", format="svg", show_columns=False)  # type: ignore[attr-defined]
+    # Con columnas, la tabla aislada se dibuja con ``dot`` (sin columnas usa ``circo``, que no traen todos los Graphviz,
+    # p. ej. el del CI de Linux); el título no depende del motor de diseño
+    isolated = graph.pipe_level_graphs_ext("settings", format="svg")  # type: ignore[attr-defined]
 
     assert [item["title"] for item in related["outgoing"]] == ["Level 1"]
     assert [item["title"] for item in isolated["isolated"]] == ["Table without relationships"]
