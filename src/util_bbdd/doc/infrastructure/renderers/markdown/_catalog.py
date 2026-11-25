@@ -12,6 +12,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from ....._core.i18n import Translator
 from ....domain.table_filter import TableFilter
 from ._text import md_link, md_text
 
@@ -85,33 +86,36 @@ def llms_txt(
     with_full: bool,
     with_traceability: bool = False,
     with_changes: bool = False,
+    translator: Translator | None = None,
 ) -> str:
-    """``llms.txt``: título, resumen, una sección por tipo de objeto con enlaces y la sección ``Optional``."""
+    """``llms.txt``: título, resumen, una sección por tipo de objeto con enlaces y la sección ``Optional``.
+
+    Los textos salen en el idioma de ``translator`` (5.10.0; por defecto, español); ``Optional`` es el nombre de
+    sección que fija el formato de llmstxt.org y no se traduce.
+    """
+    tr = translator or Translator()
     tables = [e for e in entries if e.record["kind"] == "table"]
     views = [e for e in entries if e.record["kind"] == "view"]
     routines = [e for e in entries if e.record["kind"] not in _KIND_ORDER]
-    lines = [
-        f"# Documentación de la base de datos {md_text(database)}",
-        "",
-        f"> Schema {md_text(schema)} ({md_text(engine)}): {len(tables)} tablas, {len(views)} vistas, "
-        f"{len(routines)} rutinas. Un fichero Markdown por objeto, con front matter (id estable, PK y FK)"
-        + (". Catálogo completo en catalog.json." if with_catalog else "."),
-        "",
-    ]
-    for title, items in (("Tablas", tables), ("Vistas", views), ("Rutinas", routines)):
+    summary = tr.t(
+        "doc_md.llms.summary_with_catalog" if with_catalog else "doc_md.llms.summary",
+        schema=md_text(schema),
+        engine=md_text(engine),
+        tables=len(tables),
+        views=len(views),
+        routines=len(routines),
+    )
+    lines = [f"# {tr.t('doc_md.llms.title', database=md_text(database))}", "", f"> {summary}", ""]
+    for key, items in (("tables", tables), ("views", views), ("routines", routines)):
         if items:
-            lines += [f"## {title}", "", *(_llms_item(e) for e in items), ""]
-    optional = []
-    if with_catalog:
-        optional.append("- [Catálogo JSON](catalog.json): columnas, claves, índices y hashes de cada objeto")
-    if with_full:
-        optional.append("- [Documentación completa](llms-full.txt): todas las páginas en un solo fichero")
-    if with_traceability:
-        optional.append(
-            "- [Trazabilidad](traceability.md): objetos ↔ código, documentos funcionales y técnicos y requisitos"
-        )
-    if with_changes:
-        optional.append("- [Cambios](changes.md): cambios de esquema respecto de la generación anterior")
+            lines += [f"## {tr.t(f'doc_md.nav.{key}')}", "", *(_llms_item(e) for e in items), ""]
+    flags = (
+        ("catalog", with_catalog),
+        ("full", with_full),
+        ("traceability", with_traceability),
+        ("changes", with_changes),
+    )
+    optional = [f"- {tr.t(f'doc_md.llms.optional.{key}')}" for key, enabled in flags if enabled]
     if optional:
         lines += ["## Optional", "", *optional, ""]
     return "\n".join(lines).rstrip("\n") + "\n"

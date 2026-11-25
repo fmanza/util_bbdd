@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from util_bbdd._core.i18n import DEFAULT_LOCALE, Translator
 from util_bbdd._core.markdown import escape_html
 from util_bbdd._core.mermaid import escape_mermaid_label  # movida a _core en 5.3.0 (común con analysis)
 from util_bbdd.comparar._ddl import DdlNormalizer
@@ -20,6 +21,13 @@ STATUS_ES: dict[str, str] = {
     "added": "Añadido",
     "removed": "Eliminado",
     "modified": "Modificado",
+}
+
+#: Clave de catálogo (namespace ``comparar``) de cada estado; ``STATUS_ES`` se conserva por compatibilidad (5.10.0).
+_STATUS_KEYS: dict[str, str] = {
+    "added": "comparar.status.added",
+    "removed": "comparar.status.removed",
+    "modified": "comparar.status.modified",
 }
 
 STATUS_EMOJI: dict[str, str] = {
@@ -80,6 +88,58 @@ def build_diff_summary(diff: SchemaDiff) -> DiffSummary:
     )
 
 
+def status_labels(translator: Translator | None = None) -> dict[str, str]:
+    """Etiquetas visibles de los estados (``added``/``removed``/``modified``) en el idioma de ``translator``.
+
+    Args:
+        translator: Idioma de salida; por defecto, español (los mismos valores que ``STATUS_ES``).
+
+    Returns:
+        Mapa estado → etiqueta.
+    """
+    tr = translator or Translator()
+    return {status: tr.t(key) for status, key in _STATUS_KEYS.items()}
+
+
+def _summary_text(diff: SchemaDiff, translator: Translator) -> str:
+    """El resumen de ``SchemaComparator`` (``SchemaDiff.summary``) armado en el idioma de ``translator``."""
+    parts: list[str] = []
+    if diff.table_diffs:
+        parts.append(
+            translator.t(
+                "comparar.summary.tables",
+                added=sum(1 for t in diff.table_diffs if t.status == "added"),
+                removed=sum(1 for t in diff.table_diffs if t.status == "removed"),
+                modified=sum(1 for t in diff.table_diffs if t.status == "modified"),
+            )
+        )
+    if diff.view_diffs:
+        parts.append(translator.t("comparar.summary.views", count=len(diff.view_diffs)))
+    if diff.routine_diffs:
+        parts.append(translator.t("comparar.summary.routines", count=len(diff.routine_diffs)))
+    return " | ".join(parts) if parts else translator.t("comparar.summary.none")
+
+
+def localized_summary(diff: SchemaDiff, translator: Translator | None = None) -> str:
+    """``diff.summary`` en el idioma de salida.
+
+    El comparador escribe el resumen en español. En otro idioma se rehace con los mismos contadores si el texto es el
+    del comparador; un resumen escrito por quien llama se deja tal cual.
+
+    Args:
+        diff: Resultado de la comparación.
+        translator: Idioma de salida; por defecto, español (devuelve ``diff.summary`` sin tocar).
+
+    Returns:
+        Texto del resumen (vacío si ``diff.summary`` lo está).
+    """
+    if translator is None or translator.locale == DEFAULT_LOCALE or not diff.summary:
+        return diff.summary
+    if diff.summary != _summary_text(diff, Translator(DEFAULT_LOCALE)):
+        return diff.summary
+    return _summary_text(diff, translator)
+
+
 def sanitize_filename(label: str) -> str:
     """Convierte un label de schema en un nombre de fichero válido."""
     sanitized = re.sub(r"[^\w\-]", "_", label)
@@ -132,5 +192,7 @@ __all__: list[str] = [
     "build_output_stem",
     "escape_markdown_table_cell",
     "escape_mermaid_label",  # reexportado desde _core/mermaid.py
+    "localized_summary",
     "sanitize_filename",
+    "status_labels",
 ]

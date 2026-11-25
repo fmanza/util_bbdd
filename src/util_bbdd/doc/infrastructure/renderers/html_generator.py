@@ -1,6 +1,7 @@
 """Módulo para generación de documentación en formato HTML."""
 
 import html
+import json
 import logging
 import re
 import shutil
@@ -8,12 +9,13 @@ import xml.etree.ElementTree as ET
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, LiteralString
+from typing import Any, ClassVar, LiteralString
 
 from jinja2 import Template
 
 from ...._core.exceptions import DatabaseException
 from ...._core.filenames import safe_file_stem
+from ...._core.i18n import Translator
 from ....analysis.graphviz_ext import GraphvizRelationshipGraphExt
 from ...application.ports import DocumentationManagerPort, HeadersConfig
 from ...application.use_cases.engine_conditions import EngineConditionsSectionBuilder
@@ -41,18 +43,62 @@ class HtmlGenerator:
     """Clase para generar documentación en formato HTML."""
 
     DEFAULT_STORAGE_TITLE: str = "Inventario de almacenamiento"
+    #: ``entity_kind`` (clave lógica de las plantillas, en español) → clave del texto visible en ``doc_html``.
+    _ENTITY_LABEL_KEYS: ClassVar[dict[str, str]] = {
+        "tabla": "kind.tabla",
+        "vista": "kind.vista",
+        "rutina": "kind.rutina",
+        "almacenamiento": "kind.almacenamiento",
+        "condiciones del motor": "kind.condiciones",
+        "información": "kind.informacion",
+    }
 
-    def __init__(self, database: str, headers: HeadersConfig, template_file: Path | None = None):
+    def __init__(
+        self,
+        database: str,
+        headers: HeadersConfig,
+        template_file: Path | None = None,
+        translator: Translator | None = None,
+    ):
         self.logger: logging.Logger = logging.getLogger(__name__)
+        self._tr: Translator = translator or Translator()
         self.database: str = database
         self.headers: HeadersConfig = dict(headers)  # copia: la sesión comparte el suyo entre formatos (A-12)
-        self.headers.setdefault("UNIQUE", ["Nombre Restricción", "Campo"])
+        self.headers.setdefault("UNIQUE", [self._t("col.constraint_name"), self._t("col.field")])
         self._doc_root: Path = Path(__file__).resolve().parents[2]
         self.templates_root: Path = self._doc_root / "templates"
         self.default_template_file: Path = self.templates_root / "pages" / "detail.html.j2"
         self.default_index_template_file: Path = self.templates_root / "pages" / "index.html.j2"
         self.default_collection_template_file: Path = self.templates_root / "pages" / "collection.html.j2"
         self.template_file: Path = template_file if template_file is not None else self.default_template_file
+
+    def _t(self, key: str, **params: Any) -> str:
+        """Texto del catálogo ``doc_html`` en el idioma de salida."""
+        return self._tr.t(f"doc_html.{key}", **params)
+
+    def _header_aliases(self) -> dict[str, str]:
+        """Cabecera visible → cabecera española equivalente, para que ``header_key`` (clases CSS) no dependa del idioma.
+
+        En español no hay alias (la clase sale de la propia cabecera, como siempre). En otro idioma se emparejan por
+        posición las cabeceras por defecto (``headers_config.json`` y ``headers_config.<locale>.json``) y las cabeceras
+        ``col.*`` del catálogo ``doc_html``.
+        """
+        if self._tr.locale == "es":
+            return {}
+        spanish = Translator("es")
+        aliases: dict[str, str] = {}
+        data_dir: Path = self._doc_root / "data"
+        localized_file: Path = data_dir / f"headers_config.{self._tr.locale}.json"
+        if localized_file.is_file():
+            base: dict[str, Any] = json.loads((data_dir / "headers_config.json").read_text(encoding="utf-8"))
+            localized: dict[str, Any] = json.loads(localized_file.read_text(encoding="utf-8"))
+            for section, spec in localized.get("headers", {}).items():
+                base_values = base.get("headers", {}).get(section, {}).get("base", [])
+                for local_value, base_value in zip(spec.get("base", []), base_values, strict=False):
+                    aliases.setdefault(str(local_value), str(base_value))
+        for key in ("section", "status", "message", "detail", "table", "view", "comment", "routine", "routine_type"):
+            aliases.setdefault(self._t(f"col.{key}"), spanish.t(f"doc_html.col.{key}"))
+        return aliases
 
     def generate_document(
         self,
@@ -218,7 +264,12 @@ class HtmlGenerator:
         """Configura el entorno de plantillas y devuelve las plantillas necesarias."""
         custom_detail_template: bool = template_path != self.default_template_file
         extra_search_paths: list[Path] = [template_path.parent] if custom_detail_template else []
-        template_engine = TemplateEngine(templates_root=self.templates_root, extra_search_paths=extra_search_paths)
+        template_engine = TemplateEngine(
+            templates_root=self.templates_root,
+            extra_search_paths=extra_search_paths,
+            translator=self._tr,
+            header_aliases=self._header_aliases(),
+        )
 
         detail_template_name: str = template_path.name if custom_detail_template else "pages/detail.html.j2"
         detail_template: Template = template_engine.get_template(detail_template_name)
@@ -438,7 +489,7 @@ class HtmlGenerator:
             storage_rel_path: Path = Path("storage") / f"{section_slug}.html"
             storage_output_file: Path = output_dir / storage_rel_path
             storage_payload: dict[str, Any] = {
-                "name": str(section.get("title", self.DEFAULT_STORAGE_TITLE)),
+                "name": str(section.get("title", self._t("storage.default_title"))),
                 "ddl": str(section.get("sql", "") or ""),
             }
             single_section_report: dict[str, Any] = {
@@ -455,7 +506,7 @@ class HtmlGenerator:
             )
             storage_entries.append(
                 {
-                    "name": str(section.get("title", self.DEFAULT_STORAGE_TITLE)),
+                    "name": str(section.get("title", self._t("storage.default_title"))),
                     "comment": str(section.get("message", "")),
                     "path": str(storage_rel_path).replace("\\", "/"),
                     "total_rows": str(len(section.get("rows", []))),
@@ -476,20 +527,20 @@ class HtmlGenerator:
         worst_level: str = next((level for level, count in section.summary if count), "")
         blocks: list[dict[str, Any]] = [
             {
-                "title": "Verificación",
+                "title": self._t("conditions.verification"),
                 "status": "",
-                "headers": ["Propiedad", "Valor"],
+                "headers": [self._tr.t("audit.readiness.header.property"), self._tr.t("audit.readiness.header.value")],
                 "rows": [list(item) for item in section.metadata],
             },
             {
-                "title": "Resumen por severidad",
+                "title": self._t("conditions.summary"),
                 "status": "",
-                "headers": ["Nivel", "Hallazgos"],
+                "headers": [self._tr.t("audit.readiness.header.level"), self._tr.t("audit.readiness.header.findings")],
                 "rows": [[level, count] for level, count in section.summary],
                 "numeric_columns": [1],
             },
             {
-                "title": "Hallazgos",
+                "title": self._tr.t("audit.readiness.header.findings"),
                 "status": worst_level,
                 "headers": list(section.headers),
                 "rows": [list(row) for row in section.rows],
@@ -500,20 +551,20 @@ class HtmlGenerator:
             output_file=output_dir / rel_path,
             entity_kind="condiciones del motor",
             entity={
-                "name": dict(section.metadata).get("Motor", self.database),
+                "name": dict(section.metadata).get(self._tr.t("audit.readiness.meta.engine"), self.database),
                 "ddl": None,
                 "notices": list(section.notices),
             },
             generated_at=generated_at,
             storage_report={
-                "heading": "Verificación de condiciones de ejecución",
+                "heading": self._t("conditions.heading"),
                 "sections": [block for block in blocks if block["rows"]],
             },
         )
         counts: str = " · ".join(f"{count} {level}" for level, count in section.summary if count)
         return [
             {
-                "name": "Condiciones del motor",
+                "name": self._tr.t("audit.readiness.title"),
                 "comment": counts or (section.notices[0] if section.notices else ""),
                 "path": str(rel_path).replace("\\", "/"),
             }
@@ -552,6 +603,7 @@ class HtmlGenerator:
                 database_info_flags=database_info_flags,
                 logger=self.logger,
                 include_error_rows=False,
+                translator=self._tr,
             )
             self.logger.debug(f"📊 Propiedades recolectadas: {len(properties_list)} items")
 
@@ -594,12 +646,12 @@ class HtmlGenerator:
         self.logger.debug(f"📋 SQL combinado: {len(combined_sql)} caracteres")
 
         database_info_payload: dict[str, Any] = {
-            "name": "Información de la Base de Datos",
+            "name": self._t("info.name"),
             "ddl": combined_sql,
         }
 
         database_info_section: dict[str, Any] = {
-            "title": "Propiedades de Base de Datos",
+            "title": self._t("info.section_title"),
             "rows": properties_list,
             "sql": combined_sql,
         }
@@ -622,8 +674,8 @@ class HtmlGenerator:
         self.logger.info(f"✅ Información de BD generada: {info_output_file}")
         return [
             {
-                "name": "Información de la Base de Datos",
-                "comment": f"{len(properties_list)} propiedades",
+                "name": self._t("info.name"),
+                "comment": self._t("info.count", count=len(properties_list)),
                 "path": str(info_rel_path).replace("\\", "/"),
             }
         ]
@@ -721,21 +773,16 @@ class HtmlGenerator:
             storage_count=int(storage_report.get("total_rows", 0)),
             include_routines=False,
         )
-        style_by_label: dict[str, dict[str, str]] = {
-            "Tablas": {"accent": "tables", "collection_key": "tables"},
-            "Vistas": {"accent": "views", "collection_key": "views"},
-            "Procedures": {"accent": "procedures", "collection_key": "procedures"},
-            "Funciones": {"accent": "functions", "collection_key": "functions"},
-            "Almacenamiento": {"accent": "storage", "collection_key": "storage"},
-        }
+        # Filas en orden estable (sin «Rutinas»): la clave de estilo va por posición, no por el texto de la etiqueta
+        keys: tuple[str, ...] = ("tables", "views", "procedures", "functions", "storage")
         return [
             {
-                "label": label,
+                "label": self._t(f"inventory.{key}"),
                 "count": count,
-                "accent": style_by_label[label]["accent"],
-                "collection_key": style_by_label[label]["collection_key"],
+                "accent": key,
+                "collection_key": key,
             }
-            for label, count in summary_rows
+            for key, (_label, count) in zip(keys, summary_rows, strict=True)
         ]
 
     def _summarize_storage_entries(self, storage_entries: list[dict[str, str]]) -> dict[str, int]:
@@ -797,35 +844,35 @@ class HtmlGenerator:
         pages: list[tuple[str, str, list[str], list[list[str]], str]] = [
             (
                 "tables",
-                "Todas las tablas y columnas",
+                self._t("collection.tables"),
                 tables_headers,
                 tables_rows,
                 "tables_all.html",
             ),
             (
                 "views",
-                "Todas las vistas y columnas",
+                self._t("collection.views"),
                 views_headers,
                 views_rows,
                 "views_all.html",
             ),
             (
                 "procedures",
-                "Todos los procedures",
+                self._t("collection.procedures"),
                 procedures_headers,
                 procedures_rows,
                 "procedures_all.html",
             ),
             (
                 "functions",
-                "Todas las funciones",
+                self._t("collection.functions"),
                 functions_headers,
                 functions_rows,
                 "functions_all.html",
             ),
             (
                 "storage",
-                "Todo el almacenamiento",
+                self._t("collection.storage"),
                 storage_headers,
                 storage_rows,
                 "storage_all.html",
@@ -854,7 +901,11 @@ class HtmlGenerator:
         """Construye el dataset detallado de almacenamiento para la página global HTML."""
         sections: list[dict[str, Any]] = list(storage_report.get("sections", []))
         data_headers: list[str] = self._collect_storage_data_headers(sections)
-        headers: list[str] = ["Sección", "Estado"] + data_headers + ["Mensaje", "Detalle"]
+        headers: list[str] = (
+            [self._t("col.section"), self._t("col.status")]
+            + data_headers
+            + [self._t("col.message"), self._t("col.detail")]
+        )
         rows: list[list[str]] = self._build_storage_collection_rows(
             storage_entries=storage_entries,
             sections=sections,
@@ -961,7 +1012,10 @@ class HtmlGenerator:
     ) -> tuple[list[str], list[list[str]]]:
         """Construye el dataset plano de tablas/columnas alineado con la hoja Columnas de Excel."""
         flat_headers: list[str] = [str(header) for header in self.headers.get("FLAT", [])]
-        headers: list[str] = flat_headers + ["Detalle"] if flat_headers else ["Tabla", "Comentario", "Detalle"]
+        detail: str = self._t("col.detail")
+        headers: list[str] = (
+            flat_headers + [detail] if flat_headers else [self._t("col.table"), self._t("col.comment"), detail]
+        )
         rows: list[list[str]] = []
 
         for item in tables_index:
@@ -990,7 +1044,7 @@ class HtmlGenerator:
     ) -> tuple[list[str], list[list[str]]]:
         """Construye el dataset plano de vistas/columnas alineado con el detalle HTML de vistas."""
         base_headers: list[str] = [str(header) for header in self.headers.get("COLUMNAS", [])]
-        headers: list[str] = ["Vista", "Comentario"] + base_headers + ["Detalle"]
+        headers: list[str] = [self._t("col.view"), self._t("col.comment")] + base_headers + [self._t("col.detail")]
         rows: list[list[str]] = []
 
         for item in views_index:
@@ -1018,10 +1072,14 @@ class HtmlGenerator:
             str(header)
             for header in self.headers.get(
                 "PARAMETROS_RUTINA",
-                ["Modo", "Parámetro", "Tipo", "Valor por defecto", "Posición"],
+                [self._t(f"col.param_{key}") for key in ("mode", "name", "type", "default", "position")],
             )
         ]
-        headers: list[str] = ["Rutina", "Tipo rutina", "Comentario"] + parameter_headers + ["Detalle"]
+        headers: list[str] = (
+            [self._t("col.routine"), self._t("col.routine_type"), self._t("col.comment")]
+            + parameter_headers
+            + [self._t("col.detail")]
+        )
         rows: list[list[str]] = []
 
         for item in routines_index:
@@ -1067,6 +1125,7 @@ class HtmlGenerator:
             data_provider=data_provider,
             detail_path=detail_path,
             fk_arrow="->",
+            translator=self._tr,
         )
 
     def _get_default_content_path(
@@ -1134,6 +1193,7 @@ class HtmlGenerator:
             database=self.database,
             generated_at=generated_at,
             entity_kind=entity_kind,
+            entity_label=self._t(self._ENTITY_LABEL_KEYS.get(entity_kind, "kind.tabla")),
             entity=entity,
             headers=self.headers,
             storage=storage_report or {},
@@ -1149,9 +1209,9 @@ class HtmlGenerator:
             report = {
                 "sections": [
                     {
-                        "title": self.DEFAULT_STORAGE_TITLE,
+                        "title": self._t("storage.default_title"),
                         "status": "error",
-                        "message": f"No se pudo obtener la información de almacenamiento: {error}",
+                        "message": self._t("storage.error", error=error),
                         "headers": [],
                         "rows": [],
                     }
@@ -1166,7 +1226,7 @@ class HtmlGenerator:
             numeric_columns: list[int] = [int(idx) for idx in section.get("numeric_columns", [])]
             if not headers and rows:
                 max_cols: int = max(len(row) for row in rows)
-                headers = [f"Columna {idx}" for idx in range(1, max_cols + 1)]
+                headers = [self._t("col.column_n", n=idx) for idx in range(1, max_cols + 1)]
             section["headers"] = headers
             section["numeric_columns"] = numeric_columns
             section["rows"] = [[str(value) if value is not None else "" for value in row] for row in rows]
@@ -1195,7 +1255,7 @@ class HtmlGenerator:
 
     def _build_graph_generator(self, data_provider: Any, options: dict[str, Any]) -> GraphvizRelationshipGraphExt:
         """Crea el generador de grafos cuando el orquestador no ha pasado uno."""
-        return build_graph_generator_from_options(data_provider.db_manager, options)
+        return build_graph_generator_from_options(data_provider.db_manager, options, self._tr)
 
     def _build_table_payload(
         self,
@@ -1260,7 +1320,7 @@ class HtmlGenerator:
             "show_columnas": bool(section_flags[1]),
             "columnas": {"headers": self.headers.get("COLUMNAS", []), "rows": []},
             "show_columns_charset": include_columns_charset,
-            "columns_charset": {"headers": ["Columna", "Charset", "Collation"], "rows": []},
+            "columns_charset": {"headers": [self._t("col.column"), "Charset", "Collation"], "rows": []},
             "show_pk": bool(section_flags[2]),
             "pk": None,
             "show_fk": bool(section_flags[3]),
@@ -1287,25 +1347,18 @@ class HtmlGenerator:
         tabs: list[dict[str, Any]] = diagram_tabs or []
         has_hidden_levels: bool = bool(summary.get("has_any_hidden_levels"))
         has_both_directions: bool = len(tabs) > 1
-        viewer_tips: list[str] = [
-            "Usa las pestañas por nivel para aislar relaciones cuando el diagrama tenga mucha densidad.",
-            "Empieza con Ajustar y luego aplica zoom solo sobre la zona que estés revisando.",
-        ]
+        viewer_tips: list[str] = [self._t("viewer.tip.tabs"), self._t("viewer.tip.fit")]
         if has_hidden_levels:
-            viewer_tips.append(
-                "Existen niveles no visibles por profundidad: revisa el resumen superior antes de asumir que el grafo está completo."
-            )
+            viewer_tips.append(self._t("viewer.tip.hidden"))
         if has_both_directions:
-            viewer_tips.append(
-                "Alterna entre salida y entrada para separar dependencias hijas de tablas referenciadoras."
-            )
+            viewer_tips.append(self._t("viewer.tip.directions"))
 
         return {
-            "title": "Controles del visor",
-            "help": "Usa los botones, Ctrl + rueda para zoom y arrastra el diagrama para desplazarte.",
-            "status_ready": "Listo para navegar",
-            "status_dragging": "Moviendo diagrama",
-            "status_zoom_prefix": "Zoom",
+            "title": self._t("viewer.title"),
+            "help": self._t("viewer.help"),
+            "status_ready": self._t("viewer.status_ready"),
+            "status_dragging": self._t("viewer.status_dragging"),
+            "status_zoom_prefix": self._t("viewer.status_zoom_prefix"),
             "min_zoom": 0.5,
             "max_zoom": 3.0,
             "zoom_step": 0.25,
@@ -1342,7 +1395,7 @@ class HtmlGenerator:
                 ddl: str = data_provider.get_ddl(table_name)
                 payload["ddl"] = ddl or ""
             except DatabaseException as error:
-                payload["ddl"] = f"⚠️ Error obteniendo DDL: {error}"
+                payload["ddl"] = self._t("detail.ddl_error", error=error)
 
     def _populate_columns_section(
         self,
@@ -1421,7 +1474,7 @@ class HtmlGenerator:
             "show_columnas": bool(section_flags[1]),
             "columnas": {"headers": self.headers.get("COLUMNAS", []), "rows": []},
             "show_columns_charset": include_columns_charset,
-            "columns_charset": {"headers": ["Columna", "Charset", "Collation"], "rows": []},
+            "columns_charset": {"headers": [self._t("col.column"), "Charset", "Collation"], "rows": []},
             "diagram_policy": self._build_view_diagram_policy_payload(
                 view_name=view_name,
                 include_diagrams=include_diagrams,
@@ -1451,19 +1504,11 @@ class HtmlGenerator:
 
         return {
             "state": policy,
-            "title": "Política de diagramado de vistas",
-            "label": "Las vistas no se incluyen en el diagrama relacional enriquecido.",
-            "description": (
-                f"La vista {view_name} se documenta con su DDL y columnas, pero no participa en el grafo "
-                "de relaciones generado para tablas."
-            ),
-            "reasons": [
-                "El renderer actual de relaciones trabaja sobre claves foráneas entre tablas y no modela vistas como nodos del grafo.",
-                "Excluir vistas evita diagramas con ruido visual cuando una vista referencia muchas tablas base.",
-            ],
-            "notes": [
-                "Si en una versión futura analysis incorpora soporte real para vistas, esta política podrá ampliarse.",
-            ],
+            "title": self._t("view_policy.title"),
+            "label": self._t("view_policy.label"),
+            "description": self._t("view_policy.description", view=view_name),
+            "reasons": [self._t("view_policy.reason.fk"), self._t("view_policy.reason.noise")],
+            "notes": [self._t("view_policy.note.future")],
         }
 
     def _populate_view_ddl_section(
@@ -1479,7 +1524,7 @@ class HtmlGenerator:
                 ddl: str = data_provider.get_view_ddl(view_name)
                 payload["ddl"] = ddl or ""
             except DatabaseException as error:
-                payload["ddl"] = f"⚠️ Error obteniendo DDL: {error}"
+                payload["ddl"] = self._t("detail.ddl_error", error=error)
 
     def _populate_view_columns_section(
         self,
@@ -1538,7 +1583,7 @@ class HtmlGenerator:
             ddl: str = data_provider.get_routine_ddl(routine_name, routine_type)
             payload["ddl"] = ddl or ""
         except DatabaseException as error:
-            payload["ddl"] = f"⚠️ Error obteniendo DDL: {error}"
+            payload["ddl"] = self._t("detail.ddl_error", error=error)
 
         try:
             parametros = data_provider.get_routine_parameters(routine_name, routine_type)
@@ -1562,11 +1607,8 @@ class HtmlGenerator:
         tabs: list[dict[str, Any]] = []
         flat_paths: list[str] = []
 
-        for direction_key, direction_label in (
-            ("outgoing", "Salida"),
-            ("incoming", "Entrada"),
-            ("isolated", "Sin relaciones"),  # tabla sin FK: la tabla sola (util_bbdd_web G38)
-        ):
+        for direction_key in ("outgoing", "incoming", "isolated"):  # isolated: tabla sin FK, sola (util_bbdd_web G38)
+            direction_label: str = self._t(f"diagram.direction.{direction_key}")
             items = sorted(piped.get(direction_key, []), key=lambda item: int(item.get("depth", 0)))
             tab_items: list[dict[str, Any]] = []
             for item in items:
@@ -1577,7 +1619,7 @@ class HtmlGenerator:
                 path.write_text(svg_markup, encoding="utf-8")
                 relative_path = html.escape(str(path.relative_to(output_dir)).replace("\\", "/"))
                 flat_paths.append(relative_path)
-                title = str(item["title"]) if direction_key == "isolated" else f"Nivel {depth}"
+                title = str(item["title"]) if direction_key == "isolated" else self._t("diagram.tab_level", depth=depth)
                 tab_items.append(
                     {
                         "tab_id": f"{table_name}-{direction_key}-level-{depth}",
@@ -1587,7 +1629,9 @@ class HtmlGenerator:
                         "path": relative_path,
                         "inline_svg": svg_markup,
                         "direction": direction_key,
-                        "aria_label": f"{direction_label} {title} de {table_name}",
+                        "aria_label": self._t(
+                            "diagram.tab_aria", direction=direction_label, title=title, table=table_name
+                        ),
                     }
                 )
 
@@ -1604,7 +1648,7 @@ class HtmlGenerator:
                     "group_id": f"{table_name}-{direction_key}",
                     "direction": direction_key,
                     "direction_label": direction_label,
-                    "tablist_label": f"Pestañas {direction_label} {table_name}",
+                    "tablist_label": self._t("diagram.tablist_aria", direction=direction_label, table=table_name),
                     "direction_help": self._get_diagram_direction_help(direction_key),
                     "group_hint": self._build_diagram_group_hint(
                         direction_key=direction_key,
@@ -1653,6 +1697,7 @@ class HtmlGenerator:
             visible_incoming_levels=visible_incoming_levels,
             hidden_outgoing_levels=hidden_outgoing_levels,
             hidden_incoming_levels=hidden_incoming_levels,
+            translator=self._tr,
         )
         payload["root_table"] = str(summary.get("root_table", table_name))
         return payload
@@ -1667,21 +1712,18 @@ class HtmlGenerator:
     ) -> str:
         """Devuelve una ayuda corta para orientar la lectura de un grupo de tabs."""
         if hidden_levels > 0:
-            return (
-                f"Esta vista muestra {visible_levels} nivel(es) visibles de {total_levels}. "
-                "Usa las pestañas para aislar relaciones y reduce el ruido visual por profundidad."
-            )
+            return self._t("diagram.hint.hidden", visible=visible_levels, total=total_levels)
         if total_levels > 1:
-            return f"Esta vista reparte {total_levels} niveles en pestañas separadas para revisar la dirección {direction_key} sin mezclar recorridos."
-        return "Esta vista muestra un único nivel, útil para inspección rápida sin cambiar de contexto."
+            return self._t("diagram.hint.multi", total=total_levels, direction=direction_key)
+        return self._t("diagram.hint.single")
 
     def _build_diagram_density_badge(self, *, visible_levels: int, total_levels: int, hidden_levels: int) -> str:
         """Resume el nivel de densidad visual del grupo actual."""
         if hidden_levels > 0:
-            return "Vista densa"
+            return self._t("diagram.badge.dense")
         if total_levels > 1 or visible_levels > 1:
-            return "Vista multinivel"
-        return "Vista directa"
+            return self._t("diagram.badge.multi")
+        return self._t("diagram.badge.direct")
 
     def _build_diagram_navigation_tips(
         self,
@@ -1697,19 +1739,20 @@ class HtmlGenerator:
             visible_incoming_levels=visible_incoming_levels,
             hidden_outgoing_levels=hidden_outgoing_levels,
             hidden_incoming_levels=hidden_incoming_levels,
+            translator=self._tr,
         )
 
     def _build_diagram_legend_payload(self) -> dict[str, Any]:
         """Devuelve la leyenda HTML del diagrama basada en el contrato real actual."""
-        return build_diagram_legend_payload()
+        return build_diagram_legend_payload(translator=self._tr)
 
     def _get_diagram_direction_help(self, direction_key: str) -> str:
         """Devuelve ayuda contextual por sentido del diagrama."""
-        return build_diagram_direction_help(direction_key)
+        return build_diagram_direction_help(direction_key, translator=self._tr)
 
     def _build_hidden_levels_help(self, direction_key: str) -> str:
         """Explica qué significa que existan niveles ocultos por dirección."""
-        return build_hidden_levels_help(direction_key)
+        return build_hidden_levels_help(direction_key, translator=self._tr)
 
     @staticmethod
     def _level_graph_kwargs(diagram_options: dict[str, Any]) -> dict[str, Any]:

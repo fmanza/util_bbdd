@@ -2,10 +2,14 @@
 
 Movido desde ``util_bbdd.bulk._audit.exporters`` (sesión 2026-10-02c) sin cambios; aquel módulo lo re-exporta. La
 escritura segura del Excel (caracteres de control y fórmulas) es la de ``_core/export_safety.py``.
+
+Idioma (5.10.0): los textos del Excel y del HTML salen del ``Translator``. Los nombres de columna de las hojas son
+los del CSV de auditoría (``tabla``, ``operacion``…) y no se traducen, como el JSON.
 """
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 
@@ -18,6 +22,7 @@ import pandas as pd
 
 from .._core.exceptions import AuditConfigError, AuditDataError, AuditExportError
 from .._core.export_safety import neutralize_formulas as _desactivar_formulas, safe_frame
+from .._core.i18n import Translator
 from .analytics import AuditAnalyticsService
 from .html_template import AUDIT_HTML_TEMPLATE
 from .legacy_csv import AuditCsvRepository
@@ -34,14 +39,22 @@ class AuditExporters:
         service: AuditAnalyticsService,
         logger: logging.Logger,
         error_audit_path_required: str,
+        translator: Translator | None = None,
     ) -> None:
         self.repository: AuditCsvRepository = repository
+        self._tr: Translator = translator or Translator()
         self.service: AuditAnalyticsService = service
         self.logger: logging.Logger = logger
         self.error_audit_path_required: str = error_audit_path_required
 
-    #: Hoja con las condiciones del motor (la última; nombre con guion bajo como el resto del libro).
+    #: Hoja con las condiciones del motor en español (la última; nombre con guion bajo como el resto del libro). En
+    #: otro idioma, la del catálogo (:attr:`readiness_sheet`).
     READINESS_SHEET: str = "Condiciones_motor"
+
+    @property
+    def readiness_sheet(self) -> str:
+        """Nombre de la hoja de condiciones del motor en el idioma de salida."""
+        return self._tr.t("audit.excel.sheet.readiness")
 
     def exportar_resumen_excel(
         self,
@@ -119,11 +132,12 @@ class AuditExporters:
                             "tiempo_medio",
                         ]
                     ]
-                safe_frame(dataframe_global).to_excel(writer, sheet_name="Resumen_global", index=False)
-                _desactivar_formulas(writer.sheets["Resumen_global"])
+                hoja_global: str = self._tr.t("audit.excel.sheet.global_summary")
+                safe_frame(dataframe_global).to_excel(writer, sheet_name=hoja_global, index=False)
+                _desactivar_formulas(writer.sheets[hoja_global])
 
             if condiciones_motor:
-                ReadinessSheetWriter().write(writer.book.create_sheet(self.READINESS_SHEET), condiciones_motor)
+                ReadinessSheetWriter(self._tr).write(writer.book.create_sheet(self.readiness_sheet), condiciones_motor)
 
     def exportar_resumen_json(self, output_path: Path | None = None) -> Path:
         """Exporta resumen de auditoría a JSON."""
@@ -173,9 +187,10 @@ class AuditExporters:
         try:
             stats = self.service.obtener_estadisticas()
             now = datetime.now()
+            tr = self._tr
             html_content = AUDIT_HTML_TEMPLATE.substitute(
-                page_title=now.strftime("%Y-%m-%d"),
-                generated_datetime=now.strftime("%Y-%m-%d %H:%M:%S"),
+                lang=tr.locale,
+                **self._html_labels(now),
                 total_operaciones=stats.get("total_operaciones", 0),
                 total_filas=f"{stats.get('total_filas_procesadas', 0):,}",
                 tiempo_total=f"{stats.get('tiempo_total_segundos', 0):.2f}",
@@ -183,11 +198,11 @@ class AuditExporters:
                 tabla_ultimas_ops=dataframe.tail(20).to_html(classes="audit-table", index=False),
                 tabla_por_tipo=pd.DataFrame(
                     self.service.obtener_operaciones_por_tipo().items(),
-                    columns=["Operación", "Cantidad"],
+                    columns=[tr.t("audit.html.col.operation"), tr.t("audit.html.col.count")],
                 ).to_html(classes="audit-table", index=False),
                 tabla_por_tabla=pd.DataFrame(
                     self.service.obtener_operaciones_por_tabla().items(),
-                    columns=["Tabla", "Cantidad"],
+                    columns=[tr.t("audit.html.col.table"), tr.t("audit.html.col.count")],
                 ).to_html(classes="audit-table", index=False),
             )
 
@@ -199,6 +214,18 @@ class AuditExporters:
             return output_html
         except Exception as error:
             raise AuditDataError(f"❌ Error al exportar HTML: {error}") from error
+
+    def _html_labels(self, now: datetime) -> dict[str, str]:
+        """Textos fijos del HTML (``$l_*`` de la plantilla), escapados."""
+        tr = self._tr
+        keys = (
+            "heading", "general_stats", "last_operations", "by_type", "by_table", "footer",
+            "stat.operations", "stat.rows", "stat.total_time", "stat.avg_time",
+        )  # fmt: skip
+        labels = {f"l_{key.replace('.', '_')}": tr.t(f"audit.html.{key}") for key in keys}
+        labels["l_title"] = tr.t("audit.html.title", date=now.strftime("%Y-%m-%d"))
+        labels["l_generated"] = tr.t("audit.html.generated", datetime=now.strftime("%Y-%m-%d %H:%M:%S"))
+        return {name: html.escape(text, quote=False) for name, text in labels.items()}
 
 
 __all__: list[str] = ["AuditExporters"]

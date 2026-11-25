@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .._core.exceptions import DatabaseException
+from .._core.i18n import Translator
 from ..metadata.model import ForeignKeyMeta, Kind, SchemaSnapshot
 from ..progress import ProgressReporter
 from .contracts import RelationshipGraphSource
@@ -132,9 +133,26 @@ class DatabaseRelationshipGraphBase:
 
     #: Schema que se dibuja; ``None`` = el contexto de metadatos de la fuente (4.1.0, util_bbdd_web G22)
     schema: str | None = None
+    #: Idioma de los textos (5.10.0): español por defecto; ``__init__`` lo fija por instancia
+    _tr: Translator = Translator()
 
-    def __init__(self, db_manager: RelationshipGraphSource, schema: str | None = None):
+    def __init__(
+        self,
+        db_manager: RelationshipGraphSource,
+        schema: str | None = None,
+        *,
+        translator: Translator | None = None,
+    ):
+        """Configura la fuente de metadatos.
+
+        Args:
+            db_manager: Fuente de metadatos por lotes (``RelationshipGraphSource``).
+            schema: Schema que se dibuja; por defecto, el contexto de metadatos de ``db_manager``.
+            translator: Idioma de los textos de los diagramas (pies, títulos, leyendas, avisos); por defecto, español
+                (5.10.0). Los nombres de tablas y columnas no se traducen.
+        """
         self.db_manager: RelationshipGraphSource = db_manager
+        self._tr: Translator = translator or Translator()
         self.schema = schema.strip() if schema and schema.strip() else None
         self.relations: list[TableRelation] = []
         self.tables: set[str] = set()
@@ -142,6 +160,10 @@ class DatabaseRelationshipGraphBase:
         self._parent_relations_index_by_context: dict[str, dict[str, list[TableRelation]]] = {}
         self._graph_document_cache_by_context: dict[tuple[str, str, int, str], GraphDocument] = {}
         self._table_visual_type_cache_by_context: dict[tuple[str, str], TableVisualType] = {}
+
+    def _t(self, key: str, /, **params: object) -> str:
+        """Texto ``analysis.<key>`` en el idioma de salida."""
+        return self._tr.t(f"analysis.{key}", **params)
 
     def clear_cache(self) -> None:
         """Invalida las cachés internas del grafo (índice de padres, documentos y tipos visuales).

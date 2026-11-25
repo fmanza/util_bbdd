@@ -43,6 +43,7 @@ flowchart TD
 | `source_schema` / `target_schema` | `str \| None` | `None` | Schema a volcar; `None` usa default del engine |
 | `tables` | `list[str] \| None` | `None` | Tablas a volcar; `None` = todas las del origen |
 | `table_filter` | `TableFilter \| None` | `None` | Tablas a volcar por patrones *glob* (`TableFilter.from_patterns` de `util_bbdd.metadata`, 5.9.0); incompatible con `tables`; sin ninguna tabla que case, `plan()`/`run()` lanzan `DumpError` |
+| `locale` | `"es" \| "en"` | `"es"` | Idioma del informe Excel (5.10.0): nombres de hoja, cabeceras y textos fijos. Ver [Idioma de los resultados](../guides/output_language.md) |
 | `chunk_size` | `int` | `5000` | Filas por chunk de lectura del origen; también el lote de escritura salvo lo que diga `write_batch_size` |
 | `write_batch_size` | `int \| None` | `None` | Filas por lote de escritura. `None`: 20 000 con destino PostgreSQL (`COPY`; −31 % a 3,5M filas) y `chunk_size` en el resto (en SQL Server los lotes grandes son más lentos); con `commit_every_n_chunks`, siempre `chunk_size`. Un entero fija el lote en todos los motores |
 | `output_dir` | `str \| Path` | `Path()` | Directorio donde guardar el informe Excel; se guarda como `Path` (desde v1.1.0 también `str`). Las tres rutas se leen siempre como `Path`, también para mypy, y se validan al reasignarlas (un tipo que no es ruta da `ValueError` en el acto) |
@@ -192,7 +193,7 @@ except DumpReportError as exc:
 | Error | Cuándo ocurre |
 |---|---|
 | `SQLAlchemyError` | Al crear el `DumpOrchestrator`, si no se puede conectar al origen o al destino |
-| `ValueError` | Al crear `DumpConfig`: `chunk_size`, `commit_every_n_chunks`, `write_batch_size` o la combinación `on_error`/`rejects_csv_path`/`max_rejects` no válidos, o `tables` y `table_filter` a la vez (5.9.0) |
+| `ValueError` | Al crear `DumpConfig`: `chunk_size`, `commit_every_n_chunks`, `write_batch_size` o la combinación `on_error`/`rejects_csv_path`/`max_rejects` no válidos, o `tables` y `table_filter` a la vez (5.9.0), o `locale` no soportado (5.10.0) |
 | `DumpError` | En `run()` y `plan()`, si falla la lectura de las tablas de origen o destino (con el `SQLAlchemyError` en `__cause__`), o si ninguna tabla del origen casa con `table_filter` (5.9.0) |
 | `DumpConstraintError` (subclase de `DumpError`) | En `run()`, si no se pueden desactivar las constraints del destino, si no se puede escribir el diario o si ya hay uno pendiente en `output_dir` (4.4.0). Un fallo al reactivarlas no se lanza: se registra como ERROR en el log |
 | `ValueError` en `restore_constraints` | El fichero no es un diario válido o es de otro motor que el engine |

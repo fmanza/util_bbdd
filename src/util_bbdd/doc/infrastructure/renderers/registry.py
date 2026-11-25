@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ...._core.i18n import Translator
 from ...application._internal_ports import (
     RendererFactoryPort,
     RendererRegistrationPort,
@@ -45,22 +46,24 @@ def build_default_renderer_registry(
     excel_generator_cls: type[ExcelGenerator] = ExcelGenerator,
     html_generator_cls: type[HtmlGenerator] = HtmlGenerator,
     markdown_generator_cls: type[MarkdownGenerator] = MarkdownGenerator,
+    translator: Translator | None = None,
 ) -> DocumentationRendererRegistry:
-    """Construye el registry estándar de renderers Word/Excel/HTML/Markdown."""
+    """Construye el registry estándar de renderers Word/Excel/HTML/Markdown, todos en el idioma de ``translator``."""
+    tr: Translator = translator or Translator()
 
     def _word_factory(*, database: str, headers: dict[str, list[str]], table_style: str) -> DocumentRendererPort:
-        return word_generator_cls(database=database, headers=headers, table_style=table_style)
+        return word_generator_cls(database=database, headers=headers, table_style=table_style, translator=tr)
 
     def _excel_factory(*, database: str, headers: dict[str, list[str]], table_style: str) -> DocumentRendererPort:
-        return excel_generator_cls(database=database, headers=headers, table_style=table_style)
+        return excel_generator_cls(database=database, headers=headers, table_style=table_style, translator=tr)
 
     def _html_factory(*, database: str, headers: dict[str, list[str]], table_style: str) -> DocumentRendererPort:
         _ = table_style
-        return html_generator_cls(database=database, headers=headers)
+        return html_generator_cls(database=database, headers=headers, translator=tr)
 
     def _markdown_factory(*, database: str, headers: dict[str, list[str]], table_style: str) -> DocumentRendererPort:
         _ = table_style
-        return markdown_generator_cls(database=database, headers=headers)
+        return markdown_generator_cls(database=database, headers=headers, translator=tr)
 
     return DocumentationRendererRegistry(
         registrations=[

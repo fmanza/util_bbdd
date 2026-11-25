@@ -5,10 +5,12 @@ from __future__ import annotations
 import logging
 import threading
 
+from functools import partial
 from pathlib import Path
 from typing import Any, ClassVar
 
 from .._core.exceptions import DocumentationConfigError
+from .._core.i18n import Locale, Translator, validate_locale
 from ..progress import CancellationToken, ProgressCallback, ProgressReporter
 from .application.ports import DocumentationSourcePort, OutputCache
 from .application.use_cases.documentation_orchestrator import (
@@ -35,6 +37,11 @@ from .infrastructure.runtime.output_runtime import DocumentationOutputRuntime
 from .infrastructure.storage.runtime import StorageInventoryReportService
 
 _DEFAULT_HEADERS_FILE: Path = Path(__file__).parent / "data" / "headers_config.json"
+#: Cabeceras por defecto de cada idioma (5.10.0); ``headers_file`` explícito gana siempre.
+_DEFAULT_HEADERS_FILES: dict[str, Path] = {
+    "es": _DEFAULT_HEADERS_FILE,
+    "en": Path(__file__).parent / "data" / "headers_config.en.json",
+}
 
 
 class DatabaseDocumentation:
@@ -92,6 +99,7 @@ class DatabaseDocumentation:
             ``.md`` por tabla, vista y rutina, diagramas ER de Mermaid sin Graphviz y ``manifest.json``). Por defecto
             ``["word"]``.
         headers_file: JSON con las cabeceras de cada sección (``{"headers": {"COLUMNAS": {"base": [...]}, ...}}``).
+            ``None`` (default) usa las del idioma de ``locale``; uno explícito se respeta en cualquier idioma.
         batch_window_seconds: Ventana temporal en segundos para agrupar generaciones automáticas en la misma carpeta
             (entero ≥ 0). ``0`` (default desde 5.0.0; antes 90, G2 de util_bbdd_web) no agrupa: cada generación tiene
             su carpeta. Con un valor > 0, si ``fichero_salida`` es None y se lanzan dos generaciones de la misma base
@@ -105,12 +113,16 @@ class DatabaseDocumentation:
         cancel_token: Se comprueba antes de leer el catálogo, antes de cada formato y entre tablas; si está cancelado,
             ``generate()`` lanza ``OperationCancelledError``. Los formatos ya terminados quedan escritos; el que estaba
             en curso puede quedar incompleto (el HTML escribe página a página). Desde 4.1.0.
+        locale: Idioma de la documentación (5.10.0): ``"es"`` (default) o ``"en"``. Traduce títulos, secciones,
+            cabeceras y textos fijos de todos los formatos y aplica los separadores numéricos del idioma. No cambia
+            los metadatos (nombres, comentarios, DDL), las fechas (ISO 8601) ni los datos para máquinas del Markdown
+            (``catalog.json``, front matter, rutas), así que la comparación entre generaciones funciona entre idiomas.
 
     Raises:
         DocumentationConfigError: Configuración inválida (mapa de trazabilidad, ``mermaid_js`` o ``mermaid_js_ref`` del
             Markdown inválidos, formato no soportado, ``imprimir`` que no es un diccionario,
             cabeceras inexistentes o mal formadas, plantilla Word que no existe, ``batch_window_seconds`` que no es un
-            entero ≥ 0). También es ``ValueError``.
+            entero ≥ 0, ``locale`` no soportado). También es ``ValueError``.
 
     Examples:
         >>> with SyncDatabaseManager("postgresql", conn_params) as manager:
@@ -131,13 +143,20 @@ class DatabaseDocumentation:
         fichero_salida: Path | None = None,
         imprimir: dict[str, Any] | None = None,
         formatos: list[str] | None = None,
-        headers_file: Path = _DEFAULT_HEADERS_FILE,
+        headers_file: Path | None = None,
         batch_window_seconds: int | None = None,
         schema: str | None = None,
         on_progress: ProgressCallback | None = None,
         cancel_token: CancellationToken | None = None,
+        locale: Locale = "es",
     ) -> None:
         self._logger: logging.Logger = logging.getLogger(__name__)
+        try:
+            self._translator: Translator = Translator(validate_locale(locale))
+        except ValueError as error:
+            raise DocumentationConfigError(str(error), operation="DOCUMENTATION") from error
+        if headers_file is None:
+            headers_file = _DEFAULT_HEADERS_FILES[self._translator.locale]
         self._progress = ProgressReporter("documentation", on_progress, cancel_token, self._logger)
         self._output_policy = DocumentationOutputRuntime()
         self._source = SyncDatabaseManagerAdapter(db_manager, {}, schema=schema)
@@ -221,19 +240,21 @@ class DatabaseDocumentation:
             logger=self._logger,
             output_policy=self._output_policy,
             metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
-            storage_report_service=StorageInventoryReportService(),
+            storage_report_service=StorageInventoryReportService(self._translator),
         )
         session.progress = self._progress
+        session.translator = self._translator
         renderer_registry = build_default_renderer_registry(
             word_generator_cls=WordGenerator,
             excel_generator_cls=ExcelGenerator,
             html_generator_cls=HtmlGenerator,
+            translator=self._translator,
         )
         outputs: dict[str, Path] = DocumentationOrchestrator(
             session=session,
             planner=DocumentationOutputPlanner(session, renderer_registry),
             renderer_registry=renderer_registry,
-            graph_generator_factory=build_graph_generator_from_options,
+            graph_generator_factory=partial(build_graph_generator_from_options, translator=self._translator),
         ).generate_documents()
         return DocumentationResult(
             outputs=outputs,

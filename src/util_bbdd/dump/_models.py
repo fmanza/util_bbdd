@@ -12,6 +12,7 @@ from typing import Literal
 
 from sqlalchemy import Engine
 
+from util_bbdd._core.i18n import Locale, validate_locale
 from util_bbdd._core.validation import OptionalPathField, PathField, validate_batch_config
 from util_bbdd.audit.contracts import AuditSink
 from util_bbdd.bulk._models import IndexActionResult, PKSyncResult
@@ -110,6 +111,8 @@ class DumpConfig:
             cada :meth:`DumpOrchestrator.plan` y :meth:`~DumpOrchestrator.run`; las FK hacia tablas que quedan fuera
             dan el aviso ``OUTSIDE_REFERENCES`` del plan. Si no casa ninguna tabla, ``plan()``/``run()`` lanzan
             ``DumpError``.
+        locale: Idioma del informe Excel (5.10.0): ``"es"`` (default) o ``"en"``. Traduce nombres de hoja, cabeceras
+            y textos fijos; los nombres de tablas, columnas y los mensajes de error del motor no cambian.
         max_parallel_tables: Número máximo de tablas a cargar concurrentemente dentro de
             un mismo nivel topológico FK (tablas mutuamente independientes). ``1`` (default)
             = carga secuencial. Valores > 1 usan un ``ThreadPoolExecutor`` con una instancia
@@ -169,8 +172,8 @@ class DumpConfig:
         ValueError: Si ``chunk_size`` no es un entero ≥ 1, o si ``commit_every_n_chunks`` o ``write_batch_size`` no son
             ``None`` ni un entero ≥ 1, o si ``on_error``, ``rejects_csv_path`` y ``max_rejects`` no son una
             combinación válida (las reglas de ``BulkCrud``), o si ``output_dir``, ``bulk_audit_path`` o
-            ``rejects_csv_path`` no son ``str`` ni ``Path``, o ``parallel_pk_ranges`` no es un entero ni ``"auto"``. Se
-            valida al construir, antes de tocar el destino.
+            ``rejects_csv_path`` no son ``str`` ni ``Path``, o ``parallel_pk_ranges`` no es un entero ni ``"auto"``, o
+            ``locale`` no es un idioma soportado. Se valida al construir, antes de tocar el destino.
     """
 
     source_engine: Engine
@@ -197,8 +200,10 @@ class DumpConfig:
     audit_sink: AuditSink | None = None
     validate_fks_after: bool = True
     table_filter: TableFilter | None = None
+    locale: Locale = "es"
 
     def __post_init__(self) -> None:
+        validate_locale(self.locale)
         if self.table_filter is not None:
             if not isinstance(self.table_filter, TableFilter):
                 raise ValueError(

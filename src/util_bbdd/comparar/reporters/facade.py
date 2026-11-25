@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from util_bbdd.comparar.models import SchemaDiff
 
 from util_bbdd._core.exceptions import SchemaDiffValidationError
+from util_bbdd._core.i18n import Locale, Translator, validate_locale
 
 from ._base import build_output_stem
 from .excel_reporter import ExcelDiffReporter
@@ -53,6 +54,9 @@ class SchemaDiffReporter:
         # Todos los formatos de una vez
         paths = reporter.render_all(diff, output_dir=Path("./reports"))
 
+        # Informes en inglés
+        paths = SchemaDiffReporter(locale="en").render_all(diff, output_dir=Path("./reports_en"))
+
         # Con plantilla Word corporativa y dialecto SQL
         reporter = SchemaDiffReporter(
             word_template_path=Path("corp_template.docx"),
@@ -83,6 +87,12 @@ class SchemaDiffReporter:
             ``mermaid.min.js`` local que se incrusta, o ``None`` sin diagramas). Por defecto jsDelivr con versión fija
             y SRI. Ver ``HtmlDiffReporter``.
         mermaid_integrity: SRI del ``<script src>`` de Mermaid cuando ``mermaid_src`` es otra URL.
+        locale: Idioma de los informes: ``"es"`` (por defecto) o ``"en"`` (5.10.0). Traduce títulos, cabeceras,
+            estados, resúmenes y los comentarios ``--`` del script SQL; no traduce el SQL, los nombres ni los
+            comentarios del catálogo.
+
+    Raises:
+        ValueError: ``locale`` no soportado.
 
     Los reporters individuales también están disponibles directamente::
 
@@ -107,17 +117,22 @@ class SchemaDiffReporter:
         *,
         mermaid_src: str | Path | None = MERMAID_CDN_URL,
         mermaid_integrity: str | None = None,
+        locale: Locale = "es",
     ) -> None:
         self.logger: logging.Logger = logging.getLogger(__name__)
+        translator: Translator = Translator(validate_locale(locale))
         self._reporters: dict[str, DiffReporterProtocol] = {
-            "html": HtmlDiffReporter(mermaid_src=mermaid_src, mermaid_integrity=mermaid_integrity),
-            "excel": ExcelDiffReporter(),
-            "word": WordDiffReporter(template_path=word_template_path),
-            "markdown": MarkdownDiffReporter(),
+            "html": HtmlDiffReporter(
+                mermaid_src=mermaid_src, mermaid_integrity=mermaid_integrity, translator=translator
+            ),
+            "excel": ExcelDiffReporter(translator=translator),
+            "word": WordDiffReporter(template_path=word_template_path, translator=translator),
+            "markdown": MarkdownDiffReporter(translator=translator),
             "sql": SqlDiffReporter(
                 dialect=sql_dialect,
                 source_inspector=sql_source_inspector,
                 source_schema=sql_source_schema,
+                translator=translator,
             ),
         }
 

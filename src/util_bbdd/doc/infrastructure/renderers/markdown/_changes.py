@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 from ....._core.exceptions import DocumentationConfigError
+from ....._core.i18n import Translator
 from ....._core.markdown import code_span
 from .....comparar.models import (
     ColumnDiff,
@@ -38,14 +39,11 @@ from ._text import admonition, md_link, md_table, md_text
 from ._trace import error_reason
 
 MAX_BYTES: int = 50_000_000
-_STATUS_ES: dict[str, str] = {"added": "Añadida", "removed": "Eliminada", "modified": "Modificada"}
-_ATTRIBUTE_ES: dict[str, str] = {
-    "existence": "existencia",
-    "type": "tipo",
-    "nullable": "admite nulos",
-    "primary_key": "clave primaria",
-    "default": "por defecto",
-}
+#: Las etiquetas de ``changes.json`` (``source_label``/``target_label``) se escriben siempre en español: son datos del
+#: formato ``util_bbdd.schema_diff``, no dependen del idioma de la generación (5.10.0). ``changes.md`` usa el suyo.
+_ES: Translator = Translator()
+#: Estados y atributos que se muestran: claves ``doc_md.changes.status.*`` / ``doc_md.changes.attribute.*`` (5.10.0)
+_STATUSES: frozenset[str] = frozenset({"added", "removed", "modified"})
 #: Tipo de objeto del catálogo → clave de ``selection``
 _SELECTION_KEY: dict[str, str] = {
     "table": "tables",
@@ -66,8 +64,16 @@ class PreviousCatalog:
 
     @property
     def label(self) -> str:
-        when = self.generated_at or "fecha desconocida"
-        return f"Generación anterior: {self.catalog.get('database', '')} [{self.catalog.get('schema', '')}] ({when})"
+        return self.label_in(_ES)
+
+    def label_in(self, tr: Translator) -> str:
+        """Etiqueta de la generación anterior en el idioma de ``tr`` (5.10.0)."""
+        return tr.t(
+            "doc_md.changes.label.previous",
+            database=self.catalog.get("database", ""),
+            schema=self.catalog.get("schema", ""),
+            when=self.generated_at or tr.t("doc_md.changes.unknown_date"),
+        )
 
     def manifest_entry(self) -> dict[str, Any]:
         """Datos de la generación anterior para ``manifest.json`` (``previous``)."""
@@ -141,11 +147,16 @@ def _config_error(message: str) -> DocumentationConfigError:
 
 @dataclass
 class Changes:
-    """Resultado de la comparación: el ``SchemaDiff``, avisos y rutinas de otros tipos (fuera del modelo)."""
+    """Resultado de la comparación: el ``SchemaDiff``, avisos y rutinas de otros tipos (fuera del modelo).
+
+    ``labels`` son las etiquetas ``(anterior, actual)`` de ``changes.md`` en el idioma de la generación (5.10.0); las
+    del ``SchemaDiff`` (``changes.json``) van siempre en español.
+    """
 
     diff: SchemaDiff
     notices: list[str] = field(default_factory=list)
     other_routines: list[tuple[str, str, str]] = field(default_factory=list)  # (nombre, tipo, estado)
+    labels: tuple[str, str] | None = None
 
 
 def build_changes(
@@ -157,15 +168,18 @@ def build_changes(
     database: str,
     selection: dict[str, bool],
     table_filter: TableFilter | None = None,
+    translator: Translator | None = None,
 ) -> Changes:
     """Compara el catálogo anterior con los objetos de la generación actual.
 
     Con un filtro de tablas (5.5.0) en alguna de las dos generaciones, las tablas y vistas se comparan solo si las
-    documentan los filtros de ambas: lo que una dejó fuera no cuenta como añadido ni como eliminado.
+    documentan los filtros de ambas: lo que una dejó fuera no cuenta como añadido ni como eliminado. Los avisos y las
+    etiquetas de ``changes.md`` salen en el idioma de ``translator`` (5.10.0; por defecto, español).
 
     Raises:
         DocumentationConfigError: El motor de la generación anterior es otro (los tipos no son comparables).
     """
+    tr = translator or Translator()
     old = previous.catalog
     if old.get("engine") != engine:
         raise _config_error(
@@ -173,25 +187,22 @@ def build_changes(
         )
     notices: list[str] = []
     if old.get("schema") != schema:
-        notices.append(f"Los schemas son distintos ({old.get('schema')} → {schema}): se compara por nombre de objeto.")
+        notices.append(tr.t("doc_md.changes.notice.schemas", old=old.get("schema"), new=schema))
     old_selection: dict[str, Any] = dict(old.get("selection") or {})
     compared: set[str] = set()
     for kind, key in _SELECTION_KEY.items():
         if selection.get(key) and old_selection.get(key):
             compared.add(kind)
         elif selection.get(key) or old_selection.get(key):
-            where = "anterior" if not old_selection.get(key) else "actual"
-            notices.append(f"No se comparan los objetos de tipo «{key}»: no se documentaron en la generación {where}.")
+            where = "previous" if not old_selection.get(key) else "current"
+            notices.append(tr.t(f"doc_md.changes.notice.not_compared_{where}", key=key))
 
     before = _by_kind(cast(list[dict[str, Any]], old["objects"]))
     after = _by_kind([{**entry.record, "path": entry.path} for entry in current])
     old_filter = TableFilter.from_catalog(old.get("filter"))
     # Por patrones: ``frontera`` no cambia lo que se documenta
     if (old_filter and old_filter.to_catalog()) != (table_filter and table_filter.to_catalog()):
-        notices.append(
-            "Las dos generaciones tienen distinto filtro de tablas: solo se comparan las tablas y vistas que entran en "
-            "ambos."
-        )
+        notices.append(tr.t("doc_md.changes.notice.filters"))
         filters = [f for f in (old_filter, table_filter) if f is not None]
         for kind in ("table", "view"):
             for side in (before, after):
@@ -200,7 +211,11 @@ def build_changes(
                         name: obj for name, obj in side[kind].items() if all(f.matches(name) for f in filters)
                     }
     changes = Changes(
-        diff=SchemaDiff(source_label=previous.label, target_label=f"Generación actual: {database} [{schema}]")
+        diff=SchemaDiff(
+            source_label=previous.label,
+            target_label=_ES.t("doc_md.changes.label.current", database=database, schema=schema),
+        ),
+        labels=(previous.label_in(tr), tr.t("doc_md.changes.label.current", database=database, schema=schema)),
     )
     table_diffs = _compare(before.get("table", {}), after.get("table", {}), _table_diff) if "table" in compared else []
     view_diffs = _compare(before.get("view", {}), after.get("view", {}), _view_diff) if "view" in compared else []
@@ -392,40 +407,56 @@ def changes_json(changes: Changes) -> str:
     return json.dumps(changes.diff.to_dict(), ensure_ascii=False, sort_keys=True, indent=2) + "\n"
 
 
-def changes_page(changes: Changes, links: dict[tuple[str, str], str]) -> list[str]:
+def changes_page(
+    changes: Changes, links: dict[tuple[str, str], str], translator: Translator | None = None
+) -> list[str]:
     """``changes.md``: cabecera, avisos, resumen y una sección por tipo con enlaces a las páginas actuales.
 
     Args:
         changes: Resultado de :func:`build_changes`.
         links: Página actual de cada objeto, por ``(kind, nombre)`` (relativa a ``docs/``).
+        translator: Idioma de los textos fijos (5.10.0); por defecto, español.
     """
+    tr = translator or Translator()
+
+    def t(key: str) -> str:
+        return tr.t(f"doc_md.{key}")
+
     diff = changes.diff
+    source, target = changes.labels or (diff.source_label, diff.target_label)
     lines = [
-        "# Cambios de esquema",
+        f"# {t('title.changes')}",
         "",
-        *md_table(["", ""], [["Anterior", diff.source_label], ["Actual", diff.target_label]]),
+        *md_table(["", ""], [[t("changes.row.previous"), source], [t("changes.row.current"), target]]),
         "",
     ]
     for notice in changes.notices:
         lines += admonition("warning", notice)
     summary = [
-        ["Tablas", *_counts([t.status for t in diff.table_diffs])],
-        ["Vistas", *_counts([v.status for v in diff.view_diffs])],
-        ["Rutinas", *_counts([r.status for r in diff.routine_diffs] + [s for _, _, s in changes.other_routines])],
+        [t("nav.tables"), *_counts([table.status for table in diff.table_diffs])],
+        [t("nav.views"), *_counts([v.status for v in diff.view_diffs])],
+        [
+            t("nav.routines"),
+            *_counts([r.status for r in diff.routine_diffs] + [s for _, _, s in changes.other_routines]),
+        ],
     ]
-    lines += ["## Resumen", "", *md_table(["Tipo", "Añadidas", "Eliminadas", "Modificadas"], summary), ""]
+    headers = [t("col.kind"), t("col.added"), t("col.removed"), t("col.modified")]
+    lines += [f"## {t('changes.summary')}", "", *md_table(headers, summary), ""]
     if not diff.has_differences and not changes.other_routines:
-        return [*lines, "Sin cambios de esquema.", ""]
+        return [*lines, t("changes.none"), ""]
     for table in diff.table_diffs:
-        lines += _object_heading("Tabla", table.table_name, table.status, links.get(("table", table.table_name)))
-        lines += _table_details(table)
+        link = links.get(("table", table.table_name))
+        lines += _object_heading(t("changes.kind.table"), table.table_name, table.status, link, tr)
+        lines += _table_details(table, tr)
     for view in diff.view_diffs:
-        lines += _object_heading("Vista", view.view_name, view.status, links.get(("view", view.view_name)))
+        lines += _object_heading(
+            t("changes.kind.view"), view.view_name, view.status, links.get(("view", view.view_name)), tr
+        )
         if view.status == "modified":
-            lines += ["La definición o las columnas han cambiado (el catálogo guarda solo su hash).", ""]
+            lines += [t("changes.view_modified"), ""]
     routines = [(r.routine_name, r.routine_type.lower(), r.status) for r in diff.routine_diffs] + changes.other_routines
     for name, kind, status in routines:
-        lines += _object_heading(kind.title(), name, status, links.get((kind, name)))
+        lines += _object_heading(kind.title(), name, status, links.get((kind, name)), tr)
     return lines
 
 
@@ -433,9 +464,14 @@ def _counts(statuses: list[str]) -> list[int]:
     return [statuses.count("added"), statuses.count("removed"), statuses.count("modified")]
 
 
-def _object_heading(kind: str, name: str, status: str, link: str | None) -> list[str]:
+def _status(status: str, tr: Translator) -> str:
+    """Estado visible (``added`` → «Añadida» / «Added»); uno desconocido, tal cual."""
+    return tr.t(f"doc_md.changes.status.{status}") if status in _STATUSES else status
+
+
+def _object_heading(kind: str, name: str, status: str, link: str | None, tr: Translator) -> list[str]:
     title = md_link(name, link) if link and status != "removed" else md_text(name)
-    return [f"## {kind} {title}: {_STATUS_ES.get(status, status).lower()}", ""]
+    return [f"## {kind} {title}: {_status(status, tr).lower()}", ""]
 
 
 def _cell(value: Any) -> str:
@@ -443,43 +479,53 @@ def _cell(value: Any) -> str:
     return code_span(text, in_table=True) if text else ""
 
 
-def _table_details(table: TableDiff) -> list[str]:
+def _table_details(table: TableDiff, tr: Translator) -> list[str]:
+    def t(key: str) -> str:
+        return tr.t(f"doc_md.{key}")
+
+    before, after = t("col.before"), t("col.after")
     lines: list[str] = []
     if table.column_diffs:
-        rows = [[c.column_name, _ATTRIBUTE_ES[c.attribute], c.source_value, c.target_value] for c in table.column_diffs]
+        rows = [
+            [c.column_name, t(f"changes.attribute.{c.attribute}"), c.source_value, c.target_value]
+            for c in table.column_diffs
+        ]
         lines += [
-            "### Columnas",
+            f"### {t('changes.section.columns')}",
             "",
-            *md_table(["Columna", "Cambio", "Antes", "Ahora"], rows, cell_renderers=_CODE_COLS),
+            *md_table([t("col.column"), t("col.change"), before, after], rows, cell_renderers=_CODE_COLS),
             "",
         ]
     if table.index_diffs:
-        rows = [[i.index_name, _STATUS_ES[i.status], i.source_columns, i.target_columns] for i in table.index_diffs]
+        rows = [[i.index_name, _status(i.status, tr), i.source_columns, i.target_columns] for i in table.index_diffs]
         lines += [
-            "### Índices",
+            f"### {t('changes.section.indices')}",
             "",
-            *md_table(["Índice", "Estado", "Antes", "Ahora"], rows, cell_renderers=_CODE_COLS),
+            *md_table([t("col.index"), t("col.status"), before, after], rows, cell_renderers=_CODE_COLS),
             "",
         ]
     if table.fk_diffs:
         rows = [
             [
                 f.fk_name,
-                _STATUS_ES[f.status],
+                _status(f.status, tr),
                 _fk_text(f.source_columns, f.source_referred_table, f.source_referred_columns),
                 _fk_text(f.target_columns, f.target_referred_table, f.target_referred_columns),
             ]
             for f in table.fk_diffs
         ]
         lines += [
-            "### Claves foráneas",
+            f"### {t('changes.section.fks')}",
             "",
-            *md_table(["FK", "Estado", "Antes", "Ahora"], rows, cell_renderers=_CODE_COLS),
+            *md_table(["FK", t("col.status"), before, after], rows, cell_renderers=_CODE_COLS),
             "",
         ]
     if table.comment_diffs:
-        rows = [[c.column_name or "(tabla)", c.source_comment, c.target_comment] for c in table.comment_diffs]
-        lines += ["### Comentarios", "", *md_table(["Objeto", "Antes", "Ahora"], rows), ""]
+        rows = [
+            [c.column_name or t("changes.table_comment"), c.source_comment, c.target_comment]
+            for c in table.comment_diffs
+        ]
+        lines += [f"### {t('changes.section.comments')}", "", *md_table([t("col.object"), before, after], rows), ""]
     return lines
 
 

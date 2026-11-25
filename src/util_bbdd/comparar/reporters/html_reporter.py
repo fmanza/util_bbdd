@@ -16,11 +16,19 @@ from urllib.parse import urlsplit
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from util_bbdd._core.exceptions import SchemaDiffValidationError
+from util_bbdd._core.i18n import Translator
 
 if TYPE_CHECKING:
     from util_bbdd.comparar.models import SchemaDiff
 
-from ._base import STATUS_ES, DdlNormalizer, DiffSummary, build_diff_summary, escape_mermaid_label
+from ._base import (
+    DdlNormalizer,
+    DiffSummary,
+    build_diff_summary,
+    escape_mermaid_label,
+    localized_summary,
+    status_labels,
+)
 
 # Directorio de plantillas embebidas (junto a este módulo)
 _TEMPLATES_DIR: Path = Path(__file__).parent / "templates"
@@ -60,13 +68,15 @@ class HtmlDiffReporter:
             incrusta en el HTML (informe autocontenido, sin red; unos 3 MB más). ``None``: sin Mermaid.
         mermaid_integrity: Valor ``integrity`` (SRI) del ``<script src>``. Con la URL por defecto se usa
             ``MERMAID_SRI``; con otra URL, ninguno salvo que se indique.
+        translator: Idioma de los textos del informe y de ``<html lang>``; por defecto, español (5.10.0). La plantilla
+            recibe ``t(clave, **params)`` (claves del namespace ``comparar``) y ``lang``.
 
     Raises:
         SchemaDiffValidationError: ``mermaid_src`` es una URL con un esquema distinto de ``http``/``https`` o un
             fichero que no se puede leer.
     """
 
-    # Categorías de filtro: (id CSS/JS, etiqueta visible)
+    # Categorías de filtro: (id CSS/JS, etiqueta visible en español; la salida usa ``_FILTER_CAT_KEYS``)
     _FILTER_CATS: ClassVar[list[tuple[str, str]]] = [
         ("tables-added", "Tablas añadidas"),
         ("tables-removed", "Tablas eliminadas"),
@@ -74,6 +84,15 @@ class HtmlDiffReporter:
         ("views", "Vistas con diff"),
         ("routines", "Rutinas con diff"),
     ]
+
+    # Clave de catálogo (namespace ``comparar``) de la etiqueta de cada categoría de filtro (5.10.0)
+    _FILTER_CAT_KEYS: ClassVar[dict[str, str]] = {
+        "tables-added": "meta.tables_added",
+        "tables-removed": "meta.tables_removed",
+        "tables-modified": "meta.tables_modified",
+        "views": "meta.views_with_diff",
+        "routines": "meta.routines_with_diff",
+    }
 
     # Mapa de status de tabla → categoría de filtro
     _STATUS_TO_CAT: ClassVar[dict[str, str]] = {
@@ -89,8 +108,10 @@ class HtmlDiffReporter:
         *,
         mermaid_src: str | Path | None = MERMAID_CDN_URL,
         mermaid_integrity: str | None = None,
+        translator: Translator | None = None,
     ) -> None:
         self.logger: logging.Logger = logging.getLogger(__name__)
+        self._tr: Translator = translator or Translator()
         templates_path: Path = template_dir if template_dir is not None else _TEMPLATES_DIR
         self._env: Environment = Environment(
             loader=FileSystemLoader(str(templates_path)),
@@ -148,13 +169,23 @@ class HtmlDiffReporter:
     # Construcción del contexto de plantilla
     # ------------------------------------------------------------------
 
+    def _t(self, key: str, /, **params: object) -> str:
+        """Texto ``comparar.<key>`` en el idioma de salida (la plantilla lo escapa con autoescape)."""
+        return self._tr.t(f"comparar.{key}", **params)
+
     def _build_context(self, diff: SchemaDiff, summary: DiffSummary) -> dict[str, Any]:
-        """Construye el dict de contexto que se pasa a la plantilla Jinja2."""
+        """Construye el dict de contexto que se pasa a la plantilla Jinja2.
+
+        ``status_es`` y ``filter_cats`` conservan su nombre (plantillas propias) y llevan ya el idioma de salida.
+        """
         return {
             "diff": diff,
+            "diff_summary_text": localized_summary(diff, self._tr),
             "mermaid": self._mermaid,
             "summary": summary,
-            "status_es": STATUS_ES,
+            "status_es": status_labels(self._tr),
             "status_to_cat": self._STATUS_TO_CAT,
-            "filter_cats": self._FILTER_CATS,
+            "filter_cats": [(cat, self._t(self._FILTER_CAT_KEYS[cat])) for cat, _ in self._FILTER_CATS],
+            "t": self._t,
+            "lang": self._tr.locale,
         }

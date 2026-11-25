@@ -1,0 +1,79 @@
+{
+  "headers": {
+    "COLUMNAS": {
+      "base": [
+        "Field",
+        "Type",
+        "Null",
+        "Default",
+        "Generation",
+        "Comment"
+      ]
+    },
+    "FK": {
+      "base": [
+        "Constraint Name",
+        "Column",
+        "Referenced Table",
+        "Referenced Column",
+        "ON DELETE",
+        "ON UPDATE"
+      ]
+    },
+    "UNIQUE": {
+      "base": [
+        "Constraint Name",
+        "Field"
+      ]
+    },
+    "INDICES": {
+      "base": [
+        "Index Name",
+        "Column",
+        "Unique",
+        "Index Type"
+      ]
+    },
+    "PARAMETROS_RUTINA": {
+      "base": [
+        "Mode",
+        "Parameter",
+        "Type",
+        "Default value",
+        "Position"
+      ]
+    },
+    "RUTINAS": {
+      "base": [
+        "Name",
+        "Type",
+        "Comment",
+        "DDL",
+        "Parameters"
+      ]
+    },
+    "FLAT": {
+      "base": [
+        "Table",
+        "Table Comment",
+        "Field",
+        "Type",
+        "Null",
+        "Default",
+        "Generation",
+        "Is PK",
+        "Is FK",
+        "Indexes",
+        "Column Comment"
+      ]
+    },
+    "CONDICIONES_MOTOR": {
+      "base": [
+        "Level",
+        "Parameter",
+        "Current value",
+        "Recommendation"
+      ]
+    }
+  }
+}

@@ -18,6 +18,7 @@ from docx.oxml.ns import qn
 from docx.shared import Mm, Pt, RGBColor
 
 from util_bbdd._core.export_safety import safe_text
+from util_bbdd._core.i18n import Translator
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
     from util_bbdd.comparar.models import RoutineDiff, SchemaDiff, TableDiff, ViewDiff
 
 from util_bbdd._core.exceptions import SchemaDiffValidationError
-from util_bbdd.comparar.reporters._base import STATUS_ES, DdlNormalizer, build_diff_summary
+from util_bbdd.comparar.reporters._base import DdlNormalizer, build_diff_summary, localized_summary, status_labels
 
 
 class WordDiffReporter:
@@ -49,6 +50,7 @@ class WordDiffReporter:
         template_path: Ruta opcional a una plantilla Word (``.dotx`` o ``.docx``).
             Si se proporciona, el documento se crea a partir de esa plantilla.
             Si es ``None`` se usa un documento en blanco con formato A4.
+        translator: Idioma de los textos (títulos, cabeceras, estados); por defecto, español (5.10.0).
     """
 
     # Colores de TEXTO por estado — oscuros, WCAG AA sobre fondos de celda.
@@ -72,9 +74,15 @@ class WordDiffReporter:
     _HEADER_HEX: ClassVar[str] = "1E3A5F"
     _TABLE_STYLE: ClassVar[str] = "Table Grid"
 
-    def __init__(self, template_path: Path | None = None) -> None:
+    def __init__(self, template_path: Path | None = None, *, translator: Translator | None = None) -> None:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self._template_path: Path | None = template_path
+        self._tr: Translator = translator or Translator()
+        self._status: dict[str, str] = status_labels(self._tr)
+
+    def _t(self, key: str, /, **params: object) -> str:
+        """Texto ``comparar.<key>`` en el idioma de salida."""
+        return self._tr.t(f"comparar.{key}", **params)
 
     def render(self, diff: SchemaDiff, output: Path) -> Path:
         """Genera el fichero ``.docx`` en la ruta indicada.
@@ -228,50 +236,56 @@ class WordDiffReporter:
         title_para.paragraph_format.space_before = Pt(0)
         title_para.paragraph_format.space_after = Pt(6)
         title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        title_run = title_para.add_run("Reporte de diferencias de esquema")
+        title_run = title_para.add_run(self._t("title.report"))
         title_run.bold = True
         title_run.font.size = Pt(16)
 
         meta_table: Table = doc.add_table(rows=1, cols=2)
         meta_table.style = self._TABLE_STYLE
-        self._add_header_row(meta_table, ["Concepto", "Valor"])
+        self._add_header_row(meta_table, [self._t("label.concept"), self._t("label.value")])
 
         meta_rows: list[tuple[str, str]] = [
-            ("Origen", diff.source_label),
-            ("Destino", diff.target_label),
-            ("Tablas añadidas", str(summary.tables_added)),  # type: ignore[attr-defined]
-            ("Tablas eliminadas", str(summary.tables_removed)),  # type: ignore[attr-defined]
-            ("Tablas modificadas", str(summary.tables_modified)),  # type: ignore[attr-defined]
-            ("Vistas con diff", str(summary.total_views)),  # type: ignore[attr-defined]
-            ("Rutinas con diff", str(summary.total_routines)),  # type: ignore[attr-defined]
+            (self._t("label.source"), diff.source_label),
+            (self._t("label.target"), diff.target_label),
+            (self._t("meta.tables_added"), str(summary.tables_added)),  # type: ignore[attr-defined]
+            (self._t("meta.tables_removed"), str(summary.tables_removed)),  # type: ignore[attr-defined]
+            (self._t("meta.tables_modified"), str(summary.tables_modified)),  # type: ignore[attr-defined]
+            (self._t("meta.views_with_diff"), str(summary.total_views)),  # type: ignore[attr-defined]
+            (self._t("meta.routines_with_diff"), str(summary.total_routines)),  # type: ignore[attr-defined]
         ]
         if diff.summary:
-            meta_rows.append(("Resumen", diff.summary))
+            meta_rows.append((self._t("meta.summary"), localized_summary(diff, self._tr)))
 
         for key, val in meta_rows:
             self._add_data_row(meta_table, [key, val])
 
     def _add_columns_table(self, doc: DocumentType, column_diffs: tuple) -> None:
         """Renderiza tabla de diferencias de columnas."""
-        self._mini_heading(doc, f"Columnas ({len(column_diffs)})")
+        self._mini_heading(doc, f"{self._t('section.columns')} ({len(column_diffs)})")
         tbl: Table = doc.add_table(rows=1, cols=4)
         tbl.style = self._TABLE_STYLE
-        self._add_header_row(tbl, ["Columna", "Atributo", "Valor origen", "Valor destino"])
+        self._add_header_row(
+            tbl,
+            [self._t("col.column"), self._t("col.attribute"), self._t("col.source_value"), self._t("col.target_value")],
+        )
         for cd in column_diffs:
             self._add_data_row(tbl, [cd.column_name, cd.attribute, cd.source_value, cd.target_value])
 
     def _add_indices_table(self, doc: DocumentType, index_diffs: tuple) -> None:
         """Renderiza tabla de diferencias de índices."""
-        self._mini_heading(doc, f"Índices ({len(index_diffs)})")
+        self._mini_heading(doc, f"{self._t('section.indexes')} ({len(index_diffs)})")
         tbl: Table = doc.add_table(rows=1, cols=4)
         tbl.style = self._TABLE_STYLE
-        self._add_header_row(tbl, ["Índice", "Estado", "Cols origen", "Cols destino"])
+        self._add_header_row(
+            tbl,
+            [self._t("col.index"), self._t("col.status"), self._t("col.source_cols"), self._t("col.target_cols")],
+        )
         for idx in index_diffs:
             self._add_data_row(
                 tbl,
                 [
                     idx.index_name,
-                    STATUS_ES.get(idx.status, idx.status) or idx.status,
+                    self._status.get(idx.status, idx.status) or idx.status,
                     idx.source_columns,
                     idx.target_columns,
                 ],
@@ -280,16 +294,25 @@ class WordDiffReporter:
 
     def _add_fk_table(self, doc: DocumentType, fk_diffs: tuple) -> None:
         """Renderiza tabla de diferencias de Foreign Keys."""
-        self._mini_heading(doc, f"Foreign Keys ({len(fk_diffs)})")
+        self._mini_heading(doc, f"{self._t('section.foreign_keys')} ({len(fk_diffs)})")
         tbl: Table = doc.add_table(rows=1, cols=5)
         tbl.style = self._TABLE_STYLE
-        self._add_header_row(tbl, ["FK", "Estado", "Cols origen", "Tabla ref. origen", "Tabla ref. destino"])
+        self._add_header_row(
+            tbl,
+            [
+                self._t("col.fk"),
+                self._t("col.status"),
+                self._t("col.source_cols"),
+                self._t("col.source_ref_table"),
+                self._t("col.target_ref_table"),
+            ],
+        )
         for fk in fk_diffs:
             self._add_data_row(
                 tbl,
                 [
                     fk.fk_name,
-                    STATUS_ES.get(fk.status, fk.status) or fk.status,
+                    self._status.get(fk.status, fk.status) or fk.status,
                     fk.source_columns,
                     fk.source_referred_table,
                     fk.target_referred_table,
@@ -299,16 +322,24 @@ class WordDiffReporter:
 
     def _add_comments_table(self, doc: DocumentType, comment_diffs: tuple) -> None:
         """Renderiza tabla de diferencias de comentarios."""
-        self._mini_heading(doc, f"Comentarios ({len(comment_diffs)})")
+        self._mini_heading(doc, f"{self._t('section.comments')} ({len(comment_diffs)})")
         tbl: Table = doc.add_table(rows=1, cols=4)
         tbl.style = self._TABLE_STYLE
-        self._add_header_row(tbl, ["Objeto", "Columna", "Comentario origen", "Comentario destino"])
+        self._add_header_row(
+            tbl,
+            [
+                self._t("col.object"),
+                self._t("col.column"),
+                self._t("col.source_comment"),
+                self._t("col.target_comment"),
+            ],
+        )
         for cm in comment_diffs:
             self._add_data_row(
                 tbl,
                 [
                     cm.object_name,
-                    cm.column_name or "(tabla)",
+                    cm.column_name or f"({self._t('label.table_word')})",
                     cm.source_comment,
                     cm.target_comment,
                 ],
@@ -316,7 +347,7 @@ class WordDiffReporter:
 
     def _add_table_heading(self, doc: DocumentType, td: TableDiff) -> None:
         """Encabezado de tabla con nombre y estado coloreado."""
-        estado = STATUS_ES.get(td.status, td.status)
+        estado = self._status.get(td.status, td.status)
         sub = doc.add_paragraph()
         sub.paragraph_format.space_before = Pt(8)
         sub.paragraph_format.space_after = Pt(2)
@@ -341,9 +372,9 @@ class WordDiffReporter:
     def _add_tables_section(self, doc: DocumentType, table_diffs: tuple[TableDiff, ...]) -> None:
         """Emite tres secciones Heading 1: añadidas, eliminadas y modificadas."""
         groups: list[tuple[str, str]] = [
-            ("added", "Tablas añadidas"),
-            ("removed", "Tablas eliminadas"),
-            ("modified", "Tablas modificadas"),
+            ("added", self._t("meta.tables_added")),
+            ("removed", self._t("meta.tables_removed")),
+            ("modified", self._t("meta.tables_modified")),
         ]
         for status, label in groups:
             subset = [td for td in table_diffs if td.status == status]
@@ -354,33 +385,33 @@ class WordDiffReporter:
                 self._add_table_details(doc, td)
 
     def _add_views_section(self, doc: DocumentType, view_diffs: tuple[ViewDiff, ...]) -> None:
-        doc.add_heading("Vistas con diff", level=1)
+        doc.add_heading(self._t("meta.views_with_diff"), level=1)
         for vd in view_diffs:
-            estado = STATUS_ES.get(vd.status, vd.status)
+            estado = self._status.get(vd.status, vd.status)
             sub = doc.add_paragraph()
             sub.paragraph_format.space_before = Pt(6)
             sub.paragraph_format.space_after = Pt(2)
             sub.add_run(safe_text(f"{vd.view_name}  —  {estado}")).bold = True
 
             if vd.source_definition:
-                self._mini_heading(doc, "Definición origen")
+                self._mini_heading(doc, self._t("col.source_definition"))
                 self._code_block(doc, DdlNormalizer.normalize_view_ddl(vd.source_definition))
             if vd.target_definition:
-                self._mini_heading(doc, "Definición destino")
+                self._mini_heading(doc, self._t("col.target_definition"))
                 self._code_block(doc, DdlNormalizer.normalize_view_ddl(vd.target_definition))
 
     def _add_routines_section(self, doc: DocumentType, routine_diffs: tuple[RoutineDiff, ...]) -> None:
-        doc.add_heading("Rutinas con diff", level=1)
+        doc.add_heading(self._t("meta.routines_with_diff"), level=1)
         for rd in routine_diffs:
-            estado = STATUS_ES.get(rd.status, rd.status)
+            estado = self._status.get(rd.status, rd.status)
             sub = doc.add_paragraph()
             sub.paragraph_format.space_before = Pt(6)
             sub.paragraph_format.space_after = Pt(2)
             sub.add_run(safe_text(f"{rd.routine_name} ({rd.routine_type})  —  {estado}")).bold = True
 
             if rd.source_definition:
-                self._mini_heading(doc, "Definición origen")
+                self._mini_heading(doc, self._t("col.source_definition"))
                 self._code_block(doc, DdlNormalizer.normalize_routine_ddl(rd.source_definition))
             if rd.target_definition:
-                self._mini_heading(doc, "Definición destino")
+                self._mini_heading(doc, self._t("col.target_definition"))
                 self._code_block(doc, DdlNormalizer.normalize_routine_ddl(rd.target_definition))

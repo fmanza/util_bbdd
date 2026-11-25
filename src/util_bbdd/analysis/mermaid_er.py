@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar, Literal
 
+from .._core.i18n import Translator
 from .._core.mermaid import escape_mermaid_er_text, normalize_er_name, normalize_er_type
 from ..metadata.model import ColumnMeta, Kind, SchemaSnapshot
 from .base import (
@@ -88,6 +89,7 @@ class MermaidRelationshipGraph(DatabaseRelationshipGraphBase):
         schema: Schema que se dibuja; por defecto, el contexto de metadatos de ``db_manager``.
         attribute_order: ``name_type`` (por defecto desde 5.8.0: nombre y después tipo) o ``type_name`` (tipo y
             después nombre, la forma canónica de ``erDiagram`` y la salida hasta 5.7.0).
+        translator: Idioma de los avisos (``MermaidErResult.warnings``); por defecto, español (5.10.0).
 
     Raises:
         ValueError: ``column_mode`` o ``attribute_order`` no soportados.
@@ -116,8 +118,9 @@ class MermaidRelationshipGraph(DatabaseRelationshipGraphBase):
         max_chars: int = 50_000,
         schema: str | None = None,
         attribute_order: AttributeOrder = "name_type",
+        translator: Translator | None = None,
     ) -> None:
-        super().__init__(db_manager, schema=schema)
+        super().__init__(db_manager, schema=schema, translator=translator)
         self.show_columns: bool = bool(show_columns)
         try:
             self.column_mode = ColumnVisualizationMode(str(column_mode).strip().lower())
@@ -231,13 +234,13 @@ class MermaidRelationshipGraph(DatabaseRelationshipGraphBase):
         if len(tables) <= self.max_entities and with_columns:
             text = self._block(snapshot, tables, chunk, with_columns=False)
             if len(text) <= self.max_chars:
-                warnings.append(f"Diagrama sin columnas: con ellas superaba {self.max_chars} caracteres.")
+                warnings.append(self._t("mermaid.warning.no_columns", max_chars=self.max_chars))
                 blocks.append(text)
                 return
         if len(chunk) <= 1:
             blocks.append(text)  # una sola relación (dos entidades): no se puede partir más
             return
-        warnings.append(f"Diagrama partido: superaba {self.max_entities} entidades o {self.max_chars} caracteres.")
+        warnings.append(self._t("mermaid.warning.split", max_entities=self.max_entities, max_chars=self.max_chars))
         middle = len(chunk) // 2
         self._emit_guarded(snapshot, root, chunk[:middle], blocks, warnings)
         self._emit_guarded(snapshot, root, chunk[middle:], blocks, warnings)

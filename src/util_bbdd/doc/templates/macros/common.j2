@@ -1,4 +1,4 @@
-{% macro render_data_table(headers, rows, numeric_columns=None, empty_message='Sin datos.', table_class='') -%}
+{% macro render_data_table(headers, rows, numeric_columns=None, empty_message=t('doc_html.common.no_data'), table_class='') -%}
   {% if rows %}
     <table class="{{ table_class }}">
       <thead>
@@ -43,11 +43,11 @@
   {% endif %}
 {%- endmacro %}
 
-{% macro render_sidebar_section(title, count, items, item_class, collection_link='', empty_message='Sin datos.') -%}
+{% macro render_sidebar_section(title, count, items, item_class, collection_link='', empty_message=t('doc_html.common.no_data')) -%}
   <div class="section-header">
     <div class="section-title">{{ title }} ({{ count }})</div>
     {% if collection_link %}
-      <a class="collection-link" href="{{ collection_link }}" target="_blank" rel="noopener">Ver todo</a>
+      <a class="collection-link" href="{{ collection_link }}" target="_blank" rel="noopener">{{ t("doc_html.common.view_all") }}</a>
     {% endif %}
   </div>
   <div>
@@ -83,7 +83,7 @@
 
 {% macro render_collection_cell(header, value, is_detail_column) -%}
   {% if is_detail_column and value %}
-    <td data-export-value="{{ value }}"><a class="detail-link" href="../{{ value }}" target="_blank" rel="noopener">Abrir detalle</a></td>
+    <td data-export-value="{{ value }}"><a class="detail-link" href="../{{ value }}" target="_blank" rel="noopener">{{ t("doc_html.common.open_detail") }}</a></td>
   {% else %}
     {% set comment_key = header|header_key == 'comentario' %}
     <td class="{{ 'is-comment-column' if comment_key else '' }}">

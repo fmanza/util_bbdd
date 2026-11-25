@@ -7,7 +7,7 @@ import logging
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 # Word imports
 from docx import Document as load_document
@@ -25,9 +25,11 @@ from docx.text.run import Run
 
 from ...._core.exceptions import DatabaseException, DocumentationConfigError
 from ...._core.export_safety import safe_text
+from ...._core.i18n import Translator
 from ....analysis.graphviz_ext import GraphvizRelationshipGraphExt
 from ...application.ports import DocumentationManagerPort, HeadersConfig
 from ...application.use_cases.engine_conditions import EngineConditionsSectionBuilder
+from ..runtime.headers_runtime import DocumentationHeadersRuntime
 from .shared.diagram_legend import (
     build_diagram_legend_payload,
     build_diagram_legend_rows,
@@ -106,14 +108,22 @@ class DocumentChunkConfig:
 class WordGenerator:
     """Clase para generar documentación en formato Word"""
 
-    SECTION_PARAMETROS: str = "Parámetros"
-    SECTION_CHARSET_COLLATION: str = "Charset/Collation de Columnas"
+    #: Títulos de sección en español (compatibilidad); la salida usa los del idioma del ``translator``.
+    SECTION_PARAMETROS: ClassVar[str] = Translator().t("doc.section.parameters")
+    SECTION_CHARSET_COLLATION: ClassVar[str] = Translator().t("doc.section.columns_charset")
 
-    def __init__(self, database: str, headers: HeadersConfig, table_style: str = "Table Grid"):
+    def __init__(
+        self,
+        database: str,
+        headers: HeadersConfig,
+        table_style: str = "Table Grid",
+        translator: Translator | None = None,
+    ):
         self.logger: logging.Logger = logging.getLogger(__name__)
+        self._tr: Translator = translator or Translator()
         self.database: str = database
         self.headers: HeadersConfig = dict(headers)  # copia: la sesión comparte el suyo entre formatos (A-12)
-        self.headers.setdefault("UNIQUE", ["Nombre Restricción", "Campo"])
+        self.headers.setdefault("UNIQUE", DocumentationHeadersRuntime.default_headers(self._tr.locale, "UNIQUE"))
         self.table_style: str = table_style
         # (documento, estilo resuelto): el estilo de tabla se resuelve una vez por documento (P-02)
         self._table_style_cache: tuple[Document, str | None] | None = None
@@ -253,7 +263,7 @@ class WordGenerator:
         try:
             document: Document = self._initialize_document(config.template_path)
             self._configure_document_orientation(document, config.template_path)
-            document.add_heading(safe_text(f"Documentación de la Base de Datos - {self.database}"), 0)
+            document.add_heading(safe_text(self._tr.t("doc.title.document", database=self.database)), 0)
             if idx == 1:
                 if config.include_diagrams:
                     self._add_diagram_legend_section(document=document)
@@ -347,24 +357,29 @@ class WordGenerator:
             include_storage=include_storage,
             data_provider=data_provider,
             include_routines=True,
+            translator=self._tr,
         )
 
         self._add_table(
             document=document,
-            title="Resumen de inventario",
-            headers=["Sección", "Total"],
+            title=self._tr.t("doc.section.inventory_summary"),
+            headers=[self._tr.t("doc.col.section"), self._tr.t("doc.col.total")],
             data=[[label, str(count)] for label, count in summary_rows],
             right_align_indices=[1],
         )
 
     def _add_diagram_legend_section(self, *, document: Document) -> None:
         """Agrega una leyenda visual genérica para interpretar diagramas relacionales."""
-        legend_payload: dict[str, Any] = build_diagram_legend_payload()
+        legend_payload: dict[str, Any] = build_diagram_legend_payload(self._tr)
         self._add_table(
             document=document,
-            title=str(legend_payload.get("title", "Leyenda visual")),
-            headers=["Categoría", "Elemento", "Descripción"],
-            data=build_diagram_legend_rows(legend_payload),
+            title=str(legend_payload.get("title", "")),
+            headers=[
+                self._tr.t("doc.legend.col.category"),
+                self._tr.t("doc.legend.col.element"),
+                self._tr.t("doc.legend.col.description"),
+            ],
+            data=build_diagram_legend_rows(legend_payload, translator=self._tr),
         )
 
         for note in legend_payload.get("notes", []):
@@ -396,7 +411,7 @@ class WordGenerator:
                 graph_generator.prefetch(
                     self._diagram_render(graph_generator, diagram_options), [row[0] for row in table_chunk]
                 )
-            document.add_heading("Tablas", level=1)
+            document.add_heading(self._tr.t("doc.inventory.tables"), level=1)
             for row in table_chunk:
                 tabla, comentario, charset_collation = GeneratorTableRuntime.extract_table_row_data(row)
                 self._table_progress.before(tabla)
@@ -427,7 +442,7 @@ class WordGenerator:
     ) -> None:
         """Agrega el contenido de vistas al documento."""
         if include_views and views and idx == total_chunks:
-            document.add_heading("Vistas", level=1)
+            document.add_heading(self._tr.t("doc.inventory.views"), level=1)
             for vista, comentario in views:
                 self._add_view_section(
                     document,
@@ -506,11 +521,11 @@ class WordGenerator:
     ) -> None:
         """Agrega una sección completa para una tabla."""
         document.add_page_break()
-        document.add_heading(safe_text(f"Tabla: {tabla}"), level=1)
+        document.add_heading(safe_text(self._tr.t("doc.label.table", name=tabla)), level=1)
 
         # Comentario con etiqueta en negrita
         p = document.add_paragraph()
-        p.add_run("Comentario:").bold = True
+        p.add_run(self._tr.t("doc.label.comment")).bold = True
         p.add_run(safe_text(f" {comentario if comentario else ''}"))
 
         # Charset & Collation con etiqueta en negrita
@@ -546,7 +561,7 @@ class WordGenerator:
 
     def _build_graph_generator(self, data_provider: Any, options: dict[str, Any]) -> GraphvizRelationshipGraphExt:
         """Crea el generador de grafos cuando el orquestador no ha pasado uno."""
-        return build_graph_generator_from_options(data_provider.db_manager, options)
+        return build_graph_generator_from_options(data_provider.db_manager, options, self._tr)
 
     @staticmethod
     def _diagram_render(
@@ -593,15 +608,17 @@ class WordGenerator:
             rendered: object = self._diagram_render(graph_generator, diagram_options)(tabla)
         except (OSError, RuntimeError) as e:
             document.add_page_break()
-            document.add_heading(safe_text(f"Diagrama de relaciones: {tabla}"), level=2)
-            document.add_paragraph(safe_text(f"⚠️ No se pudo generar el diagrama: {e}"))
+            document.add_heading(safe_text(self._tr.t("doc.diagram.title", table=tabla)), level=2)
+            document.add_paragraph(safe_text(f"⚠️ {self._tr.t('doc.diagram.render_error', error=e)}"))
             return
 
         pages: list[bytes] = list(rendered) if isinstance(rendered, list) else [cast(bytes, rendered)]
         paginated: bool = isinstance(rendered, list)
         for page_idx, image_bytes in enumerate(pages, start=1):
             document.add_page_break()
-            title = f"Diagrama de relaciones: {tabla}" + (f" (Página {page_idx})" if paginated else "")
+            title = self._tr.t("doc.diagram.title", table=tabla) + (
+                f" ({self._tr.t('doc.diagram.page', page=page_idx)})" if paginated else ""
+            )
             title_paragraph: Paragraph = document.add_heading(safe_text(title), level=2)
             self._add_picture_from_bytes(document=document, image_bytes=image_bytes, title_paragraph=title_paragraph)
             self._add_diagram_summary_paragraph(document=document, summary_payload=diagram_summary)
@@ -656,6 +673,7 @@ class WordGenerator:
             visible_incoming_levels=visible_incoming_levels,
             hidden_outgoing_levels=int(graph_document.hidden_levels.outgoing_hidden_levels),
             hidden_incoming_levels=int(graph_document.hidden_levels.incoming_hidden_levels),
+            translator=self._tr,
         )
         payload["root_table"] = tabla
         return payload
@@ -670,8 +688,8 @@ class WordGenerator:
             return
 
         paragraph: Paragraph = document.add_paragraph()
-        paragraph.add_run("Resumen de niveles: ").bold = True
-        paragraph.add_run(safe_text(build_diagram_summary_line(summary_payload)))
+        paragraph.add_run(f"{self._tr.t('doc.diagram.summary.title')}: ").bold = True
+        paragraph.add_run(safe_text(build_diagram_summary_line(summary_payload, self._tr)))
 
         if bool(summary_payload.get("has_any_hidden_levels")):
             if bool(summary_payload.get("has_hidden_outgoing_levels")):
@@ -806,21 +824,21 @@ class WordGenerator:
     ) -> None:
         """Agrega una sección para una vista (solo DDL y Columnas)"""
         document.add_page_break()
-        document.add_heading(safe_text(f"Vista: {vista}"), level=2)
-        document.add_paragraph(safe_text(f"Comentario: {comentario if comentario else ''}"))
+        document.add_heading(safe_text(self._tr.t("doc.label.view", name=vista)), level=2)
+        document.add_paragraph(safe_text(f"{self._tr.t('doc.label.comment')} {comentario if comentario else ''}"))
 
         # Secciones para vistas: [DDL, Columnas]
         if len(section_flags) > 0 and section_flags[0]:
             try:
                 self._add_ddl_section(document, vista, data_provider, is_view=True)
             except DatabaseException:
-                document.add_paragraph("⚠️ No se pudo obtener el DDL de la vista")
+                document.add_paragraph(f"⚠️ {self._tr.t('doc.error.view_ddl')}")
 
         if len(section_flags) > 1 and section_flags[1]:
             try:
                 self._add_columns_section(document, vista, data_provider, include_columns_charset)
             except DatabaseException:
-                document.add_paragraph("⚠️ No se pudieron obtener las columnas de la vista")
+                document.add_paragraph(f"⚠️ {self._tr.t('doc.error.view_columns')}")
 
     def _add_routines_sections(
         self,
@@ -838,7 +856,7 @@ class WordGenerator:
             self._add_routine_type_section(
                 document=document,
                 routines=procedures,
-                routine_type="Procedures",
+                routine_type=self._tr.t("doc.inventory.procedures"),
                 data_provider=data_provider,
                 include_ddl=include_ddl,
             )
@@ -847,7 +865,7 @@ class WordGenerator:
             self._add_routine_type_section(
                 document=document,
                 routines=functions,
-                routine_type="Funciones",
+                routine_type=self._tr.t("doc.inventory.functions"),
                 data_provider=data_provider,
                 include_ddl=include_ddl,
             )
@@ -913,8 +931,8 @@ class WordGenerator:
         """Agrega una sección para una rutina (procedure/función)."""
         document.add_page_break()
         document.add_heading(safe_text(f"{routine_type.title()}: {routine_name}"), level=2)
-        document.add_paragraph(safe_text(f"Tipo: {routine_type.title()}"))
-        document.add_paragraph(safe_text(f"Comentario: {comentario if comentario else ''}"))
+        document.add_paragraph(safe_text(self._tr.t("doc.label.type", type=routine_type.title())))
+        document.add_paragraph(safe_text(f"{self._tr.t('doc.label.comment')} {comentario if comentario else ''}"))
 
         if include_ddl:
             try:
@@ -928,7 +946,7 @@ class WordGenerator:
                 paragraph.style = "No Spacing"
                 document.add_paragraph("")
             except DatabaseException:
-                document.add_paragraph("⚠️ No se pudo obtener el DDL de la rutina")
+                document.add_paragraph(f"⚠️ {self._tr.t('doc.error.routine_ddl')}")
 
         self._add_routine_parameters_section(
             document=document,
@@ -950,18 +968,20 @@ class WordGenerator:
         except DatabaseException:
             self._add_empty_section(
                 document,
-                self.SECTION_PARAMETROS,
-                "No se pudieron obtener los parámetros de la rutina.",
+                self._tr.t("doc.section.parameters"),
+                f"{self._tr.t('doc.error.routine_parameters')}.",
             )
             return
 
         if not parameters:
-            self._add_empty_section(document, self.SECTION_PARAMETROS, "No se encontraron parámetros.")
+            self._add_empty_section(document, self._tr.t("doc.section.parameters"), self._tr.t("doc.empty.parameters"))
             return
 
-        headers = self.headers.get("PARAMETROS_RUTINA", ["Modo", "Parámetro", "Tipo", "Valor por defecto", "Posición"])
+        headers = self.headers.get("PARAMETROS_RUTINA") or DocumentationHeadersRuntime.default_headers(
+            self._tr.locale, "PARAMETROS_RUTINA"
+        )
         rows = GeneratorRoutineRuntime.parameter_rows(parameters)
-        self._add_table(document, self.SECTION_PARAMETROS, headers, rows)
+        self._add_table(document, self._tr.t("doc.section.parameters"), headers, rows)
 
     def _add_ddl_section(
         self, document: Document, tabla: str, data_provider: DocumentationManagerPort, is_view: bool = False
@@ -987,42 +1007,36 @@ class WordGenerator:
     ) -> None:
         """Agrega la sección de columnas"""
         columnas = data_provider.get_columns(tabla)
+        section_columns: str = self._tr.t("doc.section.columns")
+        section_charset: str = self._tr.t("doc.section.columns_charset")
         if not columnas:
-            self._add_empty_section(document, "Columnas", "No se encontraron columnas.")
+            self._add_empty_section(document, section_columns, self._tr.t("doc.empty.columns"))
             if include_columns_charset:
-                self._add_empty_section(
-                    document,
-                    self.SECTION_CHARSET_COLLATION,
-                    "No hay información de charset/collation disponible.",
-                )
+                self._add_empty_section(document, section_charset, f"{self._tr.t('doc.empty.charset')}.")
             return
 
         headers = self.headers["COLUMNAS"]
 
         columnas_procesadas = GeneratorTabularRuntime.process_columns_data(columnas)
 
-        self._add_table(document, "Columnas", headers, columnas_procesadas)
+        self._add_table(document, section_columns, headers, columnas_procesadas)
 
         # Agregar sección de charset/collation si está habilitado
         if include_columns_charset:
             try:
                 charset_info = data_provider.get_columns_charset_collation(tabla)
                 if charset_info:
-                    charset_headers = ["Columna", "Charset", "Collation"]
+                    charset_headers = [self._tr.t("doc.col.column"), "Charset", "Collation"]
                     charset_rows = [[row[0], row[1] or "", row[2] or ""] for row in charset_info]
-                    self._add_table(document, self.SECTION_CHARSET_COLLATION, charset_headers, charset_rows)
+                    self._add_table(document, section_charset, charset_headers, charset_rows)
                 else:
-                    self._add_empty_section(
-                        document,
-                        self.SECTION_CHARSET_COLLATION,
-                        "No hay información de charset/collation disponible.",
-                    )
+                    self._add_empty_section(document, section_charset, f"{self._tr.t('doc.empty.charset')}.")
             except DatabaseException as e:
                 self.logger.debug(f"⚠️  No se pudo obtener charset/collation de columnas para {tabla}: {e}")
                 self._add_empty_section(
                     document,
-                    self.SECTION_CHARSET_COLLATION,
-                    f"Error obteniendo información: {str(e)}",
+                    section_charset,
+                    self._tr.t("doc.error.charset", error=str(e)),
                 )
 
     def _add_primary_keys_section(
@@ -1030,20 +1044,22 @@ class WordGenerator:
     ) -> None:
         """Agrega la sección de claves primarias"""
         claves = data_provider.get_primary_keys(tabla)
+        title: str = self._tr.t("doc.section.primary_keys")
         if claves:
-            self._add_table(document, "Claves Primarias", ["Campo"], claves)
+            self._add_table(document, title, [self._tr.t("doc.col.field")], claves)
         else:
-            self._add_empty_section(document, "Claves Primarias", "No se encontraron claves primarias.")
+            self._add_empty_section(document, title, self._tr.t("doc.empty.primary_keys"))
 
     def _add_foreign_keys_section(
         self, document: Document, tabla: str, data_provider: DocumentationManagerPort
     ) -> None:
         """Agrega la sección de claves foráneas"""
         claves = data_provider.get_foreign_keys(tabla)
+        title: str = self._tr.t("doc.section.foreign_keys")
         if claves:
-            self._add_table(document, "Relaciones (Claves Foráneas)", self.headers["FK"], claves)
+            self._add_table(document, title, self.headers["FK"], claves)
         else:
-            self._add_empty_section(document, "Relaciones (Claves Foráneas)", "No se encontraron claves foráneas.")
+            self._add_empty_section(document, title, self._tr.t("doc.empty.foreign_keys"))
 
     def _add_unique_constraints_section(
         self, document: Document, tabla: str, data_provider: DocumentationManagerPort
@@ -1051,19 +1067,21 @@ class WordGenerator:
         """Agrega la sección de restricciones únicas"""
         unique_constraints = data_provider.get_unique_constraints(tabla)
         claves = GeneratorTabularRuntime.process_unique_constraints_data(unique_constraints)
+        title: str = self._tr.t("doc.section.unique")
         if claves:
-            self._add_table(document, "Restricciones Únicas", self.headers["UNIQUE"], claves)
+            self._add_table(document, title, self.headers["UNIQUE"], claves)
         else:
-            self._add_empty_section(document, "Restricciones Únicas", "No se encontraron claves únicas.")
+            self._add_empty_section(document, title, self._tr.t("doc.empty.unique"))
 
     def _add_indices_section(self, document: Document, tabla: str, data_provider: DocumentationManagerPort) -> None:
         """Agrega la sección de índices"""
         indices = data_provider.get_indices(tabla)
+        title: str = self._tr.t("doc.section.indexes")
         if indices:
             datos_procesados = GeneratorTabularRuntime.process_indices_data(indices)
-            self._add_table(document, "Índices", self.headers["INDICES"], datos_procesados)
+            self._add_table(document, title, self.headers["INDICES"], datos_procesados)
         else:
-            self._add_empty_section(document, "Índices", "No se encontraron índices.")
+            self._add_empty_section(document, title, self._tr.t("doc.empty.indexes"))
 
     def _add_empty_section(self, document: Document, title: str, message: str) -> None:
         """Agrega título de sección y mensaje cuando no hay resultados."""
@@ -1086,7 +1104,7 @@ class WordGenerator:
         """
         self.logger.info(f"📚 Agregando sección de información de BD con flags: {database_info_flags}")
         document.add_page_break()
-        document.add_heading("Información de la Base de Datos", level=1)
+        document.add_heading(self._tr.t("doc.section.database_info"), level=1)
 
         try:
             info_data: list[list[str]] = GeneratorDatabaseInfoRuntime.collect_database_info_rows(
@@ -1094,14 +1112,15 @@ class WordGenerator:
                 database_info_flags=database_info_flags,
                 logger=self.logger,
                 include_error_rows=True,
+                translator=self._tr,
             )
             self.__render_database_info_to_document(document, info_data)
         except DatabaseException as error:
             self.logger.exception(f"❌ Error agregando sección de información de BD: {error}")
             self._add_empty_section(
                 document=document,
-                title="Información de Base de Datos",
-                message=f"Error al obtener información: {error}",
+                title=self._tr.t("doc.section.database_info_error"),
+                message=self._tr.t("doc.error.info", error=error),
             )
 
     def __render_database_info_to_document(self, document: Document, info_data: list[list[str]]) -> None:
@@ -1114,43 +1133,43 @@ class WordGenerator:
         if info_data:
             self._add_table(
                 document=document,
-                title="Propiedades",
-                headers=["Propiedad", "Valor"],
+                title=self._tr.t("doc.section.properties"),
+                headers=[self._tr.t("doc.col.property"), self._tr.t("doc.col.value")],
                 data=info_data,
             )
         else:
             self._add_empty_section(
                 document=document,
-                title="Información",
-                message="No se configuró información de base de datos para mostrar",
+                title=self._tr.t("doc.section.info"),
+                message=self._tr.t("doc.empty.database_info"),
             )
 
     def _add_engine_conditions_section(self, document: Document, data_provider: DocumentationManagerPort) -> None:
         """Agrega al final la sección «Condiciones del motor» (``EngineReadinessAdvisor``)."""
         section = EngineConditionsSectionBuilder.of(data_provider)
         document.add_page_break()
-        document.add_heading("Condiciones del motor", level=1)
+        document.add_heading(self._tr.t("audit.readiness.title"), level=1)
         for notice in section.notices:
             document.add_paragraph(safe_text(notice))
         if section.metadata:
             self._add_table(
                 document=document,
-                title="Verificación",
-                headers=["Propiedad", "Valor"],
+                title=self._tr.t("doc.engine_conditions.section.check"),
+                headers=[self._tr.t("doc.col.property"), self._tr.t("doc.col.value")],
                 data=[list(item) for item in section.metadata],
             )
         if section.summary:
             self._add_table(
                 document=document,
-                title="Resumen por severidad",
-                headers=["Nivel", "Hallazgos"],
+                title=self._tr.t("doc.engine_conditions.section.summary"),
+                headers=[self._tr.t("audit.readiness.header.level"), self._tr.t("audit.readiness.header.findings")],
                 data=[[level, str(count)] for level, count in section.summary],
                 right_align_indices=[1],
             )
         if section.rows:
             self._add_table(
                 document=document,
-                title="Hallazgos",
+                title=self._tr.t("audit.readiness.header.findings"),
                 headers=list(section.headers),
                 data=[list(row) for row in section.rows],
             )
@@ -1158,15 +1177,15 @@ class WordGenerator:
     def _add_storage_inventory_section(self, document: Document, data_provider: DocumentationManagerPort) -> None:
         """Agrega al final un resumen de almacenamiento físico/tablespaces."""
         document.add_page_break()
-        document.add_heading("Almacenamiento", level=1)
+        document.add_heading(self._tr.t("doc.inventory.storage"), level=1)
 
         try:
             report: dict[str, Any] = data_provider.get_storage_inventory_report()
         except DatabaseException as error:
             self._add_empty_section(
                 document=document,
-                title="Inventario de almacenamiento",
-                message=f"No se pudo obtener la información de almacenamiento: {error}",
+                title=self._tr.t("doc.storage.inventory_title"),
+                message=self._tr.t("doc.storage.error.report", error=error),
             )
             return
 
@@ -1185,19 +1204,24 @@ class WordGenerator:
         if summary_rows:
             self._add_table(
                 document=document,
-                title="Resumen",
-                headers=["Consulta", "Estado", "Filas", "Mensaje"],
+                title=self._tr.t("doc.storage.summary"),
+                headers=[
+                    self._tr.t("doc.storage.col.query"),
+                    self._tr.t("doc.storage.col.status"),
+                    self._tr.t("doc.storage.col.rows"),
+                    self._tr.t("doc.storage.col.message"),
+                ],
                 data=summary_rows,
                 right_align_indices=[2],
             )
 
         for section in sections:
-            title: str = str(section.get("title", "Consulta"))
+            title: str = str(section.get("title", self._tr.t("doc.storage.col.query")))
             headers: list[str] = [str(h) for h in section.get("headers", [])]
             rows: list[list[Any]] = section.get("rows", [])
             if not headers and rows:
                 max_cols: int = max(len(row) for row in rows)
-                headers = [f"Columna {idx}" for idx in range(1, max_cols + 1)]
+                headers = [self._tr.t("doc.storage.col.generic", index=idx) for idx in range(1, max_cols + 1)]
 
             if rows:
                 numeric_columns: list[int] = [int(idx) for idx in section.get("numeric_columns", [])]
@@ -1212,7 +1236,7 @@ class WordGenerator:
                 self._add_empty_section(
                     document=document,
                     title=title,
-                    message=str(section.get("message", "Sin datos")),
+                    message=str(section.get("message", self._tr.t("doc.storage.message.no_data"))),
                 )
 
     def _add_table(

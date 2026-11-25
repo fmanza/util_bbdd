@@ -7,6 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ....._core.exceptions import DatabaseException
+from ....._core.i18n import Translator
 from .....metadata.catalog_registry import get_catalog_dialect
 from .....metadata.model import Kind
 
@@ -133,19 +134,21 @@ class GeneratorInventoryRuntime:
         functions_count: int,
         storage_count: int,
         include_routines: bool = True,
+        translator: Translator | None = None,
     ) -> list[tuple[str, int]]:
-        """Construye filas de resumen en orden estable para renderers documentales."""
+        """Construye filas de resumen en orden estable para renderers documentales (etiquetas en el idioma)."""
+        tr = translator or Translator()
         rows: list[tuple[str, int]] = [
-            ("Tablas", int(tables_count)),
-            ("Vistas", int(views_count)),
+            (tr.t("doc.inventory.tables"), int(tables_count)),
+            (tr.t("doc.inventory.views"), int(views_count)),
         ]
         if include_routines:
-            rows.append(("Rutinas", int(routines_count)))
+            rows.append((tr.t("doc.inventory.routines"), int(routines_count)))
         rows.extend(
             [
-                ("Procedures", int(procedures_count)),
-                ("Funciones", int(functions_count)),
-                ("Almacenamiento", int(storage_count)),
+                (tr.t("doc.inventory.procedures"), int(procedures_count)),
+                (tr.t("doc.inventory.functions"), int(functions_count)),
+                (tr.t("doc.inventory.storage"), int(storage_count)),
             ]
         )
         return rows
@@ -159,6 +162,7 @@ class GeneratorInventoryRuntime:
         include_storage: bool,
         data_provider: DocumentationManagerPort,
         include_routines: bool = True,
+        translator: Translator | None = None,
     ) -> list[tuple[str, int]]:
         """Construye filas de resumen desde colecciones de entidades ya filtradas."""
         procedures, functions = GeneratorRoutineRuntime.split_by_type(routines)
@@ -171,6 +175,7 @@ class GeneratorInventoryRuntime:
             functions_count=len(functions),
             storage_count=storage_count,
             include_routines=include_routines,
+            translator=translator,
         )
 
 
@@ -234,8 +239,12 @@ class GeneratorTabularRuntime:
         foreign_keys_by_column: dict[str, str],
         indices_by_column: dict[str, list[str]],
         detail_path: str | None,
+        translator: Translator | None = None,
     ) -> list[list[str]]:
-        """Construye filas enriquecidas con PK/FK/índices y detalle opcional."""
+        """Construye filas enriquecidas con PK/FK/índices y detalle opcional (``Sí``/``No`` en el idioma)."""
+        tr = translator or Translator()
+        yes: str = tr.t("doc.common.yes")
+        no: str = tr.t("doc.common.no")
         rows: list[list[str]] = []
         for column in columns:
             column_name: str = GeneratorTabularRuntime._to_text(column[0]) if len(column) > 0 else ""
@@ -243,8 +252,8 @@ class GeneratorTabularRuntime:
             base_without_comment: list[str] = base_data[:-1]
             column_comment: str = base_data[-1] if base_data else ""
             enriched_attributes: list[str] = [
-                "Sí" if column_name in primary_keys else "No",
-                foreign_keys_by_column.get(column_name, "No"),
+                yes if column_name in primary_keys else no,
+                foreign_keys_by_column.get(column_name, no),
                 ", ".join(indices_by_column.get(column_name, [])),
             ]
             row: list[str] = [table_name, table_comment] + base_without_comment + enriched_attributes + [column_comment]
@@ -262,6 +271,7 @@ class GeneratorTabularRuntime:
         data_provider: DocumentationManagerPort,
         detail_path: str | None,
         fk_arrow: str,
+        translator: Translator | None = None,
     ) -> list[list[str]]:
         """Construye filas enriquecidas de una tabla usando metadata del proveedor."""
         db_type: str = str(getattr(data_provider, "db_type", "") or "").lower()
@@ -286,6 +296,7 @@ class GeneratorTabularRuntime:
             foreign_keys_by_column=foreign_keys_by_column,
             indices_by_column=indices_by_column,
             detail_path=detail_path,
+            translator=translator,
         )
 
 
@@ -300,8 +311,9 @@ class GeneratorDatabaseInfoRuntime:
         logger: logging.Logger,
         include_error_rows: bool,
         debug_context: str = "",
+        translator: Translator | None = None,
     ) -> list[list[str]]:
-        """Recolecta filas [propiedad, valor] para version y charset/collation."""
+        """Recolecta filas [propiedad, valor] para version y charset/collation (etiquetas en el idioma)."""
         include_version: bool = bool(database_info_flags[0]) if len(database_info_flags) > 0 else False
         include_charset: bool = bool(database_info_flags[1]) if len(database_info_flags) > 1 else False
 
@@ -314,6 +326,7 @@ class GeneratorDatabaseInfoRuntime:
                 logger=logger,
                 include_error_rows=include_error_rows,
                 debug_context=debug_context,
+                version_label=(translator or Translator()).t("doc.db_info.version"),
             )
         if include_charset:
             GeneratorDatabaseInfoRuntime._append_charset_info(
@@ -333,19 +346,21 @@ class GeneratorDatabaseInfoRuntime:
         logger: logging.Logger,
         include_error_rows: bool,
         debug_context: str,
+        version_label: str | None = None,
     ) -> None:
+        version_label = version_label or Translator().t("doc.db_info.version")
         context_suffix = f" {debug_context}" if debug_context else ""
         try:
             version = data_provider.get_database_version()
             if version and str(version).strip() != "Unknown":
-                info_data.append(["Versión", str(version)])
+                info_data.append([version_label, str(version)])
                 logger.debug(f"Version de BD obtenida{context_suffix}: {version}")
             else:
                 logger.debug("No hay informacion de version disponible")
         except DatabaseException as error:
             logger.warning(f"Error obteniendo version: {error}")
             if include_error_rows:
-                info_data.append(["Versión", f"Error: {error}"])
+                info_data.append([version_label, f"Error: {error}"])
 
     @staticmethod
     def _append_charset_info(
@@ -391,7 +406,9 @@ class GeneratorDatabaseInfoRuntime:
         return [query.sql] if query is not None else []
 
 
-def build_graph_generator_from_options(source: Any, options: dict[str, Any]) -> GraphvizRelationshipGraphExt:
+def build_graph_generator_from_options(
+    source: Any, options: dict[str, Any], translator: Translator | None = None
+) -> GraphvizRelationshipGraphExt:
     """Crea el ``GraphvizRelationshipGraphExt`` de la documentación a partir del bloque ``grafo`` de ``imprimir``.
 
     Único punto de construcción (lo usan el orquestador y, si no reciben uno, Word y HTML), para que todos los
@@ -400,6 +417,7 @@ def build_graph_generator_from_options(source: Any, options: dict[str, Any]) -> 
     Args:
         source: Fuente de metadatos (``RelationshipGraphSource``), p. ej. el manager adaptado de la sesión.
         options: Sub-diccionario ``grafo`` de ``print_config`` normalizado.
+        translator: Idioma de los textos de los diagramas (5.10.0); por defecto, español.
 
     Examples:
         >>> gen = build_graph_generator_from_options(session.db_manager, {"max_depth": 2, "workers": 4})
@@ -421,4 +439,5 @@ def build_graph_generator_from_options(source: Any, options: dict[str, Any]) -> 
         render_dpi=int(options.get("dpi", 150)),
         render_workers=None if workers is None else int(workers),
         orthogonal_edges=bool(options.get("orthogonal_edges", True)),
+        translator=translator,
     )

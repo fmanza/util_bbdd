@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="{{ lang | default('es') }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -213,7 +213,7 @@
     }
     /* Spinner while Mermaid renders */
     .diagram-page .mermaid:not(:has(svg))::after {
-      content: "Cargando diagrama…";
+      content: "{{ t('html.loading_diagram') }}";
       display: block;
       color: #9ca3af;
       font-size: 0.82rem;
@@ -230,7 +230,7 @@
     }
     .no-mermaid .diagram-page .mermaid:not(:has(svg))::after { content: none; }
     .no-mermaid .diagram-page .mermaid::before {
-      content: "Mermaid no disponible: diagrama en texto";
+      content: "{{ t('html.mermaid_unavailable') }}";
       display: block;
       color: #9ca3af;
       font-family: inherit;
@@ -296,11 +296,11 @@
 <body>
 
 <header>
-  <h1>Reporte de diferencias de esquema</h1>
-  <p><strong>Origen:</strong> {{ diff.source_label | e }}
+  <h1>{{ t('title.report') }}</h1>
+  <p><strong>{{ t('label.source') }}:</strong> {{ diff.source_label | e }}
      &nbsp;→&nbsp;
-     <strong>Destino:</strong> {{ diff.target_label | e }}</p>
-  {% if diff.summary %}<p>{{ diff.summary | e }}</p>{% endif %}
+     <strong>{{ t('label.target') }}:</strong> {{ diff.target_label | e }}</p>
+  {% if diff.summary %}<p>{{ diff_summary_text | e }}</p>{% endif %}
 </header>
 
 <main>
@@ -315,7 +315,7 @@
 
 {% if cats_with_data %}
 <div class="controls-bar">
-  <span class="label">Filtrar:</span>
+  <span class="label">{{ t('html.filter') }}</span>
   {% for cat, label in filter_cats %}
     {% if cat in cats_with_data %}
   <button class="filter-btn" data-filter="{{ cat }}">{{ label | e }}</button>
@@ -323,7 +323,7 @@
   {% endfor %}
   <div class="search-sep"></div>
   <input class="search-input" type="search" id="search-input"
-         placeholder="Buscar elemento…" aria-label="Buscar en el reporte">
+         placeholder="{{ t('html.search_placeholder') }}" aria-label="{{ t('html.search_aria') }}">
 </div>
 {% endif %}
 
@@ -331,30 +331,30 @@
 <section>
   <div class="summary">
     <div class="card added">
-      <div class="label">Tablas añadidas</div>
+      <div class="label">{{ t('meta.tables_added') }}</div>
       <div class="value">{{ summary.tables_added }}</div>
     </div>
     <div class="card removed">
-      <div class="label">Tablas eliminadas</div>
+      <div class="label">{{ t('meta.tables_removed') }}</div>
       <div class="value">{{ summary.tables_removed }}</div>
     </div>
     <div class="card modified">
-      <div class="label">Tablas modificadas</div>
+      <div class="label">{{ t('meta.tables_modified') }}</div>
       <div class="value">{{ summary.tables_modified }}</div>
     </div>
     <div class="card modified">
-      <div class="label">Vistas con diff</div>
+      <div class="label">{{ t('meta.views_with_diff') }}</div>
       <div class="value">{{ summary.total_views }}</div>
     </div>
     <div class="card modified">
-      <div class="label">Rutinas con diff</div>
+      <div class="label">{{ t('meta.routines_with_diff') }}</div>
       <div class="value">{{ summary.total_routines }}</div>
     </div>
   </div>
 </section>
 
 {% if not summary.has_differences %}
-<p class="no-diff">✅ Sin diferencias detectadas entre los esquemas.</p>
+<p class="no-diff">✅ {{ t('meta.no_differences') }}</p>
 {% endif %}
 
 {# ── Diagrama de diferencias (tablas) — tabs + paginación ─────────────── #}
@@ -369,26 +369,26 @@
 {% set removed_pages  = removed_tables  | batch(9) | list %}
 
 <div class="mermaid-container" id="diagram-section">
-  <h2>Diagrama de diferencias (tablas)</h2>
+  <h2>{{ t('diagram.title_tables') }}</h2>
 
   {# ── Barra de tabs ──────────────────────────────────────────────────── #}
-  <div class="diagram-tabs" role="tablist" aria-label="Categorías de cambio">
+  <div class="diagram-tabs" role="tablist" aria-label="{{ t('html.tabs_aria') }}">
     {% if added_tables %}
     <button class="diagram-tab" data-tab="added" role="tab" aria-controls="diagram-tab-added">
-      ✅ Añadidas
-      <span class="tab-count" aria-label="{{ added_tables | length }} tablas">{{ added_tables | length }}</span>
+      ✅ {{ t('diagram.added') }}
+      <span class="tab-count" aria-label="{{ t('html.tab_count_aria', count=added_tables | length) }}">{{ added_tables | length }}</span>
     </button>
     {% endif %}
     {% if modified_tables %}
     <button class="diagram-tab" data-tab="modified" role="tab" aria-controls="diagram-tab-modified">
-      ⚠️ Modificadas
-      <span class="tab-count" aria-label="{{ modified_tables | length }} tablas">{{ modified_tables | length }}</span>
+      ⚠️ {{ t('diagram.modified') }}
+      <span class="tab-count" aria-label="{{ t('html.tab_count_aria', count=modified_tables | length) }}">{{ modified_tables | length }}</span>
     </button>
     {% endif %}
     {% if removed_tables %}
     <button class="diagram-tab" data-tab="removed" role="tab" aria-controls="diagram-tab-removed">
-      ❌ Eliminadas
-      <span class="tab-count" aria-label="{{ removed_tables | length }} tablas">{{ removed_tables | length }}</span>
+      ❌ {{ t('diagram.removed') }}
+      <span class="tab-count" aria-label="{{ t('html.tab_count_aria', count=removed_tables | length) }}">{{ removed_tables | length }}</span>
     </button>
     {% endif %}
   </div>
@@ -421,18 +421,18 @@ graph LR
     {% if added_pages | length > 1 %}
     <div class="diagram-pagination" data-pagination="added">
       <button class="pagination-btn" id="btn-added-prev" data-dir="prev" data-tab="added"
-              aria-label="Página anterior">← Anterior</button>
+              aria-label="{{ t('html.prev_aria') }}">{{ t('html.prev') }}</button>
       <div class="page-dots" id="dots-added" aria-hidden="true">
         {% for _ in added_pages %}
         <button class="page-dot" data-tab="added" data-page="{{ loop.index }}"
-                title="Página {{ loop.index }}" aria-label="Ir a página {{ loop.index }}"></button>
+                title="{{ t('html.page_title', page=loop.index) }}" aria-label="{{ t('html.goto_page', page=loop.index) }}"></button>
         {% endfor %}
       </div>
       <span class="pagination-info" aria-live="polite">
-        Página <span id="label-added-current">1</span> de {{ added_pages | length }}
+        {{ t('html.page') }} <span id="label-added-current">1</span> {{ t('html.of') }} {{ added_pages | length }}
       </span>
       <button class="pagination-btn" id="btn-added-next" data-dir="next" data-tab="added"
-              aria-label="Página siguiente">Siguiente →</button>
+              aria-label="{{ t('html.next_aria') }}">{{ t('html.next') }}</button>
     </div>
     {% endif %}
   </div>
@@ -466,18 +466,18 @@ graph LR
     {% if modified_pages | length > 1 %}
     <div class="diagram-pagination" data-pagination="modified">
       <button class="pagination-btn" id="btn-modified-prev" data-dir="prev" data-tab="modified"
-              aria-label="Página anterior">← Anterior</button>
+              aria-label="{{ t('html.prev_aria') }}">{{ t('html.prev') }}</button>
       <div class="page-dots" id="dots-modified" aria-hidden="true">
         {% for _ in modified_pages %}
         <button class="page-dot" data-tab="modified" data-page="{{ loop.index }}"
-                title="Página {{ loop.index }}" aria-label="Ir a página {{ loop.index }}"></button>
+                title="{{ t('html.page_title', page=loop.index) }}" aria-label="{{ t('html.goto_page', page=loop.index) }}"></button>
         {% endfor %}
       </div>
       <span class="pagination-info" aria-live="polite">
-        Página <span id="label-modified-current">1</span> de {{ modified_pages | length }}
+        {{ t('html.page') }} <span id="label-modified-current">1</span> {{ t('html.of') }} {{ modified_pages | length }}
       </span>
       <button class="pagination-btn" id="btn-modified-next" data-dir="next" data-tab="modified"
-              aria-label="Página siguiente">Siguiente →</button>
+              aria-label="{{ t('html.next_aria') }}">{{ t('html.next') }}</button>
     </div>
     {% endif %}
   </div>
@@ -511,18 +511,18 @@ graph LR
     {% if removed_pages | length > 1 %}
     <div class="diagram-pagination" data-pagination="removed">
       <button class="pagination-btn" id="btn-removed-prev" data-dir="prev" data-tab="removed"
-              aria-label="Página anterior">← Anterior</button>
+              aria-label="{{ t('html.prev_aria') }}">{{ t('html.prev') }}</button>
       <div class="page-dots" id="dots-removed" aria-hidden="true">
         {% for _ in removed_pages %}
         <button class="page-dot" data-tab="removed" data-page="{{ loop.index }}"
-                title="Página {{ loop.index }}" aria-label="Ir a página {{ loop.index }}"></button>
+                title="{{ t('html.page_title', page=loop.index) }}" aria-label="{{ t('html.goto_page', page=loop.index) }}"></button>
         {% endfor %}
       </div>
       <span class="pagination-info" aria-live="polite">
-        Página <span id="label-removed-current">1</span> de {{ removed_pages | length }}
+        {{ t('html.page') }} <span id="label-removed-current">1</span> {{ t('html.of') }} {{ removed_pages | length }}
       </span>
       <button class="pagination-btn" id="btn-removed-next" data-dir="next" data-tab="removed"
-              aria-label="Página siguiente">Siguiente →</button>
+              aria-label="{{ t('html.next_aria') }}">{{ t('html.next') }}</button>
     </div>
     {% endif %}
   </div>
@@ -535,7 +535,7 @@ graph LR
 {# ── Tablas ────────────────────────────────────────────────────────────── #}
 {% if diff.table_diffs %}
 <section class="filterable" data-section="tables">
-  <h2>Tablas ({{ diff.table_diffs | length }})</h2>
+  <h2>{{ t('section.tables') }} ({{ diff.table_diffs | length }})</h2>
   {% for td in diff.table_diffs %}
   {% set cat = status_to_cat.get(td.status, "tables-modified") %}
   <div class="diff-block" data-cat="{{ cat }}">
@@ -545,9 +545,9 @@ graph LR
     </div>
     <div class="diff-block-body">
       {% if td.column_diffs %}
-      <p class="sub-title">Columnas ({{ td.column_diffs | length }})</p>
+      <p class="sub-title">{{ t('section.columns') }} ({{ td.column_diffs | length }})</p>
       <table><thead><tr>
-        <th>Columna</th><th>Atributo</th><th>Origen</th><th>Destino</th>
+        <th>{{ t('col.column') }}</th><th>{{ t('col.attribute') }}</th><th>{{ t('label.source') }}</th><th>{{ t('label.target') }}</th>
       </tr></thead><tbody>
         {% for cd in td.column_diffs %}
         <tr>
@@ -560,9 +560,9 @@ graph LR
       </tbody></table>
       {% endif %}
       {% if td.index_diffs %}
-      <p class="sub-title">Índices ({{ td.index_diffs | length }})</p>
+      <p class="sub-title">{{ t('section.indexes') }} ({{ td.index_diffs | length }})</p>
       <table><thead><tr>
-        <th>Índice</th><th>Estado</th><th>Cols origen</th><th>Cols destino</th>
+        <th>{{ t('col.index') }}</th><th>{{ t('col.status') }}</th><th>{{ t('col.source_cols') }}</th><th>{{ t('col.target_cols') }}</th>
       </tr></thead><tbody>
         {% for idx in td.index_diffs %}
         <tr>
@@ -575,9 +575,9 @@ graph LR
       </tbody></table>
       {% endif %}
       {% if td.fk_diffs %}
-      <p class="sub-title">Foreign Keys ({{ td.fk_diffs | length }})</p>
+      <p class="sub-title">{{ t('section.foreign_keys') }} ({{ td.fk_diffs | length }})</p>
       <table><thead><tr>
-        <th>FK</th><th>Estado</th><th>Cols origen</th><th>→ Tabla</th><th>Cols destino</th><th>→ Tabla</th>
+        <th>{{ t('col.fk') }}</th><th>{{ t('col.status') }}</th><th>{{ t('col.source_cols') }}</th><th>{{ t('col.ref_table_arrow') }}</th><th>{{ t('col.target_cols') }}</th><th>{{ t('col.ref_table_arrow') }}</th>
       </tr></thead><tbody>
         {% for fk in td.fk_diffs %}
         <tr>
@@ -592,14 +592,14 @@ graph LR
       </tbody></table>
       {% endif %}
       {% if td.comment_diffs %}
-      <p class="sub-title">Comentarios ({{ td.comment_diffs | length }})</p>
+      <p class="sub-title">{{ t('section.comments') }} ({{ td.comment_diffs | length }})</p>
       <table><thead><tr>
-        <th>Objeto</th><th>Columna</th><th>Comentario origen</th><th>Comentario destino</th>
+        <th>{{ t('col.object') }}</th><th>{{ t('col.column') }}</th><th>{{ t('col.source_comment') }}</th><th>{{ t('col.target_comment') }}</th>
       </tr></thead><tbody>
         {% for cm in td.comment_diffs %}
         <tr>
           <td><code>{{ cm.object_name | e }}</code></td>
-          <td>{% if cm.column_name %}<code>{{ cm.column_name | e }}</code>{% else %}<em>tabla</em>{% endif %}</td>
+          <td>{% if cm.column_name %}<code>{{ cm.column_name | e }}</code>{% else %}<em>{{ t('label.table_word') }}</em>{% endif %}</td>
           <td>{{ cm.source_comment | e }}</td>
           <td>{{ cm.target_comment | e }}</td>
         </tr>
@@ -607,7 +607,7 @@ graph LR
       </tbody></table>
       {% endif %}
       {% if not td.column_diffs and not td.index_diffs and not td.fk_diffs and not td.comment_diffs %}
-      <p class="no-diff">Sin detalles adicionales registrados.</p>
+      <p class="no-diff">{{ t('html.no_details') }}</p>
       {% endif %}
     </div>
   </div>
@@ -618,7 +618,7 @@ graph LR
 {# ── Vistas ────────────────────────────────────────────────────────────── #}
 {% if diff.view_diffs %}
 <section class="filterable" data-section="views">
-  <h2>Vistas ({{ diff.view_diffs | length }})</h2>
+  <h2>{{ t('section.views') }} ({{ diff.view_diffs | length }})</h2>
   {% for vd in diff.view_diffs %}
   <div class="diff-block" data-cat="views">
     <div class="diff-block-header {{ vd.status }}">
@@ -627,16 +627,16 @@ graph LR
     </div>
     <div class="diff-block-body">
       {% if vd.status == "modified" and (vd.source_definition or vd.target_definition) %}
-      <details><summary>Ver definiciones DDL</summary>
+      <details><summary>{{ t('html.show_ddl') }}</summary>
         {% if vd.source_definition %}
-        <p class="sub-title">Origen</p><pre>{{ vd.source_definition | normalize_view_ddl | e }}</pre>
+        <p class="sub-title">{{ t('label.source') }}</p><pre>{{ vd.source_definition | normalize_view_ddl | e }}</pre>
         {% endif %}
         {% if vd.target_definition %}
-        <p class="sub-title">Destino</p><pre>{{ vd.target_definition | normalize_view_ddl | e }}</pre>
+        <p class="sub-title">{{ t('label.target') }}</p><pre>{{ vd.target_definition | normalize_view_ddl | e }}</pre>
         {% endif %}
       </details>
       {% else %}
-      <p class="no-diff">Vista {{ status_es.get(vd.status, vd.status) | lower | e }} sin definición adicional.</p>
+      <p class="no-diff">{{ t('html.view_no_definition', status=status_es.get(vd.status, vd.status) | lower) }}</p>
       {% endif %}
     </div>
   </div>
@@ -647,7 +647,7 @@ graph LR
 {# ── Rutinas ───────────────────────────────────────────────────────────── #}
 {% if diff.routine_diffs %}
 <section class="filterable" data-section="routines">
-  <h2>Rutinas ({{ diff.routine_diffs | length }})</h2>
+  <h2>{{ t('section.routines') }} ({{ diff.routine_diffs | length }})</h2>
   {% for rd in diff.routine_diffs %}
   <div class="diff-block" data-cat="routines">
     <div class="diff-block-header {{ rd.status }}">
@@ -657,16 +657,16 @@ graph LR
     </div>
     <div class="diff-block-body">
       {% if rd.status == "modified" and (rd.source_definition or rd.target_definition) %}
-      <details><summary>Ver definiciones DDL</summary>
+      <details><summary>{{ t('html.show_ddl') }}</summary>
         {% if rd.source_definition %}
-        <p class="sub-title">Origen</p><pre>{{ rd.source_definition | normalize_routine_ddl | e }}</pre>
+        <p class="sub-title">{{ t('label.source') }}</p><pre>{{ rd.source_definition | normalize_routine_ddl | e }}</pre>
         {% endif %}
         {% if rd.target_definition %}
-        <p class="sub-title">Destino</p><pre>{{ rd.target_definition | normalize_routine_ddl | e }}</pre>
+        <p class="sub-title">{{ t('label.target') }}</p><pre>{{ rd.target_definition | normalize_routine_ddl | e }}</pre>
         {% endif %}
       </details>
       {% else %}
-      <p class="no-diff">Rutina {{ status_es.get(rd.status, rd.status) | lower | e }} sin definición adicional.</p>
+      <p class="no-diff">{{ t('html.routine_no_definition', status=status_es.get(rd.status, rd.status) | lower) }}</p>
       {% endif %}
     </div>
   </div>

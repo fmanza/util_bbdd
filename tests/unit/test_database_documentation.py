@@ -161,7 +161,7 @@ def test_one_graph_generator_is_shared_by_word_and_html(monkeypatch: pytest.Monk
     calls = _capture_renderers(monkeypatch)
     factory_calls: list[tuple[Any, dict[str, Any]]] = []
 
-    def _fake_factory(source: Any, options: dict[str, Any]) -> object:
+    def _fake_factory(source: Any, options: dict[str, Any], translator: Any = None) -> object:
         factory_calls.append((source, options))
         return object()
 
@@ -197,7 +197,7 @@ def test_graph_generator_for_a_single_format_and_none_when_disabled(
 ) -> None:
     calls = _capture_renderers(monkeypatch)
     generator = object()
-    monkeypatch.setattr(database_documentation_module, "build_graph_generator_from_options", lambda *_: generator)
+    monkeypatch.setattr(database_documentation_module, "build_graph_generator_from_options", lambda *_, **__: generator)
 
     _documentation(tmp_path, ["word"], {"grafo": {"enabled": True}})[1].generate()
     _documentation(tmp_path, ["word", "html"], {})[1].generate()

@@ -30,10 +30,11 @@ from typing import Any
 from urllib.parse import quote
 
 from ....._core.exceptions import DocumentationConfigError
+from ....._core.i18n import Translator
 from ....._core.markdown import code_span  # común con el informe de comparar (5.3.0)
 from ._text import md_link, md_table, md_text
 
-#: Tipos de referencia, en el orden en que se muestran
+#: Tipos de referencia, en el orden en que se muestran; la página usa ``doc_md.trace.kind.<tipo>`` (5.10.0)
 REFERENCE_KINDS: tuple[tuple[str, str], ...] = (
     ("code", "Código"),
     ("functional", "Funcional"),
@@ -46,6 +47,8 @@ _COLUMN_FIELDS: frozenset[str] = _LIST_FIELDS | {"notes"}
 SECTIONS: tuple[str, ...] = ("tables", "views", "routines")
 MAX_BYTES: int = 1_000_000
 _URL: re.Pattern[str] = re.compile(r"^https?://[^\s]+$", re.IGNORECASE)
+#: ``Unmatched.reason`` se guarda en español (como antes de 5.10.0); la página lo muestra en su idioma con ``code``
+_ES: Translator = Translator()
 
 
 @dataclass(frozen=True)
@@ -76,11 +79,25 @@ class TraceEntry:
 
 @dataclass(frozen=True)
 class Unmatched:
-    """Entrada del mapa que no corresponde a ningún objeto (o columna) documentado."""
+    """Entrada del mapa que no corresponde a ningún objeto (o columna) documentado.
+
+    Attributes:
+        section: Sección del mapa (``tables``, ``views``, ``routines`` o ``columns``).
+        key: Clave de la entrada.
+        reason: Motivo, en español.
+        code: Clave del motivo en ``doc_md.trace.reason.*`` (5.10.0), para mostrarlo en el idioma de la página.
+        target: Objeto que ya tiene la entrada (motivo ``duplicated``).
+    """
 
     section: str
     key: str
     reason: str
+    code: str = ""
+    target: str = ""
+
+    def reason_in(self, tr: Translator) -> str:
+        """Motivo en el idioma de ``tr``."""
+        return tr.t(f"doc_md.trace.reason.{self.code}", target=self.target) if self.code else self.reason
 
 
 @dataclass(frozen=True)
@@ -125,27 +142,32 @@ class TraceMap:
         Casa por nombre exacto y, si no, sin distinguir mayúsculas cuando no es ambiguo (Oracle guarda en mayúsculas).
         """
         matched, unmatched = _match(self.sections.get(section, {}), names)
-        return matched, [Unmatched(section, key, reason) for key, reason in unmatched]
+        return matched, [_unmatched(section, key, code, target) for key, code, target in unmatched]
 
 
 def match_columns(entry: TraceEntry, table: str, columns: list[str]) -> tuple[dict[str, TraceEntry], list[Unmatched]]:
     """Trazas por columna de una tabla (con la misma regla de casado que los objetos)."""
-    matched, unmatched = _match(entry.columns, columns, missing="la tabla no tiene ninguna columna con ese nombre")
-    return matched, [Unmatched("columns", f"{table}.{key}", reason) for key, reason in unmatched]
+    matched, unmatched = _match(entry.columns, columns, missing="missing_column")
+    return matched, [_unmatched("columns", f"{table}.{key}", code, target) for key, code, target in unmatched]
+
+
+def _unmatched(section: str, key: str, code: str, target: str) -> Unmatched:
+    return Unmatched(section, key, _ES.t(f"doc_md.trace.reason.{code}", target=target), code, target)
 
 
 def _match(
     entries: dict[str, TraceEntry],
     names: list[str],
     *,
-    missing: str = "no se documenta ningún objeto con ese nombre",
-) -> tuple[dict[str, TraceEntry], list[tuple[str, str]]]:
+    missing: str = "missing_object",
+) -> tuple[dict[str, TraceEntry], list[tuple[str, str, str]]]:
+    """Casado de claves del mapa con nombres; los no casados como ``(clave, código del motivo, objeto)``."""
     by_fold: dict[str, list[str]] = {}
     for name in names:
         by_fold.setdefault(name.casefold(), []).append(name)
     exact = set(names)
     matched: dict[str, TraceEntry] = {}
-    unmatched: list[tuple[str, str]] = []
+    unmatched: list[tuple[str, str, str]] = []
     # Primero las exactas: una exacta gana a una que solo casa sin mayúsculas
     for key in sorted(entries, key=lambda k: (k not in exact, k)):
         if key in exact:
@@ -153,13 +175,13 @@ def _match(
         else:
             candidates = by_fold.get(key.casefold(), [])
             if len(candidates) > 1:
-                unmatched.append((key, "ambiguo: varios nombres coinciden sin distinguir mayúsculas"))
+                unmatched.append((key, "ambiguous", ""))
                 continue
             target = candidates[0] if candidates else None
         if target is None:
-            unmatched.append((key, missing))
+            unmatched.append((key, missing, ""))
         elif target in matched:
-            unmatched.append((key, f"duplicada: «{target}» ya tiene otra entrada"))
+            unmatched.append((key, "duplicated", target))
         else:
             matched[target] = entries[key]
     return matched, sorted(unmatched)
@@ -244,41 +266,54 @@ def reference(ref: str, *, in_table: bool = False) -> str:
     return code_span(ref, in_table=in_table)
 
 
-def _reference_rows(entry: TraceEntry) -> list[list[Any]]:
+def _kind_label(kind: str, tr: Translator) -> str:
+    return tr.t(f"doc_md.trace.kind.{kind}")
+
+
+def _reference_rows(entry: TraceEntry, tr: Translator) -> list[list[Any]]:
     return [
-        [label, ", ".join(reference(ref, in_table=True) for ref in entry.refs.get(kind, ()))]
-        for kind, label in REFERENCE_KINDS
+        [_kind_label(kind, tr), ", ".join(reference(ref, in_table=True) for ref in entry.refs.get(kind, ()))]
+        for kind, _ in REFERENCE_KINDS
         if entry.refs.get(kind)
     ]
 
 
-def trace_section(entry: TraceEntry, columns: dict[str, TraceEntry], anchors: dict[str, str]) -> list[str]:
+def trace_section(
+    entry: TraceEntry,
+    columns: dict[str, TraceEntry],
+    anchors: dict[str, str],
+    translator: Translator | None = None,
+) -> list[str]:
     """Sección «Trazabilidad» de una página: referencias, etiquetas, notas y trazas por columna.
 
     Args:
         entry: Trazas del objeto.
         columns: Trazas de columna ya casadas (nombre real de la columna → trazas).
         anchors: Ancla de cada columna en la página (``col-…``), si las hay.
+        translator: Idioma de los textos fijos (5.10.0); por defecto, español.
     """
-    lines = ["## Trazabilidad", ""]
-    rows = _reference_rows(entry)
+    tr = translator or Translator()
+    headers = [tr.t("doc_md.col.kind"), tr.t("doc_md.col.references")]
+    tags, notes = tr.t("doc_md.trace.tags"), tr.t("doc_md.trace.notes")
+    lines = [f"## {tr.t('doc_md.title.traceability')}", ""]
+    rows = _reference_rows(entry, tr)
     if rows:
-        lines += [*md_table(["Tipo", "Referencias"], rows, cell_renderers={1: str}), ""]
+        lines += [*md_table(headers, rows, cell_renderers={1: str}), ""]
     if entry.tags:
-        lines += [f"**Etiquetas:** {', '.join(md_text(tag) for tag in entry.tags)}", ""]
+        lines += [f"**{tags}:** {', '.join(md_text(tag) for tag in entry.tags)}", ""]
     if entry.notes:
-        lines += [f"**Notas:** {md_text(entry.notes)}", ""]
+        lines += [f"**{notes}:** {md_text(entry.notes)}", ""]
     for name in sorted(columns):
         column = columns[name]
         title = md_link(name, f"#{anchors[name]}") if name in anchors else md_text(name)
-        lines += [f"### Columna {title}", ""]
-        column_rows = _reference_rows(column)
+        lines += [f"### {tr.t('doc_md.trace.column', title=title)}", ""]
+        column_rows = _reference_rows(column, tr)
         if column_rows:
-            lines += [*md_table(["Tipo", "Referencias"], column_rows, cell_renderers={1: str}), ""]
+            lines += [*md_table(headers, column_rows, cell_renderers={1: str}), ""]
         if column.tags:
-            lines += [f"**Etiquetas:** {', '.join(md_text(tag) for tag in column.tags)}", ""]
+            lines += [f"**{tags}:** {', '.join(md_text(tag) for tag in column.tags)}", ""]
         if column.notes:
-            lines += [f"**Notas:** {md_text(column.notes)}", ""]
+            lines += [f"**{notes}:** {md_text(column.notes)}", ""]
     return lines
 
 
@@ -293,9 +328,16 @@ class TracedObject:
     columns: dict[str, TraceEntry] = field(default_factory=dict)
 
 
-def traceability_page(objects: list[TracedObject], unmatched: list[Unmatched]) -> list[str]:
+def traceability_page(
+    objects: list[TracedObject], unmatched: list[Unmatched], translator: Translator | None = None
+) -> list[str]:
     """``docs/traceability.md``: cobertura, matriz, objetos sin trazar, índices inversos y entradas sin objeto."""
-    lines = ["# Trazabilidad", ""]
+    tr = translator or Translator()
+
+    def t(key: str) -> str:
+        return tr.t(f"doc_md.{key}")
+
+    lines = [f"# {t('title.traceability')}", ""]
     kinds = list(dict.fromkeys(o.kind for o in objects))
     traced = [o for o in objects if o.entry is not None and (o.entry.has_references or o.columns)]
 
@@ -304,16 +346,17 @@ def traceability_page(objects: list[TracedObject], unmatched: list[Unmatched]) -
         of_kind = [o for o in objects if o.kind == kind]
         hits = [o for o in traced if o.kind == kind]
         coverage.append([kind, len(of_kind), len(hits), _percent(len(hits), len(of_kind))])
-    lines += ["## Cobertura", "", *md_table(["Tipo", "Documentados", "Trazados", "%"], coverage), ""]
+    coverage_headers = [t("col.kind"), t("col.documented"), t("col.traced"), "%"]
+    lines += [f"## {t('trace.coverage')}", "", *md_table(coverage_headers, coverage), ""]
     by_reference = [
         [
-            label,
+            _kind_label(kind, tr),
             sum(1 for o in traced if o.entry is not None and o.entry.refs.get(kind)),
             _percent(sum(1 for o in traced if o.entry is not None and o.entry.refs.get(kind)), len(objects)),
         ]
-        for kind, label in REFERENCE_KINDS
+        for kind, _ in REFERENCE_KINDS
     ]
-    lines += [*md_table(["Referencia", "Objetos", "% del total"], by_reference), ""]
+    lines += [*md_table([t("col.reference"), t("col.objects"), t("col.percent_total")], by_reference), ""]
 
     if traced:
         matrix = [
@@ -325,28 +368,32 @@ def traceability_page(objects: list[TracedObject], unmatched: list[Unmatched]) -
             ]
             for o in traced
         ]
-        headers = ["Objeto", "Tipo", *(label for _, label in REFERENCE_KINDS), "Columnas"]
-        lines += ["## Matriz", "", *md_table(headers, matrix, cell_renderers={0: _link_cell}), ""]
+        headers = [t("col.object"), t("col.kind"), *(_kind_label(kind, tr) for kind, _ in REFERENCE_KINDS)]
+        headers.append(t("col.columns"))
+        lines += [f"## {t('trace.matrix')}", "", *md_table(headers, matrix, cell_renderers={0: _link_cell}), ""]
 
     traced_ids = {id(o) for o in traced}
     untraced = [o for o in objects if id(o) not in traced_ids]
     if untraced:
-        lines += ["## Sin trazar", ""]
+        lines += [f"## {t('trace.untraced')}", ""]
         for kind in kinds:
             names = [md_link(o.name, o.path) for o in untraced if o.kind == kind]
             if names:
                 lines += [f"**{md_text(kind)}** ({len(names)}): {', '.join(names)}", ""]
 
-    lines += _inverse_index("## Por requisito", traced, "requirements")
-    lines += _inverse_index("## Por fichero de código", traced, "code", strip_fragment=True)
+    lines += _inverse_index(f"## {t('trace.by_requirement')}", traced, "requirements", tr)
+    lines += _inverse_index(f"## {t('trace.by_code')}", traced, "code", tr, strip_fragment=True)
 
     if unmatched:
-        rows = [[u.section, u.key, u.reason] for u in unmatched]
-        lines += ["## Entradas del mapa sin objeto", "", *md_table(["Sección", "Clave", "Motivo"], rows), ""]
+        rows = [[u.section, u.key, u.reason_in(tr)] for u in unmatched]
+        headers = [t("col.section"), t("col.key"), t("col.reason")]
+        lines += [f"## {t('trace.unmatched')}", "", *md_table(headers, rows), ""]
     return lines
 
 
-def _inverse_index(title: str, traced: list[TracedObject], kind: str, *, strip_fragment: bool = False) -> list[str]:
+def _inverse_index(
+    title: str, traced: list[TracedObject], kind: str, tr: Translator, *, strip_fragment: bool = False
+) -> list[str]:
     index: dict[str, set[tuple[str, str]]] = {}
     for obj in traced:
         targets = [(obj.entry, obj.name, obj.path)] if obj.entry else []
@@ -361,7 +408,8 @@ def _inverse_index(title: str, traced: list[TracedObject], kind: str, *, strip_f
         [reference(key, in_table=True), ", ".join(md_link(label, path) for label, path in sorted(index[key]))]
         for key in sorted(index)
     ]
-    return [title, "", *md_table(["Referencia", "Objetos"], rows, cell_renderers={0: str, 1: str}), ""]
+    headers = [tr.t("doc_md.col.reference"), tr.t("doc_md.col.objects")]
+    return [title, "", *md_table(headers, rows, cell_renderers={0: str, 1: str}), ""]
 
 
 def _link_cell(value: tuple[str, str]) -> str:

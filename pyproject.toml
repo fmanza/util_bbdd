@@ -150,6 +150,7 @@ util_bbdd = [
     "doc/data/html_assets/*.css",
     "doc/data/html_assets/icons/*.svg",
     "comparar/reporters/templates/**/*.j2",
+    "data/i18n/**/*.json",
 ]
 
 [tool.ruff]
